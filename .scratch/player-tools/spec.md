@@ -67,8 +67,8 @@ Per CLAUDE.md, outcomes only. Each Tool issue carries a headless test: a Level j
 
 ## Issues
 
-- [01 Priority rule](issues/01-priority-rule.md), blocked by game 04
-- [02 Signal](issues/02-signal.md), blocked by game 04
+- [01 Priority rule](issues/01-priority-rule.md), blocked by road-network 03
+- [02 Signal](issues/02-signal.md), blocked by road-network 03
 - [03 Route inspector](issues/03-route-inspector.md), done 2026-11-09
 
 ## Backlog

@@ -2,7 +2,7 @@
 
 Type: task
 Status: ready-for-agent
-Blocked by: game 04 (crossroads junction), player-tools 01
+Blocked by: road-network 03 (priority junction), player-tools 01
 
 ## Goal
 

@@ -49,11 +49,31 @@ _Avoid_: Pass, clear, complete
 ### Network
 
 **Junction**:
-A place where roads meet and vehicles cross, merge or turn: a roundabout, crossroads or T-junction.
+A place where Roads meet and vehicles cross, merge or turn: a roundabout or a Priority junction.
 _Avoid_: Node, intersection
 
+**Priority junction**:
+A Junction without a ring, where Arms meet directly and Priority rules or a Signal decide who goes. A T-junction has 3 Arms, a crossroads 4.
+_Avoid_: Intersection, plain junction
+
+**Ring**:
+The circulating Lanes of a roundabout. The Ring belongs to its Junction: it is not a Road and has no Arms.
+_Avoid_: Circle, loop, ring road
+
+**Road**:
+A straight stretch of Lanes in both directions between two Junctions, or between a Junction and the District edge. Each end of a Road is an Arm of the Junction there.
+_Avoid_: Segment, edge, link, street
+
+**Gateway**:
+Where a Road leaves the simulated part of the District: at the District edge, or at a Junction still in Fog. Vehicles enter and leave the map only through Gateways.
+_Avoid_: Spawn point, entrance, map edge
+
+**Block**:
+An area enclosed by Roads (and the District edge), filled with buildings, grass or a plaza. Blocks are scenery: traffic never enters them.
+_Avoid_: Plot, lot, parcel
+
 **Arm**:
-One road entering a Junction, carrying an Approach and an Exit.
+One Road's end at a Junction, carrying an Approach and an Exit. A Road between two Junctions is an Arm of both.
 _Avoid_: Leg, branch, side
 
 **Approach**:
@@ -86,7 +106,7 @@ _Avoid_: Backup, gridlock
 ### Traffic
 
 **Demand**:
-How many vehicles want to travel between which Arms of a District, over time. Demand is fixed within a Level and changes only on a Reveal.
+How many vehicles want to travel between which Gateways of a District, over time. Demand is fixed within a Level and changes only on a Reveal.
 _Avoid_: Traffic load, spawn rate, volume
 
 **Flow**:

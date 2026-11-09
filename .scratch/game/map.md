@@ -49,6 +49,14 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Verdict: Three.js reaches the look cheaply. Rubric 4 of 4, user confirmed: same family, kerbs and mouths legible, about 1.9 ms per frame with 1,000 cars at retina resolution on an M4 Pro, road from lane polylines only.
   - Chosen: perspective free-look camera (35° FOV, `MapControls`); a ground shader over one baked distance-field texture (road SDF from lane capsules plus a morphological close, island flood fill, grass SDF, contact AO); static AO instead of shadows; no post-processing; instanced trees and cars; merged markings and buildings.
   - For 04: no separate road outline needed, but road edges need attributes (bike band, sidewalk, medians, splitter islands), and props need block polygons from the road graph's faces.
+- Road network model (04, 2026-11-09). Details in `issues/04-road-network-model.md` under Answer. The spec is `.scratch/road-network/spec.md` with issues 01–05. ADRs are in `docs/adr/` (0001 routing, 0002 Reveal).
+  - One hand-written TS file per District in `levels/`: a road graph (Junctions joined by straight Roads, lanes per direction, edge attributes) plus ordered Levels with their reference solutions.
+  - Two Junction types: roundabout and priority junction (T, crossroads). Each generates default Connections, and the file lists only deviations. Refs look like `J1: R1.in0>R1.ring0`. No lane changes.
+  - Drivers route by free-flow travel time and never reroute around Jams (ADR 0001).
+  - Trips start and end only at Gateways: the District edge, or a Road whose far Junction is still in Fog.
+  - A Reveal rebuilds the sim, carries Changes over, then Pre-warms (ADR 0002).
+  - Pedestrians and bikes are decoration. Blocks and their fill belong to the visual-style effort.
+  - Seeds: vehicle type is drawn at arrival, and tests run only the shipped seed. Level tests apply earlier solutions, then check jammed and Win.
 - Order of work (proposed 2026-11-09, confirmed in 01):
   1. Core loop first (01). It decides tools, metric and chain structure.
   2. Look-dev prototype in parallel (03). It's independent of the gameplay decisions.
@@ -59,12 +67,8 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? (deferred in 01)
-- Does the Signal pass its crossroads gate test once 04 provides a crossroads? If not, Level 5 becomes a main-road swap.
-- Do pedestrians and bikes get simulated, or are they decoration?
-- Do drivers pick routes by travel time (rerouting around jams) or keep fixed routes?
-- Levels: hand-authored files, a level editor, or procedural generation?
+- Does the Signal pass its crossroads gate test once road-network issue 03 provides a crossroads? If not, Level 5 becomes a main-road swap.
 - Desktop only, or touch too?
-- Junction chain design needs its own ticket once 01 and 04 resolve.
 
 ## Tickets
 
@@ -73,5 +77,6 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 | 01 | [Core loop](issues/01-core-loop.md) | grilling (resolved) | |
 | 02 | [Player tools](issues/02-player-tools.md) | grilling (resolved) | 01 (resolved) |
 | 03 | [Look-dev](issues/03-look-dev.md) | prototype (resolved) | |
-| 04 | [Road network model](issues/04-road-network-model.md) | grilling | 01 (resolved) |
+| 04 | [Road network model](issues/04-road-network-model.md) | grilling (resolved) | 01 (resolved) |
 | 05 | [UI/UX](issues/05-ui-ux.md) | grilling | 02 (resolved) |
+| 06 | [Junction chain](issues/06-junction-chain.md) | grilling | 04 (resolved) |

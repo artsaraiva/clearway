@@ -2,7 +2,7 @@
 
 Type: task
 Status: ready-for-agent
-Blocked by: game 04 (road network model, generic junction)
+Blocked by: road-network 03 (priority junction)
 
 ## Goal
 
@@ -24,3 +24,5 @@ Replace the per-Arm `yield | stop | signal` Priority with `main | yield`, and ad
 A T-junction Level where the heavy road is `yield` and the light road is `main` jams at start. Setting the heavy road to `main` and the light road to `yield` clears it. Same seed, same result every run.
 
 ## Comments
+
+**2026-11-09: road network grilled (game 04).** The priority junction lands in `.scratch/road-network/issues/03-priority-junction.md`. That issue already brings "equal Arms give way to the right" and the standoff breaker. This issue adds main/yield and the rule that a left turn yields to oncoming traffic. Priority is keyed by Road id per Arm (`{ at: 'J2', priority: { R1: 'yield' } }`).
