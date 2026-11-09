@@ -45,6 +45,10 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Inspector: read-only, always available, not in `Level.tools`. First one: click a car, its route lights up. Heatmap, queue bars, desire lines are backlog.
   - District 1 is 7 Levels: 1–4 from 01, 5 crossroads (Signal), 6 remove a Connection, 7 finale that re-jams the roundabout.
   - Backlog: lane arrows, add/remove lane, junction type swap.
+- Look-dev (03, 2026-11-09). Details in `issues/03-look-dev.md` under Answer; scene at `/lookdev.html` (`src/lookdev/`, throwaway), screenshots in `reference/lookdev-*.png`.
+  - Verdict: Three.js reaches the look cheaply. Rubric 4 of 4, user confirmed: same family, kerbs and mouths legible, about 1.9 ms per frame with 1,000 cars at retina resolution on an M4 Pro, road from lane polylines only.
+  - Chosen: perspective free-look camera (35° FOV, `MapControls`); a ground shader over one baked distance-field texture (road SDF from lane capsules plus a morphological close, island flood fill, grass SDF, contact AO); static AO instead of shadows; no post-processing; instanced trees and cars; merged markings and buildings.
+  - For 04: no separate road outline needed, but road edges need attributes (bike band, sidewalk, medians, splitter islands), and props need block polygons from the road graph's faces.
 - Order of work (proposed 2026-11-09, confirmed in 01):
   1. Core loop first (01). It decides tools, metric and chain structure.
   2. Look-dev prototype in parallel (03). It's independent of the gameplay decisions.
@@ -58,7 +62,6 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 - Does the Signal pass its crossroads gate test once 04 provides a crossroads? If not, Level 5 becomes a main-road swap.
 - Do pedestrians and bikes get simulated, or are they decoration?
 - Do drivers pick routes by travel time (rerouting around jams) or keep fixed routes?
-- Can Three.js hit the Apple Maps look cheaply? Curbs, rounded corners, ambient occlusion, trees and buildings at a good frame rate.
 - Levels: hand-authored files, a level editor, or procedural generation?
 - Desktop only, or touch too?
 - Junction chain design needs its own ticket once 01 and 04 resolve.
@@ -69,6 +72,6 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 | --- | --- | --- | --- |
 | 01 | [Core loop](issues/01-core-loop.md) | grilling (resolved) | |
 | 02 | [Player tools](issues/02-player-tools.md) | grilling (resolved) | 01 (resolved) |
-| 03 | [Look-dev](issues/03-look-dev.md) | prototype | |
+| 03 | [Look-dev](issues/03-look-dev.md) | prototype (resolved) | |
 | 04 | [Road network model](issues/04-road-network-model.md) | grilling | 01 (resolved) |
 | 05 | [UI/UX](issues/05-ui-ux.md) | grilling | 02 (resolved) |

@@ -6,14 +6,14 @@ import type { Sim, Vehicle } from '../sim/sim'
 
 const ROAD_Y = 0.15
 const COLORS = { ground: 0xffffff, road: 0xc9ccd2, paint: 0xffffff, stop: 0xe5484d, green: 0x30a46c }
-const CAR_COLORS = [0x8ecae6, 0xffb4a2, 0xb5e48c, 0xffd166, 0xcdb4db, 0xa0c4ff].map((c) => new THREE.Color(c))
+export const CAR_COLORS = [0x8ecae6, 0xffb4a2, 0xb5e48c, 0xffd166, 0xcdb4db, 0xa0c4ff].map((c) => new THREE.Color(c))
 const MAX_CARS = 600
 
 /** Sim (x, y) → Three (x, height, -y): north is away from the camera. */
 const v3 = (p: Vec, y = 0) => new THREE.Vector3(p.x, y, -p.y)
 
 /** Flat strips of the given width along each polyline, merged into one geometry. */
-function ribbons(lines: Vec[][], width: number, y: number): THREE.BufferGeometry {
+export function ribbons(lines: Vec[][], width: number, y: number): THREE.BufferGeometry {
   const pos: number[] = []
   for (const pts of lines) {
     const side = pts.map((_, i) => {
@@ -38,14 +38,14 @@ function ribbons(lines: Vec[][], width: number, y: number): THREE.BufferGeometry
 }
 
 /** Dashes along a polyline. */
-function dashes(pts: Vec[], dash: number, gap: number): Vec[][] {
+export function dashes(pts: Vec[], dash: number, gap: number): Vec[][] {
   const line = polyline(pts)
   const out: Vec[][] = []
   for (let s = gap / 2; s + dash <= line.length; s += dash + gap) out.push([pointAt(line, s), pointAt(line, s + dash)])
   return out
 }
 
-const mid = (a: Vec[], b: Vec[]) => a.map((p, i) => ({ x: (p.x + b[i].x) / 2, y: (p.y + b[i].y) / 2 }))
+export const mid = (a: Vec[], b: Vec[]) => a.map((p, i) => ({ x: (p.x + b[i].x) / 2, y: (p.y + b[i].y) / 2 }))
 
 const flat = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide })
 
