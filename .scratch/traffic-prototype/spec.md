@@ -119,3 +119,19 @@ Both solutions must pass before any rendering work starts.
 - Other TM:PE tools: timed signal editing, speed limits, vehicle restrictions, junction restrictions.
 - Tool budget per level (e.g. 3 changes) to keep puzzles from being brute-forced.
 - Alternative metrics (throughput / demand, mean delay) if speed ratio proves gameable.
+
+## Comments
+
+### 2026-11-09: implementation notes
+
+Built: `src/sim/` (lane graph generator, IDM, gap acceptance, routing, metric, signals, stop signs, seeded RNG), headless test in `src/sim/sim.test.ts`, throwaway `src/render/` + `src/ui/`. Run with `npm run dev`; test with `npm test`.
+
+Deviations from the spec, and why:
+
+- **Verification scenario 3 dropped** (decided with the user). Signals on E/W never beat the initial config. This held across a sweep of demand, gap times, cycle layouts and two signal readings ("green = force in and zip with ring traffic", "green = ring yields to the arm"). Saturated throughput: initial ~43 veh/min, inner-ring fix ~57, E/W signals 34–39. The jam is the single outer ring lane plus the N/S entries. Fixed-cycle side-arm signals can't add ring capacity, and red time adds stopped cars to the speed metric. Yield/stop/signal stay as player tools, to be judged in play.
+- **Signal semantics**: green replaces the yield check (entrants force in and zip with ring traffic through car-following; ring traffic is not signalled). The cycle gives each arm of the junction 15 s of green in turn; only signalized arms obey it, so a lone signal is green a quarter of the time.
+- **Level numbers retuned**: radius 40 (30 left ring arcs too short and entry curves too tight). Demand is now a heavy N–S corridor (22/min, 80 % straight on) with light side streets (4/min). Seed 8. Across seeds 1–10, initial < 0.50 in 8 of 10 and inner ≥ 0.80 in 8 of 10, so the result is seed-sensitive. Seed 8 has the best margin on both (0.40 / 0.86).
+- **Flow metric**: `v_free` is the free speed at that spot. It covers braking for slower curves ahead and accelerating out of them, so a car in free flow scores ~1.0. Without this the free-flow ceiling was ~0.8.
+- **Win timer** only runs after a 60 s warm-up, because an empty map starts at 100 % flow.
+- **Lane choice at spawn**: shortest trip length plus 6.5 m per vehicle already on the lane. This gives natural lane discipline (right turns outer, left turns inner) and balances queues.
+- **Entries at a lane drop**: when both approach lanes feed one ring lane, the left lane yields to the right one. This is part of why the initial config jams.
