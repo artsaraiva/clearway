@@ -27,8 +27,12 @@ Simulating a Level hidden from the player for a fixed stretch after a Reveal, so
 _Avoid_: Warm-up
 
 **Tool**:
-Something the player can change about a Junction: a lane Connection, a Priority rule, and later others. Each Level lists which Tools are allowed.
+Something the player can change about a Junction: a lane Connection, a Priority rule or a Signal. Each Level lists which Tools are allowed.
 _Avoid_: Action, power-up, upgrade
+
+**Inspector**:
+A read-only aid that shows the player what traffic is doing, such as a car's route. Inspectors change nothing and are always available.
+_Avoid_: Tool, overlay, debug view
 
 **Change**:
 One use of a Tool by the player.
@@ -68,8 +72,12 @@ A permitted path inside a Junction from one incoming Lane to one outgoing Lane. 
 _Avoid_: Link, turn, lane arrow
 
 **Priority rule**:
-How vehicles on an Approach enter a Junction against conflicting traffic: yield, stop or signal.
-_Avoid_: Right of way setting, control
+Whether an Arm is a main road or must yield to the other Arms of its Junction. Equal Arms give way to the right. On a roundabout the ring is always main.
+_Avoid_: Right of way setting, control, stop sign
+
+**Signal**:
+A Junction-wide mode that gives each Arm green in turn, replacing the Priority rules of that Junction while on.
+_Avoid_: Traffic light, phase
 
 **Spillback**:
 A queue at one Junction growing back along a road until it blocks the Junction upstream.

@@ -38,6 +38,13 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Reset-to-initial per level. Undo is backlog.
   - Pacing target: 2–5 min per level, 5–8 junctions per district.
   - First playable: one district, 4 levels: (1) prototype roundabout, connector only; (2) T-junction, priority rule; (3) crossroads where the fix is upstream; (4) two junctions revealed at once, spillback. Tools: connector, yield/stop. Signals cut until 02 proves them. Screens: fogged map, gauge, win banner, next-level reveal. No menu, no save.
+- Player tools (02, 2026-11-09). Details in `issues/02-player-tools.md` under Answer; spec in `.scratch/player-tools/spec.md`.
+  - District 1 Tools: connector, Priority rule as main/yield per Arm (stop dropped), Signal as Junction-wide on/off with fixed split. Signal is conditional on a crossroads gate test (blocked by 04); timing editor, phases, actuation are backlog.
+  - Turn bans, one-way and closures are connector moves. Roundabouts take connector only; Priority rule and Signal apply to crossroads and T-junctions.
+  - Conflict rules: equal Arms give way to the right, left turn yields to oncoming straight, yield Arm yields to every main Arm.
+  - Inspector: read-only, always available, not in `Level.tools`. First one: click a car, its route lights up. Heatmap, queue bars, desire lines are backlog.
+  - District 1 is 7 Levels: 1–4 from 01, 5 crossroads (Signal), 6 remove a Connection, 7 finale that re-jams the roundabout.
+  - Backlog: lane arrows, add/remove lane, junction type swap.
 - Order of work (proposed 2026-11-09, confirmed in 01):
   1. Core loop first (01). It decides tools, metric and chain structure.
   2. Look-dev prototype in parallel (03). It's independent of the gameplay decisions.
@@ -48,8 +55,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? (deferred in 01)
-- Which tools make v1 beyond connector and yield/stop? Can signals be made worth using (timing editor, smart signals)?
-- How does the player diagnose a jam: heatmap, car inspector, queue bars?
+- Does the Signal pass its crossroads gate test once 04 provides a crossroads? If not, Level 5 becomes a main-road swap.
 - Do pedestrians and bikes get simulated, or are they decoration?
 - Do drivers pick routes by travel time (rerouting around jams) or keep fixed routes?
 - Can Three.js hit the Apple Maps look cheaply? Curbs, rounded corners, ambient occlusion, trees and buildings at a good frame rate.
@@ -62,7 +68,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 | # | Ticket | Type | Blocked by |
 | --- | --- | --- | --- |
 | 01 | [Core loop](issues/01-core-loop.md) | grilling (resolved) | |
-| 02 | [Player tools](issues/02-player-tools.md) | grilling | 01 (resolved) |
+| 02 | [Player tools](issues/02-player-tools.md) | grilling (resolved) | 01 (resolved) |
 | 03 | [Look-dev](issues/03-look-dev.md) | prototype | |
 | 04 | [Road network model](issues/04-road-network-model.md) | grilling | 01 (resolved) |
-| 05 | [UI/UX](issues/05-ui-ux.md) | grilling | 02 |
+| 05 | [UI/UX](issues/05-ui-ux.md) | grilling | 02 (resolved) |
