@@ -1,9 +1,12 @@
 import { buildNetwork, type Connection, type Lane, type Network, type RoundaboutSpec } from './network'
 
 export type Priority = 'yield' | 'stop' | 'signal'
+export type Tool = 'connector' | 'priority'
 
 export interface Level {
   seed: number
+  /** Tools the player may use in this Level. */
+  tools: Tool[]
   roundabout: RoundaboutSpec
   /** Per arm: arrivals per minute and destination weights. */
   demand: Record<string, { rate: number; to: Record<string, number> }>
@@ -44,7 +47,6 @@ export interface Vehicle {
   vFreeIn: number
   /** Lanes after the current one. */
   path: Lane[]
-  origin: string
   dest: string
   /** Has made its full stop at a stop line. */
   stopped: boolean
@@ -55,7 +57,7 @@ export interface Vehicle {
 export const DT = 1 / 30
 export const WIN_FLOW = 0.8
 export const WIN_TIME = 60
-export const WIN_WARMUP = 60 // s before the win timer may run: an empty map starts at full flow
+export const PREWARM = 90 // s the constructor simulates, so the jam has formed before anyone sees the Level; the win timer can't run during it (an empty map starts at full flow)
 const FLOW_WINDOW = 20
 const GAP_AFTER = 1.5 // s: a priority vehicle must reach the conflict point this long after me...
 const GAP_BEFORE = 1.0 // ...or this long before me
@@ -75,7 +77,7 @@ export class Sim {
   vehicles: Vehicle[] = []
   /** Off-screen spawn queues per arm (destinations). */
   queues: Record<string, string[]> = {}
-  priority: Record<string, Priority>
+  priority: Record<string, Priority> = {}
   /** Sim-seconds the flow has stayed at or above WIN_FLOW. */
   sustained = 0
   private nextArrival: Record<string, number> = {}
@@ -85,14 +87,22 @@ export class Sim {
   constructor(readonly level: Level) {
     this.net = buildNetwork(level.roundabout)
     this.rng = mulberry32(level.seed)
-    this.priority = { ...level.initial.priority }
-    for (const node of this.net.nodes) {
-      for (const c of node.connections) c.enabled = level.initial.connections.includes(`${c.fromPort}>${c.toPort}`)
-    }
+    this.reset()
     for (const arm of Object.keys(level.demand)) {
       this.queues[arm] = []
       this.nextArrival[arm] = this.interArrival(arm)
     }
+    while (this.time < PREWARM) this.step()
+  }
+
+  /** Every Junction back to the Level's initial configuration; traffic keeps running. */
+  reset() {
+    this.sustained = 0 // ponytail: Flow's moving average lags ~20 s, so a long-held hold could still finish; fine while Win latches
+    this.priority = { ...this.level.initial.priority }
+    for (const node of this.net.nodes) {
+      for (const c of node.connections) c.enabled = this.level.initial.connections.includes(`${c.fromPort}>${c.toPort}`)
+    }
+    for (const v of this.vehicles) this.plan(v)
   }
 
   connection(node: string, fromPort: string, toPort: string): Connection | undefined {
@@ -160,7 +170,7 @@ export class Sim {
     }
     for (const q of Object.values(this.queues)) n += q.length // queued spawns count as speed 0
     this.flow += (((n ? sum / n : 1) - this.flow) * DT) / FLOW_WINDOW
-    this.sustained = this.flow >= WIN_FLOW && this.time >= WIN_WARMUP ? this.sustained + DT : 0
+    this.sustained = this.flow >= WIN_FLOW && this.time >= PREWARM ? this.sustained + DT : 0
     if (this.sustained >= WIN_TIME) this.won = true
     this.time += DT
   }
@@ -188,21 +198,9 @@ export class Sim {
     return null
   }
 
+  /** No re-roll: a vehicle whose destination is unreachable holds at the end of its lane until a Change reconnects it. */
   private plan(v: Vehicle) {
-    let path = this.route(v.lane, v.dest)
-    if (!path) {
-      const dest = this.reroll(v.origin, [v.lane])
-      if (dest) {
-        v.dest = dest
-        path = this.route(v.lane, dest)
-      }
-    }
-    v.path = path ?? []
-  }
-
-  private reroll(origin: string, from: Lane[]): string | null {
-    const reachable = Object.entries(this.level.demand[origin]?.to ?? {}).filter(([d]) => from.some((l) => this.route(l, d)))
-    return reachable.length ? pick(reachable, this.rng) : null
+    v.path = this.route(v.lane, v.dest) ?? []
   }
 
   private interArrival(arm: string) {
@@ -222,12 +220,8 @@ export class Sim {
           const path = this.route(lane, q[0])
           return path ? [{ lane, path }] : []
         })
-        if (!options.length) {
-          const dest = this.reroll(arm, lanes)
-          if (!dest) break
-          q[0] = dest
-          continue
-        }
+        // Unreachable destination: the car waits at spawn (counting 0) and holds the cars behind it.
+        if (!options.length) break
         const free = options.filter(({ lane }) => {
           const r = lane.vehicles.at(-1)
           return !r || r.s - r.type.length >= SPAWN_GAP
@@ -254,7 +248,6 @@ export class Sim {
           vFree: lane.speedLimit,
           vFreeIn: lane.speedLimit,
           path,
-          origin: arm,
           dest: q.shift()!,
           stopped: false,
           waiting: false,

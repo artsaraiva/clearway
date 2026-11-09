@@ -1,26 +1,27 @@
 import type { View } from '../render/scene'
 import type { Node } from '../sim/network'
-import { WIN_FLOW, WIN_TIME, WIN_WARMUP, type Priority, type Sim } from '../sim/sim'
+import { WIN_FLOW, WIN_TIME, type Priority, type Sim } from '../sim/sim'
 
 const NODE_PICK = 25 // m from a ring node's centre
 const MARKER_PICK = 3 // m from a lane-end marker
 
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View) {
+  const { tools } = sim.level
   root.innerHTML = `
     <div class="panel gauge">
       <div class="row"><span>Flow</span><b id="flow-pct"></b></div>
       <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
       <div class="sub" id="flow-sub"></div>
     </div>
+    <div class="panel banner" id="banner" hidden>Level won!</div>
     <div class="panel time">
-      <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button>
+      <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
+      <button id="reset">Reset</button>
     </div>
     <div class="panel node" id="node" hidden>
       <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
-      <div class="prio">
-        <button data-prio="yield">Yield</button><button data-prio="stop">Stop</button><button data-prio="signal">Signal</button>
-      </div>
-      <div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>
+      ${tools.includes('priority') ? '<div class="prio"><button data-prio="yield">Yield</button><button data-prio="stop">Stop</button></div>' : ''}
+      ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
     </div>`
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
@@ -40,13 +41,17 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   root.querySelectorAll<HTMLButtonElement>('[data-prio]').forEach(
     (b) => (b.onclick = () => selected && sim.setPriority(selected.arm, b.dataset.prio as Priority)),
   )
+  $('reset').onclick = () => {
+    sim.reset()
+    select(selected)
+  }
   window.addEventListener('keydown', (e) => e.key === 'Escape' && select(null))
 
   canvas.addEventListener('pointerdown', (e) => {
     const p = view.pick(e)
     if (!p) return
     const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)
-    if (selected) {
+    if (selected && tools.includes('connector')) {
       const ends = [
         ...Object.entries(selected.inPorts).map(([port, l]) => ({ port, dir: 'in', at: l.line.pts[l.line.pts.length - 1] })),
         ...Object.entries(selected.outPorts).map(([port, l]) => ({ port, dir: 'out', at: l.line.pts[0] })),
@@ -74,12 +79,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       fill.style.width = `${Math.min(100, sim.flow * 100)}%`
       fill.className = sim.flow >= WIN_FLOW ? 'good' : ''
       const queued = Object.values(sim.queues).reduce((n, q) => n + q.length, 0)
-      $('flow-sub').textContent = sim.won
-        ? 'Cleared! Traffic is flowing.'
-        : sim.sustained > 0
+      $('banner').hidden = !sim.won
+      $('flow-sub').textContent =
+        sim.sustained > 0 && !sim.won
           ? `Hold it: ${Math.ceil(WIN_TIME - sim.sustained)} s to go`
-          : sim.time < WIN_WARMUP
-            ? `Traffic building up… ${Math.ceil(WIN_WARMUP - sim.time)} s`
           : `${sim.vehicles.length} cars · ${queued} waiting off-map · ${Math.floor(sim.time)} s`
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
       root

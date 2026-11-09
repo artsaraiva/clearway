@@ -2,6 +2,7 @@ import type { Level } from '../src/sim/sim'
 
 export default {
   seed: 8,
+  tools: ['connector'],
   roundabout: {
     radius: 40,
     laneWidth: 3.5,

@@ -57,3 +57,16 @@ All four yes: the jam read as a jam, the connector fix visibly shrank the queue,
 02 Player tools and 04 Road network model. 04 should take: whole-network simulation, demand table per reveal, fogged junctions absent from the sim, pre-warm on reveal, no destination re-roll.
 
 ## Comments
+
+**2026-11-09: decisions applied to the prototype.** The ones that fit the single roundabout are in `src/`:
+
+- No destination re-roll. An unreachable car at the head of an arm's spawn queue holds the cars behind it. A car already on the map whose route is cut holds at its lane end. Both count 0, and any Change re-plans them.
+- 90 s Pre-warm runs inside the `Sim` constructor, so tests and the game start from the same formed jam. The warm-up countdown is gone.
+- Speeds pause/1×/4×/8×, default 4×.
+- `Level.tools` lists the allowed Tools. Level 1 is connector only, and the Signal button is gone (signals stay in the sim for 02).
+- Reset restores the initial configuration while traffic keeps running, and clears the hold timer.
+- "Level won!" banner. Win stays latched through Reset.
+
+Everything else waits on 04: District, Fog/Reveal, demand per Level, the next-level button and levels 2–4.
+
+Pre-warm tuning finding: after 90 s, Flow is 0.54 on the shipped seed 8 but 0.72–0.77 on seeds 1, 4, 7 and 9, close to the 0.8 Win line. Applying the connector fix right after pre-warm wins in 76–352 sim-seconds across 10 seeds. Settle the pre-warm length or demand before writing the "Level jams at start" lock-in test.
