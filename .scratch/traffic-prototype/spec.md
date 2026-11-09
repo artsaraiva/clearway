@@ -1,6 +1,6 @@
 # Traffic Prototype: Single Roundabout
 
-Status: ready-for-agent
+Status: done (rubric 4 of 4 yes, 2026-11-09; see `.scratch/game/issues/01-core-loop.md`)
 
 ## Goal
 

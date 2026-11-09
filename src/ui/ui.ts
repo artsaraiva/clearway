@@ -24,7 +24,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     </div>`
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
-  let scale = 1
+  let scale = 4
   let selected: Node | null = null
   let armed: string | null = null
 
