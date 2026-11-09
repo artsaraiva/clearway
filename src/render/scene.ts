@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { pointAt, polyline, type Vec } from '../sim/geometry'
 import type { Node } from '../sim/network'
-import type { Sim } from '../sim/sim'
+import type { Sim, Vehicle } from '../sim/sim'
 
 const ROAD_Y = 0.15
 const COLORS = { ground: 0xffffff, road: 0xc9ccd2, paint: 0xffffff, stop: 0xe5484d, green: 0x30a46c }
@@ -135,6 +135,19 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   const overlay = new THREE.Group()
   scene.add(overlay)
 
+  // Route inspector: the remaining route of one clicked car, redrawn each frame as it moves.
+  let inspectedCar: Vehicle | null = null
+  const route = new THREE.Mesh(new THREE.BufferGeometry(), flat(0xe11d74))
+  route.position.y = ROAD_Y + 0.04
+  scene.add(route)
+
+  /** Sim position of a car's centre (`s` is the front bumper). */
+  const carCentre = (v: Vehicle): Vec => {
+    const p = pointAt(v.lane.line, v.s)
+    const back = v.type.length / 2
+    return { x: p.x - Math.cos(p.heading) * back, y: p.y - Math.sin(p.heading) * back }
+  }
+
   function resize() {
     const { clientWidth: cw, clientHeight: ch } = canvas
     renderer.setSize(cw, ch, false)
@@ -189,15 +202,29 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
       for (const lane of Object.values(node.outPorts)) marker(lane.line.pts[0], 0xf97316, false)
     },
 
+    /** Highlight a car's remaining route. `null` clears it. */
+    inspectCar(v: Vehicle | null) {
+      inspectedCar = v
+    },
+
+    carCentre,
+
     render() {
       const vs = sim.vehicles
+      if (inspectedCar && !vs.includes(inspectedCar)) inspectedCar = null
+      route.visible = !!inspectedCar
+      if (inspectedCar) {
+        const { lane, s, path } = inspectedCar
+        const here = pointAt(lane.line, s)
+        const rest = lane.line.pts.filter((_, i) => lane.line.cum[i] > s)
+        route.geometry.dispose()
+        route.geometry = ribbons([[here, ...rest], ...path.map((l) => l.line.pts)], 1.2, 0)
+      }
       cars.count = Math.min(vs.length, MAX_CARS)
       for (let i = 0; i < cars.count; i++) {
         const v = vs[i]
-        const p = pointAt(v.lane.line, v.s)
-        const back = v.type.length / 2
-        q.setFromAxisAngle(up, p.heading)
-        m.compose(v3({ x: p.x - Math.cos(p.heading) * back, y: p.y - Math.sin(p.heading) * back }), q, one)
+        q.setFromAxisAngle(up, pointAt(v.lane.line, v.s).heading)
+        m.compose(v3(carCentre(v)), q, one)
         cars.setMatrixAt(i, m)
         cars.setColorAt(i, CAR_COLORS[v.id % CAR_COLORS.length])
       }

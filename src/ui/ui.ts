@@ -1,9 +1,10 @@
 import type { View } from '../render/scene'
 import type { Node } from '../sim/network'
-import { WIN_FLOW, WIN_TIME, type Priority, type Sim } from '../sim/sim'
+import { WIN_FLOW, WIN_TIME, type Priority, type Sim, type Vehicle } from '../sim/sim'
 
 const NODE_PICK = 25 // m from a ring node's centre
 const MARKER_PICK = 3 // m from a lane-end marker
+const CAR_PICK = 3 // m from a car's centre
 
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View) {
   const { tools } = sim.level
@@ -32,6 +33,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   const select = (node: Node | null) => {
     selected = node
     armed = null
+    view.inspectCar(null)
     $('node').hidden = !node
     if (node) $('node-name').textContent = `${node.arm} junction`
     view.showNode(node, null)
@@ -65,6 +67,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       }
       if (hit) return view.showNode(selected, armed)
     }
+    const car = sim.vehicles.reduce<Vehicle | null>((best, v) => (dist(view.carCentre(v)) < (best ? dist(view.carCentre(best)) : CAR_PICK) ? v : best), null)
+    if (car) return view.inspectCar(car)
     const near = sim.net.nodes.find((n) => dist(n.center) < NODE_PICK)
     select(near ?? null)
   })
