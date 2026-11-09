@@ -16,7 +16,7 @@ Single-context: one root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md
 
 Most of this game is verified by playtesting. Tests cover the simulation, where playtesting misses regressions.
 
-When `/implement` or `/tdd` runs in this repo, these seams are pre-agreed with the user and form the complete list:
+These test seams are pre-agreed with the user and form the complete list:
 
 - **Simulation outcomes** (`src/sim`): a Level jams with its initial configuration, a known Change clears the jam, and a seed gives the same result every run.
 - **Levels** (`levels/`): each Level jams at start and its reference solution clears it.
