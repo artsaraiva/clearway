@@ -1,30 +1,41 @@
-# Issue tracker: Local Markdown
+# Issue tracker: GitHub Issues
 
-Issues and specs for this repo live as markdown files in `.scratch/`.
+Tickets live in GitHub Issues at [`artsaraiva/clearway`](https://github.com/artsaraiva/clearway/issues). Specs, ADRs and maps stay in the repo.
+
+## Access
+
+Use the `gh` CLI with `-R artsaraiva/clearway`. The repo belongs to the personal account `artsaraiva`, which may not be the active `gh` account on this machine:
+
+- `git push` / `git fetch` already authenticate as `artsaraiva` through a repo-local credential helper in `.git/config`.
+- For `gh` commands, prefix `GH_TOKEN=$(gh auth token -u artsaraiva)`. Never switch the global active account.
 
 ## Conventions
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
-- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`, never a single combined tickets file
-- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
-- Comments and conversation history append to the bottom of the file under a `## Comments` heading
+- One issue per ticket. The title starts with its effort: `Road network: …`, `Player tools: …`, `District 1: …`. Grilling tickets start with `Grill: …`.
+- The body opens with a `**Type:**` line (`task`, `grilling`, `research` or `prototype`) and, when blocked, `**Blocked by:** #a, #b`.
+- Triage state is a label, exactly one per open issue (see `triage-labels.md`). Grilling tickets take `ready-for-human`.
+- Blocking also uses GitHub's native relationship, so the issue page shows it: `gh api -X POST repos/artsaraiva/clearway/issues/<n>/dependencies/blocked_by -F issue_id=<blocker's database id>` (the `id` field from `gh api repos/artsaraiva/clearway/issues/<blocker>`).
+- Comments and conversation history are issue comments.
+- Specs live at `.scratch/<feature>/spec.md`. A spec's `## Issues` section links its GitHub issues.
+- In repo markdown, write issue references as full links (`[#4](https://github.com/artsaraiva/clearway/issues/4)`); a bare `#4` only links inside GitHub issues and PRs.
 
 ## When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+`gh issue create -R artsaraiva/clearway -t "<Effort>: <title>" -F <body file> -l <triage label>`, then add the blocked-by relationships.
 
 ## When a skill says "fetch the relevant ticket"
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+`gh issue view <n> -R artsaraiva/clearway --comments`. The user will normally pass the issue number.
 
 ## Wayfinding operations
 
-Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+Used by `/wayfinder`. The **map** is a file in the repo; its **children** are GitHub issues.
 
-- **Map**: `.scratch/<effort>/map.md` (the Notes / Decisions-so-far / Fog body).
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
-- **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
-- **Claim**: set `Status: claimed` and save before any work.
-- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+- **Map**: `.scratch/<effort>/map.md` (the Notes / Decisions-so-far / Fog body). The game's map is `.scratch/game/map.md`.
+- **Child ticket**: a GitHub issue with the question in the body and a `**Type:**` line (`research`/`prototype`/`grilling`/`task`).
+- **Blocking**: native blocked-by relationships. A ticket is unblocked when all its blockers are closed.
+- **Frontier**: open, unblocked, unassigned issues; lowest number first (`gh issue list -R artsaraiva/clearway --state open`).
+- **Claim**: assign it (`gh issue edit <n> -R artsaraiva/clearway --add-assignee artsaraiva`) before any work.
+- **Resolve**: post the answer as a comment headed `## Answer`, close the issue as completed, then append a context pointer (gist + issue link) to the map's Decisions so far.
+
+Resolved tickets from before the move to GitHub stay in `.scratch/<effort>/issues/` as records.

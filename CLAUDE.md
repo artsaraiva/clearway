@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues live as local markdown under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+Tickets are GitHub Issues at `artsaraiva/clearway`; specs and maps stay under `.scratch/<feature>/`. The repo is on the personal `artsaraiva` account: prefix `gh` with `GH_TOKEN=$(gh auth token -u artsaraiva)`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

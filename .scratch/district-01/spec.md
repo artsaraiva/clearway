@@ -80,7 +80,7 @@ J1 keeps the prototype roundabout and Demand: the N1–R18 corridor at 22 per mi
 
 ### Level 2
 
-The main road follows the heavy stream, not the straight line. The stream enters at R27's fogged end (at J7), goes north and turns right onto R23. With the default 2-lane Connections, the right turn uses stem lane 0 only, which is fine here and becomes Level 3's problem. `initial` needs a Priority entry (`J2: { priority: { R27: 'yield' } }`); add that to the format in `player-tools/01` if it's missing.
+The main road follows the heavy stream, not the straight line. The stream enters at R27's fogged end (at J7), goes north and turns right onto R23. With the default 2-lane Connections, the right turn uses stem lane 0 only, which is fine here and becomes Level 3's problem. `initial` needs a Priority entry (`J2: { priority: { R27: 'yield' } }`); add that to the format in [#6](https://github.com/artsaraiva/clearway/issues/6) if it's missing.
 
 ### Level 3
 
@@ -94,11 +94,11 @@ The jam shows at J4, the cause is downstream at J5. The fix is a connector move 
 
 The two crossing streams are ones the player watched vanish into Fog in Levels 3–4: J3's `main` N–S stream heading down R36, and Level 4's stream out of J5 heading west. Size both for Level 5 from the start, since continuity keeps their rates.
 
-**Fallback if the Signal fails its gate** (`player-tools/02`): rework those upstream rates so one stream is heavy and one moderate, start the heavy one as `yield`, and make the fix a main-road swap at J6. Tools become Priority rule only.
+**Fallback if the Signal fails its gate** ([#7](https://github.com/artsaraiva/clearway/issues/7)): rework those upstream rates so one stream is heavy and one moderate, start the heavy one as `yield`, and make the fix a main-road swap at J6. Tools become Priority rule only.
 
 ### Level 6
 
-The left-turn demand comes from a route shift, not new Demand: streams from W1/N1 to S6/E5 that took J2 → J3 → R36 in Level 5 now take J2 → R27 → J7 → left. Banning the left sends them back to the J3 route, which carried them in Level 5, so the fix is sound by construction. Stranded cars already queued for the left re-plan to the nearest reachable Gateway (`road-network/04`). The oncoming northbound stream on R27 enters at S7; see hazard 2 for which stream that is.
+The left-turn demand comes from a route shift, not new Demand: streams from W1/N1 to S6/E5 that took J2 → J3 → R36 in Level 5 now take J2 → R27 → J7 → left. Banning the left sends them back to the J3 route, which carried them in Level 5, so the fix is sound by construction. Stranded cars already queued for the left re-plan to the nearest reachable Gateway ([#4](https://github.com/artsaraiva/clearway/issues/4)). The oncoming northbound stream on R27 enters at S7; see hazard 2 for which stream that is.
 
 ### Level 7
 
@@ -122,19 +122,19 @@ Adjust Demand first, Road length second, geometry last.
 
 ## Verification
 
-Per CLAUDE.md, outcomes only: `levels/levels.test.ts` (from `road-network/02`) runs every Level. No new test seams.
+Per CLAUDE.md, outcomes only: `levels/levels.test.ts` (from [#2](https://github.com/artsaraiva/clearway/issues/2)) runs every Level. No new test seams.
 
 ## Issues
 
-- [01 Road graph and Level 1](issues/01-level-1.md), blocked by road-network 05
-- [02 Level 2: T-junction, Priority rule](issues/02-level-2.md), blocked by 01, player-tools 01
-- [03 Level 3: fix upstream](issues/03-level-3.md), blocked by 02
-- [04 Level 4: Spillback](issues/04-level-4.md), blocked by 03
-- [05 Level 5: Signal](issues/05-level-5.md), blocked by 04, player-tools 02
-- [06 Level 6: turn ban](issues/06-level-6.md), blocked by 05
-- [07 Level 7: finale](issues/07-level-7.md), blocked by 06
+- [#8](https://github.com/artsaraiva/clearway/issues/8) Road graph and Level 1, blocked by #5
+- [#9](https://github.com/artsaraiva/clearway/issues/9) Level 2: T-junction, Priority rule, blocked by #8, #6
+- [#10](https://github.com/artsaraiva/clearway/issues/10) Level 3: fix upstream, blocked by #9
+- [#11](https://github.com/artsaraiva/clearway/issues/11) Level 4: Spillback, blocked by #10
+- [#12](https://github.com/artsaraiva/clearway/issues/12) Level 5: Signal, blocked by #11, #7
+- [#13](https://github.com/artsaraiva/clearway/issues/13) Level 6: turn ban, blocked by #12
+- [#14](https://github.com/artsaraiva/clearway/issues/14) Level 7: finale, blocked by #13
 
 ## Out of scope
 
 - Districts after 1, change counts, budgets, stars (map Fog).
-- UI for Reveal, level intro and teaching hints (`game/05`); Fog look (`game/07`).
+- UI for Reveal, level intro and teaching hints ([#15](https://github.com/artsaraiva/clearway/issues/15)); Fog look ([#16](https://github.com/artsaraiva/clearway/issues/16)).

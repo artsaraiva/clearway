@@ -1,8 +1,8 @@
 # Traffic Puzzle Game: Map
 
-The parent for everything after the prototype. Child tickets live in `issues/`; each topic that resolves into build work gets its own `.scratch/<topic>/spec.md` + `issues/`.
+The parent for everything after the prototype. Open tickets are [GitHub issues](https://github.com/artsaraiva/clearway/issues); resolved grilling tickets stay in `issues/` as records. Each topic that resolves into build work gets its own `.scratch/<topic>/spec.md`, and its tickets go to GitHub.
 
-**Start at the Board below.** Ticket numbers restart in every effort, so always name the effort: `game/05`, `road-network/03`, `player-tools/01`.
+**Open work:** see the section at the bottom, or the GitHub issue list.
 
 ## Vision
 
@@ -51,7 +51,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Verdict: Three.js reaches the look cheaply. Rubric 4 of 4, user confirmed: same family, kerbs and mouths legible, about 1.9 ms per frame with 1,000 cars at retina resolution on an M4 Pro, road from lane polylines only.
   - Chosen: perspective free-look camera (35° FOV, `MapControls`); a ground shader over one baked distance-field texture (road SDF from lane capsules plus a morphological close, island flood fill, grass SDF, contact AO); static AO instead of shadows; no post-processing; instanced trees and cars; merged markings and buildings.
   - For 04: no separate road outline needed, but road edges need attributes (bike band, sidewalk, medians, splitter islands), and props need block polygons from the road graph's faces.
-- Road network model (04, 2026-11-09). Details in `issues/04-road-network-model.md` under Answer. The spec is `.scratch/road-network/spec.md` with issues 01–05. ADRs are in `docs/adr/` (0001 routing, 0002 Reveal).
+- Road network model (04, 2026-11-09). Details in `issues/04-road-network-model.md` under Answer. The spec is `.scratch/road-network/spec.md` with issues #1–#5 on GitHub. ADRs are in `docs/adr/` (0001 routing, 0002 Reveal).
   - One hand-written TS file per District in `levels/`: a road graph (Junctions joined by straight Roads, lanes per direction, edge attributes) plus ordered Levels with their reference solutions.
   - Two Junction types: roundabout and priority junction (T, crossroads). Each generates default Connections, and the file lists only deviations. Refs look like `J1: R1.in0>R1.ring0`. No lane changes.
   - Drivers route by free-flow travel time and never reroute around Jams (ADR 0001).
@@ -59,58 +59,26 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - A Reveal rebuilds the sim, carries Changes over, then Pre-warms (ADR 0002).
   - Pedestrians and bikes are decoration. Blocks and their fill belong to the visual-style effort.
   - Seeds: vehicle type is drawn at arrival, and tests run only the shipped seed. Level tests apply earlier solutions, then check jammed and Win.
-- Visual style split out of 03 as its own grilling, `game/07` (2026-11-09).
+- Visual style split out of 03 as its own grilling, [#16](https://github.com/artsaraiva/clearway/issues/16) (2026-11-09).
 - Junction chain (06, 2026-11-12). Details in `issues/06-junction-chain.md` under Answer; spec in `.scratch/district-01/spec.md` with one issue per Level.
   - District 1 is a ladder of 8 Junctions (2 roundabouts, 3 T, 3 crossroads), Revealed clockwise; loops appear only as Blocks close in Levels 5–7.
   - Levels 3 and 4 are a pair: jam visible downstream with the fix upstream, then the reverse. Levels 6 and 7 are route-shift puzzles: removing a Connection sends traffic back the way that worked.
   - Teaching Levels restrict Tools. Streams continue through a Reveal at the same rate; only Level 7 re-jams an earlier Junction.
-  - Sim change: a car on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway (in `road-network/04`).
+  - Sim change: a car on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway (in [#4](https://github.com/artsaraiva/clearway/issues/4)).
 
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
-- Does the Signal pass its crossroads gate test? Answered by `player-tools/02`. If not, Level 5 becomes a main-road swap.
+- Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
 
-## Board
+## Open work
 
-Every open ticket across `.scratch/`, as of 2026-11-12. Update this when a ticket changes state.
+Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
-### Needs grilling (all unblocked)
+- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, then [#16](https://github.com/artsaraiva/clearway/issues/16) visual style.
+- Build chain: road network [#1](https://github.com/artsaraiva/clearway/issues/1) → [#2](https://github.com/artsaraiva/clearway/issues/2) → [#3](https://github.com/artsaraiva/clearway/issues/3) and [#4](https://github.com/artsaraiva/clearway/issues/4) → [#5](https://github.com/artsaraiva/clearway/issues/5). Player tools [#6](https://github.com/artsaraiva/clearway/issues/6) → [#7](https://github.com/artsaraiva/clearway/issues/7) once #3 lands. District 1 Levels [#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14) after that, one Level at a time.
 
-| Id | Ticket | Produces |
-| --- | --- | --- |
-| `game/05` | [UI/UX](issues/05-ui-ux.md): how the player uses Tools and moves through Levels | `.scratch/ui-ux/` spec + issues |
-| `game/07` | [Visual style](issues/07-visual-style.md): look-dev to production renderer, Blocks, Fog look | `.scratch/visual-style/` spec + issues |
-
-Suggested order: 05, then 07.
-
-### Ready to build (unblocked)
-
-| Id | Ticket | Status |
-| --- | --- | --- |
-| `road-network/01` | [Split Sim, draw vehicle type at arrival](../road-network/issues/01-split-sim.md) | ready-for-agent |
-
-### Blocked (specified, waiting on build work)
-
-| Id | Ticket | Blocked by |
-| --- | --- | --- |
-| `road-network/02` | [District file and road graph builder](../road-network/issues/02-district-file.md) | `road-network/01` |
-| `road-network/03` | [Priority junction](../road-network/issues/03-priority-junction.md) | `road-network/02` |
-| `road-network/04` | [Free-flow routing](../road-network/issues/04-free-flow-routing.md) | `road-network/02` |
-| `road-network/05` | [Reveal and Fog-edge Gateways](../road-network/issues/05-reveal.md) | `road-network/03`, `road-network/04` |
-| `player-tools/01` | [Priority rule: main / yield](../player-tools/issues/01-priority-rule.md) | `road-network/03` |
-| `player-tools/02` | [Signal, with gate test](../player-tools/issues/02-signal.md) | `road-network/03`, `player-tools/01` |
-| `district-01/01` | [Road graph and Level 1](../district-01/issues/01-level-1.md) | `road-network/05` |
-| `district-01/02` | [Level 2: T-junction, Priority rule](../district-01/issues/02-level-2.md) | `district-01/01`, `player-tools/01` |
-| `district-01/03` | [Level 3: fix upstream](../district-01/issues/03-level-3.md) | `district-01/02` |
-| `district-01/04` | [Level 4: Spillback](../district-01/issues/04-level-4.md) | `district-01/03` |
-| `district-01/05` | [Level 5: Signal](../district-01/issues/05-level-5.md) | `district-01/04`, `player-tools/02` |
-| `district-01/06` | [Level 6: turn ban](../district-01/issues/06-level-6.md) | `district-01/05` |
-| `district-01/07` | [Level 7: finale](../district-01/issues/07-level-7.md) | `district-01/06` |
-
-Build chain: `road-network/01` → `02` → `03` and `04` → `05`. `player-tools/01` → `02` can start as soon as `road-network/03` lands. `district-01/01`–`07` follow, one Level at a time.
-
-### Done
+## Resolved tickets
 
 - `game/01` [Core loop](issues/01-core-loop.md), `game/02` [Player tools](issues/02-player-tools.md), `game/03` [Look-dev](issues/03-look-dev.md), `game/04` [Road network model](issues/04-road-network-model.md), `game/06` [Junction chain](issues/06-junction-chain.md)
 - `player-tools/03` [Route inspector](../player-tools/issues/03-route-inspector.md)

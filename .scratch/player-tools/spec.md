@@ -11,8 +11,8 @@ Give the player three Tools and one Inspector, enough for a seven-Level District
 | Tool | What the player changes | Junction types | Teaches in | Sim work |
 | --- | --- | --- | --- | --- |
 | Connector | Turns a Connection on or off | all | Level 1 | none, exists |
-| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 2 | rework (issue 01) |
-| Signal | Per Junction: on or off | crossroads, T | Level 5 | rework + gate test (issue 02) |
+| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 2 | rework ([#6](https://github.com/artsaraiva/clearway/issues/6)) |
+| Signal | Per Junction: on or off | crossroads, T | Level 5 | rework + gate test ([#7](https://github.com/artsaraiva/clearway/issues/7)) |
 
 ### Connector
 
@@ -35,7 +35,7 @@ On a roundabout the ring is always main and the tool is not offered.
 
 A Junction-wide mode. While on, every Arm gets green in turn with a fixed equal split, and the Junction's Priority rules are ignored. Off restores them. No timing editor, phases or actuation in District 1.
 
-**Conditional.** The prototype showed fixed signals never beat yield on a roundabout. Signal enters the roster only when the gate test in issue 02 passes on a crossroads: two heavy crossing flows, main/yield `< 0.50`, Signal `≥ 0.80`. If it fails, Signal leaves v1 and Level 5 becomes a main-road swap puzzle.
+**Conditional.** The prototype showed fixed signals never beat yield on a roundabout. Signal enters the roster only when the gate test in [#7](https://github.com/artsaraiva/clearway/issues/7) passes on a crossroads: two heavy crossing flows, main/yield `< 0.50`, Signal `≥ 0.80`. If it fails, Signal leaves v1 and Level 5 becomes a main-road swap puzzle.
 
 ## Inspector
 
@@ -67,8 +67,8 @@ Per CLAUDE.md, outcomes only. Each Tool issue carries a headless test: a Level j
 
 ## Issues
 
-- [01 Priority rule](issues/01-priority-rule.md), blocked by road-network 03
-- [02 Signal](issues/02-signal.md), blocked by road-network 03
+- [#6](https://github.com/artsaraiva/clearway/issues/6) Priority rule, blocked by #3
+- [#7](https://github.com/artsaraiva/clearway/issues/7) Signal, blocked by #3, #6
 - [03 Route inspector](issues/03-route-inspector.md), done 2026-11-09
 
 ## Backlog
