@@ -2,3 +2,7 @@ node_modules
 dist
 .DS_Store
 .playwright-mcp
+
+# Third-party reference imagery: local only, never published
+.scratch/game/reference/apple-maps-roundabout.png
+.scratch/game/reference/lookdev-vs-reference.png

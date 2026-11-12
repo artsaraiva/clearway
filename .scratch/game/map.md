@@ -6,7 +6,7 @@ The parent for everything after the prototype. Child tickets live in `issues/`; 
 
 ## Vision
 
-A browser puzzle game: the player fixes traffic jams by changing how junctions work (lane connections, right of way, signals, and more), then watches the jam clear. Look: Apple Maps 3D. That means a white/off-white ground, gray roads with curbs and sidewalks, rounded corners, lane markings, crosswalks, grass, blobby low-poly trees, light-gray extruded buildings, and in-world signs. See `reference/apple-maps-roundabout.png`. Later: a chain of junctions and roundabouts, where fixing one opens the next.
+A browser puzzle game: the player fixes traffic jams by changing how junctions work (lane connections, right of way, signals, and more), then watches the jam clear. Look: Apple Maps 3D. That means a white/off-white ground, gray roads with curbs and sidewalks, rounded corners, lane markings, crosswalks, grass, blobby low-poly trees, light-gray extruded buildings, and in-world signs. See `reference/apple-maps-roundabout.png` (local only: third-party imagery is gitignored and never published). Later: a chain of junctions and roundabouts, where fixing one opens the next.
 
 ## Notes
 
