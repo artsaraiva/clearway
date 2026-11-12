@@ -2,6 +2,8 @@
 
 The parent for everything after the prototype. Child tickets live in `issues/`; each topic that resolves into build work gets its own `.scratch/<topic>/spec.md` + `issues/`.
 
+**Start at the Board below.** Ticket numbers restart in every effort, so always name the effort: `game/05`, `road-network/03`, `player-tools/01`.
+
 ## Vision
 
 A browser puzzle game: the player fixes traffic jams by changing how junctions work (lane connections, right of way, signals, and more), then watches the jam clear. Look: Apple Maps 3D. That means a white/off-white ground, gray roads with curbs and sidewalks, rounded corners, lane markings, crosswalks, grass, blobby low-poly trees, light-gray extruded buildings, and in-world signs. See `reference/apple-maps-roundabout.png`. Later: a chain of junctions and roundabouts, where fixing one opens the next.
@@ -57,26 +59,59 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - A Reveal rebuilds the sim, carries Changes over, then Pre-warms (ADR 0002).
   - Pedestrians and bikes are decoration. Blocks and their fill belong to the visual-style effort.
   - Seeds: vehicle type is drawn at arrival, and tests run only the shipped seed. Level tests apply earlier solutions, then check jammed and Win.
-- Order of work (proposed 2026-11-09, confirmed in 01):
-  1. Core loop first (01). It decides tools, metric and chain structure.
-  2. Look-dev prototype in parallel (03). It's independent of the gameplay decisions.
-  3. Road network model (04) before the visuals become production code. Curbs, blocks and buildings derive from the road graph, so they must not be built on the roundabout-only generator.
-  4. Player tools (02) and UI/UX (05).
-  5. Junction chain content last. Its data model is settled in 04.
+- Visual style split out of 03 as its own grilling, `game/07` (2026-11-09).
+- Junction chain (06, 2026-11-12). Details in `issues/06-junction-chain.md` under Answer; spec in `.scratch/district-01/spec.md` with one issue per Level.
+  - District 1 is a ladder of 8 Junctions (2 roundabouts, 3 T, 3 crossroads), Revealed clockwise; loops appear only as Blocks close in Levels 5–7.
+  - Levels 3 and 4 are a pair: jam visible downstream with the fix upstream, then the reverse. Levels 6 and 7 are route-shift puzzles: removing a Connection sends traffic back the way that worked.
+  - Teaching Levels restrict Tools. Streams continue through a Reveal at the same rate; only Level 7 re-jams an earlier Junction.
+  - Sim change: a car on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway (in `road-network/04`).
 
 ## Fog
 
-- Brute-force limit after the first district: change count, budget currency, or stars only? (deferred in 01)
-- Does the Signal pass its crossroads gate test once road-network issue 03 provides a crossroads? If not, Level 5 becomes a main-road swap.
-- Desktop only, or touch too?
+- Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
+- Does the Signal pass its crossroads gate test? Answered by `player-tools/02`. If not, Level 5 becomes a main-road swap.
 
-## Tickets
+## Board
 
-| # | Ticket | Type | Blocked by |
-| --- | --- | --- | --- |
-| 01 | [Core loop](issues/01-core-loop.md) | grilling (resolved) | |
-| 02 | [Player tools](issues/02-player-tools.md) | grilling (resolved) | 01 (resolved) |
-| 03 | [Look-dev](issues/03-look-dev.md) | prototype (resolved) | |
-| 04 | [Road network model](issues/04-road-network-model.md) | grilling (resolved) | 01 (resolved) |
-| 05 | [UI/UX](issues/05-ui-ux.md) | grilling | 02 (resolved) |
-| 06 | [Junction chain](issues/06-junction-chain.md) | grilling | 04 (resolved) |
+Every open ticket across `.scratch/`, as of 2026-11-12. Update this when a ticket changes state.
+
+### Needs grilling (all unblocked)
+
+| Id | Ticket | Produces |
+| --- | --- | --- |
+| `game/05` | [UI/UX](issues/05-ui-ux.md): how the player uses Tools and moves through Levels | `.scratch/ui-ux/` spec + issues |
+| `game/07` | [Visual style](issues/07-visual-style.md): look-dev to production renderer, Blocks, Fog look | `.scratch/visual-style/` spec + issues |
+
+Suggested order: 05, then 07.
+
+### Ready to build (unblocked)
+
+| Id | Ticket | Status |
+| --- | --- | --- |
+| `road-network/01` | [Split Sim, draw vehicle type at arrival](../road-network/issues/01-split-sim.md) | ready-for-agent |
+
+### Blocked (specified, waiting on build work)
+
+| Id | Ticket | Blocked by |
+| --- | --- | --- |
+| `road-network/02` | [District file and road graph builder](../road-network/issues/02-district-file.md) | `road-network/01` |
+| `road-network/03` | [Priority junction](../road-network/issues/03-priority-junction.md) | `road-network/02` |
+| `road-network/04` | [Free-flow routing](../road-network/issues/04-free-flow-routing.md) | `road-network/02` |
+| `road-network/05` | [Reveal and Fog-edge Gateways](../road-network/issues/05-reveal.md) | `road-network/03`, `road-network/04` |
+| `player-tools/01` | [Priority rule: main / yield](../player-tools/issues/01-priority-rule.md) | `road-network/03` |
+| `player-tools/02` | [Signal, with gate test](../player-tools/issues/02-signal.md) | `road-network/03`, `player-tools/01` |
+| `district-01/01` | [Road graph and Level 1](../district-01/issues/01-level-1.md) | `road-network/05` |
+| `district-01/02` | [Level 2: T-junction, Priority rule](../district-01/issues/02-level-2.md) | `district-01/01`, `player-tools/01` |
+| `district-01/03` | [Level 3: fix upstream](../district-01/issues/03-level-3.md) | `district-01/02` |
+| `district-01/04` | [Level 4: Spillback](../district-01/issues/04-level-4.md) | `district-01/03` |
+| `district-01/05` | [Level 5: Signal](../district-01/issues/05-level-5.md) | `district-01/04`, `player-tools/02` |
+| `district-01/06` | [Level 6: turn ban](../district-01/issues/06-level-6.md) | `district-01/05` |
+| `district-01/07` | [Level 7: finale](../district-01/issues/07-level-7.md) | `district-01/06` |
+
+Build chain: `road-network/01` → `02` → `03` and `04` → `05`. `player-tools/01` → `02` can start as soon as `road-network/03` lands. `district-01/01`–`07` follow, one Level at a time.
+
+### Done
+
+- `game/01` [Core loop](issues/01-core-loop.md), `game/02` [Player tools](issues/02-player-tools.md), `game/03` [Look-dev](issues/03-look-dev.md), `game/04` [Road network model](issues/04-road-network-model.md), `game/06` [Junction chain](issues/06-junction-chain.md)
+- `player-tools/03` [Route inspector](../player-tools/issues/03-route-inspector.md)
+- [Traffic prototype](../traffic-prototype/spec.md)

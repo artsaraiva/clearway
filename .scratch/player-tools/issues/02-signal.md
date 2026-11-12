@@ -21,6 +21,6 @@ A crossroads Level with two heavy crossing flows:
 1. Initial configuration (main/yield, any arrangement) jams: Flow `< 0.50`.
 2. Signal on clears it: Flow `≥ 0.80` for 60 sim-seconds.
 
-Tune demand and the split before giving up. If no demand table satisfies both, record the sweep in Comments, set this issue to `wontfix`, remove Signal from `spec.md`, and note in `.scratch/game/map.md` that Level 5 becomes a main-road swap.
+Tune demand and the split before giving up. If no demand table satisfies both, record the sweep in Comments, set this issue to `wontfix`, remove Signal from `spec.md`, and note in `.scratch/game/map.md` that Level 5 becomes a main-road swap. `.scratch/district-01/spec.md` has the fallback design.
 
 ## Comments

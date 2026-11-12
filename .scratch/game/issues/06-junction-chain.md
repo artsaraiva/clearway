@@ -1,7 +1,7 @@
 # 06 Junction chain
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 04
 
 ## Question
@@ -38,5 +38,32 @@ What exactly are District 1's seven Levels? For each one: where the Junctions an
 
 - A District 1 design (layout sketch plus a per-Level table) in a spec.
 - Authoring issues for `levels/district-01.ts`, blocked by the road-network issues they need.
+
+## Answer
+
+Grilled 2026-11-12, three rounds. Spec: `.scratch/district-01/spec.md` plus issues 01–07, one per Level.
+
+### Decisions
+
+1. **8 Junctions**, every Level Reveals one, Level 4 Reveals two.
+2. **Layout: a ladder** of two rows of four, Revealed clockwise. Loops appear only as Blocks close (Levels 5, 6, 7). 8 edge Gateways. 2 roundabouts, 3 T-junctions, 3 crossroads.
+3. **Initial configurations** look plausibly mis-set, never absurd. Any fix that Wins counts; the reference solution is the intended one.
+4. **Teaching Levels restrict Tools** (Level 2 Priority rule, Level 5 Signal, Level 6 connector). No new test seam.
+5. **Continuity**: streams carry on through a newly Revealed Junction at the same rate. Only Level 7 re-jams an earlier Junction, and only by shifting routes.
+6. **Road lengths**: 180–200 m between Junctions, 60–70 m on Level 4's spillback rung, 120 m to edge Gateways.
+7. **Level puzzles**:
+   1. J1, the prototype roundabout, unchanged.
+   2. J2, T: the main road follows the heavy turning stream, not the straight line.
+   3. J3, crossroads: jam at J3, fix at J2 (dual right turn; no lane changes means upstream Connections pick the lane).
+   4. J4 + J5: J5's single-lane exit spills up a short rung and locks J4; fix at J5.
+   5. J6, crossroads: two heavy crossing streams foreshadowed through Fog; Signal (fallback: main-road swap).
+   6. J7, crossroads: a route shift creates left turns that block a single lane; ban the left, traffic returns to the route that worked.
+   7. J8, T: a shortcut floods J1's south approach; close it (Braess), or reconfigure J1.
+8. **Sim change**: a car on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway. Without it, Level 6's and 7's fixes strand queued cars for good. Added to `road-network/04`.
+9. **Tuning loop**: author each Level when its sim work lands; Level test green, sweep at least 7 of 10 seeds, user playtest at 2–5 minutes. Demand first, Road length second, geometry last.
+
+### Found while writing the spec
+
+Level 2's stream enters and (by Level 5) leaves behind J7, so it collapses at Level 6's Reveal. Level 6's oncoming stream is most likely a new S7 → W1/N1 stream, the same one Level 7 shifts onto J1. Recorded as an authoring hazard in the spec.
 
 ## Comments

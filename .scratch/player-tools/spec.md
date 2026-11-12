@@ -51,7 +51,7 @@ Backlog: congestion heatmap, queue length per Arm, desire lines.
 
 ## District 1 outline
 
-Content is authored in the chain ticket after 04. The Tool each Level teaches:
+Content is in `.scratch/district-01/spec.md` (grilled in game 06). Level 2 is Priority rule only, Level 5 Signal only, Level 6 connector only. The Tool each Level teaches:
 
 1. Prototype roundabout: connector.
 2. T-junction: Priority rule, swap the main road.

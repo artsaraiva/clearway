@@ -25,3 +25,5 @@ Replace `RoundaboutSpec` and `buildNetwork` with the District file and a road gr
 District 1 Level 1: Flow < 0.5 after 180 sim-seconds untouched, and a Win within 300 sim-seconds after its reference solution. `src/sim/sim.test.ts` keeps its determinism check, moved onto the District file. Its jam and clear checks are now covered by the Level test.
 
 ## Comments
+
+**2026-11-09: carried over from `game/01` Comments (pre-warm finding).** After the 90 s Pre-warm, Flow is 0.54 on the shipped seed 8 but 0.72–0.77 on seeds 1, 4, 7 and 9, close to the 0.8 Win line. The Level test here asserts Flow < 0.5 after a further 180 s untouched, so check seed 8 actually stays under 0.5. If it doesn't, settle the Pre-warm length or nudge Demand (use `npm run sweep` from issue 01) before locking in the test.

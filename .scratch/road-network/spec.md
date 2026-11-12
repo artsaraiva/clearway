@@ -76,6 +76,7 @@ A reference solution is a list of Changes in the player's vocabulary. The UI cal
 - Demand per Level keeps the current shape: arrivals per minute per Gateway, plus destination weights over the other Gateways.
 - An arrival draws its destination **and its vehicle type** together, so the random stream depends only on time and seed, never on the player's Changes.
 - Unchanged: queued spawns count 0 in Flow, and a car whose destination is unreachable waits at spawn.
+- A car already on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway (game 06). Only cars at spawn wait.
 
 ## Routing
 
@@ -135,5 +136,5 @@ Per CLAUDE.md, outcomes only:
 - Level editor, procedural generation.
 - Simulated pedestrians and bikes: they are decoration only.
 - Blocks and their fill: the visual-style effort.
-- District 1 Levels 2–7: the junction-chain ticket (game 06).
+- District 1 Levels 2–7: `.scratch/district-01/spec.md`.
 - Turbo roundabouts.
