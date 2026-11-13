@@ -6,9 +6,11 @@ import { createCamera } from './camera'
 import { carCentre, createCars } from './cars'
 import { createBlocks } from './blocks'
 import { createArmConnections } from './connections'
+import { createJamEmotion } from './emotion'
 import { laneField } from './field'
+import { createBlockFill } from './fill'
 import { createRouteInspector } from './inspector'
-import { createLights } from './lights'
+import { createLights, NIGHT } from './lights'
 import { createRoads } from './roads'
 import { createSlab, districtBounds, slabBounds } from './slab'
 
@@ -27,15 +29,19 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   const { camera, resize, update: updateCamera } = createCamera(canvas, slab)
   const field = laneField(sim.net, sim.district, plate)
   const roads = createRoads(sim.net, sim.district)
-  const cars = createCars()
+  const fill = createBlockFill(sim.net, sim.district, field, plate)
+  const cars = createCars(sim.net)
+  const emotion = createJamEmotion()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
   const scene = new THREE.Scene().add(
     ...createLights(canvas, slab),
     ...createSlab(plate),
     createBlocks(field),
+    fill.group,
     roads.group,
-    cars.mesh,
+    ...cars.meshes,
+    emotion.group,
     armConnections.group,
     route.group,
   )
@@ -50,8 +56,16 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
   let inspected: Vehicle | null = null
+  /** Light windows, lamps and car lights: 0 by day, 1 at full night. */
+  const setNight = (k: number) => {
+    fill.setNight(k)
+    cars.setNight(k)
+  }
+  setNight(NIGHT)
 
   return {
+    setNight,
+
     /** Sim coordinates under a pointer event, on the road plane. */
     pick(e: PointerEvent): Vec | null {
       const r = canvas.getBoundingClientRect()
@@ -78,10 +92,11 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
     /** The distance field the Blocks are cut from, for scenery that stands on them. */
     field,
 
-    render() {
+    /** Draw a frame. `dt` is the real seconds since the last one, 0 while the sim is paused: it drives the Jam emotion. */
+    render(dt: number) {
       if (inspected && !sim.vehicles.includes(inspected)) inspected = null
       route.update(inspected)
-      cars.update(sim.vehicles)
+      emotion.update(cars.update(sim.vehicles, dt), dt)
       roads.update()
       updateCamera()
       renderer.render(scene, camera)

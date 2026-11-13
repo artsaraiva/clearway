@@ -26,13 +26,14 @@ if (import.meta.env.DEV) Object.assign(window, { clearway: { sim, view } })
 let acc = 0
 let last = performance.now()
 requestAnimationFrame(function frame(now) {
-  acc += Math.min(0.1, (now - last) / 1000) * ui.scale // fixed 30 Hz steps; scale = sim seconds per real second
+  const dt = Math.min(0.1, (now - last) / 1000)
+  acc += dt * ui.scale // fixed 30 Hz steps; scale = sim seconds per real second
   last = now
   while (acc >= DT) {
     sim.step()
     acc -= DT
   }
-  view.render()
+  view.render(ui.scale ? dt : 0)
   ui.update()
   requestAnimationFrame(frame)
 })

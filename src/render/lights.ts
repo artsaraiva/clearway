@@ -6,6 +6,8 @@ import { centre, type Bounds } from './slab'
 const SUN = { color: '#ffe0b3', intensity: 2.9, azimuth: 1.05, elevation: 0.66 }
 const HEMI = { sky: '#cfe2ff', ground: '#f4dcc0', intensity: 1.1 }
 const SKY = ['#9ccff3', '#d9ecf3', '#ffe4c4']
+/** How far into the night it is, 0–1: what windows, lamps and car lights glow by. ponytail: a constant with the light above; #29 drives it. */
+export const NIGHT = 0
 
 /** One directional light with a soft shadow map covering the slab, a hemisphere light, and the sky gradient behind the transparent canvas. */
 export function createLights(canvas: HTMLCanvasElement, slab: Bounds): THREE.Object3D[] {

@@ -78,7 +78,8 @@ function roundaboutMouths(net: Network): Vec[][] {
   return mouths
 }
 
-function inside(loop: Vec[], x: number, y: number): boolean {
+/** Whether a sim point lies inside a closed outline. */
+export function inside(loop: Vec[], x: number, y: number): boolean {
   let hit = false
   for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
     const [a, b] = [loop[i], loop[j]]

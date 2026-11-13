@@ -12,6 +12,15 @@ export default {
     S: { from: [0, -178.5], to: 'J1', lanes: [2, 2] },
     W: { from: [-178.5, 0], to: 'J1', lanes: [2, 2] },
   },
+  // The park sits in the quadrant nearest the opening camera, so nothing tall hides the Ring.
+  scenery: {
+    theme: 'city',
+    seed: 20261113,
+    landmarks: [{ type: 'tower', name: 'Hikari Tower', at: [104, 104] }],
+    blocks: [{ type: 'park', name: 'Kumo Park', at: [98, -100] }],
+    streets: { N: 'Sakura Avenue', S: 'Sakura Avenue', E: 'Asagiri Rd', W: 'Asagiri Rd' },
+    avenues: ['N', 'S'],
+  },
   levels: [
     {
       reveal: ['J1'],
