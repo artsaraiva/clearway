@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { MapControls } from 'three/addons/controls/MapControls.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import district from '../../levels/district-01'
-import { dashes, mid, ribbons } from '../render/scene'
+import { dashes, mid, ribbons } from '../render/ribbons'
 import { pointAt, polyline, type Vec } from '../sim/geometry'
 import { DT, Sim, VEHICLE_TYPES, type Vehicle } from '../sim/sim'
 import { parkedCars, type CarLike } from './props'
@@ -60,7 +60,13 @@ function view(az = 0.62, el = 0.72, zoom = 1, target: Vec = { x: 0, y: 0 }) {
 
 // ---------- materials and shapes
 const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
-const glass = new THREE.MeshStandardMaterial({ color: '#a9c4db', roughness: 0.22, metalness: 0.1, emissive: '#ffc78a', emissiveIntensity: 0 })
+const glass = new THREE.MeshStandardMaterial({
+  color: '#a9c4db',
+  roughness: 0.22,
+  metalness: 0.1,
+  emissive: '#ffc78a',
+  emissiveIntensity: 0,
+})
 const lampMat = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
 const water = new THREE.MeshStandardMaterial({ color: '#86cbef', roughness: 0.12 })
 const paint = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, side: THREE.DoubleSide })
@@ -82,7 +88,9 @@ function rbox(w: number, h: number, d: number, r = 0.8, b = 0.25): THREE.BufferG
   r = Math.max(0.01, Math.min(r, iw / 2 - 0.01, id / 2 - 0.01))
   const [x, y] = [-iw / 2, -id / 2]
   const s = new THREE.Shape()
-  s.moveTo(x + r, y).lineTo(x + iw - r, y).quadraticCurveTo(x + iw, y, x + iw, y + r)
+  s.moveTo(x + r, y)
+    .lineTo(x + iw - r, y)
+    .quadraticCurveTo(x + iw, y, x + iw, y + r)
   s.lineTo(x + iw, y + id - r).quadraticCurveTo(x + iw, y + id, x + iw - r, y + id)
   s.lineTo(x + r, y + id).quadraticCurveTo(x, y + id, x, y + id - r)
   s.lineTo(x, y + r).quadraticCurveTo(x, y, x + r, y)
@@ -101,13 +109,23 @@ function rbox(w: number, h: number, d: number, r = 0.8, b = 0.25): THREE.BufferG
 /** Gable roof: a triangle `wid` across and `h` high, `len` long, ridge along sim y. */
 function prism(len: number, wid: number, h: number): THREE.BufferGeometry {
   const s = new THREE.Shape()
-  s.moveTo(-wid / 2, 0).lineTo(wid / 2, 0).lineTo(0, h).lineTo(-wid / 2, 0)
+  s.moveTo(-wid / 2, 0)
+    .lineTo(wid / 2, 0)
+    .lineTo(0, h)
+    .lineTo(-wid / 2, 0)
   return new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: false }).translate(0, 0, -len / 2)
 }
 /** A sim polygon raised to height `h`, bevelled at the top edge. */
 function slab(loop: Vec[], h: number, b = 0.25): THREE.BufferGeometry {
   const s = new THREE.Shape(loop.map((p) => new THREE.Vector2(p.x, p.y)))
-  const g = new THREE.ExtrudeGeometry(s, { depth: h - b, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: 1 })
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: h - b,
+    bevelEnabled: true,
+    bevelThickness: b,
+    bevelSize: b,
+    bevelOffset: -b,
+    bevelSegments: 1,
+  })
   return g.rotateX(-Math.PI / 2)
 }
 const SPH = new THREE.SphereGeometry(1, 12, 9)
@@ -229,7 +247,9 @@ function contours(level: number): Vec[][] {
   for (let j = 0; j < N - 1; j++) {
     for (let i = 0; i < N - 1; i++) {
       const c = +(at(i, j) > 0) | (+(at(i + 1, j) > 0) << 1) | (+(at(i + 1, j + 1) > 0) << 2) | (+(at(i, j + 1) > 0) << 3)
-      const ids = [...CASES[c]].map((e) => (e === 'B' ? edge(i, j, false) : e === 'T' ? edge(i, j + 1, false) : e === 'L' ? edge(i, j, true) : edge(i + 1, j, true)))
+      const ids = [...CASES[c]].map((e) =>
+        e === 'B' ? edge(i, j, false) : e === 'T' ? edge(i, j + 1, false) : e === 'L' ? edge(i, j, true) : edge(i + 1, j, true),
+      )
       for (let k = 0; k < ids.length; k += 2) {
         links.set(ids[k], [...(links.get(ids[k]) ?? []), ids[k + 1]])
         links.set(ids[k + 1], [...(links.get(ids[k + 1]) ?? []), ids[k]])
@@ -241,7 +261,7 @@ function contours(level: number): Vec[][] {
   for (const start of links.keys()) {
     if (seen.has(start)) continue
     const loop: Vec[] = []
-    for (let prev = -1, cur: number | undefined = start; cur !== undefined && !seen.has(cur); ) {
+    for (let prev = -1, cur: number | undefined = start; cur !== undefined && !seen.has(cur);) {
       seen.add(cur)
       loop.push(pts.get(cur)!)
       const next: number | undefined = links.get(cur)!.find((n) => n !== prev)
@@ -251,7 +271,10 @@ function contours(level: number): Vec[][] {
   }
   return loops
 }
-const centre = (loop: Vec[]): Vec => ({ x: loop.reduce((s, p) => s + p.x, 0) / loop.length, y: loop.reduce((s, p) => s + p.y, 0) / loop.length })
+const centre = (loop: Vec[]): Vec => ({
+  x: loop.reduce((s, p) => s + p.x, 0) / loop.length,
+  y: loop.reduce((s, p) => s + p.y, 0) / loop.length,
+})
 const blocks = contours(0).map((loop) => ({ loop, c: centre(loop) }))
 const isIsland = (c: Vec) => Math.hypot(c.x, c.y) < 25
 /** Pavement centre lines: lamps stand on them and walkers follow them. */
@@ -263,7 +286,18 @@ const theme = (c: Vec) => (isIsland(c) ? 'island' : c.x > 0 && c.y < 0 ? 'park' 
 function tree(x: number, y: number, h: number, s: number, kind: 'round' | 'pine' | 'sakura', d: number) {
   add(CYL, '#9a7457', x, h, y, 0, 0.36 * s, 3 * s, 0.36 * s)
   if (kind === 'pine') {
-    for (let i = 0; i < 3; i++) add(CONE, pick(['#4f9a6a', '#5aa874', '#468f60']), x, h + s * (1.6 + i * 1.45), y, 0, s * (2.5 - i * 0.6), s * 2.8, s * (2.5 - i * 0.6))
+    for (let i = 0; i < 3; i++)
+      add(
+        CONE,
+        pick(['#4f9a6a', '#5aa874', '#468f60']),
+        x,
+        h + s * (1.6 + i * 1.45),
+        y,
+        0,
+        s * (2.5 - i * 0.6),
+        s * 2.8,
+        s * (2.5 - i * 0.6),
+      )
   } else {
     const cols = kind === 'sakura' ? ['#f8bfd0', '#f4a8c0', '#fbd3df', '#f6b3c8'] : ['#86c96f', '#6db862', '#9bd47e', '#78bf68', '#8fcc73']
     const n = 3 + Math.floor(rand() * 3)
@@ -281,7 +315,14 @@ function building(x: number, y: number, fw: number, fd: number, type: 'house' | 
     add(rbox(bw, h, bd, 0.5, 0.2), pick(WALLS), x, KERB, y)
     add(rbox(bw + 0.16, 1, bd + 0.16, 0.56, 0.08), glass, x, KERB + h * 0.42, y)
     const along = bw >= bd
-    add(prism((along ? bw : bd) + 0.8, (along ? bd : bw) + 1.1, Math.min(bw, bd) * 0.42), pick(ROOFS), x, KERB + h, y, along ? Math.PI / 2 : 0)
+    add(
+      prism((along ? bw : bd) + 0.8, (along ? bd : bw) + 1.1, Math.min(bw, bd) * 0.42),
+      pick(ROOFS),
+      x,
+      KERB + h,
+      y,
+      along ? Math.PI / 2 : 0,
+    )
   } else {
     const tower = type === 'tower'
     const floors = tower ? Math.round(R(7, 13)) : Math.round(R(3, 6))
@@ -295,7 +336,9 @@ function building(x: number, y: number, fw: number, fd: number, type: 'house' | 
       add(rbox(fw * 0.66 + 0.16, 1.2, fd * 0.66 + 0.16, 1.08, 0.08), glass, x, top + 1.6, y)
       if (rand() < 0.6) add(CYL, '#cfd5dc', x + fw * 0.13, top + 4, y, 0, 0.16, R(5, 9), 0.16)
     } else if (rand() < 0.5) add(rbox(fw * 0.32, 1.3, fd * 0.3, 0.25, 0.12), '#d4d8dd', x - fw * 0.2, top, y - fd * 0.15)
-    else for (let i = 0; i < 3; i++) add(SPH, pick(['#86c96f', '#9bd47e']), x + R(-fw, fw) * 0.3, top + 0.4, y + R(-fd, fd) * 0.3, 0, 1.1, 0.9, 1.1)
+    else
+      for (let i = 0; i < 3; i++)
+        add(SPH, pick(['#86c96f', '#9bd47e']), x + R(-fw, fw) * 0.3, top + 0.4, y + R(-fd, fd) * 0.3, 0, 1.1, 0.9, 1.1)
   }
   piece('drop', d, x, KERB, y)
 }
@@ -324,7 +367,11 @@ function build() {
   const ord = (x: number, y: number) => Math.hypot(x, y) / 250
 
   // Slab: soil, sand, grass, then the road plate. All of the slab top is road until a Block lands on it.
-  const LAYERS: [number, number, string][] = [[9, -20.4, '#c9a37a'], [8.4, -11.4, '#dcc19a'], [2.4, -3, '#a5d38a']]
+  const LAYERS: [number, number, string][] = [
+    [9, -20.4, '#c9a37a'],
+    [8.4, -11.4, '#dcc19a'],
+    [2.4, -3, '#a5d38a'],
+  ]
   LAYERS.forEach(([h, y0, col], li) => {
     for (let i = 0; i < 6; i++) {
       for (let j = 0; j < 6; j++) {
@@ -345,7 +392,8 @@ function build() {
   // Paint: lane dividers, centre lines.
   const lines: Vec[][] = []
   for (const arm of arms) {
-    for (const set of [arm.approach, arm.exit]) for (let i = 1; i < set.length; i++) lines.push(...dashes(mid(set[i - 1].line.pts, set[i].line.pts), 3, 6))
+    for (const set of [arm.approach, arm.exit])
+      for (let i = 1; i < set.length; i++) lines.push(...dashes(mid(set[i - 1].line.pts, set[i].line.pts), 3, 6))
     lines.push(mid(arm.approach[arm.approach.length - 1].line.pts, [...arm.exit[arm.exit.length - 1].line.pts].reverse()))
     for (let i = 1; i < arm.ringOut.length; i++) lines.push(...dashes(mid(arm.ringOut[i - 1].line.pts, arm.ringOut[i].line.pts), 3, 5))
   }
@@ -358,17 +406,20 @@ function build() {
     parts.push({ geo: tint(slab(loop, KERB), SIDEWALK), mat: solid })
     piece('drop', tb, c.x, 0, c.y, 3)
     if (kind === 'island') {
-      for (const lawn of contours(1.2).filter((l) => isIsland(centre(l)))) parts.push({ geo: tint(slab(lawn, 0.5, 0.2).translate(0, KERB, 0), GRASS), mat: solid })
+      for (const lawn of contours(1.2).filter((l) => isIsland(centre(l))))
+        parts.push({ geo: tint(slab(lawn, 0.5, 0.2).translate(0, KERB, 0), GRASS), mat: solid })
       piece('drop', tb + 0.3)
       tree(0, 0, KERB + 0.5, 2.6, 'sakura', tb + 0.7)
-      for (let i = 0; i < 8; i++) tree(Math.cos((i * TAU) / 8) * 24, Math.sin((i * TAU) / 8) * 24, KERB + 0.5, 0.8, i % 2 ? 'sakura' : 'round', tb + 0.8 + i * 0.06)
+      for (let i = 0; i < 8; i++)
+        tree(Math.cos((i * TAU) / 8) * 24, Math.sin((i * TAU) / 8) * 24, KERB + 0.5, 0.8, i % 2 ? 'sakura' : 'round', tb + 0.8 + i * 0.06)
       return
     }
     const xs = loop.map((p) => p.x)
     const ys = loop.map((p) => p.y)
     const box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
     if (kind === 'park') {
-      for (const lawn of contours(4).filter((l) => theme(centre(l)) === 'park')) parts.push({ geo: tint(slab(lawn, 0.3, 0.12).translate(0, KERB, 0), GRASS), mat: solid })
+      for (const lawn of contours(4).filter((l) => theme(centre(l)) === 'park'))
+        parts.push({ geo: tint(slab(lawn, 0.3, 0.12).translate(0, KERB, 0), GRASS), mat: solid })
       const pond = { x: 95, y: -100 }
       add(CYL, STONE, pond.x, KERB + 0.3, pond.y, 0, 22, 0.35, 15)
       add(CYL, water, pond.x, KERB + 0.4, pond.y, 0, 20.5, 0.35, 13.5)
@@ -384,23 +435,59 @@ function build() {
       // Stacked cylinders, coral and cream, with two glazed decks and a beacon.
       const { x, y } = LANDMARK
       add(rbox(26, 1.4, 26, 3, 0.3), '#e2d8c6', x, KERB, y)
-      const SEGS = [[0, 12, 6.4, 4.6], [12, 24, 4.6, 3.4], [24, 36, 3.4, 2.5], [39.6, 51.2, 2.2, 1.3], [53.2, 57.2, 1.2, 0.9]]
-      SEGS.forEach(([a, b, r0, r1], i) => add(new THREE.CylinderGeometry(r1, r0, b - a, 16).translate(0, (b - a) / 2, 0), i % 2 ? '#fbf6ef' : '#f08a6e', x, KERB + 1.4 + a, y))
+      const SEGS = [
+        [0, 12, 6.4, 4.6],
+        [12, 24, 4.6, 3.4],
+        [24, 36, 3.4, 2.5],
+        [39.6, 51.2, 2.2, 1.3],
+        [53.2, 57.2, 1.2, 0.9],
+      ]
+      SEGS.forEach(([a, b, r0, r1], i) =>
+        add(
+          new THREE.CylinderGeometry(r1, r0, b - a, 16).translate(0, (b - a) / 2, 0),
+          i % 2 ? '#fbf6ef' : '#f08a6e',
+          x,
+          KERB + 1.4 + a,
+          y,
+        ),
+      )
       add(CYL, '#fbf6ef', x, KERB + 37.4, y, 0, 5.4, 3.6, 5.4)
       add(CYL, glass, x, KERB + 38, y, 0, 5.5, 2, 5.5)
       add(CYL, '#f08a6e', x, KERB + 52.6, y, 0, 2.9, 2, 2.9)
       add(CYL, '#fbf6ef', x, KERB + 58.6, y, 0, 0.28, 12, 0.28)
       add(SPH, lampMat, x, KERB + 71, y, 0, 0.6, 0.6, 0.6)
       piece('drop', tb + 1.2, x, KERB, y, 3)
-      for (const [dx, dy] of [[-16, -16], [16, -16], [-16, 16], [16, 16]]) tree(x + dx, y + dy, KERB, 0.9, 'sakura', tb + 1.6)
+      for (const [dx, dy] of [
+        [-16, -16],
+        [16, -16],
+        [-16, 16],
+        [16, 16],
+      ])
+        tree(x + dx, y + dy, KERB, 0.9, 'sakura', tb + 1.6)
     }
     const lots: number[][] = []
     splitLots(box[0], box[1], box[2], box[3], kind === 'houses' ? 17 : 24, lots)
-    const mix = () => (kind === 'houses' ? (rand() < 0.85 ? 'house' : 'mid') : kind === 'towers' ? (rand() < 0.55 ? 'tower' : 'mid') : rand() < 0.6 ? 'mid' : 'house')
+    const mix = () =>
+      kind === 'houses'
+        ? rand() < 0.85
+          ? 'house'
+          : 'mid'
+        : kind === 'towers'
+          ? rand() < 0.55
+            ? 'tower'
+            : 'mid'
+          : rand() < 0.6
+            ? 'mid'
+            : 'house'
     for (const [x0, y0, x1, y1] of lots) {
       const [px, py, fw, fd] = [(x0 + x1) / 2, (y0 + y1) / 2, x1 - x0 - 2.4, y1 - y0 - 2.4]
       const d = tb + 0.5 + ord(px, py) * 2.5
-      const inside = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].every(([x, y]) => sample(x, y) > 2.5)
+      const inside = [
+        [x0, y0],
+        [x1, y0],
+        [x1, y1],
+        [x0, y1],
+      ].every(([x, y]) => sample(x, y) > 2.5)
       if (kind === 'towers' && Math.hypot(px - LANDMARK.x, py - LANDMARK.y) < 34) continue
       if (!inside || fw < 5 || fd < 5 || rand() < 0.08) {
         if (sample(px, py) > 5) tree(px, py, KERB, R(0.7, 1.05), rand() < 0.3 ? 'sakura' : 'round', d)
@@ -446,7 +533,9 @@ function stepReveal(dt: number) {
     else {
       const e = Math.exp(-4.5 * (u * 2 - 1)) * Math.cos((u * 2 - 1) * 9.5)
       p.g.scale.set(1 + 0.13 * e, 1 - 0.22 * e, 1 + 0.13 * e)
-      if (!p.hit && p.big) for (let i = 0; i < p.big; i++) puff(p.g.position.x + (Math.random() - 0.5) * 30, p.g.position.y + 2, p.g.position.z + (Math.random() - 0.5) * 30, {})
+      if (!p.hit && p.big)
+        for (let i = 0; i < p.big; i++)
+          puff(p.g.position.x + (Math.random() - 0.5) * 30, p.g.position.y + 2, p.g.position.z + (Math.random() - 0.5) * 30, {})
       p.hit = true
     }
     p.g.position.y = (p.g.userData.y ??= p.g.position.y) + (p.kind === 'drop' && u < 0.5 ? 25 * (1 - (u * 2) ** 2) : 0)
@@ -457,7 +546,15 @@ function stepReveal(dt: number) {
   const cols = ['#f26d5b', '#4f8fe8', '#f6c85f', '#7cc6a4', '#b9a3e3', '#ff9db5']
   for (let i = 0; i < 50; i++) {
     puff((Math.random() - 0.5) * 220, 8 + Math.random() * 12, (Math.random() - 0.5) * 220, {
-      vx: (Math.random() - 0.5) * 20, vy: 30 + Math.random() * 24, vz: (Math.random() - 0.5) * 20, g: 48, s0: 3, s1: 2, max: 1.8, col: cols[i % 6], a: 1,
+      vx: (Math.random() - 0.5) * 20,
+      vy: 30 + Math.random() * 24,
+      vz: (Math.random() - 0.5) * 20,
+      g: 48,
+      s0: 3,
+      s1: 2,
+      max: 1.8,
+      col: cols[i % 6],
+      a: 1,
     })
   }
 }
@@ -481,10 +578,18 @@ const puffTex = canvasTex(64, 64, (g) => {
 })
 const angerTex = canvasTex(128, 128, (g) => {
   g.lineCap = 'round'
-  for (const [lw, col] of [[20, '#fff'], [11, '#ff3b46']] as const) {
+  for (const [lw, col] of [
+    [20, '#fff'],
+    [11, '#ff3b46'],
+  ] as const) {
     g.lineWidth = lw
     g.strokeStyle = col
-    for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+    for (const [dx, dy] of [
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+      [-1, -1],
+    ]) {
       const a = Math.atan2(-dy, -dx)
       g.beginPath()
       g.arc(64 + dx * 36, 64 + dy * 36, 26, a - 0.85, a + 0.85)
@@ -556,8 +661,18 @@ for (const b of bubbles) b.sp.center.set(0.44, 0)
 function carGeometry() {
   const at = (g: THREE.BufferGeometry, col: string, x: number, y: number, z = 0) => tint(g.clone().translate(x, y, z), col)
   return [
-    mergeGeometries([at(rbox(3.6, 0.5, 1.7, 0.25, 0.1), '#3a3f47', 0, 0.05), at(rbox(4.3, 1.15, 1.9, 0.5, 0.3), '#ffffff', 0, 0.3), at(rbox(2.4, 0.9, 1.7, 0.45, 0.25), '#ffffff', -0.3, 1.3), at(rbox(2.5, 0.5, 1.76, 0.45, 0.08), '#41566c', -0.3, 1.5)]),
-    mergeGeometries([0.6, -0.6].flatMap((z) => [at(new THREE.BoxGeometry(0.12, 0.3, 0.45), '#fff6d8', 2.13, 0.85, z), at(new THREE.BoxGeometry(0.12, 0.25, 0.45), '#ff3030', -2.13, 0.9, z)])),
+    mergeGeometries([
+      at(rbox(3.6, 0.5, 1.7, 0.25, 0.1), '#3a3f47', 0, 0.05),
+      at(rbox(4.3, 1.15, 1.9, 0.5, 0.3), '#ffffff', 0, 0.3),
+      at(rbox(2.4, 0.9, 1.7, 0.45, 0.25), '#ffffff', -0.3, 1.3),
+      at(rbox(2.5, 0.5, 1.76, 0.45, 0.08), '#41566c', -0.3, 1.5),
+    ]),
+    mergeGeometries(
+      [0.6, -0.6].flatMap((z) => [
+        at(new THREE.BoxGeometry(0.12, 0.3, 0.45), '#fff6d8', 2.13, 0.85, z),
+        at(new THREE.BoxGeometry(0.12, 0.25, 0.45), '#ff3030', -2.13, 0.9, z),
+      ]),
+    ),
   ]
 }
 const [bodyGeo, lightGeo] = carGeometry()
@@ -585,7 +700,11 @@ function updateCars(list: CarLike[], dt: number, t: number) {
     // Cars grow in at a Gateway and shrink out at one.
     const edge = entries.has(v.lane) ? v.s / 8 : v.lane.toGateway ? (v.lane.length - v.s) / 8 : 1
     P3.set(p.x - Math.cos(p.heading) * back, mad ? Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * mad : 0, -(p.y - Math.sin(p.heading) * back))
-    M4.compose(P3, Q.setFromEuler(E.set(mad ? Math.sin(t * 34 + v.id) * 0.07 * mad : 0, p.heading, 0)), S3.setScalar(Math.max(0.001, Math.min(1, edge) * grow)))
+    M4.compose(
+      P3,
+      Q.setFromEuler(E.set(mad ? Math.sin(t * 34 + v.id) * 0.07 * mad : 0, p.heading, 0)),
+      S3.setScalar(Math.max(0.001, Math.min(1, edge) * grow)),
+    )
     carMesh.setMatrixAt(i, M4)
     carLights.setMatrixAt(i, M4)
     carMesh.setColorAt(i, CARS[v.id % CARS.length])
@@ -632,7 +751,12 @@ const yields = arms.map((arm) => {
     const [fx_, fy, rx, ry] = [Math.cos(e.heading), Math.sin(e.heading), Math.sin(e.heading), -Math.cos(e.heading)]
     for (const o of [-1, 0, 1]) {
       const [cx, cy] = [e.x - fx_ * 0.5 + rx * o * 1.05, e.y - fy * 0.5 + ry * o * 1.05]
-      for (const [a, b] of [[0, 0.42], [0, -0.42], [-1.5, 0]]) pos.push(cx + fx_ * a + rx * b, 0.05, -(cy + fy * a + ry * b))
+      for (const [a, b] of [
+        [0, 0.42],
+        [0, -0.42],
+        [-1.5, 0],
+      ])
+        pos.push(cx + fx_ * a + rx * b, 0.05, -(cy + fy * a + ry * b))
     }
   }
   const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -645,11 +769,24 @@ const yields = arms.map((arm) => {
 // ---------- walkers, clouds, the shadow under the slab
 const walkers = pavements.flatMap((path) => {
   const line = polyline([...path, path[0]])
-  return Array.from({ length: 5 }, () => ({ line, s: Math.random() * line.length, v: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1), ph: Math.random() * 10 }))
+  return Array.from({ length: 5 }, () => ({
+    line,
+    s: Math.random() * line.length,
+    v: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1),
+    ph: Math.random() * 10,
+  }))
 })
 const SHIRTS = ['#f26d5b', '#4f8fe8', '#f6c85f', '#ffffff', '#7cc6a4', '#b9a3e3', '#2f3440', '#ff9db5'].map((c) => new THREE.Color(c))
-const bodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.3, 0.65, 3, 8).translate(0, 0.62, 0), new THREE.MeshStandardMaterial({ roughness: 0.85 }), walkers.length)
-const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.29, 10, 8).translate(0, 1.6, 0), new THREE.MeshStandardMaterial({ color: '#f1d1b5', roughness: 0.85 }), walkers.length)
+const bodies = new THREE.InstancedMesh(
+  new THREE.CapsuleGeometry(0.3, 0.65, 3, 8).translate(0, 0.62, 0),
+  new THREE.MeshStandardMaterial({ roughness: 0.85 }),
+  walkers.length,
+)
+const heads = new THREE.InstancedMesh(
+  new THREE.SphereGeometry(0.29, 10, 8).translate(0, 1.6, 0),
+  new THREE.MeshStandardMaterial({ color: '#f1d1b5', roughness: 0.85 }),
+  walkers.length,
+)
 bodies.castShadow = heads.castShadow = true
 bodies.frustumCulled = heads.frustumCulled = false
 walkers.forEach((_, i) => bodies.setColorAt(i, SHIRTS[i % SHIRTS.length]))
@@ -667,7 +804,11 @@ function stepWalkers(dt: number, t: number) {
 }
 
 const cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, emissive: '#ffffff', emissiveIntensity: 0.3 })
-const clouds = [[-130, 70, 110], [30, 78, 150], [130, 72, -110]].map(([x, y, z]) => {
+const clouds = [
+  [-130, 70, 110],
+  [30, 78, 150],
+  [130, 72, -110],
+].map(([x, y, z]) => {
   const g = new THREE.Group()
   for (let i = 0; i < 7; i++) {
     const m = new THREE.Mesh(SPH, cloudMat)
@@ -716,15 +857,127 @@ interface Key {
   el: number
 }
 const KEYS: Key[] = [
-  { p: 0, name: 'Morning', sun: '#fff3e0', si: 2.6, sky: '#d6ebff', gnd: '#efe6d2', hi: 1.25, bg: ['#bfe2fb', '#e6f2f6', '#f6efe2'], win: 0, lamp: 0, az: 1.5, el: 0.6 },
-  { p: 0.25, name: 'Noon', sun: '#fffaf0', si: 3, sky: '#dcebff', gnd: '#f2ead9', hi: 1.25, bg: ['#8fcaf6', '#cfe7f6', '#f3f1e6'], win: 0, lamp: 0, az: 0.5, el: 1.15 },
-  { p: 0.4, sun: '#ffe0b3', si: 2.9, sky: '#cfe2ff', gnd: '#f4dcc0', hi: 1.1, bg: ['#9ccff3', '#d9ecf3', '#ffe4c4'], win: 0.12, lamp: 0, az: -0.3, el: 0.62 },
-  { p: 0.5, name: 'Dusk', sun: '#ff9c6e', si: 1.8, sky: '#8e9fe0', gnd: '#e8a98c', hi: 0.85, bg: ['#6876c4', '#b493c4', '#f7b48c'], win: 1.4, lamp: 4, az: -0.9, el: 0.25 },
-  { p: 0.58, sun: '#ff9c6e', si: 0, sky: '#7686d6', gnd: '#7a6f9c', hi: 0.85, bg: ['#2a3270', '#5a5aa0', '#a07aa8'], win: 1.5, lamp: 5, az: -1.1, el: 0.15 },
-  { p: 0.62, sun: '#a9c0ff', si: 0, sky: '#7686d6', gnd: '#5a5f9c', hi: 0.9, bg: ['#222a62', '#444c92', '#7a6aa0'], win: 1.6, lamp: 5, az: 1.2, el: 0.5 },
-  { p: 0.75, name: 'Night', sun: '#c4d4ff', si: 1.7, sky: '#b4c2f6', gnd: '#7a84c0', hi: 1.75, bg: ['#161d48', '#2c3876', '#525a9a'], win: 1.6, lamp: 5, az: 0.3, el: 1 },
-  { p: 0.9, sun: '#a9c0ff', si: 0, sky: '#9aa8e0', gnd: '#8a84a8', hi: 0.95, bg: ['#3a4a90', '#8a8cc0', '#e0b0a8'], win: 0.6, lamp: 2, az: -0.9, el: 0.5 },
-  { p: 0.94, sun: '#fff3e0', si: 0, sky: '#b8c8ee', gnd: '#c8b8b8', hi: 1.05, bg: ['#6a8ad0', '#b8c4e0', '#f4d0b8'], win: 0.2, lamp: 0.5, az: 1.6, el: 0.3 },
+  {
+    p: 0,
+    name: 'Morning',
+    sun: '#fff3e0',
+    si: 2.6,
+    sky: '#d6ebff',
+    gnd: '#efe6d2',
+    hi: 1.25,
+    bg: ['#bfe2fb', '#e6f2f6', '#f6efe2'],
+    win: 0,
+    lamp: 0,
+    az: 1.5,
+    el: 0.6,
+  },
+  {
+    p: 0.25,
+    name: 'Noon',
+    sun: '#fffaf0',
+    si: 3,
+    sky: '#dcebff',
+    gnd: '#f2ead9',
+    hi: 1.25,
+    bg: ['#8fcaf6', '#cfe7f6', '#f3f1e6'],
+    win: 0,
+    lamp: 0,
+    az: 0.5,
+    el: 1.15,
+  },
+  {
+    p: 0.4,
+    sun: '#ffe0b3',
+    si: 2.9,
+    sky: '#cfe2ff',
+    gnd: '#f4dcc0',
+    hi: 1.1,
+    bg: ['#9ccff3', '#d9ecf3', '#ffe4c4'],
+    win: 0.12,
+    lamp: 0,
+    az: -0.3,
+    el: 0.62,
+  },
+  {
+    p: 0.5,
+    name: 'Dusk',
+    sun: '#ff9c6e',
+    si: 1.8,
+    sky: '#8e9fe0',
+    gnd: '#e8a98c',
+    hi: 0.85,
+    bg: ['#6876c4', '#b493c4', '#f7b48c'],
+    win: 1.4,
+    lamp: 4,
+    az: -0.9,
+    el: 0.25,
+  },
+  {
+    p: 0.58,
+    sun: '#ff9c6e',
+    si: 0,
+    sky: '#7686d6',
+    gnd: '#7a6f9c',
+    hi: 0.85,
+    bg: ['#2a3270', '#5a5aa0', '#a07aa8'],
+    win: 1.5,
+    lamp: 5,
+    az: -1.1,
+    el: 0.15,
+  },
+  {
+    p: 0.62,
+    sun: '#a9c0ff',
+    si: 0,
+    sky: '#7686d6',
+    gnd: '#5a5f9c',
+    hi: 0.9,
+    bg: ['#222a62', '#444c92', '#7a6aa0'],
+    win: 1.6,
+    lamp: 5,
+    az: 1.2,
+    el: 0.5,
+  },
+  {
+    p: 0.75,
+    name: 'Night',
+    sun: '#c4d4ff',
+    si: 1.7,
+    sky: '#b4c2f6',
+    gnd: '#7a84c0',
+    hi: 1.75,
+    bg: ['#161d48', '#2c3876', '#525a9a'],
+    win: 1.6,
+    lamp: 5,
+    az: 0.3,
+    el: 1,
+  },
+  {
+    p: 0.9,
+    sun: '#a9c0ff',
+    si: 0,
+    sky: '#9aa8e0',
+    gnd: '#8a84a8',
+    hi: 0.95,
+    bg: ['#3a4a90', '#8a8cc0', '#e0b0a8'],
+    win: 0.6,
+    lamp: 2,
+    az: -0.9,
+    el: 0.5,
+  },
+  {
+    p: 0.94,
+    sun: '#fff3e0',
+    si: 0,
+    sky: '#b8c8ee',
+    gnd: '#c8b8b8',
+    hi: 1.05,
+    bg: ['#6a8ad0', '#b8c4e0', '#f4d0b8'],
+    win: 0.2,
+    lamp: 0.5,
+    az: 1.6,
+    el: 0.3,
+  },
 ]
 const param = new URLSearchParams(location.search).get('t')
 let clock = param ? +param : 0.36
@@ -755,7 +1008,11 @@ function setTime(p: number) {
 // ---------- labels
 const NAMES = ['Hoshi-dori', 'Sakura Avenue', 'Kawabata St', 'Asagiri Rd']
 const labels = [
-  ...Object.values(sim.net.gateways).map((arm, i) => ({ text: NAMES[i % NAMES.length], p: [Math.cos(arm.angle) * 118, 0.3, Math.sin(arm.angle) * 118], d: [Math.cos(arm.angle), Math.sin(arm.angle)] })),
+  ...Object.values(sim.net.gateways).map((arm, i) => ({
+    text: NAMES[i % NAMES.length],
+    p: [Math.cos(arm.angle) * 118, 0.3, Math.sin(arm.angle) * 118],
+    d: [Math.cos(arm.angle), Math.sin(arm.angle)],
+  })),
   { text: '● Hikari Tower', p: [LANDMARK.x, 76, LANDMARK.y], d: null, color: '#b4523a' },
   { text: '● Kumo Park', p: [95, 12, -100], d: null, color: '#3d7f3a' },
 ].map((l) => {
@@ -856,7 +1113,9 @@ function bench(n = 120) {
   return (performance.now() - t) / n
 }
 // Hooks for scripted screenshots and timing.
-Object.assign(window, { diorama: { view, bench, reveal, time: (p: number) => ([clock, cycling] = [p, false]), setStress: (on: boolean) => (stress = on) } })
+Object.assign(window, {
+  diorama: { view, bench, reveal, time: (p: number) => ([clock, cycling] = [p, false]), setStress: (on: boolean) => (stress = on) },
+})
 
 let [acc, last, since, frames, cpu, t] = [0, performance.now(), performance.now(), 0, 0, 0]
 requestAnimationFrame(function frame(now) {

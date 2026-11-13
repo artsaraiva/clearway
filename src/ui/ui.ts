@@ -1,4 +1,4 @@
-import type { View } from '../render/scene'
+import type { View } from '../render/view'
 import type { Priority } from '../sim/district'
 import type { Arm, Lane } from '../sim/network'
 import { WIN_FLOW, WIN_TIME, type Sim, type Vehicle } from '../sim/sim'
@@ -6,6 +6,7 @@ import { WIN_FLOW, WIN_TIME, type Sim, type Vehicle } from '../sim/sim'
 const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
+const CLICK_SLOP = 4 // px the pointer may move between press and release
 
 /** `next`, when there is a Level after this one, Reveals it. */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View, next?: () => void) {
@@ -58,7 +59,11 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   }
   window.addEventListener('keydown', (e) => e.key === 'Escape' && select(null))
 
-  canvas.addEventListener('pointerdown', (e) => {
+  // A click is a press and release in one spot: a drag moves the camera instead.
+  let down = { x: 0, y: 0 }
+  canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY }))
+  canvas.addEventListener('pointerup', (e) => {
+    if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_SLOP) return
     const p = view.pick(e)
     if (!p) return
     const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)

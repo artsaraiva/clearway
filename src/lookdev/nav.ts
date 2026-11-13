@@ -1,6 +1,6 @@
 // PROTOTYPE (issue #16): map furniture for the stylised look. A route line, a destination pin, street names. Throwaway.
 import * as THREE from 'three'
-import { ribbons } from '../render/scene'
+import { ribbons } from '../render/ribbons'
 import type { Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import { armFrame, basic, decal } from './props'
