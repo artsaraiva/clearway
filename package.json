@@ -7,13 +7,17 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sweep": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/sweep.ts'))\""
+    "sweep": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/sweep.ts'))\"",
+    "prepare": "husky"
   },
   "dependencies": {
     "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/three": "^0.187.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.10.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.7",
     "vitest": "^5.1.0"
