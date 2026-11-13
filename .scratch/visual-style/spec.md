@@ -18,7 +18,7 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 
 - Three.js on WebGL, standard soft-lit materials (roughness about 0.85), neutral tone mapping.
 - One directional light with a 4096² soft shadow map, plus a hemisphere light. Blurred dark decals under every building and tree give the contact shadow.
-- No cel bands, no outlines, no ink, no painterly filter. The only post-processing allowed is one bloom pass for night lights, and only if it costs under 2 ms per frame.
+- No cel bands, no outlines, no ink, no painterly filter. The only post-processing allowed was one bloom pass for night lights, and only if it cost under 2 ms per frame. It was measured in [#29](https://github.com/artsaraiva/clearway/issues/29) at 6.2 ms and cut, so there is no post-processing.
 - Everything is procedural geometry and canvas-drawn textures. No authored 3D models, no image files.
 - Static scenery is merged into one mesh per material. Cars and walkers are instanced.
 
@@ -64,7 +64,7 @@ Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt i
 ## Day cycle
 
 - A full day (morning, noon, dusk, night) loops on its own clock, a few minutes per day. It is cosmetic: it does not touch Demand, Levels or the sim, and the player cannot control it in the first version.
-- One light is the sun by day and the moon by night; it goes dark for a moment at each handover so the jump across the sky is never seen.
+- One light is the sun by day and the moon by night; it goes dark for a moment at each handover so the jump across the sky is never seen. The hemisphere fill is raised through each handover, so roads are no darker there than at dusk.
 - Night is a bright moonlit blue, not dark. Windows, lamps and car head and tail lights glow through emissive materials only; there are no per-object light sources.
 
 ## Reveal animation

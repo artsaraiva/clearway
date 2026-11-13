@@ -42,7 +42,7 @@ function split(lot: Bounds, max: number, range: (a: number, b: number) => number
 export function createBlockFill(net: Network, district: District, field: Field, plate: Bounds) {
   const group = new THREE.Group()
   const { scenery } = district
-  if (!scenery) return { group, setNight() {} }
+  if (!scenery) return { group, setGlow() {} }
   const kit = createKit(mulberry32(scenery.seed))
 
   const blocks: Block[] = field.outlines(0).map((loop) => {
@@ -134,5 +134,5 @@ export function createBlockFill(net: Network, district: District, field: Field, 
   }
 
   group.add(...kit.meshes())
-  return { group, setNight: kit.setNight }
+  return { group, setGlow: kit.setGlow }
 }

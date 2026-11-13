@@ -18,6 +18,8 @@ const next = () => {
   location.search = `?level=${level + 2}`
 }
 const view = createView(canvas, sim)
+// Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
+if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
 const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, sim, view, district.levels[level + 1] && next)
 
 // Dev hook for scripted screenshots and frame timing.
