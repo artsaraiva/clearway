@@ -94,10 +94,9 @@ function mustStop(v: Vehicle, rules: Rules): boolean {
  *
  * Connections of one Arm rank by lane. Between the Arms of a Priority junction nobody enters ahead of a vehicle inside
  * the Junction that won't have cleared the conflict point by then, so vehicles inside don't wait on each other in a
- * circle. Of the vehicles
- * still approaching, a moving one gives way to the right and one standing at its line waits for a gap in everything that
- * moves. Vehicles standing at the lines of several Arms would each wait for the next, so among them the one longest on
- * the map goes first (see `goesFirst`).
+ * circle. Of the vehicles still approaching, a moving one gives way to the right and one standing at its line waits for
+ * a gap in everything that moves. Vehicles standing at the lines of several Arms would each wait for the next, so among
+ * them the one longest on the map goes first (see `goesFirst`).
  */
 function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   const held = v.v < HELD
