@@ -41,6 +41,7 @@ const district: District = {
       demand: Object.fromEntries(GATEWAYS.map((g) => [g, { rate: 40, to: others(g) }])),
       initial: {},
       solution: [],
+      slab: { x0: -500, y0: -500, x1: 1000, y1: 1000 },
     },
   ],
 }

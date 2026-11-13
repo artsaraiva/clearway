@@ -10,23 +10,6 @@ const CLICK_SLOP = 4 // px the pointer may move between press and release
 
 /** `next`, when there is a Level after this one, Reveals it. */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View, next?: () => void) {
-  const { tools } = sim.level
-  root.innerHTML = `
-    <div class="panel gauge">
-      <div class="row"><span>Flow</span><b id="flow-pct"></b></div>
-      <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
-      <div class="sub" id="flow-sub"></div>
-    </div>
-    <div class="panel banner" id="banner" hidden>Level won!${next ? ' <button id="next">Next Level</button>' : ''}</div>
-    <div class="panel time">
-      <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
-      <button id="reset">Reset</button>
-    </div>
-    <div class="panel node" id="node" hidden>
-      <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
-      ${tools.includes('priority') ? '<div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>' : ''}
-      ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
-    </div>`
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
@@ -45,29 +28,50 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     view.showArm(arm, null)
   }
 
-  root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
-  root
-    .querySelectorAll<HTMLButtonElement>('[data-prio]')
-    .forEach(
-      (b) =>
-        (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
-    )
-  if (next) $('next').onclick = next
-  $('reset').onclick = () => {
-    sim.reset()
-    select(selected)
+  /** The panels for the current Level: its Tools, and a button for the next Level when there is one. */
+  const lay = () => {
+    const { tools } = sim.level
+    root.innerHTML = `
+      <div class="panel gauge">
+        <div class="row"><span>Flow</span><b id="flow-pct"></b></div>
+        <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
+        <div class="sub" id="flow-sub"></div>
+      </div>
+      <div class="panel banner" id="banner" hidden>Level won!${next ? ' <button id="next">Next Level</button>' : ''}</div>
+      <div class="panel time">
+        <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
+        <button id="reset">Reset</button>
+      </div>
+      <div class="panel node" id="node" hidden>
+        <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
+        ${tools.includes('priority') ? '<div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>' : ''}
+        ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
+      </div>`
+    root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
+    root
+      .querySelectorAll<HTMLButtonElement>('[data-prio]')
+      .forEach(
+        (b) =>
+          (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
+      )
+    if (next) $('next').onclick = next
+    $('reset').onclick = () => {
+      sim.reset()
+      select(selected)
+    }
   }
+  lay()
   window.addEventListener('keydown', (e) => e.key === 'Escape' && select(null))
 
-  // A click is a press and release in one spot: a drag moves the camera instead.
+  // A click is a press and release in one spot: a drag moves the camera instead. Nothing is picked during a Reveal.
   let down = { x: 0, y: 0 }
   canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY }))
   canvas.addEventListener('pointerup', (e) => {
-    if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_SLOP) return
+    if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_SLOP || view.revealing) return
     const p = view.pick(e)
     if (!p) return
     const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)
-    if (selected && tools.includes('connector')) {
+    if (selected && sim.level.tools.includes('connector')) {
       const ends = [
         ...[...selected.approach, ...selected.ringIn].map((lane) => ({ lane, dir: 'in', at: lane.line.pts[lane.line.pts.length - 1] })),
         ...[...selected.ringOut, ...selected.exit].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
@@ -94,6 +98,13 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     get scale() {
       return scale
     },
+
+    /** Show a newly Revealed Level: the Sim the Reveal rebuilt, and `after` to Reveal the Level after it, if any. */
+    show(level: Sim, after?: () => void) {
+      ;[sim, next, selected, armed] = [level, after, null, null]
+      lay()
+    },
+
     update() {
       $('flow-pct').textContent = `${Math.round(sim.flow * 100)}%`
       const fill = $('flow-fill')

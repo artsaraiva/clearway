@@ -19,11 +19,11 @@ const AHEAD = 20 // m along a Road to the second point its on-screen direction i
  * ponytail: labels never make room for each other, so two names can overlap at some camera angles. That is rare with
  * the handful a District has today; hide the lesser of an overlapping pair when Districts carry more names.
  */
-export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, net: Network, district: District, field: Field) {
+export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, district: District) {
   const layer = document.createElement('div')
   layer.className = 'labels'
   canvas.after(layer)
-  const labels: { el: HTMLElement; at: THREE.Vector3; ahead?: THREE.Vector3; shown: string }[] = []
+  let labels: { el: HTMLElement; at: THREE.Vector3; ahead?: THREE.Vector3; shown: string }[] = []
   const add = (text: string, at: THREE.Vector3, ahead?: THREE.Vector3, color?: string) => {
     const el = layer.appendChild(document.createElement('div'))
     el.textContent = text
@@ -31,8 +31,12 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, ne
     labels.push({ el, at, ahead, shown: '' })
   }
 
-  const { scenery } = district
-  if (scenery) {
+  /** Label what is out of the Fog: the streets of `net`, and the landmarks on a Block of `field`. */
+  const show = (net: Network, field: Field) => {
+    layer.replaceChildren()
+    labels = []
+    const { scenery } = district
+    if (!scenery) return
     const roads = new Map<string, Lane[]>()
     for (const lane of net.lanes) {
       if ('road' in lane.owner) roads.set(lane.owner.road, [...(roads.get(lane.owner.road) ?? []), lane])
@@ -59,6 +63,8 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, ne
 
   const [a, b] = [new THREE.Vector3(), new THREE.Vector3()]
   return {
+    show,
+
     /**
      * Move each label to where its point is now, on a canvas `w` by `h` CSS pixels. Call it after the frame is drawn, so
      * it reads this frame's camera.

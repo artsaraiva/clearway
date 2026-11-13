@@ -1,7 +1,8 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import type { Bounds } from '../sim/geometry'
 import { roundedBox, tint } from './shapes'
-import { centre, type Bounds } from './slab'
+import { centre } from './slab'
 
 const TAU = Math.PI * 2
 // Where each cloud starts, in slab half-widths east and half-depths south of the slab's centre, and its height in m.
@@ -57,9 +58,9 @@ function planeModel(color: string): THREE.BufferGeometry {
  * than today's; scale the counts with the slab's area then.
  */
 export function createSky(slab: Bounds) {
-  const [cx, cz] = centre(slab)
-  const [halfWidth, halfDepth] = [(slab.x1 - slab.x0) / 2, (slab.y1 - slab.y0) / 2]
-  const half = Math.max(halfWidth, halfDepth)
+  let [cx, cz] = centre(slab)
+  let [halfWidth, halfDepth] = [(slab.x1 - slab.x0) / 2, (slab.y1 - slab.y0) / 2]
+  let half = Math.max(halfWidth, halfDepth)
   const group = new THREE.Group()
 
   const vapour = new THREE.MeshStandardMaterial({
@@ -91,6 +92,14 @@ export function createSky(slab: Bounds) {
 
   return {
     group,
+
+    /** Fly over a new slab, as after a Reveal. Clouds and planes carry on from where they are. */
+    fit(next: Bounds) {
+      const [x, z] = centre(next)
+      for (const p of planes) [p.east, p.south] = [p.east + cx - x, p.south + cz - z]
+      ;[cx, cz, halfWidth, halfDepth] = [x, z, (next.x1 - next.x0) / 2, (next.y1 - next.y0) / 2]
+      half = Math.max(halfWidth, halfDepth)
+    },
 
     /** `dt` is the real seconds since the last frame, 0 while paused; `zoom` is the camera's. */
     update(dt: number, zoom: number) {

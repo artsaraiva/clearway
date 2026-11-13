@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Glow } from './day'
 import { canvasTexture, gable, roundedBox, tint } from './shapes'
 
@@ -23,16 +22,32 @@ export type Look = string | THREE.Material
 export type TreeKind = keyof typeof LEAVES
 export type BuildingKind = 'house' | 'mid-rise' | 'tower'
 export type Kit = ReturnType<typeof createKit>
+export type Materials = ReturnType<typeof createMaterials>
+
+/** What a brick is, which decides when and how it comes in during a Reveal. */
+export type Stage = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
+
+/** One brick of the slab or of what stands on it: the unit that drops or pops in during a Reveal. */
+export interface Brick {
+  stage: Stage
+  /** The point it lands on, or grows out of, in Three coordinates. */
+  at: THREE.Vector3
+  /** Puffs of dust thrown up where it lands. */
+  dust: number
+}
+
+/** A geometry in place, in Three coordinates, with its material and the index of the brick it belongs to. */
+export interface Part {
+  geometry: THREE.BufferGeometry
+  material: THREE.Material
+  brick: number
+}
 
 /**
- * The building and tree kit: the pieces a Block is filled with. Pieces are placed in sim metres, `(x, y)` on the map
- * and `h` above the road, collected, and merged into one mesh per material. Every random choice comes from `rand`,
- * so the same stream builds the same town.
+ * The materials of the static scenery, shared by every Block so that all of them merge into one mesh per material.
+ * Slab, Blocks and walls take their colours on `solid`.
  */
-export function createKit(rand: () => number) {
-  const range = (a: number, b: number) => a + (b - a) * rand()
-  const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-
+export function createMaterials() {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
   const glass = new THREE.MeshStandardMaterial({
     color: '#a9c4db',
@@ -74,18 +89,51 @@ export function createKit(rand: () => number) {
     0.8,
   )
 
-  const parts = new Map<THREE.Material, THREE.BufferGeometry[]>()
+  return {
+    solid,
+    glass,
+    bulb,
+    water,
+    roundShadow,
+    squareShadow,
+    /** Light the windows and lamps as the time of day has them. */
+    setGlow({ windows, lamps }: Glow) {
+      glass.emissiveIntensity = windows
+      bulb.emissiveIntensity = lamps
+    },
+  }
+}
+
+/**
+ * The building and tree kit: the bricks the slab and its Blocks are built from. Shapes are placed in sim metres,
+ * `(x, y)` on the map and `h` above the road, and every shape added belongs to the next brick closed. Every random
+ * choice comes from `rand`, so the same stream builds the same town.
+ */
+export function createKit(rand: () => number, materials: Materials) {
+  const range = (a: number, b: number) => a + (b - a) * rand()
+  const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
+  const { solid, glass, bulb, water, roundShadow, squareShadow } = materials
+
+  const parts: Part[] = []
+  const bricks: Brick[] = []
+  let open = 0 // parts from here on belong to the next brick
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    const material = typeof look === 'string' ? solid : look
-    if (!parts.has(material)) parts.set(material, [])
-    parts.get(material)!.push(typeof look === 'string' ? tint(geo, look) : geo)
+    const geometry = typeof look === 'string' ? tint(geo, look) : geo
+    parts.push({ geometry, material: typeof look === 'string' ? solid : look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
     const g = geo.index ? geo.toNonIndexed() : geo.clone()
     push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(sx, sy, sz))), look)
+  }
+  /** Close the shapes added since the last brick into one, which lands on `(x, y)`, `h` above the road. */
+  const brick = (stage: Stage, x: number, y: number, h: number, dust = 0) => {
+    if (open === parts.length) return
+    for (let i = open; i < parts.length; i++) parts[i].brick = bricks.length
+    open = parts.length
+    bricks.push({ stage, at: new THREE.Vector3(x, h, -y), dust })
   }
 
   // A building repeats one glass band per floor, so boxes are cut once per size.
@@ -101,6 +149,7 @@ export function createKit(rand: () => number) {
   return {
     add,
     push,
+    brick,
     box,
     shadow,
     glass,
@@ -109,7 +158,7 @@ export function createKit(rand: () => number) {
     range,
     chance: (p: number) => rand() < p,
 
-    /** A tree of size `s` (1 is about 6 m tall): a cluster of spheres, or stacked cones for a pine. */
+    /** A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
       add(CYLINDER, '#9a7457', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
@@ -135,11 +184,12 @@ export function createKit(rand: () => number) {
         }
       }
       shadow(x, y, h, s * 6.8, s * 6.8, true)
+      brick('tree', x, y, h)
     },
 
     /**
-     * A building on a footprint `w` (east–west) by `d`, centred on `(x, y)`: a wall box with a glass band per floor.
-     * A house has one floor and a gable roof; `floors` is for the other two.
+     * A building on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with a glass band
+     * per floor. A house has one floor and a gable roof; `floors` is for the other two.
      */
     building(x: number, y: number, h: number, w: number, d: number, kind: BuildingKind, floors = 1) {
       if (kind === 'house') {
@@ -157,6 +207,7 @@ export function createKit(rand: () => number) {
           along ? Math.PI / 2 : 0,
         )
         shadow(x, y, h, w * 1.45 + 2, d * 1.45 + 2)
+        brick('building', x, y, h)
         return
       }
       const tower = kind === 'tower'
@@ -185,12 +236,14 @@ export function createKit(rand: () => number) {
         }
       }
       shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4)
+      brick('building', x, y, h)
     },
 
-    /** A street lamp. */
+    /** A street lamp, as one brick. */
     lamp(x: number, y: number, h: number) {
       add(CYLINDER, '#7d8794', x, y, h, 0, 0.14, 5, 0.14)
       add(SPHERE, bulb, x, y, h + 5.2, 0, 0.44, 0.44, 0.44)
+      brick('lamp', x, y, h)
     },
 
     /** A cylinder of radii `rx` (east–west) and `ry`, `height` tall. */
@@ -202,26 +255,12 @@ export function createKit(rand: () => number) {
       add(SPHERE, look, x, y, h, 0, r, r, r)
     },
 
-    /** Everything added so far, as one mesh per material. The kit is spent after this. */
-    meshes(): THREE.Mesh[] {
-      const out = [...parts].map(([material, geos]) => {
-        const mesh = new THREE.Mesh(mergeGeometries(geos), material)
-        mesh.castShadow = !material.transparent
-        mesh.receiveShadow = true
-        if (material.transparent) mesh.renderOrder = 2
-        for (const g of geos) g.dispose()
-        return mesh
-      })
+    /** Everything built, as parts tagged with their bricks. Every shape must be in a brick by now. The kit is spent after this. */
+    done(): { parts: Part[]; bricks: Brick[] } {
+      if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of boxes.values()) g.dispose()
-      parts.clear()
       boxes.clear()
-      return out
-    },
-
-    /** Light the windows and lamps as the time of day has them. */
-    setGlow({ windows, lamps }: Glow) {
-      glass.emissiveIntensity = windows
-      bulb.emissiveIntensity = lamps
+      return { parts, bricks }
     },
   }
 }

@@ -73,3 +73,14 @@ export function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingCon
   t.colorSpace = THREE.SRGBColorSpace
   return t
 }
+
+/** A soft white puff, for steam, dust and confetti sprites. */
+export const puff = () =>
+  canvasTexture(64, 64, (g) => {
+    const fade = g.createRadialGradient(32, 32, 4, 32, 32, 30)
+    fade.addColorStop(0, 'rgba(255,255,255,1)')
+    fade.addColorStop(0.7, 'rgba(255,255,255,0.9)')
+    fade.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = fade
+    g.fillRect(0, 0, 64, 64)
+  })

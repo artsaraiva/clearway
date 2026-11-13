@@ -1,4 +1,5 @@
-import { applyChange, buildNetwork } from './network'
+import { overlaps, type Bounds } from './geometry'
+import { applyChange, buildNetwork, type Network } from './network'
 
 export type Priority = 'main' | 'yield'
 export type Tool = 'connector' | 'priority'
@@ -64,6 +65,12 @@ export interface Level {
   initial: Record<string, Omit<Change, 'at'>>
   /** Reference solution. */
   solution: Change[]
+  /**
+   * The piece of slab this Level's Reveal adds, as road plate: the slab is every Revealed Level's piece together. It
+   * must carry the Level's Roads, and a Road that leaves the map must end at its edge. For the renderer; the sim never
+   * reads it.
+   */
+  slab: Bounds
 }
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -120,8 +127,48 @@ export function validateDistrict(district: District) {
       }
       for (const [at, initial] of Object.entries(level.initial)) applyChange(net, { at, ...initial })
       for (const change of level.solution) applyChange(net, change)
+      checkSlab(district, n, net)
     } catch (e) {
       throw new Error(`Level ${n + 1}: ${(e as Error).message}`)
     }
   })
+}
+
+const SLACK = 0.01 // m a lane may stand past the slab's edge, for rounding
+const PAST = 0.5 // m past a Gateway that must already be off the slab
+
+/** Check that Level `n`'s slab overlaps no earlier one and carries its network, `net`, with each Gateway at its edge. */
+function checkSlab(district: District, n: number, net: Network) {
+  const { slab } = district.levels[n]
+  if (!(slab.x0 < slab.x1 && slab.y0 < slab.y1)) throw new Error('its slab needs x0 < x1 and y0 < y1')
+  const earlier = district.levels.slice(0, n).map((level) => level.slab)
+  const overlapped = earlier.findIndex((r) => overlaps(r, slab))
+  if (overlapped >= 0) throw new Error(`its slab overlaps Level ${overlapped + 1}'s`)
+  const slabs = [...earlier, slab]
+  const on = (x: number, y: number, slack = SLACK) =>
+    slabs.some((r) => x >= r.x0 - slack && x <= r.x1 + slack && y >= r.y0 - slack && y <= r.y1 + slack)
+  const where = (x: number, y: number) => `(${x.toFixed(1)}, ${y.toFixed(1)})`
+
+  for (const lane of net.lanes) {
+    const { pts } = lane.line
+    // A Road lane at its full width; Ring and Connection lanes along their centre line.
+    const half = 'road' in lane.owner ? (district.roads[lane.owner.road].laneWidth ?? district.roadDefaults.laneWidth) / 2 : 0
+    const heading = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x)
+    for (const p of pts) {
+      for (const side of half ? [-half, half] : [0]) {
+        const [x, y] = [p.x - Math.sin(heading) * side, p.y + Math.cos(heading) * side]
+        if (!on(x, y)) throw new Error(`lane ${lane.id} runs off the slab at ${where(x, y)}`)
+      }
+    }
+  }
+  for (const [road, arm] of Object.entries(net.gateways)) {
+    for (const lane of arm.exit) {
+      const { pts } = lane.line
+      const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]]
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      if (on(b.x + ((b.x - a.x) / len) * PAST, b.y + ((b.y - a.y) / len) * PAST, 0)) {
+        throw new Error(`Road ${road} leaves the map at ${where(b.x, b.y)}, so the slab must end there`)
+      }
+    }
+  }
 }

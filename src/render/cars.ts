@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, type Vec } from '../sim/geometry'
-import type { Network } from '../sim/network'
+import type { Lane, Network } from '../sim/network'
 import type { Vehicle } from '../sim/sim'
 import type { Glow } from './day'
 import { roundedBox, tint } from './shapes'
@@ -67,8 +67,14 @@ export function createCars(net: Network) {
   body.frustumCulled = lights.frustumCulled = false // instances move; the mesh's own bounds mean nothing
   body.count = lights.count = 0
 
-  const entries = new Set(Object.values(net.gateways).flatMap((arm) => arm.approach))
+  let entries = new Set<Lane>()
   let stuck = new Map<number, number>() // real seconds each car has been stuck, by id
+  /** Follow the cars of a network, as after a Reveal: none has been stuck yet. */
+  const reset = (on: Network) => {
+    entries = new Set(Object.values(on.gateways).flatMap((arm) => arm.approach))
+    stuck = new Map()
+  }
+  reset(net)
   let t = 0
   const [m, q, e, at, scale] = [
     new THREE.Matrix4(),
@@ -80,9 +86,13 @@ export function createCars(net: Network) {
 
   return {
     meshes: [body, lights],
+    reset,
 
-    /** Place the cars. `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones. */
-    update(vehicles: Vehicle[], dt: number): StuckCar[] {
+    /**
+     * Place the cars, every one scaled by `grow` (0–1) as a Reveal shrinks the old ones out and grows the new ones in.
+     * `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones, none until fully grown.
+     */
+    update(vehicles: Vehicle[], dt: number, grow = 1): StuckCar[] {
       t += dt
       const next = new Map<number, number>()
       const angry: StuckCar[] = []
@@ -99,11 +109,11 @@ export function createCars(net: Network) {
         // An angry car hops and rocks.
         at.set(c.x, anger && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * anger, -c.y)
         q.setFromEuler(e.set(anger && Math.sin(t * 34 + v.id) * 0.07 * anger, heading, 0))
-        m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown))))
+        m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown) * grow)))
         body.setMatrixAt(i, m)
         lights.setMatrixAt(i, m)
         body.setColorAt(i, COLORS[v.id % COLORS.length])
-        if (anger) angry.push({ at: at.clone(), anger, stuck: wait })
+        if (anger && grow >= 1) angry.push({ at: at.clone(), anger, stuck: wait })
       }
       stuck = next
       body.instanceMatrix.needsUpdate = lights.instanceMatrix.needsUpdate = true
