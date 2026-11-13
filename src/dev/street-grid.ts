@@ -32,6 +32,26 @@ export default {
   roadDefaults: { speed: 8, laneWidth: 7, bikeBand: false, sidewalk: 0, median: 0 },
   junctions: Object.fromEntries(junctions.map(({ id, at }) => [id, { type: 'priority', at }])),
   roads,
+  // The prototype's authored scenery: Hikari Tower on its plaza, Kumo Park, and Sakura Avenue down the middle.
+  scenery: {
+    theme: 'city',
+    seed: 20261113,
+    landmarks: [{ type: 'tower', name: 'Hikari Tower', at: [-4, -20] }],
+    blocks: [
+      { type: 'plaza', at: [-4, -16] },
+      { type: 'park', name: 'Kumo Park', at: [-58, -96] },
+    ],
+    streets: {
+      ...Object.fromEntries(
+        ['Hoshi-dori', 'Sakura Avenue', 'Kawabata St'].flatMap((name, i) => [`N${i}`, `V${i}a`, `V${i}b`, `S${i}`].map((r) => [r, name])),
+      ),
+      ...Object.fromEntries(
+        ['Asagiri Rd', 'Tsuki-dori', 'Midori St'].flatMap((name, j) => [`W${j}`, `H${j}a`, `H${j}b`].map((r) => [r, name])),
+      ),
+      E0: 'Asagiri Rd',
+    },
+    avenues: ['N1', 'V1a', 'V1b', 'S1'],
+  },
   levels: [
     {
       reveal: junctions.map(({ id }) => id),

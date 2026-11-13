@@ -117,7 +117,8 @@ function pick<T>(entries: [T, number][], rng: () => number): T {
   return entries[entries.length - 1][0]
 }
 
-function mulberry32(seed: number) {
+/** A random stream in [0, 1) that depends only on its seed. */
+export function mulberry32(seed: number) {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0

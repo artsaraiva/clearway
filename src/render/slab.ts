@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { District } from '../sim/district'
+import { roundedBox, tint } from './shapes'
 
 /** A rectangle in sim metres. */
 export interface Bounds {
@@ -49,34 +50,6 @@ export const slabBounds = (plate: Bounds): Bounds => ({ x0: plate.x0 - RIM, y0: 
 /** The middle of a rectangle, as Three (x, z). */
 export const centre = (b: Bounds): [number, number] => [(b.x0 + b.x1) / 2, -(b.y0 + b.y1) / 2]
 
-/** Box `w` × `h` × `d` with rounded corners (radius `r`) and a bevelled top and bottom (`b`), its top centred on the origin. */
-function roundedBox(w: number, h: number, d: number, r: number, b: number): THREE.BufferGeometry {
-  const [iw, id] = [w - 2 * b, d - 2 * b]
-  const [x, y] = [-iw / 2, -id / 2]
-  const s = new THREE.Shape()
-  s.moveTo(x + r, y)
-  s.lineTo(x + iw - r, y).quadraticCurveTo(x + iw, y, x + iw, y + r)
-  s.lineTo(x + iw, y + id - r).quadraticCurveTo(x + iw, y + id, x + iw - r, y + id)
-  s.lineTo(x + r, y + id).quadraticCurveTo(x, y + id, x, y + id - r)
-  s.lineTo(x, y + r).quadraticCurveTo(x, y, x + r, y)
-  const g = new THREE.ExtrudeGeometry(s, {
-    depth: h - 2 * b,
-    bevelEnabled: true,
-    bevelThickness: b,
-    bevelSize: b,
-    bevelSegments: 2,
-    curveSegments: 4,
-  })
-  return g.rotateX(-Math.PI / 2).translate(0, b - h, 0)
-}
-
-function tint(g: THREE.BufferGeometry, color: string): THREE.BufferGeometry {
-  const c = new THREE.Color(color)
-  const a = new Float32Array(g.attributes.position.count * 3)
-  for (let i = 0; i < a.length; i += 3) a.set([c.r, c.g, c.b], i)
-  return g.setAttribute('color', new THREE.BufferAttribute(a, 3))
-}
-
 /** The slab floating in open sky: soil, sand and grass layers, the road plate on top (its surface at height 0), and the soft shadow beneath. */
 export function createSlab(plate: Bounds): THREE.Object3D[] {
   const { x0, y0, x1, y1 } = slabBounds(plate)
@@ -88,13 +61,13 @@ export function createSlab(plate: Bounds): THREE.Object3D[] {
     for (let i = 0; i < nx; i++) {
       for (let j = 0; j < nz; j++) {
         parts.push(
-          tint(roundedBox(w / nx, h, d / nz, 2, 0.4).translate(x0 + ((i + 0.5) * w) / nx, top, -(y0 + ((j + 0.5) * d) / nz)), color),
+          tint(roundedBox(w / nx, h, d / nz, 2, 0.4).translate(x0 + ((i + 0.5) * w) / nx, top - h, -(y0 + ((j + 0.5) * d) / nz)), color),
         )
       }
     }
   }
   // All of the slab top is road; the Blocks stand on it and leave the Roads showing between them.
-  parts.push(tint(roundedBox(w - 2 * RIM, 0.6, d - 2 * RIM, 0.16, 0.08).translate(cx, 0, cz), ROAD))
+  parts.push(tint(roundedBox(w - 2 * RIM, 0.6, d - 2 * RIM, 0.16, 0.08).translate(cx, -0.6, cz), ROAD))
   const slab = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }))
   slab.castShadow = slab.receiveShadow = true
 

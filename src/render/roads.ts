@@ -2,20 +2,51 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { District } from '../sim/district'
 import { pointAt, type Vec } from '../sim/geometry'
-import type { Lane, Network } from '../sim/network'
+import type { Arm, Lane, Network } from '../sim/network'
 import { dashes, mid, ribbons } from './ribbons'
 
 const PAINT_Y = 0.04
-const [WHITE, MAIN] = [0xffffff, 0x30a46c]
+const WHITE = 0xffffff
 const [CENTRE, DIVIDER] = [0.56, 0.3] // line widths, m
 const ZEBRA = { stripe: 1.1, pitch: 2.2, length: 4, setback: 1 } // m; `setback` is from the stop line to the stripes
+// Give-way triangles: `pitch` is the target spacing across a lane, `base` a triangle's share of its slot, and `setback`
+// the gap from the stop line to the row.
+const GIVE_WAY = { pitch: 1.75, base: 0.72, length: 2.4, setback: 0.5 }
 const paint = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide })
+
+/** A row of give-way triangles across each Approach lane of every yielding Arm, pointing at the driver who must give way. */
+function giveWayTriangles(arms: Arm[], laneWidth: (road: string) => number): THREE.BufferGeometry {
+  const pos: number[] = []
+  for (const arm of arms) {
+    if (arm.priority !== 'yield') continue
+    const w = laneWidth(arm.road)
+    const n = Math.max(1, Math.round(w / GIVE_WAY.pitch))
+    const half = ((w / n) * GIVE_WAY.base) / 2
+    for (const lane of arm.approach) {
+      const end = pointAt(lane.line, lane.length)
+      const [fx, fy, lx, ly] = [Math.cos(end.heading), Math.sin(end.heading), -Math.sin(end.heading), Math.cos(end.heading)]
+      for (let k = 0; k < n; k++) {
+        const o = (k - (n - 1) / 2) * (w / n) // metres left of the lane's centre
+        const [x, y] = [end.x + lx * o - fx * GIVE_WAY.setback, end.y + ly * o - fy * GIVE_WAY.setback]
+        for (const [px, py] of [
+          [x + lx * half, y + ly * half],
+          [x - lx * half, y - ly * half],
+          [x - fx * GIVE_WAY.length, y - fy * GIVE_WAY.length],
+        ])
+          pos.push(px, PAINT_Y + 0.01, -py)
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.computeVertexNormals()
+  return g
+}
 
 /**
  * Road paint on the plate: a dashed centre line per Road, dashed dividers between the lanes of one direction (and of a
- * Ring), zebra stripes at every Junction mouth, and a stop line across each Approach.
- * ponytail: Priority shows as a green stop line, carried over from the throwaway renderer so the Priority rule Tool
- * stays readable; #28 replaces the stop lines with give-way triangles.
+ * Ring), zebra stripes at every Junction mouth, and give-way triangles on every yielding Arm. The Approaches of a
+ * roundabout always yield, since its Ring is always main.
  */
 export function createRoads(net: Network, district: District) {
   const laneWidth = (road: string) => district.roads[road].laneWidth ?? district.roadDefaults.laneWidth
@@ -68,28 +99,20 @@ export function createRoads(net: Network, district: District) {
   ])
   group.add(new THREE.Mesh(lines, paint(WHITE)))
 
-  const stopLines = arms.map((arm) => {
-    const ins = arm.approach
-    const end = (i: number) => ins[i].line.pts[ins[i].line.pts.length - 1]
-    const { heading } = pointAt(ins[0].line, ins[0].length)
-    const half = laneWidth(arm.road) / 2
-    const right = { x: Math.sin(heading) * half, y: -Math.cos(heading) * half }
-    const [a, b] = [end(0), end(ins.length - 1)]
-    const across = [
-      { x: a.x + right.x, y: a.y + right.y },
-      { x: b.x - right.x, y: b.y - right.y },
-    ]
-    const material = paint(WHITE)
-    group.add(new THREE.Mesh(ribbons([across], 0.6, PAINT_Y + 0.01), material))
-    return { arm, material }
-  })
+  const giveWay = new THREE.Mesh(new THREE.BufferGeometry(), paint(WHITE))
+  group.add(giveWay)
   for (const mesh of group.children) mesh.receiveShadow = true
+  let painted = ''
 
   return {
     group,
-    /** Re-read each Arm's Priority from the sim. */
+    /** Re-read each Arm's Priority from the sim, and repaint when a Change has moved one. */
     update() {
-      for (const { arm, material } of stopLines) material.color.setHex(arm.priority === 'main' ? MAIN : WHITE)
+      const now = arms.map((arm) => arm.priority[0]).join('')
+      if (now === painted) return
+      painted = now
+      giveWay.geometry.dispose()
+      giveWay.geometry = giveWayTriangles(arms, laneWidth)
     },
   }
 }

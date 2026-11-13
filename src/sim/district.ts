@@ -66,11 +66,41 @@ export interface Level {
   solution: Change[]
 }
 
+/** Authored scenery standing at a point. `name` is its label on the map. */
+export interface Landmark {
+  type: 'tower'
+  name: string
+  at: Point
+}
+
+/** A Block that is not split into lots: the one around `at`. A park has its pond at `at`. */
+export interface SpecialBlock {
+  type: 'plaza' | 'park'
+  name?: string
+  at: Point
+}
+
+/** What stands on a District's Blocks. It is for the renderer; the sim never reads it. */
+export interface Scenery {
+  /** The first theme is a city; countryside and harbor join the type when their fills exist. */
+  theme: 'city'
+  /** Seed of the Block fill: the same seed gives the same town. */
+  seed: number
+  landmarks: Landmark[]
+  blocks: SpecialBlock[]
+  /** Street names by Road id. Roads that share a name are one street. */
+  streets: Record<string, string>
+  /** Roads lined with street trees. */
+  avenues: string[]
+}
+
 export interface District {
   roadDefaults: RoadAttributes
   junctions: Record<string, JunctionSpec>
   roads: Record<string, RoadSpec>
   levels: Level[]
+  /** Without it the Blocks stay bare pavement. */
+  scenery?: Scenery
 }
 
 /** Junctions out of the Fog in Level `index`: its own Reveal plus every earlier one. */
