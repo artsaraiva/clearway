@@ -25,7 +25,7 @@ Use the `gh` CLI with `-R artsaraiva/clearway`. The repo belongs to the personal
 
 ## When a skill says "fetch the relevant ticket"
 
-`gh issue view <n> -R artsaraiva/clearway --comments`. The user will normally pass the issue number.
+`gh issue view <n> -R artsaraiva/clearway --json title,body,comments`. Plain `gh issue view` prints nothing in a non-interactive shell, so an empty result means the command, not the ticket, is wrong. The user will normally pass the issue number.
 
 ## Wayfinding operations
 

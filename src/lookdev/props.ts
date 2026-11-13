@@ -16,7 +16,8 @@ const BARK = 0x978f7f
 const BRAKE_ON = new THREE.Color(0xff2a2a)
 const BRAKE_OFF = new THREE.Color(0x5e2a2a)
 
-const basic = (color: number) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
+const basic = (color: number) =>
+  new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
 const lambert = (color: number) => new THREE.MeshLambertMaterial({ color })
 
 /** Non-indexed, uv-free copy with a per-vertex colour from height, ready to merge. */
@@ -38,7 +39,10 @@ const shade = (hex: number, y0: number, y1: number, low: number) => (y: number) 
 export function flatPolys(polys: Vec[][], y: number): THREE.BufferGeometry {
   const pos: number[] = []
   for (const p of polys) {
-    for (const tri of THREE.ShapeUtils.triangulateShape(p.map((q) => new THREE.Vector2(q.x, q.y)), [])) {
+    for (const tri of THREE.ShapeUtils.triangulateShape(
+      p.map((q) => new THREE.Vector2(q.x, q.y)),
+      [],
+    )) {
       for (const k of tri) pos.push(p[k].x, y, -p[k].y)
     }
   }
@@ -71,8 +75,26 @@ function armFrame(net: Network, arm: string, w: number) {
 }
 
 // Arrow outlines in (forward, right) metres, drawn stretched along the lane.
-const STRAIGHT = [[0, -0.15], [3.2, -0.15], [3.2, -0.6], [5, 0], [3.2, 0.6], [3.2, 0.15], [0, 0.15]]
-const RIGHT_TURN = [[0, -0.15], [3, -0.15], [3, 1.2], [3.4, 1.2], [2.85, 2], [2.3, 1.2], [2.7, 1.2], [2.7, 0.15], [0, 0.15]]
+const STRAIGHT = [
+  [0, -0.15],
+  [3.2, -0.15],
+  [3.2, -0.6],
+  [5, 0],
+  [3.2, 0.6],
+  [3.2, 0.15],
+  [0, 0.15],
+]
+const RIGHT_TURN = [
+  [0, -0.15],
+  [3, -0.15],
+  [3, 1.2],
+  [3.4, 1.2],
+  [2.85, 2],
+  [2.3, 1.2],
+  [2.7, 1.2],
+  [2.7, 0.15],
+  [0, 0.15],
+]
 
 /** Lane dividers, centre lines, entry lines, zebras, give-way triangles and turn arrows, merged into one mesh. */
 export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
@@ -102,7 +124,12 @@ export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
       polys.push((i === 0 ? RIGHT_TURN : STRAIGHT).map(([fw, s]) => f.at(30 - fw * 1.5, lat + s)))
     })
   }
-  const geo = mergeGeometries([ribbons(thin, 0.15, PAINT_Y), ribbons(dashed, 0.35, PAINT_Y), ribbons(wide, 0.5, PAINT_Y), flatPolys(polys, PAINT_Y)])
+  const geo = mergeGeometries([
+    ribbons(thin, 0.15, PAINT_Y),
+    ribbons(dashed, 0.35, PAINT_Y),
+    ribbons(wide, 0.5, PAINT_Y),
+    flatPolys(polys, PAINT_Y),
+  ])
   return new THREE.Mesh(geo, basic(0xf7f7f5))
 }
 
@@ -127,7 +154,9 @@ export function signs(net: Network, w: number, yieldArm: string, signalArm: stri
   const signal = new THREE.Group()
   signal.add(pole(3.6, 0.09), new THREE.Mesh(new THREE.BoxGeometry(0.45, 1.2, 0.35).translate(0, 4.2, 0.1), lambert(0x2b2f33)))
   ;[0x4a1c1c, 0x4a3a12, 0x2fe07a].forEach((color, i) => {
-    signal.add(new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8).translate(0, 4.56 - i * 0.36, 0.28), new THREE.MeshBasicMaterial({ color })))
+    signal.add(
+      new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 8).translate(0, 4.56 - i * 0.36, 0.28), new THREE.MeshBasicMaterial({ color })),
+    )
   })
   place(signal, signalArm)
   return group
@@ -137,7 +166,9 @@ export function signs(net: Network, w: number, yieldArm: string, signalArm: stri
 export function buildingLayer(list: Building[]): THREE.Mesh {
   const geos = list.map(({ pts, h }) => {
     const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, p.y)))
-    const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, steps: Math.min(12, Math.ceil(h / 3)) }).rotateX(-Math.PI / 2)
+    const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, steps: Math.min(12, Math.ceil(h / 3)) }).rotateX(
+      -Math.PI / 2,
+    )
     return painted(g, (y) => new THREE.Color(WALL).multiplyScalar(1 - 0.22 * Math.exp(-y / 3)))
   })
   return new THREE.Mesh(mergeGeometries(geos), new THREE.MeshLambertMaterial({ vertexColors: true }))
@@ -160,8 +191,15 @@ function blob(radius: number, stretch: number, seed: number): THREE.BufferGeomet
 function treeGeometry(kind: number): THREE.BufferGeometry {
   const trunk = (h: number) => painted(new THREE.CylinderGeometry(0.11, 0.17, h, 6).translate(0, h / 2, 0), () => new THREE.Color(BARK))
   if (kind === 2) {
-    const tiers = [[1.5, 2.6, 2.4], [1.15, 2.2, 3.6], [0.75, 1.9, 4.8]]
-    return mergeGeometries([trunk(1.6), ...tiers.map(([r, h, y]) => painted(new THREE.ConeGeometry(r, h, 8).translate(0, y, 0), shade(PINE, 1.1, 5.8, 0.7)))])
+    const tiers = [
+      [1.5, 2.6, 2.4],
+      [1.15, 2.2, 3.6],
+      [0.75, 1.9, 4.8],
+    ]
+    return mergeGeometries([
+      trunk(1.6),
+      ...tiers.map(([r, h, y]) => painted(new THREE.ConeGeometry(r, h, 8).translate(0, y, 0), shade(PINE, 1.1, 5.8, 0.7))),
+    ])
   }
   const [r, stretch, seed] = kind === 0 ? [2.8, 1, 1] : [2.3, 1.35, 4]
   const ry = r * stretch
@@ -194,9 +232,9 @@ function ellipse(): THREE.BufferGeometry {
   const vert = (p: number[], alpha: number) => (pos.push(...p), col.push(0, 0, 0, alpha))
   for (let i = 0; i < N; i++) {
     const [ia, ib, oa, ob] = [ring(2.1, 0.85, i), ring(2.1, 0.85, i + 1), ring(3.0, 1.5, i), ring(3.0, 1.5, i + 1)]
-    vert([0, 0, 0], 0.45), vert(ib, 0.45), vert(ia, 0.45)
-    vert(ia, 0.45), vert(ib, 0.45), vert(oa, 0)
-    vert(ib, 0.45), vert(ob, 0), vert(oa, 0)
+    ;(vert([0, 0, 0], 0.45), vert(ib, 0.45), vert(ia, 0.45))
+    ;(vert(ia, 0.45), vert(ib, 0.45), vert(oa, 0))
+    ;(vert(ib, 0.45), vert(ob, 0), vert(oa, 0))
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
@@ -208,10 +246,26 @@ export type CarLike = Pick<Vehicle, 'id' | 'lane' | 's' | 'v' | 'acc' | 'waiting
 
 /** Instanced car bodies, rear lights (red when braking or held) and contact shadows. */
 export function carLayer(capacity: number) {
-  const body = new THREE.InstancedMesh(new RoundedBoxGeometry(4.3, 1.5, 1.9, 2, 0.45).translate(0, 0.8, 0), new THREE.MeshLambertMaterial(), capacity)
+  const body = new THREE.InstancedMesh(
+    new RoundedBoxGeometry(4.3, 1.5, 1.9, 2, 0.45).translate(0, 0.8, 0),
+    new THREE.MeshLambertMaterial(),
+    capacity,
+  )
   const lamp = new THREE.BoxGeometry(0.1, 0.24, 0.42)
-  const lights = new THREE.InstancedMesh(mergeGeometries([lamp.clone().translate(-2.16, 0.95, 0.6), lamp.clone().translate(-2.16, 0.95, -0.6)]), new THREE.MeshBasicMaterial(), capacity)
-  const shadowMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 })
+  const lights = new THREE.InstancedMesh(
+    mergeGeometries([lamp.clone().translate(-2.16, 0.95, 0.6), lamp.clone().translate(-2.16, 0.95, -0.6)]),
+    new THREE.MeshBasicMaterial(),
+    capacity,
+  )
+  const shadowMat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -8,
+  })
   const shadow = new THREE.InstancedMesh(ellipse(), shadowMat, capacity)
   const meshes = [shadow, body, lights]
   const group = new THREE.Group()
@@ -220,7 +274,13 @@ export function carLayer(capacity: number) {
     mesh.count = 0
     group.add(mesh)
   }
-  const [m, q, pos, up, one] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(), new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 1, 1)]
+  const [m, q, pos, up, one] = [
+    new THREE.Matrix4(),
+    new THREE.Quaternion(),
+    new THREE.Vector3(),
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(1, 1, 1),
+  ]
 
   return {
     group,

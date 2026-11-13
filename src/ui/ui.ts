@@ -40,9 +40,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   }
 
   root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
-  root.querySelectorAll<HTMLButtonElement>('[data-prio]').forEach(
-    (b) => (b.onclick = () => selected && sim.setPriority(selected.arm, b.dataset.prio as Priority)),
-  )
+  root
+    .querySelectorAll<HTMLButtonElement>('[data-prio]')
+    .forEach((b) => (b.onclick = () => selected && sim.setPriority(selected.arm, b.dataset.prio as Priority)))
   $('reset').onclick = () => {
     sim.reset()
     select(selected)
@@ -67,7 +67,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       }
       if (hit) return view.showNode(selected, armed)
     }
-    const car = sim.vehicles.reduce<Vehicle | null>((best, v) => (dist(view.carCentre(v)) < (best ? dist(view.carCentre(best)) : CAR_PICK) ? v : best), null)
+    const car = sim.vehicles.reduce<Vehicle | null>(
+      (best, v) => (dist(view.carCentre(v)) < (best ? dist(view.carCentre(best)) : CAR_PICK) ? v : best),
+      null,
+    )
     if (car) return view.inspectCar(car)
     const near = sim.net.nodes.find((n) => dist(n.center) < NODE_PICK)
     select(near ?? null)

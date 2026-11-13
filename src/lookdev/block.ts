@@ -39,7 +39,17 @@ export const buildings: Building[] = [
   { pts: rect(118, 88, 190, 150), h: 16 },
   { pts: rect(118, 162, 190, 200), h: 22 },
   { pts: rect(-190, -195, -120, -165), h: 12 },
-  { pts: [{ x: -100, y: -195 }, { x: -40, y: -195 }, { x: -40, y: -120 }, { x: -62, y: -120 }, { x: -62, y: -165 }, { x: -100, y: -165 }], h: 15 },
+  {
+    pts: [
+      { x: -100, y: -195 },
+      { x: -40, y: -195 },
+      { x: -40, y: -120 },
+      { x: -62, y: -120 },
+      { x: -62, y: -165 },
+      { x: -100, y: -165 },
+    ],
+    h: 15,
+  },
   { pts: rect(-195, -100, -165, -40), h: 9 },
   { pts: rect(115, -195, 190, -110), h: 20 },
   { pts: rect(40, -195, 95, -150), h: 10 },
@@ -51,7 +61,9 @@ const hash = (n: number) => {
 }
 const polar = (r: number, deg: number) => ({ x: r * Math.cos((deg * Math.PI) / 180), y: r * Math.sin((deg * Math.PI) / 180) })
 
-const ringTrees: Tree[] = [28, 45, 62].flatMap((a, i) => [0, 90, 180, 270].map((q) => ({ ...polar(50, a + q), kind: (i % 2) as 0 | 1, s: 1 })))
+const ringTrees: Tree[] = [28, 45, 62].flatMap((a, i) =>
+  [0, 90, 180, 270].map((q) => ({ ...polar(50, a + q), kind: (i % 2) as 0 | 1, s: 1 })),
+)
 
 /** Avenue rows along both sides of every arm, 4.5 m outside the kerb. */
 const avenueTrees: Tree[] = [0, 90, 180, 270].flatMap((deg) =>
@@ -59,7 +71,12 @@ const avenueTrees: Tree[] = [0, 90, 180, 270].flatMap((deg) =>
     Array.from({ length: 9 }, (_, i) => {
       const r = 74 + i * 14
       const a = (deg * Math.PI) / 180
-      return { x: Math.cos(a) * r - Math.sin(a) * side * 13.5, y: Math.sin(a) * r + Math.cos(a) * side * 13.5, kind: (i % 2) as 0 | 1, s: 0.9 + 0.2 * hash(deg + i + side) }
+      return {
+        x: Math.cos(a) * r - Math.sin(a) * side * 13.5,
+        y: Math.sin(a) * r + Math.cos(a) * side * 13.5,
+        kind: (i % 2) as 0 | 1,
+        s: 0.9 + 0.2 * hash(deg + i + side),
+      }
     }),
   ),
 )

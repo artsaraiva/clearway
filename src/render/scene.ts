@@ -25,8 +25,12 @@ export function ribbons(lines: Vec[][], width: number, y: number): THREE.BufferG
     for (let i = 1; i < pts.length; i++) {
       const [a, b, na, nb] = [pts[i - 1], pts[i], side[i - 1], side[i]]
       const quad = [
-        [a.x + na.x, a.y + na.y], [a.x - na.x, a.y - na.y], [b.x + nb.x, b.y + nb.y],
-        [a.x - na.x, a.y - na.y], [b.x - nb.x, b.y - nb.y], [b.x + nb.x, b.y + nb.y],
+        [a.x + na.x, a.y + na.y],
+        [a.x - na.x, a.y - na.y],
+        [b.x + nb.x, b.y + nb.y],
+        [a.x - na.x, a.y - na.y],
+        [b.x - nb.x, b.y - nb.y],
+        [b.x + nb.x, b.y + nb.y],
       ]
       for (const [x, z] of quad) pos.push(x, y, -z)
     }
@@ -83,7 +87,14 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   scene.add(ground)
 
   // Road surface: every lane, including all candidate connections so node areas are paved.
-  const road = new THREE.Mesh(ribbons(net.lanes.map((l) => l.line.pts), w + 0.05, ROAD_Y), flat(COLORS.road))
+  const road = new THREE.Mesh(
+    ribbons(
+      net.lanes.map((l) => l.line.pts),
+      w + 0.05,
+      ROAD_Y,
+    ),
+    flat(COLORS.road),
+  )
   road.receiveShadow = true
   scene.add(road)
 
@@ -198,7 +209,8 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
         mesh.castShadow = true
         overlay.add(mesh)
       }
-      for (const [port, lane] of Object.entries(node.inPorts)) marker(lane.line.pts[lane.line.pts.length - 1], port === armed ? 0x1e3a8a : 0x3b82f6, port === armed)
+      for (const [port, lane] of Object.entries(node.inPorts))
+        marker(lane.line.pts[lane.line.pts.length - 1], port === armed ? 0x1e3a8a : 0x3b82f6, port === armed)
       for (const lane of Object.values(node.outPorts)) marker(lane.line.pts[0], 0xf97316, false)
     },
 
