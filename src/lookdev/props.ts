@@ -1,32 +1,28 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { CAR_COLORS, dashes, mid, ribbons } from '../render/scene'
+import { dashes, mid, ribbons } from '../render/scene'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
 import type { Vehicle, VehicleType } from '../sim/sim'
 import type { Building, Tree } from './block'
-import { BIKE, CURB, PALETTE } from './field'
+import { BIKE, CURB } from './field'
+import { colors, hull, inkMaterial, lit, PASTELS, type Look } from './look'
 
 const PAINT_Y = 0.02
-const WALL = 0xd5d8dd
-const LEAF = 0xb3cc98
-const PINE = 0xa3c193
-const BARK = 0x978f7f
 const BRAKE_ON = new THREE.Color(0xff2a2a)
 const BRAKE_OFF = new THREE.Color(0x5e2a2a)
 
-const basic = (color: number) =>
+export const basic = (color: number) =>
   new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })
-const lambert = (color: number) => new THREE.MeshLambertMaterial({ color })
 
 /** Non-indexed, uv-free copy with a per-vertex colour from height, ready to merge. */
-function painted(geo: THREE.BufferGeometry, color: (y: number) => THREE.Color): THREE.BufferGeometry {
+function painted(geo: THREE.BufferGeometry, color: (y: number, ny: number) => THREE.Color): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo
   g.deleteAttribute('uv')
   const pos = g.attributes.position
   const col = new Float32Array(pos.count * 3)
-  for (let i = 0; i < pos.count; i++) color(pos.getY(i)).toArray(col, i * 3)
+  for (let i = 0; i < pos.count; i++) color(pos.getY(i), g.attributes.normal.getY(i)).toArray(col, i * 3)
   g.setAttribute('color', new THREE.BufferAttribute(col, 3))
   return g
 }
@@ -52,10 +48,10 @@ export function flatPolys(polys: Vec[][], y: number): THREE.BufferGeometry {
   return g
 }
 
-export const plazaLayer = (polys: Vec[][]) => new THREE.Mesh(flatPolys(polys, 0.01), basic(PALETTE.plaza))
+export const plazaLayer = (polys: Vec[][], look: Look) => new THREE.Mesh(flatPolys(polys, 0.01), basic(colors(look).plaza))
 
 /** Frame at an arm's entry line: `at(r, lat)` is r m out along the arm and lat m right of inbound traffic. */
-function armFrame(arm: Arm, w: number) {
+export function armFrame(arm: Arm, w: number) {
   const ins = arm.approach
   const outs = arm.exit
   const end = (l: Lane) => l.line.pts[l.line.pts.length - 1]
@@ -97,14 +93,15 @@ const RIGHT_TURN = [
 ]
 
 /** Lane dividers, centre lines, entry lines, zebras, give-way triangles and turn arrows, merged into one mesh. */
-export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
-  const [thin, dashed, wide, polys]: Vec[][][] = [[], [], [], []]
+export function markings(net: Network, w: number, stopArm: string, look: Look): THREE.Object3D {
+  const [thin, dashed, wide, polys, centre, tactile]: Vec[][][] = [[], [], [], [], [], []]
+  const text = new THREE.Group()
   for (const arm of net.junctions.flatMap((j) => j.arms)) {
     const ins = arm.approach
     const outs = arm.exit
     for (let i = 1; i < ins.length; i++) thin.push(...dashes(mid(ins[i - 1].line.pts, ins[i].line.pts), 3, 6))
     for (let i = 1; i < outs.length; i++) thin.push(...dashes(mid(outs[i - 1].line.pts, outs[i].line.pts), 3, 6))
-    thin.push(mid(ins[ins.length - 1].line.pts, [...outs[outs.length - 1].line.pts].reverse()))
+    ;(look.japan ? centre : thin).push(mid(ins[ins.length - 1].line.pts, [...outs[outs.length - 1].line.pts].reverse()))
     const ring = arm.ringOut
     const across = (i: number) => arm.connections.find((c) => c.from === arm.ringIn[i] && c.to === arm.ringOut[i])!.lane.line.pts
     for (let i = 1; i < ring.length; i++) {
@@ -115,12 +112,18 @@ export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
     const f = armFrame(arm, w)
     if (arm.road === stopArm) wide.push([f.at(0.3, 0.15), f.at(0.3, f.half - 0.15)])
     for (let lat = -f.half + 0.75; lat < f.half - 0.4; lat += 1.1) wide.push([f.at(7, lat), f.at(10, lat)])
+    for (const side of [-1, 1]) tactile.push([f.at(7, side * (f.half + BIKE + CURB + 0.5)), f.at(10, side * (f.half + BIKE + CURB + 0.5))])
     f.lanes.forEach((lat, i) => {
       if (arm.road !== stopArm) {
         dashed.push(...dashes([f.at(0.2, lat - w / 2 + 0.15), f.at(0.2, lat + w / 2 - 0.15)], 0.5, 0.35))
         polys.push([f.at(5, lat), f.at(2, lat - 0.75), f.at(2, lat + 0.75)]) // give-way triangle, apex toward the driver
       }
       polys.push((i === 0 ? RIGHT_TURN : STRAIGHT).map(([fw, s]) => f.at(30 - fw * 1.5, lat + s)))
+      if (!look.japan) return
+      // Diamonds warn of the crossing ahead; the stop arm spells it out.
+      for (const r of [40, 52])
+        thin.push([f.at(r - 2.5, lat), f.at(r, lat + 0.75), f.at(r + 2.5, lat), f.at(r, lat - 0.75), f.at(r - 2.5, lat)])
+      if (arm.road === stopArm) text.add(roadText('止まれ', f.at(16.5, lat), f.u))
     })
   }
   const geo = mergeGeometries([
@@ -129,12 +132,64 @@ export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
     ribbons(wide, 0.5, PAINT_Y),
     flatPolys(polys, PAINT_Y),
   ])
-  return new THREE.Mesh(geo, basic(0xf7f7f5))
+  const white = new THREE.Mesh(geo, basic(0xf7f7f5))
+  if (!look.japan) return white
+  return new THREE.Group().add(
+    white,
+    new THREE.Mesh(ribbons(centre, 0.22, PAINT_Y), basic(0xf0a030)),
+    new THREE.Mesh(ribbons(tactile, 0.6, PAINT_Y), basic(0xf5d020)),
+    text,
+  )
+}
+
+/** A canvas drawn flat on the ground at `at`, `size` metres, its x axis along sim direction `right`. */
+export function decal(
+  px: [number, number],
+  size: [number, number],
+  at: Vec,
+  right: Vec,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+  y = PAINT_Y,
+): THREE.Mesh {
+  const canvas = document.createElement('canvas')
+  ;[canvas.width, canvas.height] = px
+  draw(canvas.getContext('2d')!)
+  const map = new THREE.CanvasTexture(canvas)
+  map.colorSpace = THREE.SRGBColorSpace
+  map.anisotropy = 8
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(...size),
+    new THREE.MeshBasicMaterial({
+      map,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -4,
+    }),
+  )
+  mesh.matrix
+    .makeBasis(new THREE.Vector3(right.x, 0, -right.y), new THREE.Vector3(-right.y, 0, -right.x), new THREE.Vector3(0, 1, 0))
+    .setPosition(at.x, y, -at.y)
+  mesh.matrixAutoUpdate = false
+  return mesh
+}
+
+/** Tall painted lettering on the road, read by a driver heading inward (against `outward`). */
+function roadText(chars: string, at: Vec, outward: Vec): THREE.Mesh {
+  return decal([128, 128 * chars.length], [2.4, 7.5], at, { x: -outward.y, y: outward.x }, (ctx) => {
+    ctx.fillStyle = '#f7f7f5'
+    ctx.font = 'bold 112px "Hiragino Sans", "Noto Sans JP", sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ;[...chars].forEach((ch, k) => ctx.fillText(ch, 64, 64 + 128 * k))
+  })
 }
 
 /** One give-way sign and one signal head, at the kerb right of each entry line, facing oncoming traffic. */
-export function signs(net: Network, w: number, yieldArm: string, signalArm: string): THREE.Group {
+export function signs(net: Network, w: number, yieldArm: string, signalArm: string, look: Look): THREE.Group {
   const group = new THREE.Group()
+  const lambert = (color: number) => lit(look, { color })
   const place = (obj: THREE.Object3D, arm: string) => {
     const f = armFrame(net.gateways[arm], w)
     const p = f.at(0.5, f.half + BIKE + CURB + 0.7)
@@ -158,19 +213,66 @@ export function signs(net: Network, w: number, yieldArm: string, signalArm: stri
     )
   })
   place(signal, signalArm)
+  group.traverse((o) => (o.castShadow = true))
   return group
 }
 
 /** Extruded footprints with flat roofs and a darker base, merged into one mesh. */
-export function buildingLayer(list: Building[]): THREE.Mesh {
-  const geos = list.map(({ pts, h }) => {
+export function buildingLayer(list: Building[], look: Look): THREE.Group {
+  const c = colors(look)
+  const geos = list.map(({ pts, h }, i) => {
     const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(p.x, p.y)))
     const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, steps: Math.min(12, Math.ceil(h / 3)) }).rotateX(
       -Math.PI / 2,
     )
-    return painted(g, (y) => new THREE.Color(WALL).multiplyScalar(1 - 0.22 * Math.exp(-y / 3)))
+    const roof = new THREE.Color(c.roofs[i % c.roofs.length])
+    return painted(g, (y, ny) =>
+      ny > 0.5 ? roof : new THREE.Color(look.paint ? PASTELS[i % PASTELS.length] : c.wall).multiplyScalar(1 - 0.22 * Math.exp(-y / 3)),
+    )
   })
-  return new THREE.Mesh(mergeGeometries(geos), new THREE.MeshLambertMaterial({ vertexColors: true }))
+  const geo = mergeGeometries(geos)
+  const mesh = new THREE.Mesh(geo, lit(look, { vertexColors: true }))
+  mesh.castShadow = mesh.receiveShadow = true
+  const group = new THREE.Group().add(mesh)
+  if (look.ink || look.paint) group.add(windows(list, look))
+  if (look.outline && !look.ink)
+    group.add(new THREE.Mesh(hull(geo), inkMaterial(new THREE.Color(c.wall).multiply(new THREE.Color(c.ink)).getHex())))
+  return group
+}
+
+/** Window quads on every wall. Their normals are tilted so the ink pass sees a crease around each one. */
+function windows(list: Building[], look: Look): THREE.Mesh {
+  const [pos, nor]: number[][] = [[], []]
+  for (const { pts, h } of list) {
+    pts.forEach((a, k) => {
+      const b = pts[(k + 1) % pts.length]
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      const d = { x: (b.x - a.x) / len, y: (b.y - a.y) / len }
+      const n = { x: d.y, y: -d.x } // footprints are counter-clockwise
+      const [cols, rows] = [Math.floor((len - 2) / 5), Math.floor((h - 2.5) / 3.6)]
+      const pad = (len - cols * 5) / 2
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          const [t0, t1, y0, y1] = [pad + i * 5 + 1.1, pad + i * 5 + 3.9, 2.4 + j * 3.6, 4.4 + j * 3.6]
+          for (const [t, y] of [
+            [t0, y0],
+            [t1, y0],
+            [t1, y1],
+            [t0, y0],
+            [t1, y1],
+            [t0, y1],
+          ]) {
+            pos.push(a.x + d.x * t + n.x * 0.08, y, -(a.y + d.y * t + n.y * 0.08))
+            nor.push(n.x * 0.8, 0.6, -n.y * 0.8)
+          }
+        }
+      }
+    })
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3))
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: colors(look).glass }))
 }
 
 /** Unit icosphere pushed out by smooth noise: a blobby canopy. */
@@ -187,7 +289,9 @@ function blob(radius: number, stretch: number, seed: number): THREE.BufferGeomet
   return g
 }
 
-function treeGeometry(kind: number): THREE.BufferGeometry {
+function treeGeometry(kind: number, look: Look): THREE.BufferGeometry {
+  const { pine: PINE, bark: BARK } = colors(look)
+  const LEAF = kind === SAKURA ? 0xf6b9cb : colors(look).leaf
   const trunk = (h: number) => painted(new THREE.CylinderGeometry(0.11, 0.17, h, 6).translate(0, h / 2, 0), () => new THREE.Color(BARK))
   if (kind === 2) {
     const tiers = [
@@ -203,22 +307,57 @@ function treeGeometry(kind: number): THREE.BufferGeometry {
   const [r, stretch, seed] = kind === 0 ? [2.8, 1, 1] : [2.3, 1.35, 4]
   const ry = r * stretch
   const top = 3 + ry
+  if (look.paint) {
+    // Fluffy: a cluster of blobs, lit yellow-green on top and cool underneath.
+    const [dark, light] = [
+      new THREE.Color(LEAF).multiply(new THREE.Color(0x7f9fb0)),
+      new THREE.Color(LEAF).lerp(new THREE.Color(0xfff6a8), 0.38),
+    ]
+    const tone = (y: number) => dark.clone().lerp(light, THREE.MathUtils.smoothstep(y, top - ry, top + ry * 1.1))
+    const puffs = [0, 1, 2, 3, 4].map((i) => {
+      const a = i * 1.9 + seed
+      const [k, off] = i === 0 ? [1, 0] : [0.62 + 0.1 * Math.sin(i * 3.3), 0.62 * r]
+      return blob(r * k, stretch, seed + i).translate(
+        Math.cos(a) * off,
+        top + (i === 0 ? 0 : ry * (0.25 * Math.sin(i * 2.1) - 0.1)),
+        Math.sin(a) * off,
+      )
+    })
+    const stem = painted(new THREE.CylinderGeometry(0.2, 0.32, 3.4, 7).translate(0, 1.7, 0), () => new THREE.Color(BARK))
+    return mergeGeometries([stem, ...puffs.map((g) => painted(g, tone))])
+  }
   return mergeGeometries([trunk(3.4), painted(blob(r, stretch, seed).translate(0, top, 0), shade(LEAF, top - ry, top + ry, 0.7))])
 }
 
-/** Three tree variants, one InstancedMesh each. */
-export function treeLayer(list: Tree[]): THREE.Group {
+const SAKURA = 3
+
+/** Three tree variants plus cherry blossom, one InstancedMesh each. */
+export function treeLayer(list: Tree[], look: Look): THREE.Group {
   const group = new THREE.Group()
   const [m, q, up, c] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0), new THREE.Color()]
-  for (const kind of [0, 1, 2]) {
-    const mine = list.filter((t) => t.kind === kind)
-    const mesh = new THREE.InstancedMesh(treeGeometry(kind), new THREE.MeshLambertMaterial({ vertexColors: true }), mine.length)
+  // Cherry trees ring the roundabout and line the plaza.
+  const blossom = (t: Tree) => look.japan && t.kind < 2 && (Math.hypot(t.x, t.y) < 56 || (t.x > 30 && t.x < 105 && t.y < -40 && t.y > -125))
+  for (const kind of [0, 1, 2, SAKURA]) {
+    const mine = list.filter((t) => (blossom(t) ? SAKURA : t.kind) === kind)
+    const geo = treeGeometry(kind, look)
+    const mesh = new THREE.InstancedMesh(geo, lit(look, { vertexColors: true }), mine.length)
+    mesh.castShadow = mesh.receiveShadow = true
+    const ink =
+      look.outline && !look.ink
+        ? new THREE.InstancedMesh(
+            hull(geo),
+            inkMaterial(new THREE.Color(colors(look).leaf).multiply(new THREE.Color(colors(look).ink)).getHex()),
+            mine.length,
+          )
+        : null
     mine.forEach((t, i) => {
       q.setFromAxisAngle(up, t.x * 7.3 + t.y * 3.1)
       mesh.setMatrixAt(i, m.compose(new THREE.Vector3(t.x, 0, -t.y), q, new THREE.Vector3(t.s, t.s, t.s)))
+      ink?.setMatrixAt(i, m)
       mesh.setColorAt(i, c.setScalar(0.93 + 0.07 * Math.sin(t.x * 1.7 + t.y)))
     })
     group.add(mesh)
+    if (ink) group.add(ink)
   }
   return group
 }
@@ -244,13 +383,27 @@ function ellipse(): THREE.BufferGeometry {
 export type CarLike = Pick<Vehicle, 'id' | 'lane' | 's' | 'v' | 'acc' | 'waiting' | 'type'>
 
 /** Instanced car bodies, rear lights (red when braking or held) and contact shadows. */
-export function carLayer(capacity: number) {
-  const body = new THREE.InstancedMesh(
-    new RoundedBoxGeometry(4.3, 1.5, 1.9, 2, 0.45).translate(0, 0.8, 0),
-    new THREE.MeshLambertMaterial(),
-    capacity,
-  )
-  const lamp = new THREE.BoxGeometry(0.1, 0.24, 0.42)
+export function carLayer(capacity: number, look: Look) {
+  const c = colors(look)
+  const white = () => new THREE.Color(1, 1, 1)
+  // Toon cars get a cabin: dark vertex colour times the instance colour reads as tinted glass.
+  const bodyGeo = look.toon
+    ? mergeGeometries([
+        painted(new RoundedBoxGeometry(4.3, 1.0, 1.9, 2, look.japan ? 0.2 : 0.35).translate(0, 0.65, 0), white),
+        // Japan: a tall, boxy cabin, like a kei van.
+        painted(
+          look.japan
+            ? new RoundedBoxGeometry(3.0, 1.0, 1.75, 2, 0.15).translate(-0.4, 1.5, 0)
+            : new RoundedBoxGeometry(2.3, 0.8, 1.7, 2, 0.3).translate(-0.3, 1.35, 0),
+          () => new THREE.Color(0.22, 0.25, 0.36),
+        ),
+      ])
+    : painted(new RoundedBoxGeometry(4.3, 1.5, 1.9, 2, 0.45).translate(0, 0.8, 0), white)
+  const body = new THREE.InstancedMesh(bodyGeo, lit(look, { vertexColors: true }), capacity)
+  body.castShadow = body.receiveShadow = true
+  const ink = new THREE.InstancedMesh(hull(bodyGeo), inkMaterial(c.ink), capacity)
+  ink.visible = look.outline && !look.ink
+  const lamp = new THREE.BoxGeometry(0.1, 0.24, 0.42).translate(0, look.toon ? -0.2 : 0, 0)
   const lights = new THREE.InstancedMesh(
     mergeGeometries([lamp.clone().translate(-2.16, 0.95, 0.6), lamp.clone().translate(-2.16, 0.95, -0.6)]),
     new THREE.MeshBasicMaterial(),
@@ -266,7 +419,8 @@ export function carLayer(capacity: number) {
     polygonOffsetUnits: -8,
   })
   const shadow = new THREE.InstancedMesh(ellipse(), shadowMat, capacity)
-  const meshes = [shadow, body, lights]
+  shadow.visible = !look.shadow // real cast shadows replace the blob
+  const meshes = [shadow, body, lights, ink]
   const group = new THREE.Group()
   for (const mesh of meshes) {
     mesh.frustumCulled = false // instances move; the cached bounding sphere would go stale
@@ -283,6 +437,8 @@ export function carLayer(capacity: number) {
 
   return {
     group,
+    /** Flat contact shadow: kept out of the ink pass. */
+    blob: shadow,
     update(cars: CarLike[]) {
       const n = Math.min(cars.length, capacity)
       for (let i = 0; i < n; i++) {
@@ -292,7 +448,8 @@ export function carLayer(capacity: number) {
         pos.set(p.x - Math.cos(p.heading) * back, 0, -(p.y - Math.sin(p.heading) * back))
         m.compose(pos, q.setFromAxisAngle(up, p.heading), one)
         for (const mesh of meshes) mesh.setMatrixAt(i, m)
-        body.setColorAt(i, CAR_COLORS[v.id % CAR_COLORS.length])
+        body.setColorAt(i, c.cars[v.id % c.cars.length])
+        ink.setColorAt(i, c.cars[v.id % c.cars.length])
         lights.setColorAt(i, v.acc < -0.5 || v.waiting || v.v < 0.3 ? BRAKE_ON : BRAKE_OFF)
       }
       for (const mesh of meshes) {

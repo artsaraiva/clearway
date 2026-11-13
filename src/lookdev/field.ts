@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { Vec } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Building, Tree } from './block'
+import { NOISE } from './ink'
 
 // Ground bake: one RGBA half-float texture over the level, painted by a single shader.
 //   R  signed distance to the road edge, metres (negative on the road)
@@ -267,7 +268,8 @@ const fragmentShader = /* glsl */ `
   uniform sampler2D field;
   uniform vec2 fieldMin;
   uniform vec2 fieldSize;
-  uniform vec3 cGround, cRoad, cLine, cBike, cCurb, cGrass, cVerge;
+  uniform vec3 cGround, cRoad, cLine, cBike, cCurb, cGrass, cVerge, cInk;
+  uniform float uInk, uWash;
   varying vec2 vSim;
   #include <fog_pars_fragment>
 
@@ -275,6 +277,13 @@ const fragmentShader = /* glsl */ `
   float under(float edge, float x) {
     float w = fwidth(x) * 0.75 + 1e-3;
     return 1.0 - smoothstep(edge - w, edge + w, x);
+  }
+
+  ${NOISE}
+  // 1 on a line about 1.5 px wide where x crosses zero.
+  float stroke(float x) {
+    float w = fwidth(x) * 0.9 + 0.04;
+    return 1.0 - smoothstep(w * 0.6, w, abs(x));
   }
 
   void main() {
@@ -286,11 +295,27 @@ const fragmentShader = /* glsl */ `
     float lawn = under(0.0, gd) * (1.0 - island);
     vec3 col = mix(cGround, cVerge, lawn);
     col = mix(col, cGrass, lawn * under(0.0, kerb + WALK - sd));
+    // Wash: flat, irregular darker patches, like a brush that ran dry.
+    float wash = 0.6 * noise(vSim / 40.0) + 0.3 * noise(vSim / 19.0 + 7.0) + 0.1 * noise(vSim / 9.0 + 3.0);
+    col *= 1.0 - 0.07 * uWash * under(0.0, 0.52 - wash);
+    col *= 1.0 + 0.1 * uWash * (noise(vSim / 90.0) - 0.5); // slow drift in tone, as if laid down in passes
+    // Flowers: a dot in roughly one lawn cell in ten.
+    vec2 cell = floor(vSim / 1.6);
+    float pickF = hash(cell);
+    vec2 at = (cell + 0.5 + (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.6) * 1.6;
+    vec3 petal = pickF > 0.966 ? vec3(1.0, 0.45, 0.62) : pickF > 0.933 ? vec3(1.0, 0.85, 0.25) : vec3(1.0);
+    col = mix(col, petal, uWash * lawn * under(0.0, kerb + WALK - sd) * step(0.9, pickF) * under(0.3, length(vSim - at)));
     col *= 1.0 - 0.12 * (1.0 - smoothstep(kerb, kerb + 2.0, sd)) - 0.3 * ao;
     col = mix(col, cCurb, under(kerb, sd));
     col = mix(col, cBike, under(BIKE, sd) * (1.0 - island));
     col = mix(col, cLine, under(0.0, sd));
     col = mix(col, cRoad, under(-LINE, sd));
+
+    // Ink along the kerb, the road edge and lawn borders: wobbly, with gaps.
+    float wob = (noise(vSim * 0.35) - 0.5) * 0.35;
+    float ink = max(stroke(sd - kerb + wob), stroke(sd + wob * 0.5));
+    ink = max(ink, stroke(gd + wob) * (1.0 - island) * step(kerb + WALK, sd));
+    col = mix(col, cInk, uInk * 0.85 * ink * smoothstep(0.25, 0.4, noise(vSim * 0.15)));
 
     vec2 e = min(uv, 1.0 - uv) * fieldSize;
     col = mix(cGround, col, smoothstep(0.0, 25.0, min(e.x, e.y)));
@@ -302,7 +327,12 @@ const fragmentShader = /* glsl */ `
 `
 
 /** Unlit ground material that paints road, bike band, kerb, verge, grass and AO from the baked field. */
-export function groundMaterial(field: Field): THREE.ShaderMaterial {
+export function groundMaterial(
+  field: Field,
+  pal: typeof PALETTE & { inkLine?: number } = PALETTE,
+  ink = false,
+  wash = false,
+): THREE.ShaderMaterial {
   const c = (hex: number) => ({ value: new THREE.Color(hex) })
   return new THREE.ShaderMaterial({
     fog: true,
@@ -312,13 +342,16 @@ export function groundMaterial(field: Field): THREE.ShaderMaterial {
       field: { value: field.texture },
       fieldMin: { value: new THREE.Vector2(field.min.x, field.min.y) },
       fieldSize: { value: new THREE.Vector2(field.size.x, field.size.y) },
-      cGround: c(PALETTE.ground),
-      cRoad: c(PALETTE.road),
-      cLine: c(PALETTE.line),
-      cBike: c(PALETTE.bike),
-      cCurb: c(PALETTE.curb),
-      cGrass: c(PALETTE.grass),
-      cVerge: c(PALETTE.verge),
+      cGround: c(pal.ground),
+      cRoad: c(pal.road),
+      cLine: c(pal.line),
+      cBike: c(pal.bike),
+      cCurb: c(pal.curb),
+      cGrass: c(pal.grass),
+      cVerge: c(pal.verge),
+      cInk: c(pal.inkLine ?? 0),
+      uInk: { value: +ink },
+      uWash: { value: +wash },
     },
     vertexShader,
     fragmentShader,
