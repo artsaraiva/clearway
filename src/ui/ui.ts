@@ -22,7 +22,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     </div>
     <div class="panel node" id="node" hidden>
       <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
-      ${tools.includes('priority') ? '<div class="prio"><button data-prio="yield">Yield</button><button data-prio="stop">Stop</button></div>' : ''}
+      ${tools.includes('priority') ? '<div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>' : ''}
       ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
     </div>`
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -37,6 +37,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     view.inspectCar(null)
     $('node').hidden = !arm
     if (arm) $('node-name').textContent = `${arm.junction}: ${arm.road} arm`
+    // On a roundabout the Ring is always main, so the Priority rule isn't offered there.
+    const prio = root.querySelector<HTMLElement>('#prio')
+    if (prio) prio.hidden = !arm || sim.district.junctions[arm.junction].type !== 'priority'
     view.showArm(arm, null)
   }
 

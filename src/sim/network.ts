@@ -1,4 +1,4 @@
-import type { Change, District, Priority } from './district'
+import type { Change, District, JunctionSpec, Priority } from './district'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
 import type { Vehicle } from './sim'
 
@@ -47,6 +47,8 @@ export interface Connection {
   conflicts: Conflict[]
   /** Connections ending on the same lane. */
   merges: Connection[]
+  /** On a Priority junction: which way it turns. */
+  turn?: 'left' | 'straight' | 'right'
 }
 
 /** One Road's end at a Junction. */
@@ -69,6 +71,7 @@ export interface Arm {
 
 export interface Junction {
   id: string
+  type: JunctionSpec['type']
   at: Vec
   /** Counterclockwise: the direction of circulation on a roundabout, and each Arm's neighbour to its right. */
   arms: Arm[]
@@ -153,7 +156,7 @@ export function buildNetwork(district: District, revealed: string[]): Network {
   for (const id of revealed) if (!district.junctions[id]) throw new Error(`reveal names unknown Junction "${id}"`)
   const junctions: Junction[] = Object.entries(district.junctions)
     .filter(([id]) => revealed.includes(id))
-    .map(([id, spec]) => ({ id, at: { x: spec.at[0], y: spec.at[1] }, arms: [] }))
+    .map(([id, spec]) => ({ id, type: spec.type, at: { x: spec.at[0], y: spec.at[1] }, arms: [] }))
   const lanes: Lane[] = []
   const gateways: Record<string, Arm> = {}
 
@@ -296,7 +299,9 @@ function buildPriority(junction: Junction, reach: number): Lane[] {
         const into = right ? 0 : left ? out.exit.length - 1 : Math.min(from.index, out.exit.length - 1)
         for (const to of out.exit) {
           const ref = `${arm.road}.in${from.index}>${out.road}.out${to.index}`
-          lanes.push(connect(junction, arm, ref, from, to, Math.min(from.speedLimit, to.speedLimit), takes && to.index === into))
+          const lane = connect(junction, arm, ref, from, to, Math.min(from.speedLimit, to.speedLimit), takes && to.index === into)
+          lane.conn!.turn = right ? 'right' : left ? 'left' : 'straight'
+          lanes.push(lane)
         }
       }
     }
@@ -363,6 +368,7 @@ export function applyChange(net: Network, { at, enable = [], disable = [], prior
   set(disable, false)
   set(enable, true)
   for (const [road, rule] of Object.entries(priority)) {
+    if (junction.type !== 'priority') throw new Error(`Junction ${at} is a roundabout: its Ring is always main`)
     const arm = junction.arms.find((a) => a.road === road)
     if (!arm) throw new Error(`Junction ${at} has no Arm on Road "${road}"`)
     arm.priority = rule

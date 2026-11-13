@@ -97,7 +97,6 @@ export class Demand {
           vFreeIn: lane.speedLimit,
           path,
           dest: q.shift()!.dest,
-          stopped: false,
           waiting: false,
         }
         lane.vehicles.push(veh)

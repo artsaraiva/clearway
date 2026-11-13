@@ -1,8 +1,5 @@
 import type { Connection } from './network'
-import type { Sim, Vehicle } from './sim'
-
-/** The Junction configuration the driving rules obey. */
-type Rules = Pick<Sim, 'isGreen'>
+import type { Vehicle } from './sim'
 
 const GAP_AFTER = 1.5 // s: a priority vehicle must reach the conflict point this long after me...
 const GAP_BEFORE = 1.0 // ...or this long before me
@@ -10,9 +7,10 @@ const DECISION_DIST = 60
 const HARD_BRAKE = 4 // closer to the line than this braking allows, a vehicle proceeds
 const LOOKAHEAD = 150
 const HELD = 0.5 // m/s: slower than this, a vehicle is standing in a queue or at its line
+const ONCOMING = Math.PI / 4 // an Arm within this of straight ahead is the oncoming one
 
 /** IDM against the nearest leader along the path, a merging committed vehicle, or the stop line. */
-export function accel(v: Vehicle, rules: Rules): number {
+export function accel(v: Vehicle): number {
   const t = v.type
   const lanes = [v.lane, ...v.path]
   let v0 = Math.min(t.maxSpeed, v.lane.speedLimit)
@@ -53,7 +51,7 @@ export function accel(v: Vehicle, rules: Rules): number {
     base += lane.length
   }
   v.vFree = Math.min(v0, Math.sqrt(v.vFreeIn ** 2 + 2 * t.accel * Math.max(0, v.s)))
-  v.waiting = mustStop(v, rules)
+  v.waiting = mustStop(v)
   if (v.waiting) {
     const g = v.lane.length - v.s + t.minGap - 0.5
     if (g < gap) {
@@ -70,7 +68,7 @@ export function accel(v: Vehicle, rules: Rules): number {
 }
 
 /** Whether the front vehicle of a segment lane must hold at the line before entering its next connection. */
-function mustStop(v: Vehicle, rules: Rules): boolean {
+function mustStop(v: Vehicle): boolean {
   const lane = v.lane
   if (lane.conn || lane.vehicles[0] !== v) return false
   const next = v.path[0]
@@ -78,15 +76,7 @@ function mustStop(v: Vehicle, rules: Rules): boolean {
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
-  const rule = c.from.kind === 'road' ? c.arm.priority : 'yield' // the Ring is always main
-  if (rule === 'signal') {
-    // Green replaces the yield check: entrants force in and zip with ring traffic.
-    if (!rules.isGreen(c.arm)) return true
-  } else {
-    if (rule === 'stop' && !v.stopped) return true
-    if (conflicting(v, c, dist)) return true
-  }
-  return !hasRoom(c, v)
+  return conflicting(v, c, dist) || !hasRoom(c, v)
 }
 
 /**
@@ -94,9 +84,10 @@ function mustStop(v: Vehicle, rules: Rules): boolean {
  *
  * Connections of one Arm rank by lane. Between the Arms of a Priority junction nobody enters ahead of a vehicle inside
  * the Junction that won't have cleared the conflict point by then, so vehicles inside don't wait on each other in a
- * circle. Of the vehicles still approaching, a moving one gives way to the right and one standing at its line waits for
- * a gap in everything that moves. Vehicles standing at the lines of several Arms would each wait for the next, so among
- * them the one longest on the map goes first (see `goesFirst`).
+ * circle. Of the vehicles still approaching, a `main` Arm ignores the `yield` Arms. Otherwise a moving vehicle gives
+ * way as its Priority rule says (see `givesWay`) and one standing at its line waits for a gap in everything that moves.
+ * Vehicles standing at the lines of several Arms would each wait for the next, so among them one goes first (see
+ * `goesFirst`).
  */
 function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   const held = v.v < HELD
@@ -111,11 +102,9 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
         return tail > 0 && (u.v < HELD || eta(tail, u.v, u.type.accel, o.lane.speedLimit) > tMe - GAP_BEFORE)
       }
       if (o.lane.vehicles.some(clearsLate)) return true
+      if (outranks(c, o)) continue
       if (!held) {
-        // ponytail: opposing Arms (180° apart) are not on each other's right, so a left turn and the oncoming traffic
-        // sort themselves out by crossing occupancy; #6 makes the left turn give way.
-        const fromRight = (o.arm.angle - c.arm.angle + 2 * Math.PI) % (2 * Math.PI) < Math.PI - 1e-6
-        if (!fromRight) continue
+        if (!givesWay(c, o)) continue
         const first = o.from.vehicles[0]
         if (first && standing(first, o) && goesFirst(first, o)) return true
       }
@@ -139,15 +128,30 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
 /** Standing at its line, ready to enter `c` once it has right of way. */
 const standing = (u: Vehicle, c: Connection) => u.v < HELD && u.path[0] === c.lane && hasRoom(c, u)
 
+/** A `main` Arm over a `yield` Arm. */
+const outranks = (c: Connection, o: Connection) => c.arm.priority === 'main' && o.arm.priority === 'yield'
+
+/**
+ * The Priority rule between two Connections from different Arms of a Priority junction: a `yield` Arm gives way to a
+ * `main` Arm. Equal Arms give way to the right, and a left turn to oncoming traffic going straight on.
+ */
+function givesWay(c: Connection, o: Connection): boolean {
+  if (c.arm.priority !== o.arm.priority) return outranks(o, c)
+  const bearing = (o.arm.angle - c.arm.angle + 2 * Math.PI) % (2 * Math.PI) // of `o`'s Arm, counterclockwise from `c`'s
+  if (bearing < Math.PI - 1e-6) return true // from the right
+  return c.turn === 'left' && o.turn === 'straight' && bearing - Math.PI < ONCOMING
+}
+
 /**
  * Whether `u`, standing at its line, is next into `c` among the vehicles standing at the lines of a Priority junction:
- * none that crosses or merges with it from another Arm and goes first itself has been on the map longer (lower id).
- * Vehicles that don't meet go together.
+ * none that crosses or merges with it from another Arm and goes first itself is on a `main` Arm while `u` yields, or
+ * on an equal Arm and longer on the map (lower id). Vehicles that don't meet go together.
  */
 function goesFirst(u: Vehicle, c: Connection): boolean {
   return !c.conflicts.some(({ other: o }) => {
     const w = o.from.vehicles[0]
-    return o.arm !== c.arm && w && w.id < u.id && standing(w, o) && goesFirst(w, o)
+    const ahead = outranks(o, c) || (!outranks(c, o) && w?.id < u.id)
+    return o.arm !== c.arm && w && ahead && standing(w, o) && goesFirst(w, o)
   })
 }
 
