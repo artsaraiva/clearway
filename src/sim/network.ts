@@ -1,4 +1,4 @@
-import type { Change, District, JunctionSpec, Priority } from './district'
+import type { Change, District, Priority } from './district'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
 import type { Vehicle } from './sim'
 
@@ -38,13 +38,14 @@ export interface Connection {
   id: string
   /** Its ref at its Junction, e.g. `N.in1>N.ring0` (see `Change`). */
   ref: string
+  /** The Arm of its incoming lane (on a roundabout both its lanes sit there). */
   arm: Arm
   from: Lane
   to: Lane
   lane: Lane
   enabled: boolean
   conflicts: Conflict[]
-  /** Connections at the same Arm ending on the same lane. */
+  /** Connections ending on the same lane. */
   merges: Connection[]
 }
 
@@ -55,7 +56,7 @@ export interface Arm {
   /** Direction from the Junction's centre toward the Road's other end, radians counterclockwise from +x (east). */
   angle: number
   priority: Priority
-  /** Where the Arm meets the Ring. */
+  /** Where the Arm meets the Ring, or the mouth of a Priority junction. */
   center: Vec
   approach: Lane[]
   exit: Lane[]
@@ -69,7 +70,7 @@ export interface Arm {
 export interface Junction {
   id: string
   at: Vec
-  /** Counterclockwise, the direction of circulation. */
+  /** Counterclockwise: the direction of circulation on a roundabout, and each Arm's neighbour to its right. */
   arms: Arm[]
 }
 
@@ -85,6 +86,9 @@ const MAX_LATERAL_ACCEL = 3
 const ENTRY_SETBACK = 15 // approach stop line distance outside the Ring's outer edge
 const MIN_ROAD_LANE = 10 // m of lane a Road must keep between the footprints of its ends
 const MIN_RING_ARC = Math.PI / 36 // 5° of Ring between the mouths of neighbouring Arms
+const CORNER = 5 // m from where the edges of a Priority junction's Roads meet back to their stop lines
+const MIN_ARM_GAP = Math.PI / 6 // between neighbouring Arms of a Priority junction
+const STRAIGHT = Math.PI / 4 // a Connection deflecting less than this goes straight on
 
 const deg = (rad: number) => Math.round((rad * 180) / Math.PI)
 
@@ -112,8 +116,33 @@ const startHeading = (l: Lane) => {
   return Math.atan2(b.y - a.y, b.x - a.x)
 }
 
-/** Distance from a Junction's centre to where its Roads' lanes end. */
-const footprint = (j: JunctionSpec, laneWidth: number) => j.radius + (j.ringLanes * laneWidth) / 2 + ENTRY_SETBACK
+/** Distance from a Junction's centre to where its Roads' lanes end. Throws if a Priority junction's Arms are too close in angle. */
+function footprint(district: District, id: string): number {
+  const spec = district.junctions[id]
+  const w = district.roadDefaults.laneWidth
+  if (spec.type === 'roundabout') return spec.radius + (spec.ringLanes * w) / 2 + ENTRY_SETBACK
+  const ends = Object.entries(district.roads)
+    .flatMap(([road, r]) => {
+      const other = r.from === id ? r.to : r.to === id ? r.from : undefined
+      const at = typeof other === 'string' ? district.junctions[other]?.at : other
+      if (!at) return []
+      return [{ road, angle: Math.atan2(at[1] - spec.at[1], at[0] - spec.at[0]), halfWidth: Math.max(...r.lanes) * (r.laneWidth ?? w) }]
+    })
+    .sort((a, b) => a.angle - b.angle)
+  // Far enough out to clear the corners where the edges of neighbouring Roads meet.
+  let corner = 0
+  ends.forEach((end, k) => {
+    const next = ends[(k + 1) % ends.length]
+    const gap = next.angle - end.angle + (k + 1 < ends.length ? 0 : 2 * Math.PI)
+    if (gap < MIN_ARM_GAP) {
+      throw new Error(
+        `Junction ${id}: Arms ${end.road} and ${next.road} are too close in angle (${deg(gap)}° apart, need ${deg(MIN_ARM_GAP)}°)`,
+      )
+    }
+    if (gap < Math.PI) corner = Math.max(corner, Math.max(end.halfWidth, next.halfWidth) / Math.tan(gap / 2))
+  })
+  return corner + CORNER
+}
 
 /**
  * The network of the Revealed Junctions, every Junction in its type's default configuration. A Road with one end
@@ -133,7 +162,7 @@ export function buildNetwork(district: District, revealed: string[]): Network {
       if (typeof end !== 'string') return { at: { x: end[0], y: end[1] }, trim: 0, junction: undefined }
       const spec = district.junctions[end]
       if (!spec) throw new Error(`Road ${id} ends at unknown Junction "${end}"`)
-      return { at: { x: spec.at[0], y: spec.at[1] }, trim: footprint(spec, w), junction: junctions.find((j) => j.id === end) }
+      return { at: { x: spec.at[0], y: spec.at[1] }, trim: footprint(district, end), junction: junctions.find((j) => j.id === end) }
     })
     if (typeof road.from !== 'string' && typeof road.to !== 'string') throw new Error(`Road ${id} joins no Junction`)
     if (!a.junction && !b.junction) continue // still in Fog
@@ -197,14 +226,88 @@ export function buildNetwork(district: District, revealed: string[]): Network {
     if (!armA || !armB) gateways[id] = (armA ?? armB)!
   }
 
-  for (const junction of junctions) lanes.push(...buildRoundabout(junction, district.junctions[junction.id], w))
+  for (const junction of junctions) {
+    const spec = district.junctions[junction.id]
+    junction.arms.sort((a, b) => a.angle - b.angle)
+    lanes.push(
+      ...(spec.type === 'roundabout'
+        ? buildRoundabout(junction, spec.radius, spec.ringLanes, w)
+        : buildPriority(junction, footprint(district, junction.id))),
+    )
+  }
   return { lanes, junctions, gateways }
 }
 
+/** A candidate Connection from `from` to `to`, entered at `arm`: a curve between the two lanes, driven at most at `maxSpeed`. Returns its lane. */
+function connect(junction: Junction, arm: Arm, ref: string, from: Lane, to: Lane, maxSpeed: number, enabled: boolean): Lane {
+  const pts = bezier(from.line.pts[from.line.pts.length - 1], endHeading(from), to.line.pts[0], startHeading(to))
+  const lane = makeLane(`${junction.id}:${ref}`, 'connection', { junction: junction.id }, 0, pts, 0)
+  lane.speedLimit = Math.min(maxSpeed, Math.sqrt(MAX_LATERAL_ACCEL * minRadius(lane.line)))
+  const c: Connection = { id: lane.id, ref, arm, from, to, lane, enabled, conflicts: [], merges: [] }
+  lane.conn = c
+  from.next.push(c)
+  to.feeders.push(lane)
+  arm.connections.push(c)
+  return lane
+}
+
+/** Record where the Connections that can meet do: merges share an outgoing lane, crossings come from their curves. */
+function findConflicts(connections: Connection[]) {
+  for (let i = 0; i < connections.length; i++) {
+    for (let j = i + 1; j < connections.length; j++) {
+      const a = connections[i]
+      const b = connections[j]
+      if (a.from === b.from) continue // diverge: car-following handles it
+      if (a.to === b.to) {
+        a.merges.push(b)
+        b.merges.push(a)
+        a.conflicts.push({ other: b, s: a.lane.length, otherS: b.lane.length })
+        b.conflicts.push({ other: a, s: b.lane.length, otherS: a.lane.length })
+        continue
+      }
+      const hit = intersect(a.lane.line, b.lane.line)
+      if (!hit) continue
+      a.conflicts.push({ other: b, s: hit[0], otherS: hit[1] })
+      b.conflicts.push({ other: a, s: hit[1], otherS: hit[0] })
+    }
+  }
+}
+
+/**
+ * Candidate Connections of a Priority junction whose Arms already carry their Road lanes, which end `reach` m from
+ * its centre: every incoming lane to every outgoing lane of another Arm. Returns the new lanes.
+ */
+function buildPriority(junction: Junction, reach: number): Lane[] {
+  const { arms } = junction
+  if (arms.length < 3 || arms.length > 4)
+    throw new Error(`Junction ${junction.id} is a Priority junction with ${arms.length} Arms (takes 3 or 4)`)
+  const lanes: Lane[] = []
+  for (const arm of arms) {
+    arm.center = { x: junction.at.x + Math.cos(arm.angle) * reach, y: junction.at.y + Math.sin(arm.angle) * reach }
+    for (const from of arm.approach) {
+      for (const out of arms) {
+        if (out === arm) continue // no U-turns
+        // How far the Connection deflects from straight on: negative to the right, positive to the left.
+        const turn = Math.atan2(Math.sin(out.angle - arm.angle - Math.PI), Math.cos(out.angle - arm.angle - Math.PI))
+        const [right, left] = [turn < -STRAIGHT, turn > STRAIGHT]
+        // Default enabled set: the rightmost lane turns right into the rightmost lane, the leftmost turns left into the
+        // leftmost, and every lane goes straight on into its own lane (so a single lane takes all turns).
+        const takes = right ? from.index === 0 : left ? from.index === arm.approach.length - 1 : true
+        const into = right ? 0 : left ? out.exit.length - 1 : Math.min(from.index, out.exit.length - 1)
+        for (const to of out.exit) {
+          const ref = `${arm.road}.in${from.index}>${out.road}.out${to.index}`
+          lanes.push(connect(junction, arm, ref, from, to, Math.min(from.speedLimit, to.speedLimit), takes && to.index === into))
+        }
+      }
+    }
+  }
+  findConflicts(arms.flatMap((a) => a.connections))
+  return lanes
+}
+
 /** Ring lanes and candidate Connections of a roundabout whose Arms already carry their Road lanes. Returns the new lanes. */
-function buildRoundabout(junction: Junction, spec: JunctionSpec, w: number): Lane[] {
-  const { radius: R, ringLanes } = spec
-  const arms = junction.arms.sort((a, b) => a.angle - b.angle)
+function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: number): Lane[] {
+  const { arms } = junction
   if (arms.length < 3 || arms.length > 6) throw new Error(`Junction ${junction.id} is a roundabout with ${arms.length} Arms (takes 3 to 6)`)
   const mouth = (arm: Arm) => Math.asin(Math.min(0.9, (Math.max(arm.approach.length, arm.exit.length) * w + 8) / R)) // half-angle on the Ring
   const ringR = (i: number) => R + (ringLanes / 2 - i - 0.5) * w
@@ -235,38 +338,11 @@ function buildRoundabout(junction: Junction, spec: JunctionSpec, w: number): Lan
     for (const [fromRef, from] of [...named(arm.approach, 'in'), ...named(arm.ringIn, 'ring')]) {
       for (const [toRef, to] of [...named(arm.ringOut, 'ring'), ...named(arm.exit, 'out')]) {
         if (from.kind === 'road' && to.kind === 'road') continue // no straight back out the same Arm
-        const ref = `${fromRef}>${toRef}`
-        const pts = bezier(from.line.pts[from.line.pts.length - 1], endHeading(from), to.line.pts[0], startHeading(to))
-        const lane = makeLane(`${junction.id}:${ref}`, 'connection', { junction: junction.id }, 0, pts, 0)
-        lane.speedLimit = Math.min(RING_SPEED, Math.sqrt(MAX_LATERAL_ACCEL * minRadius(lane.line)))
         // Default enabled set: approach lane i to Ring lane i, Ring i stays on Ring i, Ring i leaves to exit lane i.
-        const c: Connection = { id: lane.id, ref, arm, from, to, lane, enabled: from.index === to.index, conflicts: [], merges: [] }
-        lane.conn = c
-        from.next.push(c)
-        to.feeders.push(lane)
-        arm.connections.push(c)
-        lanes.push(lane)
+        lanes.push(connect(junction, arm, `${fromRef}>${toRef}`, from, to, RING_SPEED, from.index === to.index))
       }
     }
-    const { connections } = arm
-    for (let i = 0; i < connections.length; i++) {
-      for (let j = i + 1; j < connections.length; j++) {
-        const a = connections[i]
-        const b = connections[j]
-        if (a.from === b.from) continue // diverge: car-following handles it
-        if (a.to === b.to) {
-          a.merges.push(b)
-          b.merges.push(a)
-          a.conflicts.push({ other: b, s: a.lane.length, otherS: b.lane.length })
-          b.conflicts.push({ other: a, s: b.lane.length, otherS: a.lane.length })
-          continue
-        }
-        const hit = intersect(a.lane.line, b.lane.line)
-        if (!hit) continue
-        a.conflicts.push({ other: b, s: hit[0], otherS: hit[1] })
-        b.conflicts.push({ other: a, s: hit[1], otherS: hit[0] })
-      }
-    }
+    findConflicts(arm.connections)
   }
   return lanes
 }

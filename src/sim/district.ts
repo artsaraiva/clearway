@@ -14,13 +14,16 @@ export interface RoadAttributes {
   median: number
 }
 
-export interface JunctionSpec {
-  type: 'roundabout'
-  at: Point
-  /** Radius of the Ring's centreline. */
-  radius: number
-  ringLanes: number
-}
+export type JunctionSpec =
+  | {
+      type: 'roundabout'
+      at: Point
+      /** Radius of the Ring's centreline. */
+      radius: number
+      ringLanes: number
+    }
+  /** A T-junction or crossroads: its 3–4 Arms meet directly, at the angles of their Roads. */
+  | { type: 'priority'; at: Point }
 
 /** A straight Road. An end is a Junction id, or a point on the District edge (a Gateway). Attributes override `roadDefaults`. */
 export interface RoadSpec extends Partial<RoadAttributes> {
@@ -36,7 +39,8 @@ export interface RoadSpec extends Partial<RoadAttributes> {
  * `enable` and `disable` take Connection refs, `<lane>><lane>`, with lanes named relative to the Junction:
  * `R1.in0` is incoming lane 0 of Road R1, `R1.out1` its outgoing lane 1, and `R1.ring0` Ring lane 0 at R1's Arm
  * (arriving there on the left of `>`, departing on the right). Lane 0 is the rightmost. On a roundabout both lanes
- * of a Connection sit at the same Arm, and `*` as the Road id on both sides names that Connection at every Arm.
+ * of a Connection sit at the same Arm, and `*` as the Road id on both sides names that Connection at every Arm. On a
+ * Priority junction a Connection runs from one Arm to another: `R1.in0>R2.out0`.
  *
  * `priority` sets the Priority rule per Arm, keyed by Road id.
  */

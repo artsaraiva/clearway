@@ -9,6 +9,7 @@ const GAP_BEFORE = 1.0 // ...or this long before me
 const DECISION_DIST = 60
 const HARD_BRAKE = 4 // closer to the line than this braking allows, a vehicle proceeds
 const LOOKAHEAD = 150
+const HELD = 0.5 // m/s: slower than this, a vehicle is standing in a queue or at its line
 
 /** IDM against the nearest leader along the path, a merging committed vehicle, or the stop line. */
 export function accel(v: Vehicle, rules: Rules): number {
@@ -88,13 +89,40 @@ function mustStop(v: Vehicle, rules: Rules): boolean {
   return !hasRoom(c, v)
 }
 
-/** Gap acceptance: is a higher-priority vehicle due at any conflict point of `c` too close to my own arrival? */
+/**
+ * Gap acceptance: is a higher-priority vehicle due at any conflict point of `c` too close to my own arrival?
+ *
+ * Connections of one Arm rank by lane. Between the Arms of a Priority junction nobody enters ahead of a vehicle inside
+ * the Junction that won't have cleared the conflict point by then, so vehicles inside don't wait on each other in a
+ * circle. Of the vehicles
+ * still approaching, a moving one gives way to the right and one standing at its line waits for a gap in everything that
+ * moves. Vehicles standing at the lines of several Arms would each wait for the next, so among them the one longest on
+ * the map goes first (see `goesFirst`).
+ */
 function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
+  const held = v.v < HELD
+  if (held && !goesFirst(v, c)) return true
   for (const { other: o, s, otherS } of c.conflicts) {
-    if (rank(o) >= rank(c)) continue
     const tMe = eta(dist + s, v.v, v.type.accel, c.lane.speedLimit)
+    if (o.arm === c.arm) {
+      if (rank(o) >= rank(c)) continue
+    } else {
+      const clearsLate = (u: Vehicle) => {
+        const tail = otherS - u.s + u.type.length
+        return tail > 0 && (u.v < HELD || eta(tail, u.v, u.type.accel, o.lane.speedLimit) > tMe - GAP_BEFORE)
+      }
+      if (o.lane.vehicles.some(clearsLate)) return true
+      if (!held) {
+        // ponytail: opposing Arms (180° apart) are not on each other's right, so a left turn and the oncoming traffic
+        // sort themselves out by crossing occupancy; #6 makes the left turn give way.
+        const fromRight = (o.arm.angle - c.arm.angle + 2 * Math.PI) % (2 * Math.PI) < Math.PI - 1e-6
+        if (!fromRight) continue
+        const first = o.from.vehicles[0]
+        if (first && standing(first, o) && goesFirst(first, o)) return true
+      }
+    }
     const near = (u: Vehicle, d: number) => {
-      if (u.v < 0.5) return false // held in a queue; crossing occupancy covers it if it moves off
+      if (u.v < HELD) return false // held in a queue; crossing occupancy covers it if it moves off
       const tO = eta(d, u.v, u.type.accel, o.lane.speedLimit)
       return tO > tMe - GAP_BEFORE && tO < tMe + GAP_AFTER
     }
@@ -109,6 +137,21 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   return false
 }
 
+/** Standing at its line, ready to enter `c` once it has right of way. */
+const standing = (u: Vehicle, c: Connection) => u.v < HELD && u.path[0] === c.lane && hasRoom(c, u)
+
+/**
+ * Whether `u`, standing at its line, is next into `c` among the vehicles standing at the lines of a Priority junction:
+ * none that crosses or merges with it from another Arm and goes first itself has been on the map longer (lower id).
+ * Vehicles that don't meet go together.
+ */
+function goesFirst(u: Vehicle, c: Connection): boolean {
+  return !c.conflicts.some(({ other: o }) => {
+    const w = o.from.vehicles[0]
+    return o.arm !== c.arm && w && w.id < u.id && standing(w, o) && goesFirst(w, o)
+  })
+}
+
 /** Don't block the box: enter only if the outgoing lane has room for us behind whoever is already headed there. */
 function hasRoom(c: Connection, v: Vehicle): boolean {
   const r = c.to.vehicles.at(-1)
@@ -121,7 +164,7 @@ function hasRoom(c: Connection, v: Vehicle): boolean {
 
 const occupies = (u: Vehicle, at: number) => u.s > at - 1 && u.s - u.type.length < at + 1
 
-/** Lower rank has priority: ring beats entering traffic; within each, the outer (lower index) lane wins. */
+/** Lower rank has priority among the Connections of one Arm: ring beats entering traffic; within each, the outer (lower index) lane wins. */
 const rank = (c: Connection) => (c.from.kind === 'ring' ? 0 : 10) + c.from.index
 
 /** Time to cover d starting at v, accelerating (or braking) at a towards vmax. */
