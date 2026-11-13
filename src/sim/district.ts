@@ -1,6 +1,6 @@
 import { applyChange, buildNetwork } from './network'
 
-export type Priority = 'yield' | 'stop' | 'signal'
+export type Priority = 'main' | 'yield'
 export type Tool = 'connector' | 'priority'
 /** Metres, x east and y north. */
 export type Point = [number, number]
@@ -42,7 +42,8 @@ export interface RoadSpec extends Partial<RoadAttributes> {
  * of a Connection sit at the same Arm, and `*` as the Road id on both sides names that Connection at every Arm. On a
  * Priority junction a Connection runs from one Arm to another: `R1.in0>R2.out0`.
  *
- * `priority` sets the Priority rule per Arm, keyed by Road id.
+ * `priority` sets the Priority rule per Arm of a Priority junction, keyed by Road id. Every Arm starts as `yield`, and
+ * Arms that are all `main` or all `yield` make the same uncontrolled Junction.
  */
 export interface Change {
   at: string
@@ -81,6 +82,9 @@ export function validateDistrict(district: District) {
     try {
       const net = buildNetwork(district, revealed(district, n))
       const gateways = Object.keys(net.gateways)
+      if (level.tools.includes('priority') && !net.junctions.some((j) => j.type === 'priority')) {
+        throw new Error('the Priority rule Tool needs a Revealed Priority junction')
+      }
       for (const id of [...Object.keys(level.demand), ...Object.values(level.demand).flatMap((d) => Object.keys(d.to))]) {
         if (!net.gateways[id]) throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${gateways.join(', ')})`)
       }

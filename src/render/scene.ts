@@ -5,7 +5,7 @@ import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
 
 const ROAD_Y = 0.15
-const COLORS = { ground: 0xffffff, road: 0xc9ccd2, paint: 0xffffff, stop: 0xe5484d, green: 0x30a46c }
+const COLORS = { ground: 0xffffff, road: 0xc9ccd2, paint: 0xffffff, main: 0x30a46c }
 export const CAR_COLORS = [0x8ecae6, 0xffb4a2, 0xb5e48c, 0xffd166, 0xcdb4db, 0xa0c4ff].map((c) => new THREE.Color(c))
 const MAX_CARS = 600
 
@@ -113,7 +113,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   }
   scene.add(new THREE.Mesh(ribbons(paint, 0.18, ROAD_Y + 0.02), flat(COLORS.paint)))
 
-  // Stop lines across each approach, coloured by priority rule.
+  // Stop lines across each approach, coloured by Priority rule.
   const stopLines = arms.map((arm) => {
     const ins = arm.approach
     const end = (i: number) => ins[i].line.pts[ins[i].line.pts.length - 1]
@@ -245,9 +245,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
       if (cars.instanceColor) cars.instanceColor.needsUpdate = true
 
       for (const { arm, mesh } of stopLines) {
-        const rule = arm.priority
-        const color = rule === 'yield' ? COLORS.paint : rule === 'stop' ? COLORS.stop : sim.isGreen(arm) ? COLORS.green : COLORS.stop
-        ;(mesh.material as THREE.MeshStandardMaterial).color.setHex(color)
+        ;(mesh.material as THREE.MeshStandardMaterial).color.setHex(arm.priority === 'main' ? COLORS.main : COLORS.paint)
       }
       renderer.render(scene, camera)
     },

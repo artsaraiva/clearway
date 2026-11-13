@@ -23,14 +23,11 @@ export interface Vehicle {
   /** Lanes after the current one. */
   path: Lane[]
   dest: string
-  /** Has made its full stop at a stop line. */
-  stopped: boolean
   /** Held at the end of its lane this step. */
   waiting: boolean
 }
 
 export const DT = 1 / 30
-const SIGNAL_GREEN = 15 // s of green per arm, in turn
 
 export class Sim {
   readonly net: Network
@@ -48,7 +45,8 @@ export class Sim {
 
   /**
    * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
-   * Levels, as Changes on top of their initial configurations.
+   * Levels, as Changes on top of their initial configurations: the earlier Sim's `configuration()`, or reference
+   * solutions.
    */
   constructor(
     readonly district: District,
@@ -86,16 +84,22 @@ export class Sim {
     replan(this.net, this.vehicles)
   }
 
+  /**
+   * The configuration of every Junction as it stands, as Changes: what the next Reveal carries over. Connection refs
+   * and Road ids are stable across Reveals.
+   */
+  configuration(): Change[] {
+    return this.net.junctions.map((j) => {
+      const refs = (on: boolean) => j.arms.flatMap((a) => a.connections.filter((c) => c.enabled === on).map((c) => c.ref))
+      const priority = Object.fromEntries(j.arms.map((a) => [a.road, a.priority]))
+      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority }) }
+    })
+  }
+
   /** Make a Change; every vehicle re-plans. */
   apply(change: Change) {
     applyChange(this.net, change)
     replan(this.net, this.vehicles)
-  }
-
-  /** Fixed cycle: each Arm of a Junction gets green in turn (only signalized Arms obey it). */
-  isGreen(arm: Arm): boolean {
-    const { arms } = this.net.junctions.find((j) => j.id === arm.junction)!
-    return arms[Math.floor(this.time / SIGNAL_GREEN) % arms.length] === arm
   }
 
   private arms(): Arm[] {
@@ -104,12 +108,11 @@ export class Sim {
 
   step() {
     this.vehicles.push(...this.demand.spawn(this.net, this.time))
-    for (const v of this.vehicles) v.acc = accel(v, this)
+    for (const v of this.vehicles) v.acc = accel(v)
     for (const v of this.vehicles) {
       const nv = Math.max(0, v.v + v.acc * DT)
       v.s += ((v.v + nv) / 2) * DT
       v.v = nv
-      if (v.waiting && v.v < 0.3 && v.lane.length - v.s < 2) v.stopped = true
     }
     const gone = new Set<Vehicle>()
     for (const lane of this.net.lanes) {
@@ -129,7 +132,6 @@ export class Sim {
         }
         v.s -= lane.length
         v.lane = next
-        v.stopped = false
         v.vFreeIn = v.vFree
         let i = next.vehicles.length
         while (i > 0 && next.vehicles[i - 1].s < v.s) i--

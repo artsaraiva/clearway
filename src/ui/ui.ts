@@ -7,7 +7,8 @@ const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
 
-export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View) {
+/** `next`, when there is a Level after this one, Reveals it. */
+export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View, next?: () => void) {
   const { tools } = sim.level
   root.innerHTML = `
     <div class="panel gauge">
@@ -15,14 +16,14 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
       <div class="sub" id="flow-sub"></div>
     </div>
-    <div class="panel banner" id="banner" hidden>Level won!</div>
+    <div class="panel banner" id="banner" hidden>Level won!${next ? ' <button id="next">Next Level</button>' : ''}</div>
     <div class="panel time">
       <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
       <button id="reset">Reset</button>
     </div>
     <div class="panel node" id="node" hidden>
       <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
-      ${tools.includes('priority') ? '<div class="prio"><button data-prio="yield">Yield</button><button data-prio="stop">Stop</button></div>' : ''}
+      ${tools.includes('priority') ? '<div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>' : ''}
       ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
     </div>`
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -37,6 +38,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     view.inspectCar(null)
     $('node').hidden = !arm
     if (arm) $('node-name').textContent = `${arm.junction}: ${arm.road} arm`
+    // On a roundabout the Ring is always main, so the Priority rule isn't offered there.
+    const prio = root.querySelector<HTMLElement>('#prio')
+    if (prio) prio.hidden = !arm || sim.district.junctions[arm.junction].type !== 'priority'
     view.showArm(arm, null)
   }
 
@@ -47,6 +51,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       (b) =>
         (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
     )
+  if (next) $('next').onclick = next
   $('reset').onclick = () => {
     sim.reset()
     select(selected)
