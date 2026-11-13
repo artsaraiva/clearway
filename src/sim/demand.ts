@@ -1,6 +1,7 @@
+import type { Level } from './district'
 import type { Lane, Network } from './network'
 import { route } from './routing'
-import type { Level, Vehicle } from './sim'
+import type { Vehicle } from './sim'
 
 export interface VehicleType {
   id: string
@@ -25,11 +26,11 @@ export interface Arrival {
 }
 
 const SPAWN_GAP = 3
-const QUEUE_COST = 6.5 // m of trip length per vehicle already on an approach lane
+const QUEUE_COST = 6.5 // m of trip length per vehicle already on an Approach lane
 
-/** Arrivals at each arm and their spawn onto the map. Owns the Level's random stream. */
+/** Arrivals at each Gateway and their spawn onto the map. Owns the Level's random stream. */
 export class Demand {
-  /** Off-screen spawn queues per arm. */
+  /** Off-screen spawn queues per Gateway. */
   readonly queues: Record<string, Arrival[]> = {}
   private nextArrival: Record<string, number> = {}
   private rng: () => number
@@ -40,18 +41,18 @@ export class Demand {
     seed: number,
   ) {
     this.rng = mulberry32(seed)
-    for (const arm of Object.keys(demand)) {
-      this.queues[arm] = []
-      this.nextArrival[arm] = this.interArrival(arm)
+    for (const gateway of Object.keys(demand)) {
+      this.queues[gateway] = []
+      this.nextArrival[gateway] = this.interArrival(gateway)
     }
   }
 
-  /** Queue every arrival due by `time`, then move queue heads onto free approach lanes. Returns the vehicles that entered the map. */
+  /** Queue every arrival due by `time`, then move queue heads onto free Approach lanes. Returns the vehicles that entered the map. */
   spawn(net: Network, time: number): Vehicle[] {
     const spawned: Vehicle[] = []
-    for (const [arm, { to }] of Object.entries(this.demand)) {
-      const q = this.queues[arm]
-      while (time >= this.nextArrival[arm]) {
+    for (const [gateway, { to }] of Object.entries(this.demand)) {
+      const q = this.queues[gateway]
+      while (time >= this.nextArrival[gateway]) {
         // Destination and type are drawn together, so the random stream depends only on time and seed.
         const dest = pick(Object.entries(to), this.rng)
         q.push({
@@ -61,10 +62,10 @@ export class Demand {
             this.rng,
           ),
         })
-        this.nextArrival[arm] += this.interArrival(arm)
+        this.nextArrival[gateway] += this.interArrival(gateway)
       }
       while (q.length) {
-        const lanes = net.approaches[arm]
+        const lanes = net.gateways[gateway].approach
         const options = lanes.flatMap((lane) => {
           const path = route(net, lane, q[0].dest)
           return path ? [{ lane, path }] : []
@@ -105,8 +106,8 @@ export class Demand {
     return spawned
   }
 
-  private interArrival(arm: string) {
-    return -Math.log(1 - this.rng()) / (this.demand[arm].rate / 60)
+  private interArrival(gateway: string) {
+    return -Math.log(1 - this.rng()) / (this.demand[gateway].rate / 60)
   }
 }
 

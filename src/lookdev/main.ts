@@ -1,7 +1,7 @@
 // Throwaway look-dev scene (ticket 03). Open /lookdev.html under `npm run dev`.
 import * as THREE from 'three'
 import { MapControls } from 'three/addons/controls/MapControls.js'
-import level from '../../levels/roundabout-01'
+import district from '../../levels/district-01'
 import { DT, Sim, VEHICLE_TYPES } from '../sim/sim'
 import * as block from './block'
 import { bakeField, groundMaterial, PALETTE } from './field'
@@ -47,8 +47,8 @@ function view(distance = 270, tilt = 55, azimuth = -25, target = { x: 0, y: 0 })
   controls.update()
 }
 
-const sim = new Sim(level)
-const w = level.roundabout.laneWidth
+const sim = new Sim(district)
+const w = district.roadDefaults.laneWidth
 const t0 = performance.now()
 const field = bakeField(sim.net, w, block)
 const bakeMs = performance.now() - t0

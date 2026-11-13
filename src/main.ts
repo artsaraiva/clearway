@@ -1,10 +1,10 @@
-import level from '../levels/roundabout-01'
+import district from '../levels/district-01'
 import { createScene } from './render/scene'
 import { DT, Sim } from './sim/sim'
 import { createUI } from './ui/ui'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
-const sim = new Sim(level)
+const sim = new Sim(district)
 const view = createScene(canvas, sim)
 const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, sim, view)
 

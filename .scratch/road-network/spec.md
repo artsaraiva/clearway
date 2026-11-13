@@ -8,7 +8,7 @@ Replace the roundabout-only generator (`RoundaboutSpec`, `buildNetwork`) with a 
 
 ## District file
 
-There is one hand-written TS file per District in `levels/`. `levels/district-01.ts` replaces `levels/roundabout-01.ts`. There's no editor and no procedural generation. Shape, with names illustrative and pinned in [#2](https://github.com/artsaraiva/clearway/issues/2):
+There is one hand-written TS file per District in `levels/`. `levels/district-01.ts` replaces `levels/roundabout-01.ts`. There's no editor and no procedural generation. Shape, as pinned in [#2](https://github.com/artsaraiva/clearway/issues/2) (types in `src/sim/district.ts`):
 
 ```ts
 export default {
@@ -34,7 +34,7 @@ export default {
 } satisfies District
 ```
 
-Loading validates the file and throws with a readable message on an unknown id or ref, a Road too short for the footprints of the Junctions at its ends, Arms of one Junction too close in angle, or Demand naming something that isn't a Gateway in that Level.
+Constructing a `Sim` validates every Level of the file (`validateDistrict`) and throws with a readable message on an unknown id or ref, a Road too short for the footprints of the Junctions at its ends, Arms of one Junction too close in angle, or Demand naming something that isn't a Gateway in that Level.
 
 ## Road graph
 
@@ -55,15 +55,15 @@ Arm directions come from the Roads: each points from the Junction centre toward 
 
 - Every Lane belongs to exactly one owner: a Road plus a direction, or a Junction (Connection lanes and Ring lanes). This replaces the three meanings of `Lane.arm`.
 - Lane 0 is the rightmost (outermost) lane, as now.
-- Lane ids are stable across Reveals (Road id + direction + index), so configuration carries over by id.
-- Inside a Junction, the file names lanes relative to that Junction: `R1.in0` is incoming lane 0 of Road R1, `R1.out1` is outgoing lane 1, and `R1.ring0` is Ring lane 0 at R1's Arm. A Connection ref is `<lane>><lane>`. On a roundabout, `*` in place of the Road id applies the ref to every Arm, and both sides of one ref share that Arm.
+- Lane ids are stable across Reveals, so configuration carries over by id: `R1/fwd/0` and `R1/back/0` for Road lanes (`fwd` is from→to), `J1/ring/0/R1` for the Ring lane departing R1's Arm, and `J1:<ref>` for a Connection lane.
+- Inside a Junction, the file names lanes relative to that Junction: `R1.in0` is incoming lane 0 of Road R1, `R1.out1` is outgoing lane 1, and `R1.ring0` is Ring lane 0 at R1's Arm: the Ring lane arriving at the Arm on the left of `>`, the one departing from it on the right. A Connection ref is `<lane>><lane>`. On a roundabout both sides of a ref share one Arm, and `*` in place of the Road id on both sides applies the ref to every Arm.
 - Refs are parsed and validated at load. In code, Connections hold Lane objects only, and the `approach1>ring0` port strings go away.
 - `initial` lists only `enable` / `disable` deviations from the Junction type's default enabled set.
 - Conflict detection stays geometric (merges share an outgoing lane, crossings come from polyline intersection), unchanged.
 
 ## Changes
 
-A reference solution is a list of Changes in the player's vocabulary. The UI calls the same API:
+A reference solution is a list of Changes in the player's vocabulary. The UI calls the same API, `sim.apply(change)`:
 
 - `{ at: 'J1', enable: [refs], disable: [refs] }`: connector
 - `{ at: 'J2', priority: { R1: 'yield' } }`: Priority rule per Arm, keyed by Road id (values reworked in [#6](https://github.com/artsaraiva/clearway/issues/6))

@@ -113,15 +113,15 @@ const inside = (x: number, y: number, poly: Vec[]) => {
   return c
 }
 
-/** Lane centreline, with arms extended outward past the network boundary. */
-function lanePts(l: Lane): Vec[] {
+/** Lane centreline, with Gateway Roads extended outward past the network boundary. */
+function lanePts(l: Lane, fromGateway: Set<Lane>): Vec[] {
   const p = l.line.pts
   const ext = (a: Vec, b: Vec) => {
     const d = Math.hypot(a.x - b.x, a.y - b.y)
     return { x: a.x + ((a.x - b.x) / d) * EXTEND, y: a.y + ((a.y - b.y) / d) * EXTEND }
   }
-  if (l.kind === 'approach') return [ext(p[0], p[1]), ...p]
-  if (l.kind === 'exit') return [...p, ext(p[p.length - 1], p[p.length - 2])]
+  if (fromGateway.has(l)) return [ext(p[0], p[1]), ...p]
+  if (l.toGateway) return [...p, ext(p[p.length - 1], p[p.length - 2])]
   return p
 }
 
@@ -144,8 +144,9 @@ export function bakeField(net: Network, laneWidth: number, block: { grass: Vec[]
   // 1. Exact distance to the nearest lane centreline, near the lanes.
   const dmin = new Float32Array(N).fill(INF)
   const reach = r + Math.max(FILLET, REACH)
+  const fromGateway = new Set(Object.values(net.gateways).flatMap((arm) => arm.approach))
   for (const lane of net.lanes) {
-    const p = lanePts(lane)
+    const p = lanePts(lane, fromGateway)
     for (let k = 1; k < p.length; k++) {
       const [a, b] = [p[k - 1], p[k]]
       const [dx, dy] = [b.x - a.x, b.y - a.y]
