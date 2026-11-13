@@ -93,7 +93,7 @@ export function createSlab(plate: Bounds): THREE.Object3D[] {
       }
     }
   }
-  // ponytail: all of the slab top is road-coloured, so a Road has no visible edge; Blocks cut from the lane geometry (#26) cover the rest.
+  // All of the slab top is road; the Blocks stand on it and leave the Roads showing between them.
   parts.push(tint(roundedBox(w - 2 * RIM, 0.6, d - 2 * RIM, 0.16, 0.08).translate(cx, 0, cz), ROAD))
   const slab = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }))
   slab.castShadow = slab.receiveShadow = true
