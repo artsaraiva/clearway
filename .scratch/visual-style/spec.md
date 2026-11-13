@@ -18,7 +18,7 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 
 - Three.js on WebGL, standard soft-lit materials (roughness about 0.85), neutral tone mapping.
 - One directional light with a 4096² soft shadow map, plus a hemisphere light. Blurred dark decals under every building and tree give the contact shadow.
-- No cel bands, no outlines, no ink, no painterly filter. The only post-processing allowed is one bloom pass for night lights, and only if it costs under 2 ms per frame.
+- No cel bands, no outlines, no ink, no painterly filter. The only post-processing allowed was one bloom pass for night lights, and only if it cost under 2 ms per frame. It was measured in [#29](https://github.com/artsaraiva/clearway/issues/29) at 6.2 ms and cut, so there is no post-processing.
 - Everything is procedural geometry and canvas-drawn textures. No authored 3D models, no image files.
 - Static scenery is merged into one mesh per material. Cars and walkers are instanced.
 

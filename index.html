@@ -23,6 +23,26 @@
         height: 100%;
         display: block;
       }
+      .labels {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .labels div {
+        position: absolute;
+        left: 0;
+        top: 0;
+        white-space: nowrap;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        color: #686c74;
+        text-shadow:
+          0 0 2px #fff,
+          0 0 3px #fff,
+          0 0 6px #fff;
+      }
       #ui {
         position: fixed;
         inset: 0;

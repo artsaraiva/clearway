@@ -11,8 +11,6 @@ const LEAVES = {
   sakura: ['#f8bfd0', '#f4a8c0', '#fbd3df', '#f6b3c8'],
   pine: ['#4f9a6a', '#5aa874', '#468f60'],
 }
-// Emissive strength of windows and lamps at full night.
-const [WINDOW_GLOW, LAMP_GLOW] = [1.6, 5]
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
@@ -219,10 +217,10 @@ export function createKit(rand: () => number) {
       return out
     },
 
-    /** Light the windows and lamps: 0 by day, 1 at full night. */
-    setNight(k: number) {
-      glass.emissiveIntensity = WINDOW_GLOW * k
-      bulb.emissiveIntensity = LAMP_GLOW * k
+    /** Light the windows and lamps, by the emissive strength of each: 0 is unlit. */
+    setGlow(windows: number, lamps: number) {
+      glass.emissiveIntensity = windows
+      bulb.emissiveIntensity = lamps
     },
   }
 }
