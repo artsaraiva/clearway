@@ -5,8 +5,8 @@ import { createUI } from './ui/ui'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 // ponytail: dev-only Reveal for playtesting. The page reloads on the next Level (`?level=2`), with the configuration
-// to carry over kept in sessionStorage, so opening a later Level directly starts it from the earlier Levels' initial
-// configurations. The real Reveal presentation belongs to #15 (UI/UX).
+// to carry over kept in sessionStorage. That lives in one tab only, and `?level=` skips the Win: a later Level opened
+// directly starts from the earlier Levels' initial configurations. The real Reveal presentation belongs to #15 (UI/UX).
 const level = Number(new URLSearchParams(location.search).get('level') ?? 1) - 1
 const sim = new Sim(district, level, JSON.parse(sessionStorage.getItem(`carried:${level}`) ?? '[]'))
 const next = () => {

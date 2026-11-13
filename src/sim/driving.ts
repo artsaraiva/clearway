@@ -146,6 +146,10 @@ function givesWay(c: Connection, o: Connection): boolean {
  * Whether `u`, standing at its line, is next into `c` among the vehicles standing at the lines of a Priority junction:
  * none that crosses or merges with it from another Arm and goes first itself is on a `main` Arm while `u` yields, or
  * on an equal Arm and longer on the map (lower id). Vehicles that don't meet go together.
+ *
+ * ponytail: between equal Arms only time on the map orders standing vehicles, so a standing left turn can go before a
+ * standing oncoming vehicle that arrived later (it still waits for a gap in moving traffic). Ordering by `givesWay`
+ * here needs a cycle guard: right-hand and left-turn rules can each make three standing vehicles wait in a circle.
  */
 function goesFirst(u: Vehicle, c: Connection): boolean {
   return !c.conflicts.some(({ other: o }) => {
