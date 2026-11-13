@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { dashes, mid, ribbons } from '../render/scene'
+import { dashes, mid, ribbons } from '../render/ribbons'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
 import type { Vehicle, VehicleType } from '../sim/sim'

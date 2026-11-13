@@ -1,8 +1,9 @@
 // PROTOTYPE (issue #16): anime / cel-shaded blend over the Apple Maps look. Throwaway.
 import * as THREE from 'three'
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
-import { CAR_COLORS } from '../render/scene'
 import { PALETTE } from './field'
+
+const CAR_COLORS = [0x8ecae6, 0xffb4a2, 0xb5e48c, 0xffd166, 0xcdb4db, 0xa0c4ff].map((c) => new THREE.Color(c))
 
 /** The switches being judged. All off with palette 0 is the look-dev (Maps) baseline. */
 export interface Look {

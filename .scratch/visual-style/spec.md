@@ -30,7 +30,7 @@ The style comes from shape, palette and proportion:
 
 ## Camera
 
-Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt is clamped between roughly 18° and 66° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
+Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt is clamped between roughly 24° and 72° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
 
 ## The slab
 

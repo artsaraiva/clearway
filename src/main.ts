@@ -1,5 +1,5 @@
 import district from '../levels/district-01'
-import { createScene } from './render/scene'
+import { createView } from './render/view'
 import { DT, Sim } from './sim/sim'
 import { createUI } from './ui/ui'
 
@@ -13,8 +13,11 @@ const next = () => {
   sessionStorage.setItem(`carried:${level + 1}`, JSON.stringify(sim.configuration()))
   location.search = `?level=${level + 2}`
 }
-const view = createScene(canvas, sim)
+const view = createView(canvas, sim)
 const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, sim, view, district.levels[level + 1] && next)
+
+// Dev hook for scripted screenshots and frame timing.
+if (import.meta.env.DEV) Object.assign(window, { clearway: { sim, view } })
 
 let acc = 0
 let last = performance.now()
