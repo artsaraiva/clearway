@@ -31,8 +31,11 @@ export default {
           enable: ['*.in1>*.ring0', '*.ring0>*.out1'],
         },
       },
-      // send approach lane 1 onto the inner Ring and out through exit lane 1 at every Arm
-      solution: [{ at: 'J1', enable: ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1'], disable: ['*.in1>*.ring0'] }],
+      // send approach lane 1 onto the inner Ring and out through exit lane 1 at every Arm, and keep the outer Ring to exit lane 0
+      // (the gentler curve into exit lane 1 is the faster one, so drivers would all take it)
+      solution: [
+        { at: 'J1', enable: ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1'], disable: ['*.in1>*.ring0', '*.ring0>*.out1'] },
+      ],
     },
   ],
 } satisfies District

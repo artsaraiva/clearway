@@ -3,7 +3,7 @@ import { validateDistrict, revealed, type Change, type District, type Level, typ
 import { accel } from './driving'
 import { measure, PREWARM } from './metric'
 import { applyChange, buildNetwork, type Arm, type Connection, type Lane, type Network } from './network'
-import { plan, route } from './routing'
+import { replan, route } from './routing'
 
 export { VEHICLE_TYPES, type VehicleType } from './demand'
 export { PREWARM, WIN_FLOW, WIN_TIME } from './metric'
@@ -83,13 +83,13 @@ export class Sim {
       arm.priority = this.atReveal.priority.get(arm)!
       for (const c of arm.connections) c.enabled = this.atReveal.enabled.has(c)
     }
-    for (const v of this.vehicles) plan(this.net, v)
+    replan(this.net, this.vehicles)
   }
 
   /** Make a Change; every vehicle re-plans. */
   apply(change: Change) {
     applyChange(this.net, change)
-    for (const v of this.vehicles) plan(this.net, v)
+    replan(this.net, this.vehicles)
   }
 
   /** Fixed cycle: each Arm of a Junction gets green in turn (only signalized Arms obey it). */
@@ -148,7 +148,7 @@ export class Sim {
     this.time += DT
   }
 
-  /** Shortest lane path (excluding `from`) to any Exit lane of the Gateway `dest`, over enabled Connections. */
+  /** Fastest free-flow lane path (excluding `from`) to an Exit lane of the Gateway `dest`, over enabled Connections. */
   route(from: Lane, dest: string): Lane[] | null {
     return route(this.net, from, dest)
   }
