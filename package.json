@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sweep": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/sweep.ts'))\""
   },
   "dependencies": {
     "three": "^0.187.0"

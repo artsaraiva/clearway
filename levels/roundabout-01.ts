@@ -1,4 +1,4 @@
-import type { Level } from '../src/sim/sim'
+import type { Level, Sim } from '../src/sim/sim'
 
 export default {
   seed: 8,
@@ -24,3 +24,13 @@ export default {
     priority: { N: 'yield', S: 'yield', E: 'yield', W: 'yield' },
   },
 } satisfies Level
+
+/** Reference solution: send approach lane 1 onto the inner Ring and out through exit lane 1 at every arm. */
+export function solve(sim: Sim) {
+  for (const arm of ['N', 'E', 'S', 'W']) {
+    sim.setConnection(arm, 'approach1', 'ring0', false)
+    sim.setConnection(arm, 'approach1', 'ring1', true)
+    sim.setConnection(arm, 'ring1', 'ring1', true)
+    sim.setConnection(arm, 'ring1', 'exit1', true)
+  }
+}
