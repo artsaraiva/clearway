@@ -70,7 +70,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   let inspected: Vehicle | null = null
 
   return {
-    /** Stop the day at a time of day, 0–1, or let it run again with `null`. A dev aid: the player has no control over it. */
+    /** Stop the day at a time of day, 0–1. A dev aid: the player has no control over it. */
     holdDay: day.hold,
 
     /** Sim coordinates under a pointer event, on the road plane. */
@@ -107,8 +107,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
       if (inspected && !sim.vehicles.includes(inspected)) inspected = null
       route.update(inspected)
       const glow = day.update(dt)
-      fill.setGlow(glow.windows, glow.lamps)
-      cars.setNight(glow.night)
+      fill.setGlow(glow)
+      cars.setGlow(glow)
       emotion.update(cars.update(sim.vehicles, dt), dt)
       walkers.update(dt)
       roads.update()

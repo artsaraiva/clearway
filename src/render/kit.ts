@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import type { Glow } from './day'
 import { canvasTexture, gable, roundedBox, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -217,8 +218,8 @@ export function createKit(rand: () => number) {
       return out
     },
 
-    /** Light the windows and lamps, by the emissive strength of each: 0 is unlit. */
-    setGlow(windows: number, lamps: number) {
+    /** Light the windows and lamps as the time of day has them. */
+    setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
     },

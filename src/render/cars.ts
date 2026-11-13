@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import type { Vehicle } from '../sim/sim'
+import type { Glow } from './day'
 import { roundedBox, tint } from './shapes'
 
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a District holds more.
@@ -59,7 +60,7 @@ function lightsModel(): THREE.BufferGeometry {
  */
 export function createCars(net: Network) {
   const body = new THREE.InstancedMesh(carModel(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), CAP)
-  // Unlit: the lights glow by their own colour, scaled by the night.
+  // Unlit: the lights glow by their own colour, scaled by the time of day.
   const lit = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })
   const lights = new THREE.InstancedMesh(lightsModel(), lit, CAP)
   body.castShadow = body.receiveShadow = true
@@ -110,10 +111,10 @@ export function createCars(net: Network) {
       return angry
     },
 
-    /** Light the head and tail lights: 0 by day, 1 at full night. */
-    setNight(k: number) {
-      lit.color.setScalar(k)
-      lights.visible = k > 0.05
+    /** Light the head and tail lights as the time of day has them. */
+    setGlow({ carLights }: Glow) {
+      lit.color.setScalar(carLights)
+      lights.visible = carLights > 0.05
     },
   }
 }

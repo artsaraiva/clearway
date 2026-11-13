@@ -42,8 +42,8 @@ export interface Glow {
   windows: number
   /** Emissive strength of the lamps. */
   lamps: number
-  /** How far into the night it is, 0–1: what car lights glow by. */
-  night: number
+  /** Strength of car head and tail lights, 0–1. */
+  carLights: number
 }
 
 /**
@@ -66,7 +66,7 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
   light.shadow.radius = 3
 
   let clock = START
-  let held = false
+  let held = false // stopped by `hold`
   let sky = ''
   const mixed = new THREE.Color()
 
@@ -94,7 +94,7 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
     if (gradient !== sky) canvas.style.background = sky = gradient
 
     const lamps = num(GLOW.lamps)
-    return { windows: num(GLOW.windows), lamps, night: Math.min(1, lamps / LIGHTS_ON) }
+    return { windows: num(GLOW.windows), lamps, carLights: Math.min(1, lamps / LIGHTS_ON) }
   }
 
   return {
@@ -107,12 +107,12 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
     },
 
     /**
-     * Stop the clock at a time of day, 0–1 (0 morning, 0.25 noon, 0.5 dusk, 0.75 night), or let it run again with
-     * `null`. For looking at one light while building the game: the player has no control over the time of day.
+     * Stop the clock at a time of day, 0–1 (0 morning, 0.25 noon, 0.5 dusk, 0.75 night). For looking at one light while
+     * building the game: the player has no control over the time of day.
      */
-    hold(p: number | null) {
-      held = p !== null
-      if (p !== null) clock = ((p % 1) + 1) % 1
+    hold(p: number) {
+      held = true
+      clock = ((p % 1) + 1) % 1 || 0 // anything that is not a number shows the morning
     },
   }
 }
