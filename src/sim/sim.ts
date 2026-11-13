@@ -59,8 +59,9 @@ export class Sim {
     const levels = district.levels.slice(0, levelIndex + 1)
     this.level = levels[levelIndex]
     this.net = buildNetwork(district, revealed(district, levelIndex))
-    for (const level of levels) for (const [at, initial] of Object.entries(level.initial)) applyChange(this.net, { at, ...initial })
-    for (const change of carried) applyChange(this.net, change)
+    const initial = (level: Level) => Object.entries(level.initial).map(([at, initial]) => ({ at, ...initial }))
+    // Earlier Levels' Junctions as the player left them, then this Level's initial configuration on top.
+    for (const change of [...levels.slice(0, -1).flatMap(initial), ...carried, ...initial(this.level)]) applyChange(this.net, change)
     const arms = this.arms()
     this.atReveal = {
       enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),
