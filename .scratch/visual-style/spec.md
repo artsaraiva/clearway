@@ -64,7 +64,7 @@ Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt i
 ## Day cycle
 
 - A full day (morning, noon, dusk, night) loops on its own clock, a few minutes per day. It is cosmetic: it does not touch Demand, Levels or the sim, and the player cannot control it in the first version.
-- One light is the sun by day and the moon by night; it goes dark for a moment at each handover so the jump across the sky is never seen.
+- One light is the sun by day and the moon by night; it goes dark for a moment at each handover so the jump across the sky is never seen. The hemisphere fill is raised through each handover, so roads are no darker there than at dusk.
 - Night is a bright moonlit blue, not dark. Windows, lamps and car head and tail lights glow through emissive materials only; there are no per-object light sources.
 
 ## Reveal animation

@@ -18,11 +18,13 @@ const LIGHT = {
   azimuth: [-0.82, 0.1, 1.05, 1.76, 1.9, -1.2, 0.3, 1.2, -1],
   elevation: [0.9, 1.2, 0.66, 0.34, 0.15, 0.5, 1, 0.5, 0.3],
 }
-// The hemisphere light's fill from the sky and from the ground. Night is a bright moonlit blue, not dark.
+// The hemisphere light's fill from the sky and from the ground. Night is a bright moonlit blue, not dark. The fill is
+// strongest through each handover, where it lights the scene alone, so roads are no darker there than at dusk. (The
+// prototype's fill left them nearly black.)
 const FILL = {
   sky: colors('#d6ebff', '#dcebff', '#cfe2ff', '#8e9fe0', '#7686d6', '#7686d6', '#b4c2f6', '#9aa8e0', '#b8c8ee'),
   ground: colors('#efe6d2', '#f2ead9', '#f4dcc0', '#e8a98c', '#7a6f9c', '#5a5f9c', '#7a84c0', '#8a84a8', '#c8b8b8'),
-  intensity: [1.25, 1.25, 1.1, 0.85, 0.85, 0.9, 1.75, 0.95, 1.05],
+  intensity: [1.25, 1.25, 1.1, 0.85, 2.2, 2.2, 1.75, 1.7, 1.45],
 }
 // The sky gradient's stops: top, middle, bottom.
 const SKY = [
