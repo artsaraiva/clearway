@@ -26,13 +26,24 @@ scene.add(sun)
 
 const camera = new THREE.PerspectiveCamera(35, 1, 3, 4000)
 const controls = new MapControls(camera, canvas)
-Object.assign(controls, { enableDamping: true, zoomToCursor: true, minDistance: 25, maxDistance: 650, minPolarAngle: deg(10), maxPolarAngle: deg(75) })
+Object.assign(controls, {
+  enableDamping: true,
+  zoomToCursor: true,
+  minDistance: 25,
+  maxDistance: 650,
+  minPolarAngle: deg(10),
+  maxPolarAngle: deg(75),
+})
 
 /** Camera at `distance` m from a ground target, `tilt` degrees above the horizon, `azimuth` degrees from south. */
 function view(distance = 270, tilt = 55, azimuth = -25, target = { x: 0, y: 0 }) {
   const [polar, az] = [deg(90 - tilt), deg(azimuth)]
   controls.target.set(target.x, 0, -target.y)
-  camera.position.set(target.x + distance * Math.sin(polar) * Math.sin(az), distance * Math.cos(polar), -target.y + distance * Math.sin(polar) * Math.cos(az))
+  camera.position.set(
+    target.x + distance * Math.sin(polar) * Math.sin(az),
+    distance * Math.cos(polar),
+    -target.y + distance * Math.sin(polar) * Math.cos(az),
+  )
   controls.update()
 }
 
@@ -122,7 +133,9 @@ requestAnimationFrame(function frame(now) {
       `${((frames * 1000) / (now - since)).toFixed(0)} fps · ${(cpu / frames).toFixed(1)} ms cpu/frame`,
       `${calls} draws · ${(triangles / 1000).toFixed(0)}k tris · ${renderer.getPixelRatio()}x`,
       `cars: ${stress ? `${parked.length} static` : `${sim.vehicles.length} live sim`} · bake ${bakeMs.toFixed(0)} ms`,
-      Object.entries(layers).map(([k, l], i) => `${i + 1} ${l.visible ? k : '·'.repeat(k.length)}`).join('  '),
+      Object.entries(layers)
+        .map(([k, l], i) => `${i + 1} ${l.visible ? k : '·'.repeat(k.length)}`)
+        .join('  '),
       'R reset · S screenshot · C 1000 cars',
     ].join('\n')
     ;[since, frames, cpu] = [now, 0, 0]

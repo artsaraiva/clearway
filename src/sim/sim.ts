@@ -139,7 +139,13 @@ export class Sim {
     }
     if (gone.size) this.vehicles = this.vehicles.filter((v) => !gone.has(v))
 
-    measure(this, this.vehicles, Object.values(this.queues).reduce((n, q) => n + q.length, 0), this.time, DT)
+    measure(
+      this,
+      this.vehicles,
+      Object.values(this.queues).reduce((n, q) => n + q.length, 0),
+      this.time,
+      DT,
+    )
     this.time += DT
   }
 

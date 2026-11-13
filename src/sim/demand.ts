@@ -54,7 +54,13 @@ export class Demand {
       while (time >= this.nextArrival[arm]) {
         // Destination and type are drawn together, so the random stream depends only on time and seed.
         const dest = pick(Object.entries(to), this.rng)
-        q.push({ dest, type: pick(VEHICLE_TYPES.map((t) => [t, t.share]), this.rng) })
+        q.push({
+          dest,
+          type: pick(
+            VEHICLE_TYPES.map((t) => [t, t.share]),
+            this.rng,
+          ),
+        })
         this.nextArrival[arm] += this.interArrival(arm)
       }
       while (q.length) {

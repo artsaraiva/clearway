@@ -76,7 +76,11 @@ function edt(mask: ArrayLike<number>, W: number, H: number): Float32Array {
 /** Signed distance to a mask's boundary (negative inside), corrected for the half-texel between centres and edge. */
 function signed(mask: Uint8Array, W: number, H: number): Float32Array {
   const out = edt(mask, W, H)
-  const inv = edt(mask.map((m) => 1 - m), W, H)
+  const inv = edt(
+    mask.map((m) => 1 - m),
+    W,
+    H,
+  )
   for (let i = 0; i < out.length; i++) out[i] = mask[i] ? RES / 2 - inv[i] : out[i] - RES / 2
   return out
 }
@@ -132,7 +136,10 @@ export function bakeField(net: Network, laneWidth: number, block: { grass: Vec[]
   const N = W * H
   const cx = (i: number) => x0 + (i + 0.5) * RES
   const cy = (j: number) => y0 + (j + 0.5) * RES
-  const span = (lo: number, hi: number, o: number, n: number) => [Math.max(0, Math.floor((lo - o) / RES)), Math.min(n - 1, Math.ceil((hi - o) / RES))]
+  const span = (lo: number, hi: number, o: number, n: number) => [
+    Math.max(0, Math.floor((lo - o) / RES)),
+    Math.min(n - 1, Math.ceil((hi - o) / RES)),
+  ]
 
   // 1. Exact distance to the nearest lane centreline, near the lanes.
   const dmin = new Float32Array(N).fill(INF)
@@ -158,7 +165,11 @@ export function bakeField(net: Network, laneWidth: number, block: { grass: Vec[]
 
   // 2. Morphological close (dilate, then erode by FILLET): rounds junction mouths, fills slivers between lanes.
   //    The closed shape is grid-quantised, so it is lightly blurred and only used where it adds road.
-  const toOutside = edt(dmin.map((d) => (d - r > FILLET ? 1 : 0)), W, H)
+  const toOutside = edt(
+    dmin.map((d) => (d - r > FILLET ? 1 : 0)),
+    W,
+    H,
+  )
   const closed = new Uint8Array(N)
   for (let i = 0; i < N; i++) closed[i] = toOutside[i] - RES / 2 > FILLET ? 1 : 0
   const sdClosed = signed(closed, W, H)
@@ -176,8 +187,8 @@ export function bakeField(net: Network, laneWidth: number, block: { grass: Vec[]
       stack[top++] = i
     }
   }
-  for (let i = 0; i < W; i++) visit(i), visit((H - 1) * W + i)
-  for (let j = 0; j < H; j++) visit(j * W), visit(j * W + W - 1)
+  for (let i = 0; i < W; i++) (visit(i), visit((H - 1) * W + i))
+  for (let j = 0; j < H; j++) (visit(j * W), visit(j * W + W - 1))
   while (top) {
     const i = stack[--top]
     const x = i % W
@@ -207,7 +218,8 @@ export function bakeField(net: Network, laneWidth: number, block: { grass: Vec[]
     const rad = 2.2 * t.s
     const [i0, i1] = span(t.x - rad, t.x + rad, x0, W)
     const [j0, j1] = span(t.y - rad, t.y + rad, y0, H)
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (Math.hypot(cx(i) - t.x, cy(j) - t.y) < rad) ao[j * W + i] = Math.max(ao[j * W + i], 0.7)
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) if (Math.hypot(cx(i) - t.x, cy(j) - t.y) < rad) ao[j * W + i] = Math.max(ao[j * W + i], 0.7)
   }
   blur(ao, W, H, 4, 3)
 
