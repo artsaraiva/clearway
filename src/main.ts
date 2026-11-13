@@ -1,13 +1,17 @@
-import district from '../levels/district-01'
+import district01 from '../levels/district-01'
+import streetGrid from './dev/street-grid'
 import { createView } from './render/view'
 import { DT, Sim } from './sim/sim'
 import { createUI } from './ui/ui'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
+const params = new URLSearchParams(location.search)
+// Dev only: `?district=grid` opens the street-grid fixture instead of District 1.
+const district = import.meta.env.DEV && params.get('district') === 'grid' ? streetGrid : district01
 // ponytail: dev-only Reveal for playtesting. The page reloads on the next Level (`?level=2`), with the configuration
 // to carry over kept in sessionStorage. That lives in one tab only, and `?level=` skips the Win: a later Level opened
 // directly starts from the earlier Levels' initial configurations. The real Reveal presentation belongs to #15 (UI/UX).
-const level = Number(new URLSearchParams(location.search).get('level') ?? 1) - 1
+const level = Number(params.get('level') ?? 1) - 1
 const sim = new Sim(district, level, JSON.parse(sessionStorage.getItem(`carried:${level}`) ?? '[]'))
 const next = () => {
   sessionStorage.setItem(`carried:${level + 1}`, JSON.stringify(sim.configuration()))

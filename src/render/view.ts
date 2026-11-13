@@ -4,7 +4,9 @@ import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
 import { createCamera } from './camera'
 import { carCentre, createCars } from './cars'
+import { createBlocks } from './blocks'
 import { createArmConnections } from './connections'
+import { laneField } from './field'
 import { createRouteInspector } from './inspector'
 import { createLights } from './lights'
 import { createRoads } from './roads'
@@ -23,16 +25,15 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   const plate = districtBounds(sim.district)
   const slab = slabBounds(plate)
   const { camera, resize, update: updateCamera } = createCamera(canvas, slab)
-  const roads = createRoads(
-    sim.net.junctions.flatMap((j) => j.arms),
-    sim.district.roadDefaults.laneWidth,
-  )
+  const field = laneField(sim.net, sim.district, plate)
+  const roads = createRoads(sim.net, sim.district)
   const cars = createCars()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
   const scene = new THREE.Scene().add(
     ...createLights(canvas, slab),
     ...createSlab(plate),
+    createBlocks(field),
     roads.group,
     cars.mesh,
     armConnections.group,
@@ -73,6 +74,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
     },
 
     carCentre,
+
+    /** The distance field the Blocks are cut from, for scenery that stands on them. */
+    field,
 
     render() {
       if (inspected && !sim.vehicles.includes(inspected)) inspected = null

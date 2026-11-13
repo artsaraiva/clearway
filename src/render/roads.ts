@@ -1,35 +1,79 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import type { District } from '../sim/district'
 import { pointAt, type Vec } from '../sim/geometry'
-import type { Arm } from '../sim/network'
+import type { Lane, Network } from '../sim/network'
 import { dashes, mid, ribbons } from './ribbons'
 
 const PAINT_Y = 0.04
 const [WHITE, MAIN] = [0xffffff, 0x30a46c]
-const paint = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, side: THREE.DoubleSide })
+const [CENTRE, DIVIDER] = [0.56, 0.3] // line widths, m
+const ZEBRA = { stripe: 1.1, pitch: 2.2, length: 4, setback: 1 } // m; `setback` is from the stop line to the stripes
+const paint = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide })
 
 /**
- * Road paint on the plate: dashed lane dividers, a solid centre line, and a stop line across each approach.
- * ponytail: carried over from the throwaway renderer so the game plays before Blocks give roads their edges. A Road
- * between two Junctions is painted once per Arm, and Priority shows as a green stop line; #26 repaints per Road and
- * #28 replaces the stop lines with give-way triangles.
+ * Road paint on the plate: a dashed centre line per Road, dashed dividers between the lanes of one direction (and of a
+ * Ring), zebra stripes at every Junction mouth, and a stop line across each Approach.
+ * ponytail: Priority shows as a green stop line, carried over from the throwaway renderer so the Priority rule Tool
+ * stays readable; #28 replaces the stop lines with give-way triangles.
  */
-export function createRoads(arms: Arm[], laneWidth: number) {
-  const lines: Vec[][] = []
-  for (const arm of arms) {
-    const { approach: ins, exit: outs, ringOut: ring } = arm
-    for (let i = 1; i < ins.length; i++) lines.push(...dashes(mid(ins[i - 1].line.pts, ins[i].line.pts), 3, 6))
-    for (let i = 1; i < outs.length; i++) lines.push(...dashes(mid(outs[i - 1].line.pts, outs[i].line.pts), 3, 6))
-    lines.push(mid(ins[ins.length - 1].line.pts, [...outs[outs.length - 1].line.pts].reverse()))
-    for (let i = 1; i < ring.length; i++) lines.push(...dashes(mid(ring[i - 1].line.pts, ring[i].line.pts), 3, 5))
+export function createRoads(net: Network, district: District) {
+  const laneWidth = (road: string) => district.roads[road].laneWidth ?? district.roadDefaults.laneWidth
+  const arms = net.junctions.flatMap((j) => j.arms)
+  const [centres, dividers, stripes]: Vec[][][] = [[], [], []]
+  const between = (lanes: Lane[], gap: number) => {
+    for (let i = 1; i < lanes.length; i++) dividers.push(...dashes(mid(lanes[i - 1].line.pts, lanes[i].line.pts), 3, gap))
   }
+
+  // Once per Road, from its own lanes: a Road between two Junctions is an Arm of both.
+  const roads = new Map<string, { forward: Lane[]; backward: Lane[] }>()
+  for (const lane of net.lanes) {
+    if (!('road' in lane.owner)) continue
+    const road = roads.get(lane.owner.road) ?? roads.set(lane.owner.road, { forward: [], backward: [] }).get(lane.owner.road)!
+    road[lane.owner.forward ? 'forward' : 'backward'].push(lane)
+  }
+  for (const { forward, backward } of roads.values()) {
+    between(forward, 6)
+    between(backward, 6)
+    // The highest index is the innermost lane of its direction.
+    const [a, b] = [forward.at(-1), backward.at(-1)]
+    if (a && b) centres.push(...dashes(mid(a.line.pts, [...b.line.pts].reverse()), 4.4, 4.4))
+  }
+
+  for (const arm of arms) {
+    between(arm.ringOut, 5)
+    // Zebra stripes across the whole Road, just past the stop line.
+    const first = arm.approach[0]
+    const end = pointAt(first.line, first.length)
+    const [fx, fy, lx, ly] = [Math.cos(end.heading), Math.sin(end.heading), -Math.sin(end.heading), Math.cos(end.heading)]
+    const w = laneWidth(arm.road)
+    const across = (arm.approach.length + arm.exit.length) * w
+    const n = Math.floor((across - ZEBRA.stripe) / ZEBRA.pitch) + 1
+    for (let k = 0; k < n; k++) {
+      // Metres left of the first Approach lane's centre, which sits half a lane in from the Road's right edge.
+      const o = (across - (n - 1) * ZEBRA.pitch) / 2 + k * ZEBRA.pitch - w / 2
+      const [x, y] = [end.x + lx * o + fx * ZEBRA.setback, end.y + ly * o + fy * ZEBRA.setback]
+      stripes.push([
+        { x, y },
+        { x: x + fx * ZEBRA.length, y: y + fy * ZEBRA.length },
+      ])
+    }
+  }
+
   const group = new THREE.Group()
-  group.add(new THREE.Mesh(ribbons(lines, 0.18, PAINT_Y), paint(WHITE)))
+  const lines = mergeGeometries([
+    ribbons(centres, CENTRE, PAINT_Y),
+    ribbons(dividers, DIVIDER, PAINT_Y),
+    ribbons(stripes, ZEBRA.stripe, PAINT_Y),
+  ])
+  group.add(new THREE.Mesh(lines, paint(WHITE)))
 
   const stopLines = arms.map((arm) => {
     const ins = arm.approach
     const end = (i: number) => ins[i].line.pts[ins[i].line.pts.length - 1]
     const { heading } = pointAt(ins[0].line, ins[0].length)
-    const right = { x: (Math.sin(heading) * laneWidth) / 2, y: (-Math.cos(heading) * laneWidth) / 2 }
+    const half = laneWidth(arm.road) / 2
+    const right = { x: Math.sin(heading) * half, y: -Math.cos(heading) * half }
     const [a, b] = [end(0), end(ins.length - 1)]
     const across = [
       { x: a.x + right.x, y: a.y + right.y },
