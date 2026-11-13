@@ -7,7 +7,8 @@ const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
 
-export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View) {
+/** `next`, when there is a Level after this one, Reveals it. */
+export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View, next?: () => void) {
   const { tools } = sim.level
   root.innerHTML = `
     <div class="panel gauge">
@@ -15,7 +16,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
       <div class="sub" id="flow-sub"></div>
     </div>
-    <div class="panel banner" id="banner" hidden>Level won!</div>
+    <div class="panel banner" id="banner" hidden>Level won!${next ? ' <button id="next">Next Level</button>' : ''}</div>
     <div class="panel time">
       <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
       <button id="reset">Reset</button>
@@ -50,6 +51,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       (b) =>
         (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
     )
+  if (next) $('next').onclick = next
   $('reset').onclick = () => {
     sim.reset()
     select(selected)

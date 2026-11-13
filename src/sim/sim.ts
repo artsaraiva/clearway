@@ -45,7 +45,8 @@ export class Sim {
 
   /**
    * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
-   * Levels, as Changes on top of their initial configurations.
+   * Levels, as Changes on top of their initial configurations: the earlier Sim's `configuration()`, or reference
+   * solutions.
    */
   constructor(
     readonly district: District,
@@ -81,6 +82,18 @@ export class Sim {
       for (const c of arm.connections) c.enabled = this.atReveal.enabled.has(c)
     }
     replan(this.net, this.vehicles)
+  }
+
+  /**
+   * The configuration of every Junction as it stands, as Changes: what the next Reveal carries over. Connection refs
+   * and Road ids are stable across Reveals.
+   */
+  configuration(): Change[] {
+    return this.net.junctions.map((j) => {
+      const refs = (on: boolean) => j.arms.flatMap((a) => a.connections.filter((c) => c.enabled === on).map((c) => c.ref))
+      const priority = Object.fromEntries(j.arms.map((a) => [a.road, a.priority]))
+      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority }) }
+    })
   }
 
   /** Make a Change; every vehicle re-plans. */
