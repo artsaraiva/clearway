@@ -1,6 +1,6 @@
 import type { Level } from './district'
 import type { Lane, Network } from './network'
-import { route } from './routing'
+import { route, travelTime } from './routing'
 import type { Vehicle } from './sim'
 
 export interface VehicleType {
@@ -26,7 +26,7 @@ export interface Arrival {
 }
 
 const SPAWN_GAP = 3
-const QUEUE_COST = 6.5 // m of trip length per vehicle already on an Approach lane
+const QUEUE_COST = 0.5 // s of trip time per vehicle already on an Approach lane
 
 /** Arrivals at each Gateway and their spawn onto the map. Owns the Level's random stream. */
 export class Demand {
@@ -77,8 +77,9 @@ export class Demand {
           return !r || r.s - r.type.length >= SPAWN_GAP
         })
         if (!free.length) break
-        // Shortest trip counting each vehicle already on the lane as queue length (gives natural lane discipline).
-        const cost = (o: { lane: Lane; path: Lane[] }) => o.path.reduce((d, l) => d + l.length, 0) + QUEUE_COST * o.lane.vehicles.length
+        // Fastest trip counting each vehicle already on the lane as queue time (gives natural lane discipline).
+        const cost = (o: { lane: Lane; path: Lane[] }) =>
+          o.path.reduce((t, l) => t + travelTime(l), 0) + QUEUE_COST * o.lane.vehicles.length
         const { lane, path } = free.reduce((a, b) => (cost(b) < cost(a) ? b : a))
         const { type } = q[0]
         const r = lane.vehicles.at(-1)
