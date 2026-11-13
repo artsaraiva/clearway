@@ -1,21 +1,31 @@
-// Dev script, not a test: the current Level's jam and clear pass rates over seeds 1–10, with the checks from src/sim/sim.test.ts.
-import level, { solve } from '../levels/roundabout-01'
+// Dev script, not a test: each Level's jam and win pass rates over seeds 1–10, with the checks from levels/levels.test.ts.
+import district from '../levels/district-01'
+import type { District } from '../src/sim/district'
 import { Sim } from '../src/sim/sim'
 
-const flowAfter = (sim: Sim, seconds: number) => {
-  for (let i = 0; i < seconds * 30; i++) sim.step()
-  return sim.flow
+const run = (sim: Sim, seconds: number, until = () => false) => {
+  for (let i = 0; i < seconds * 30 && !until(); i++) sim.step()
+  return sim
 }
 
-let jams = 0
-let clears = 0
-for (let seed = 1; seed <= 10; seed++) {
-  const jam = flowAfter(new Sim({ ...level, seed }), 180) < 0.5
-  const solved = new Sim({ ...level, seed })
-  solve(solved)
-  const clear = flowAfter(solved, 180) >= 0.8
-  jams += +jam
-  clears += +clear
-  console.log(`seed ${seed}: ${jam ? 'jams' : 'no jam'}, ${clear ? 'clears' : 'stays jammed'}`)
-}
-console.log(`jam ${jams}/10, clear ${clears}/10 (shipped seed: ${level.seed})`)
+district.levels.forEach((level, n) => {
+  let jams = 0
+  let wins = 0
+  for (let seed = 1; seed <= 10; seed++) {
+    const seeded: District = { ...district, levels: district.levels.map((l, i) => (i === n ? { ...l, seed } : l)) }
+    const reveal = () =>
+      new Sim(
+        seeded,
+        n,
+        district.levels.slice(0, n).flatMap((l) => l.solution),
+      )
+    const jam = run(reveal(), 180).flow < 0.5
+    const solved = reveal()
+    for (const change of level.solution) solved.apply(change)
+    const win = run(solved, 300, () => solved.won).won
+    jams += +jam
+    wins += +win
+    console.log(`Level ${n + 1} seed ${seed}: ${jam ? 'jams' : 'no jam'}, ${win ? 'wins' : 'no win'}`)
+  }
+  console.log(`Level ${n + 1}: jam ${jams}/10, win ${wins}/10 (shipped seed: ${level.seed})`)
+})

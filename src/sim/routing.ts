@@ -1,9 +1,9 @@
 import type { Lane, Network } from './network'
 import type { Vehicle } from './sim'
 
-/** Shortest lane path (excluding `from`) to any exit lane of `dest`, over enabled connections. */
+/** Shortest lane path (excluding `from`) to any Exit lane of the Gateway `dest`, over enabled Connections. */
 export function route(net: Network, from: Lane, dest: string): Lane[] | null {
-  const targets = new Set(net.exits[dest])
+  const targets = new Set(net.gateways[dest].exit)
   if (targets.has(from)) return []
   const prev = new Map<Lane, Lane>([[from, from]])
   const queue = [from]

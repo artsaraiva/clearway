@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { pointAt, polyline, type Vec } from '../sim/geometry'
-import type { Node } from '../sim/network'
+import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
 
 const ROAD_Y = 0.15
@@ -57,7 +57,8 @@ export type View = ReturnType<typeof createScene>
 
 export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   const { net } = sim
-  const w = sim.level.roundabout.laneWidth
+  const w = sim.district.roadDefaults.laneWidth
+  const arms = net.junctions.flatMap((j) => j.arms)
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
   renderer.setPixelRatio(window.devicePixelRatio)
@@ -86,7 +87,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   ground.receiveShadow = true
   scene.add(ground)
 
-  // Road surface: every lane, including all candidate connections so node areas are paved.
+  // Road surface: every lane, including all candidate Connections so Junctions are paved.
   const road = new THREE.Mesh(
     ribbons(
       net.lanes.map((l) => l.line.pts),
@@ -100,21 +101,21 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
 
   // Paint: dashed lane dividers, solid centre line between approach and exit.
   const paint: Vec[][] = []
-  const ringLanes = (arm: string) => net.lanes.filter((l) => l.kind === 'ring' && l.arm === arm)
-  for (const node of net.nodes) {
-    const ins = net.approaches[node.arm]
-    const outs = net.exits[node.arm]
+  // ponytail: painted per Arm, so a Road between two Junctions is painted twice; paint per Road when the renderer is rebuilt
+  for (const arm of arms) {
+    const ins = arm.approach
+    const outs = arm.exit
     for (let i = 1; i < ins.length; i++) paint.push(...dashes(mid(ins[i - 1].line.pts, ins[i].line.pts), 3, 6))
     for (let i = 1; i < outs.length; i++) paint.push(...dashes(mid(outs[i - 1].line.pts, outs[i].line.pts), 3, 6))
     paint.push(mid(ins[ins.length - 1].line.pts, [...outs[outs.length - 1].line.pts].reverse()))
-    const ring = ringLanes(node.arm)
+    const ring = arm.ringOut
     for (let i = 1; i < ring.length; i++) paint.push(...dashes(mid(ring[i - 1].line.pts, ring[i].line.pts), 3, 5))
   }
   scene.add(new THREE.Mesh(ribbons(paint, 0.18, ROAD_Y + 0.02), flat(COLORS.paint)))
 
   // Stop lines across each approach, coloured by priority rule.
-  const stopLines = net.nodes.map((node) => {
-    const ins = net.approaches[node.arm]
+  const stopLines = arms.map((arm) => {
+    const ins = arm.approach
     const end = (i: number) => ins[i].line.pts[ins[i].line.pts.length - 1]
     const { heading } = pointAt(ins[0].line, ins[0].length)
     const right = { x: Math.sin(heading), y: -Math.cos(heading) }
@@ -126,7 +127,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
     ]
     const mesh = new THREE.Mesh(ribbons([pts], 0.6, ROAD_Y + 0.03), flat(COLORS.paint))
     scene.add(mesh)
-    return { arm: node.arm, mesh }
+    return { arm, mesh }
   })
 
   // Cars.
@@ -142,7 +143,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
   const up = new THREE.Vector3(0, 1, 0)
   const one = new THREE.Vector3(1, 1, 1)
 
-  // Lane-connector overlay for the selected node.
+  // Lane-connector overlay for the selected Arm.
   const overlay = new THREE.Group()
   scene.add(overlay)
 
@@ -193,12 +194,12 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
       return hit ? { x: hit.x, y: -hit.z } : null
     },
 
-    /** Rebuild the connector overlay: active connection curves plus lane-end markers. */
-    showNode(node: Node | null, armed: string | null) {
+    /** Rebuild the connector overlay: active Connection curves plus lane-end markers. */
+    showArm(arm: Arm | null, armed: Lane | null) {
       for (const o of overlay.children) (o as THREE.Mesh).geometry.dispose()
       overlay.clear()
-      if (!node) return
-      const active = node.connections.filter((c) => c.enabled)
+      if (!arm) return
+      const active = arm.connections.filter((c) => c.enabled)
       const fromRing = active.filter((c) => c.from.kind === 'ring').map((c) => c.lane.line.pts)
       const fromApproach = active.filter((c) => c.from.kind !== 'ring').map((c) => c.lane.line.pts)
       overlay.add(new THREE.Mesh(ribbons(fromRing, 0.6, ROAD_Y + 0.05), flat(0x10b981)))
@@ -209,9 +210,9 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
         mesh.castShadow = true
         overlay.add(mesh)
       }
-      for (const [port, lane] of Object.entries(node.inPorts))
-        marker(lane.line.pts[lane.line.pts.length - 1], port === armed ? 0x1e3a8a : 0x3b82f6, port === armed)
-      for (const lane of Object.values(node.outPorts)) marker(lane.line.pts[0], 0xf97316, false)
+      for (const lane of [...arm.approach, ...arm.ringIn])
+        marker(lane.line.pts[lane.line.pts.length - 1], lane === armed ? 0x1e3a8a : 0x3b82f6, lane === armed)
+      for (const lane of [...arm.ringOut, ...arm.exit]) marker(lane.line.pts[0], 0xf97316, false)
     },
 
     /** Highlight a car's remaining route. `null` clears it. */
@@ -244,7 +245,7 @@ export function createScene(canvas: HTMLCanvasElement, sim: Sim) {
       if (cars.instanceColor) cars.instanceColor.needsUpdate = true
 
       for (const { arm, mesh } of stopLines) {
-        const rule = sim.priority[arm]
+        const rule = arm.priority
         const color = rule === 'yield' ? COLORS.paint : rule === 'stop' ? COLORS.stop : sim.isGreen(arm) ? COLORS.green : COLORS.stop
         ;(mesh.material as THREE.MeshStandardMaterial).color.setHex(color)
       }

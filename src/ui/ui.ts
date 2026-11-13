@@ -1,8 +1,9 @@
 import type { View } from '../render/scene'
-import type { Node } from '../sim/network'
-import { WIN_FLOW, WIN_TIME, type Priority, type Sim, type Vehicle } from '../sim/sim'
+import type { Priority } from '../sim/district'
+import type { Arm, Lane } from '../sim/network'
+import { WIN_FLOW, WIN_TIME, type Sim, type Vehicle } from '../sim/sim'
 
-const NODE_PICK = 25 // m from a ring node's centre
+const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
 
@@ -27,22 +28,25 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
-  let selected: Node | null = null
-  let armed: string | null = null
+  let selected: Arm | null = null
+  let armed: Lane | null = null
 
-  const select = (node: Node | null) => {
-    selected = node
+  const select = (arm: Arm | null) => {
+    selected = arm
     armed = null
     view.inspectCar(null)
-    $('node').hidden = !node
-    if (node) $('node-name').textContent = `${node.arm} junction`
-    view.showNode(node, null)
+    $('node').hidden = !arm
+    if (arm) $('node-name').textContent = `${arm.junction}: ${arm.road} arm`
+    view.showArm(arm, null)
   }
 
   root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
   root
     .querySelectorAll<HTMLButtonElement>('[data-prio]')
-    .forEach((b) => (b.onclick = () => selected && sim.setPriority(selected.arm, b.dataset.prio as Priority)))
+    .forEach(
+      (b) =>
+        (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
+    )
   $('reset').onclick = () => {
     sim.reset()
     select(selected)
@@ -55,24 +59,24 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)
     if (selected && tools.includes('connector')) {
       const ends = [
-        ...Object.entries(selected.inPorts).map(([port, l]) => ({ port, dir: 'in', at: l.line.pts[l.line.pts.length - 1] })),
-        ...Object.entries(selected.outPorts).map(([port, l]) => ({ port, dir: 'out', at: l.line.pts[0] })),
+        ...[...selected.approach, ...selected.ringIn].map((lane) => ({ lane, dir: 'in', at: lane.line.pts[lane.line.pts.length - 1] })),
+        ...[...selected.ringOut, ...selected.exit].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
       ]
       const hit = ends.filter((m) => dist(m.at) < MARKER_PICK).sort((a, b) => dist(a.at) - dist(b.at))[0]
-      if (hit?.dir === 'in') armed = hit.port
+      if (hit?.dir === 'in') armed = hit.lane
       else if (hit && armed) {
-        const c = sim.connection(selected.arm, armed, hit.port)
-        if (c) sim.setConnection(selected.arm, armed, hit.port, !c.enabled)
+        const c = selected.connections.find((c) => c.from === armed && c.to === hit.lane)
+        if (c) sim.apply({ at: selected.junction, [c.enabled ? 'disable' : 'enable']: [c.ref] })
         armed = null
       }
-      if (hit) return view.showNode(selected, armed)
+      if (hit) return view.showArm(selected, armed)
     }
     const car = sim.vehicles.reduce<Vehicle | null>(
       (best, v) => (dist(view.carCentre(v)) < (best ? dist(view.carCentre(best)) : CAR_PICK) ? v : best),
       null,
     )
     if (car) return view.inspectCar(car)
-    const near = sim.net.nodes.find((n) => dist(n.center) < NODE_PICK)
+    const near = sim.net.junctions.flatMap((j) => j.arms).find((a) => dist(a.center) < ARM_PICK)
     select(near ?? null)
   })
 
@@ -94,7 +98,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
       root
         .querySelectorAll<HTMLButtonElement>('[data-prio]')
-        .forEach((b) => b.classList.toggle('on', !!selected && sim.priority[selected.arm] === b.dataset.prio))
+        .forEach((b) => b.classList.toggle('on', selected?.priority === b.dataset.prio))
     },
   }
 }

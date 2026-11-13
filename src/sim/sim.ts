@@ -1,28 +1,12 @@
 import { Demand, type VehicleType } from './demand'
+import { validateDistrict, revealed, type Change, type District, type Level, type Priority } from './district'
 import { accel } from './driving'
 import { measure, PREWARM } from './metric'
-import { buildNetwork, type Connection, type Lane, type Network, type RoundaboutSpec } from './network'
+import { applyChange, buildNetwork, type Arm, type Connection, type Lane, type Network } from './network'
 import { plan, route } from './routing'
 
 export { VEHICLE_TYPES, type VehicleType } from './demand'
 export { PREWARM, WIN_FLOW, WIN_TIME } from './metric'
-
-export type Priority = 'yield' | 'stop' | 'signal'
-export type Tool = 'connector' | 'priority'
-
-export interface Level {
-  seed: number
-  /** Tools the player may use in this Level. */
-  tools: Tool[]
-  roundabout: RoundaboutSpec
-  /** Per arm: arrivals per minute and destination weights. */
-  demand: Record<string, { rate: number; to: Record<string, number> }>
-  initial: {
-    /** `fromPort>toPort` pairs enabled at every ring node. */
-    connections: string[]
-    priority: Record<string, Priority>
-  }
-}
 
 export interface Vehicle {
   id: number
@@ -50,57 +34,71 @@ const SIGNAL_GREEN = 15 // s of green per arm, in turn
 
 export class Sim {
   readonly net: Network
+  readonly level: Level
   time = 0
   flow = 1
   won = false
   completed = 0
   vehicles: Vehicle[] = []
-  priority: Record<string, Priority> = {}
   /** Sim-seconds the flow has stayed at or above WIN_FLOW. */
   sustained = 0
   private demand: Demand
+  /** The configuration at the Reveal, which Reset returns to. */
+  private atReveal: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
 
-  constructor(readonly level: Level) {
-    this.net = buildNetwork(level.roundabout)
-    this.reset()
-    this.demand = new Demand(level.demand, level.seed)
+  /**
+   * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
+   * Levels, as Changes on top of their initial configurations.
+   */
+  constructor(
+    readonly district: District,
+    levelIndex = 0,
+    carried: Change[] = [],
+  ) {
+    validateDistrict(district)
+    const levels = district.levels.slice(0, levelIndex + 1)
+    this.level = levels[levelIndex]
+    this.net = buildNetwork(district, revealed(district, levelIndex))
+    for (const level of levels) for (const [at, initial] of Object.entries(level.initial)) applyChange(this.net, { at, ...initial })
+    for (const change of carried) applyChange(this.net, change)
+    const arms = this.arms()
+    this.atReveal = {
+      enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),
+      priority: new Map(arms.map((a) => [a, a.priority])),
+    }
+    this.demand = new Demand(this.level.demand, this.level.seed)
     while (this.time < PREWARM) this.step()
   }
 
-  /** Off-screen spawn queues per arm. */
+  /** Off-screen spawn queues per Gateway. */
   get queues() {
     return this.demand.queues
   }
 
-  /** Every Junction back to the Level's initial configuration; traffic keeps running. */
+  /** Every Junction back to its configuration at the Reveal; traffic keeps running. */
   reset() {
     this.sustained = 0 // ponytail: Flow's moving average lags ~20 s, so a long-held hold could still finish; fine while Win latches
-    this.priority = { ...this.level.initial.priority }
-    for (const node of this.net.nodes) {
-      for (const c of node.connections) c.enabled = this.level.initial.connections.includes(`${c.fromPort}>${c.toPort}`)
+    for (const arm of this.arms()) {
+      arm.priority = this.atReveal.priority.get(arm)!
+      for (const c of arm.connections) c.enabled = this.atReveal.enabled.has(c)
     }
     for (const v of this.vehicles) plan(this.net, v)
   }
 
-  connection(node: string, fromPort: string, toPort: string): Connection | undefined {
-    return this.net.nodes.find((n) => n.arm === node)?.connections.find((c) => c.fromPort === fromPort && c.toPort === toPort)
-  }
-
-  setConnection(node: string, fromPort: string, toPort: string, on: boolean) {
-    const c = this.connection(node, fromPort, toPort)
-    if (!c) throw new Error(`no connection ${node}:${fromPort}>${toPort}`)
-    c.enabled = on
+  /** Make a Change; every vehicle re-plans. */
+  apply(change: Change) {
+    applyChange(this.net, change)
     for (const v of this.vehicles) plan(this.net, v)
   }
 
-  setPriority(arm: string, p: Priority) {
-    this.priority[arm] = p
+  /** Fixed cycle: each Arm of a Junction gets green in turn (only signalized Arms obey it). */
+  isGreen(arm: Arm): boolean {
+    const { arms } = this.net.junctions.find((j) => j.id === arm.junction)!
+    return arms[Math.floor(this.time / SIGNAL_GREEN) % arms.length] === arm
   }
 
-  /** Fixed cycle: each arm of the junction gets green in turn (only signalized arms obey it). */
-  isGreen(arm: string): boolean {
-    const cycle = Object.keys(this.level.roundabout.arms)
-    return cycle[Math.floor(this.time / SIGNAL_GREEN) % cycle.length] === arm
+  private arms(): Arm[] {
+    return this.net.junctions.flatMap((j) => j.arms)
   }
 
   step() {
@@ -117,7 +115,7 @@ export class Sim {
       while (lane.vehicles.length && lane.vehicles[0].s > lane.length) {
         const v = lane.vehicles[0]
         const next = v.path.shift()
-        if (!next && lane.kind !== 'exit') {
+        if (!next && !lane.toGateway) {
           v.s = lane.length // dead end: hold at the end
           v.v = 0
           break
@@ -149,7 +147,7 @@ export class Sim {
     this.time += DT
   }
 
-  /** Shortest lane path (excluding `from`) to any exit lane of `dest`, over enabled connections. */
+  /** Shortest lane path (excluding `from`) to any Exit lane of the Gateway `dest`, over enabled Connections. */
   route(from: Lane, dest: string): Lane[] | null {
     return route(this.net, from, dest)
   }

@@ -2,7 +2,7 @@ import type { Connection } from './network'
 import type { Sim, Vehicle } from './sim'
 
 /** The Junction configuration the driving rules obey. */
-type Rules = Pick<Sim, 'priority' | 'isGreen'>
+type Rules = Pick<Sim, 'isGreen'>
 
 const GAP_AFTER = 1.5 // s: a priority vehicle must reach the conflict point this long after me...
 const GAP_BEFORE = 1.0 // ...or this long before me
@@ -73,14 +73,14 @@ function mustStop(v: Vehicle, rules: Rules): boolean {
   const lane = v.lane
   if (lane.conn || lane.vehicles[0] !== v) return false
   const next = v.path[0]
-  if (!next) return lane.kind !== 'exit'
+  if (!next) return !lane.toGateway
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
-  const rule = c.from.kind === 'approach' ? rules.priority[c.from.arm] : 'yield'
+  const rule = c.from.kind === 'road' ? c.arm.priority : 'yield' // the Ring is always main
   if (rule === 'signal') {
     // Green replaces the yield check: entrants force in and zip with ring traffic.
-    if (!rules.isGreen(c.from.arm)) return true
+    if (!rules.isGreen(c.arm)) return true
   } else {
     if (rule === 'stop' && !v.stopped) return true
     if (conflicting(v, c, dist)) return true

@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js'
 import { CAR_COLORS, dashes, mid, ribbons } from '../render/scene'
 import { pointAt, type Vec } from '../sim/geometry'
-import type { Lane, Network } from '../sim/network'
+import type { Arm, Lane, Network } from '../sim/network'
 import type { Vehicle, VehicleType } from '../sim/sim'
 import type { Building, Tree } from './block'
 import { BIKE, CURB, PALETTE } from './field'
@@ -55,9 +55,9 @@ export function flatPolys(polys: Vec[][], y: number): THREE.BufferGeometry {
 export const plazaLayer = (polys: Vec[][]) => new THREE.Mesh(flatPolys(polys, 0.01), basic(PALETTE.plaza))
 
 /** Frame at an arm's entry line: `at(r, lat)` is r m out along the arm and lat m right of inbound traffic. */
-function armFrame(net: Network, arm: string, w: number) {
-  const ins = net.approaches[arm]
-  const outs = net.exits[arm]
+function armFrame(arm: Arm, w: number) {
+  const ins = arm.approach
+  const outs = arm.exit
   const end = (l: Lane) => l.line.pts[l.line.pts.length - 1]
   const [a, b] = [ins[0].line.pts[0], end(ins[0])]
   const len = Math.hypot(b.x - a.x, b.y - a.y)
@@ -99,25 +99,24 @@ const RIGHT_TURN = [
 /** Lane dividers, centre lines, entry lines, zebras, give-way triangles and turn arrows, merged into one mesh. */
 export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
   const [thin, dashed, wide, polys]: Vec[][][] = [[], [], [], []]
-  for (const node of net.nodes) {
-    const { arm } = node
-    const ins = net.approaches[arm]
-    const outs = net.exits[arm]
+  for (const arm of net.junctions.flatMap((j) => j.arms)) {
+    const ins = arm.approach
+    const outs = arm.exit
     for (let i = 1; i < ins.length; i++) thin.push(...dashes(mid(ins[i - 1].line.pts, ins[i].line.pts), 3, 6))
     for (let i = 1; i < outs.length; i++) thin.push(...dashes(mid(outs[i - 1].line.pts, outs[i].line.pts), 3, 6))
     thin.push(mid(ins[ins.length - 1].line.pts, [...outs[outs.length - 1].line.pts].reverse()))
-    const ring = net.lanes.filter((l) => l.kind === 'ring' && l.arm === arm)
-    const across = (i: number) => node.connections.find((c) => c.fromPort === `ring${i}` && c.toPort === `ring${i}`)!.lane.line.pts
+    const ring = arm.ringOut
+    const across = (i: number) => arm.connections.find((c) => c.from === arm.ringIn[i] && c.to === arm.ringOut[i])!.lane.line.pts
     for (let i = 1; i < ring.length; i++) {
       thin.push(...dashes(mid(ring[i - 1].line.pts, ring[i].line.pts), 3, 5))
       thin.push(...dashes(mid(across(i - 1), across(i)), 3, 5))
     }
 
-    const f = armFrame(net, arm, w)
-    if (arm === stopArm) wide.push([f.at(0.3, 0.15), f.at(0.3, f.half - 0.15)])
+    const f = armFrame(arm, w)
+    if (arm.road === stopArm) wide.push([f.at(0.3, 0.15), f.at(0.3, f.half - 0.15)])
     for (let lat = -f.half + 0.75; lat < f.half - 0.4; lat += 1.1) wide.push([f.at(7, lat), f.at(10, lat)])
     f.lanes.forEach((lat, i) => {
-      if (arm !== stopArm) {
+      if (arm.road !== stopArm) {
         dashed.push(...dashes([f.at(0.2, lat - w / 2 + 0.15), f.at(0.2, lat + w / 2 - 0.15)], 0.5, 0.35))
         polys.push([f.at(5, lat), f.at(2, lat - 0.75), f.at(2, lat + 0.75)]) // give-way triangle, apex toward the driver
       }
@@ -137,7 +136,7 @@ export function markings(net: Network, w: number, stopArm: string): THREE.Mesh {
 export function signs(net: Network, w: number, yieldArm: string, signalArm: string): THREE.Group {
   const group = new THREE.Group()
   const place = (obj: THREE.Object3D, arm: string) => {
-    const f = armFrame(net, arm, w)
+    const f = armFrame(net.gateways[arm], w)
     const p = f.at(0.5, f.half + BIKE + CURB + 0.7)
     obj.position.set(p.x, 0, -p.y)
     obj.rotation.y = Math.atan2(f.u.x, -f.u.y)
