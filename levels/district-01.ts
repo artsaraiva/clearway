@@ -12,7 +12,7 @@ import type { District } from '../src/sim/district'
 //
 // Columns are 90 m apart and rows 80 m. A Priority junction's footprint is 19 m where a two-lane Road meets it and
 // 12 m where none does, so a Road of the north row keeps 52 m of lane (8 queued cars) and R18 keeps 49 m.
-export default {
+const district: District = {
   roadDefaults: { speed: 13.9, laneWidth: 7, bikeBand: false, sidewalk: 0, median: 0 },
   junctions: {
     J1: { type: 'priority', at: [-135, 40] },
@@ -78,5 +78,29 @@ export default {
       // south to where R18 reaches J8's footprint and east to where R12 reaches J2's, both in the Fog
       pieces: [{ x0: -175, y0: -28, x1: -64, y1: 105 }],
     },
+    {
+      reveal: ['J2'],
+      seed: 5,
+      tools: ['connector'],
+      // A heavy stream from N2 turns right onto the avenue: more than one turning lane carries, less than two do.
+      // 30 a minute is the middle of the window: at 28 one seed in ten does not jam, and at 32 two lanes do not
+      // always Win.
+      // Level 1's stream turns right again down R27: its turn at J1 puts it in R12's kerb lane, which cannot turn left
+      // to N2. The stem stream up R27 turns right onto R23 at a rate one turning lane carries; it jams J3 in Level 3.
+      demand: {
+        N2: { rate: 30, to: { W1: 1 } },
+        R18: { rate: 13, to: { R27: 1 } },
+        R27: { rate: 12, to: { R23: 1 } },
+        W1: { rate: 1, to: { N2: 1 } },
+        R23: { rate: 2, to: { W1: 1 } },
+      },
+      // only the kerb lane turns right, from N2 and from R27: the second lane of each stands unused
+      initial: { J2: { disable: ['N2.in1>R12.out1', 'R27.in1>R23.out1'] } },
+      solution: [{ at: 'J2', enable: ['N2.in1>R12.out1'] }],
+      // east to where R23 reaches J3's footprint and south to where R27 reaches J7's, both in the Fog
+      pieces: [{ x0: -64, y0: -21, x1: 26, y1: 105 }],
+    },
   ],
-} satisfies District
+}
+
+export default district

@@ -66,7 +66,7 @@ Columns sit 90 m apart, rows 80 m apart. The slab is about 355 × 210 m: x from 
 - Edge Gateway Roads start at the slab edge: W1 from (−175, 40), N2 from (−45, 105), N3 from (45, 105), N4 from (135, 105), E5 from (180, −40), S6 from (45, −105), S7 from (−45, −105), W8 from (−175, −40).
 - **Measured in [#56](https://github.com/artsaraiva/clearway/issues/56).** A Junction's footprint is 12 m with one lane each way and 19 m where a two-lane Road meets it. North-row Roads keep 52 m of lane (8 cars per lane), R18 49 m, R27 and R36 42 m, W1 21 m. A Road needs at least 10 m of lane.
 - **R45 keeps 42 m of lane**, 6 cars per lane, and E5 26 m (measured). J5's queue must reach J4 within the Pre-warm, so raise the Demand. R45 cannot be shorter without moving a Junction.
-- **A turning lane is slow.** The right turn from R18 onto R12's kerb lane is driven at 4.3 m/s, so one turning lane carries about 14 vehicles a minute. That is also about where a yielding lane starts to jam, so Levels built on either have narrow Demand windows.
+- **A turning lane is slow.** The right turn from R18 onto R12's kerb lane is driven at 4.3 m/s, so in Level 1 the stem's window is 13–14. Measured in [#57](https://github.com/artsaraiva/clearway/issues/57): alone, one turning lane Wins up to 17 vehicles a minute and passes 23 saturated, two pass about 41, and one yielding lane passes 10 with nobody to yield to and jams from about 10.
 - **The cross-street speeds make the route shifts** of Levels 6 and 7 (see those Levels). Routing is lane length ÷ speed limit; the yield crawl is not in it, so the Priority rule never moves a route.
 
 ### Slab pieces
@@ -76,7 +76,7 @@ Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam
 | Level | Pieces (x0, y0, x1, y1) |
 | --- | --- |
 | 1 | (−175, −28, −64, 105) |
-| 2 | (−64, −28, 26, 105) |
+| 2 | (−64, −21, 26, 105): R27 ends at y = −21, the 19 m footprint of J7 |
 | 3 | (26, −28, 116, 105) |
 | 4 | (116, −105, 180, 105) and (64, −105, 116, −28), which carries R56 to its fogged end |
 | 5 | (−33, −105, 64, −28) |
@@ -121,12 +121,13 @@ The player's first Jam and first Change. The heavy stream enters at R18's fogged
 
 ### Level 2
 
-A new heavy stream from N2 turns right onto the avenue and leaves at W1. Size it above what one turning lane carries and below what two do. Initially only the kerb lane's right turn is enabled; the fix enables the second. The turn conflicts with almost nothing, so the unused lane is the whole puzzle.
+A new heavy stream from N2 turns right onto the avenue and leaves at W1. Size it above what one turning lane carries and below what two do: it ships at 30 a minute, in a window of 28–30. Initially only the kerb lane's right turn is enabled; the fix enables the second. The turn conflicts with almost nothing, so the unused lane is the whole puzzle.
 
 Two more things are authored here for later Levels:
 
-- **The stem stream** enters at R27's fogged end (at J7) and turns right onto R23, at a rate one turning lane carries and one yielding lane does not. Level 1 showed those two limits sit close together, so [#57](https://github.com/artsaraiva/clearway/issues/57) measures the window before authoring. Its second right-turn lane, `R27.in1>R23.out1`, starts disabled. It does not jam here.
-- **Level 1's stream** now leaves at N2, which keeps J3's west Approach for the stem stream alone. Its left turn at J2 crosses the lanes N2's right-turners enter; if the two fight, send it right down R27 instead and re-author it in Level 7.
+- **The stem stream** enters at R27's fogged end (at J7) and turns right onto R23, at a rate one turning lane carries and one yielding lane does not: 12 a minute, inside the measured window of 10–17 ([#57](https://github.com/artsaraiva/clearway/issues/57)). Its second right-turn lane, `R27.in1>R23.out1`, starts disabled. It does not jam here.
+- **Level 1's stream** turns right again at J2 and leaves down R27, which keeps J3's west Approach for the stem stream alone. It cannot leave at N2: its right turn at J1 puts it in R12's kerb lane, and only lane 1 turns left at J2 (hazard 3). Re-author it in Level 7.
+- **Level 1's light streams**: W1's now leaves at N2, and the one to W1 now enters at R23.
 
 ### Level 3
 
