@@ -75,12 +75,19 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Levels 3 and 4 are a pair: jam visible downstream with the fix upstream, then the reverse. Levels 6 and 7 are route-shift puzzles: removing a Connection sends traffic back the way that worked.
   - Teaching Levels restrict Tools. Streams continue through a Reveal at the same rate; only Level 7 re-jams an earlier Junction.
   - Sim change: a car on the map whose destination becomes unreachable re-plans to the nearest reachable Gateway (in [#4](https://github.com/artsaraiva/clearway/issues/4)).
+- Procedural Districts ([#34](https://github.com/artsaraiva/clearway/issues/34), research, 2026-11-14). Findings and sources in `.scratch/procedural-districts/research.md`; grilling in [#43](https://github.com/artsaraiva/clearway/issues/43).
+  - Recommendation: authored Level templates with generated variation, run offline. A tool writes `levels/district-NN.ts`, the sim checks it, and a human playtests and commits it, so `levels/levels.test.ts` covers the output with no new test seam. Stay hand-authored if only a few Districts are planned.
+  - Road graph: a warped grid (column and row spacing varied, a few Roads removed for T-junctions, the odd small roundabout). It stays axis-aligned, so Blocks are rectangles and each Reveal adds rectangular pieces. L-systems, tensor fields and wave function collapse output curves, kinks, dead ends and 2-Arm corners the District file can't hold.
+  - Levels: start from a configuration that Wins, apply a break as `initial`, and the solution is the break undone, so a solution exists by construction. The sim decides whether the break jams and the fix wins, over seeds. A human judges whether the Jam reads, whether the fix is discoverable, teaching order and theme.
+  - A check costs about 100 ms per candidate per seed. The risk is a narrow window: no Demand scale makes Level 1 both jam and win on all 10 seeds, so a generator needs a stricter bar than 7 of 10 and break types with a wide capacity gap.
+  - Route-shift Levels are shortest-path changes, not Braess's paradox (ADR 0001 rules that out), so routing can find them before any sim run. `footprint()` reads Roads still in Fog, so a District's road graph is fixed before its Levels are generated.
+  - Found on the way: three 4-class Changes Win Level 1, one fewer than the shipped solution's 5.
 
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
 - How does District 1 change for 7 m lanes, small Blocks and a street grid first? [#33](https://github.com/artsaraiva/clearway/issues/33).
-- Can Districts be generated instead of hand-authored? [#34](https://github.com/artsaraiva/clearway/issues/34).
+- Should Districts be generated, and how far? [#43](https://github.com/artsaraiva/clearway/issues/43) (research in [#34](https://github.com/artsaraiva/clearway/issues/34)).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 - Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
 
@@ -88,12 +95,13 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
-- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians. Research: [#34](https://github.com/artsaraiva/clearway/issues/34) procedural Districts.
+- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#43](https://github.com/artsaraiva/clearway/issues/43) procedural Districts.
 - Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). Player tools [#7](https://github.com/artsaraiva/clearway/issues/7) (Signal gate test). District 1 Levels are re-issued after [#33](https://github.com/artsaraiva/clearway/issues/33); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
 
 ## Resolved tickets
 
 - [#16](https://github.com/artsaraiva/clearway/issues/16) Visual style (answer in the issue; spec in `../visual-style/spec.md`)
+- [#34](https://github.com/artsaraiva/clearway/issues/34) Procedural Districts research (answer in the issue; findings in `../procedural-districts/research.md`)
 - `game/01` [Core loop](issues/01-core-loop.md), `game/02` [Player tools](issues/02-player-tools.md), `game/03` [Look-dev](issues/03-look-dev.md), `game/04` [Road network model](issues/04-road-network-model.md), `game/06` [Junction chain](issues/06-junction-chain.md)
 - `player-tools/03` [Route inspector](../player-tools/issues/03-route-inspector.md)
 - [Traffic prototype](../traffic-prototype/spec.md)
