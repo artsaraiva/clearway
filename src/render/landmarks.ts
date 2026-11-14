@@ -5,7 +5,7 @@ import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { raised } from './shapes'
 
-const [GRASS, STONE, CREAM, CORAL, VERMILION, PLAZA] = ['#b5dc95', '#ddd6c9', '#fbf6ef', '#f08a6e', '#e5583f', '#ece3d1']
+const [GRASS, STONE, CREAM, CORAL, VERMILION, PLAZA, TEAL] = ['#b5dc95', '#ddd6c9', '#fbf6ef', '#f08a6e', '#e5583f', '#ece3d1', '#6cc3b4']
 const TAU = Math.PI * 2
 
 /** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. Not closed into a brick. */
@@ -73,6 +73,31 @@ export function tower(kit: Kit, field: Field, x: number, y: number) {
 export function plaza(kit: Kit, field: Field, block: Block) {
   overlay(kit, field, block, 0.4, 0.08, PLAZA)
   const mid = middle(block)
+  kit.brick('ground', mid.x, mid.y, KERB)
+}
+
+const BIKE = { rim: 1.6, dash: 2.4, gap: 2.4, line: 0.3 } // m: pavement left each side of the lane, and its centre line
+
+/**
+ * A Block too narrow for lots, such as the strip a seam leaves beside a Road: a bike lane along it, in teal with a
+ * dashed centre line, between two rims of pavement.
+ */
+export function bikeLane(kit: Kit, field: Field, block: Block) {
+  overlay(kit, field, block, BIKE.rim, 0.08, TEAL)
+  const mid = middle(block)
+  const upright = block.y1 - block.y0 > block.x1 - block.x0
+  const [from, to] = upright ? [block.y0, block.y1] : [block.x0, block.x1]
+  for (let t = from + BIKE.rim + BIKE.gap; t + BIKE.dash < to - BIKE.rim - BIKE.gap; t += BIKE.dash + BIKE.gap) {
+    const [x, y] = upright ? [mid.x, t + BIKE.dash / 2] : [t + BIKE.dash / 2, mid.y]
+    if (field.sample(x, y) < BIKE.rim + BIKE.line) continue
+    kit.add(
+      upright ? kit.box(BIKE.line, 0.04, BIKE.dash, 0.02, 0.01) : kit.box(BIKE.dash, 0.04, BIKE.line, 0.02, 0.01),
+      CREAM,
+      x,
+      y,
+      KERB + 0.08,
+    )
+  }
   kit.brick('ground', mid.x, mid.y, KERB)
 }
 

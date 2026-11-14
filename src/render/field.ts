@@ -1,4 +1,4 @@
-import type { District } from '../sim/district'
+import { fogReach, type District } from '../sim/district'
 import { extent, type Bounds, type Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
 
@@ -50,6 +50,8 @@ function roadStrips(net: Network, district: District): Strip[] {
     const { pts } = lane.line
     for (let i = 1; i < pts.length; i++) strips.push([pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, half])
   }
+  // A Road into the Fog that stops short of the slab's edge runs on to it as plate.
+  for (const { from, to, half } of fogReach(district, net)) strips.push([from.x, from.y, to.x, to.y, half])
   // The mouth of a Priority junction: every Road lane carried straight on until it is level with the centre.
   for (const junction of net.junctions) {
     if (junction.type !== 'priority') continue

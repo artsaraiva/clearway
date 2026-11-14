@@ -14,10 +14,11 @@ const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)
 // ponytail: dev-only resume for playtesting. A Reveal writes its Level to the URL (`?level=2`) and the configuration it
 // carried over to sessionStorage, so a reload reopens that Level. That lives in one tab only, and `?level=` skips the
-// Win: a later Level opened directly starts from the earlier Levels' initial configurations. The rest of the Reveal's
-// presentation belongs to #15 (UI/UX).
+// Win: a later Level opened directly starts with the earlier Levels solved by their reference solutions. The rest of
+// the Reveal's presentation belongs to #15 (UI/UX).
 let level = Number(params.get('level') ?? 1) - 1
-let sim = new Sim(district, level, JSON.parse(sessionStorage.getItem(`carried:${level}`) ?? '[]'))
+const solved = district.levels.slice(0, level).flatMap((l) => l.solution)
+let sim = new Sim(district, level, JSON.parse(sessionStorage.getItem(`carried:${level}`) ?? 'null') ?? solved)
 const view = createView(canvas, sim)
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
@@ -38,8 +39,16 @@ const next = () => {
   ui.show(sim, district.levels[level + 1] && next)
 }
 const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, sim, view, district.levels[level + 1] && next)
-// Dev only: `N` Reveals the next Level without a Win.
-if (import.meta.env.DEV) window.addEventListener('keydown', (e) => e.key.toLowerCase() === 'n' && next())
+// Dev only: `N` Reveals the next Level without a Win, `S` makes the Level's reference solution, and `R` restarts the
+// Level as it was Revealed.
+if (import.meta.env.DEV) {
+  window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase()
+    if (key === 'n') next()
+    if (key === 's') for (const change of sim.level.solution) sim.apply(change)
+    if (key === 'r') location.reload()
+  })
+}
 
 // Dev hook for scripted screenshots and frame timing.
 if (import.meta.env.DEV) {

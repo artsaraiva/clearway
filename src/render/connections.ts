@@ -33,7 +33,8 @@ export function createArmConnections() {
       }
       for (const lane of [...arm.approach, ...arm.ringIn])
         marker(lane.line.pts[lane.line.pts.length - 1], lane === armed ? ARMED : BLUE, lane === armed ? 1.4 : 1)
-      for (const lane of [...arm.ringOut, ...arm.exit]) marker(lane.line.pts[0], ORANGE, 1)
+      // Where its Connections end: on a roundabout its own Ring and Exit lanes, on a Priority junction the other Arms' Exits.
+      for (const lane of new Set(arm.connections.map((c) => c.to))) marker(lane.line.pts[0], ORANGE, 1)
     },
   }
 }
