@@ -6,7 +6,7 @@ import type { District } from '../src/sim/district'
 //                 ‖         |         |
 // W1 == J1 ====== J2 ====== J3 ====== J4
 //        |         |         |         ‖
-// W8 -- J8 ------ J7 ------ J6 ====== J5 == E5
+// W8 -- J8 ------ J7 ------ J6 ====== J5 -- E5
 //                  |         |
 //                  S7        S6
 //
@@ -19,9 +19,7 @@ export default {
     J2: { type: 'priority', at: [-45, 40] },
     J3: { type: 'priority', at: [45, 40] },
     J4: { type: 'priority', at: [135, 40] },
-    // ponytail: J5 is the spec's starting size and does not build: two-lane Arms 90° apart need a Ring radius of 33 m,
-    // whose 55 m footprint leaves R45 6 m of lane. Nothing builds it while it is in the Fog. Level 4 (#59) settles it.
-    J5: { type: 'roundabout', at: [135, -40], radius: 18, ringLanes: 2 },
+    J5: { type: 'priority', at: [135, -40] },
     J6: { type: 'priority', at: [45, -40] },
     J7: { type: 'priority', at: [-45, -40] },
     J8: { type: 'priority', at: [-135, -40] },
@@ -35,9 +33,9 @@ export default {
     N2: { from: [-45, 105], to: 'J2', lanes: [2, 2] },
     N3: { from: [45, 105], to: 'J3', lanes: [1, 1] },
     N4: { from: [135, 105], to: 'J4', lanes: [1, 1] },
-    // Down the east side and through the roundabout.
+    // Down the east side.
     R45: { from: 'J4', to: 'J5', lanes: [2, 2] },
-    E5: { from: [195, -40], to: 'J5', lanes: [2, 2] },
+    E5: { from: [180, -40], to: 'J5', lanes: [1, 1] },
     R56: { from: 'J5', to: 'J6', lanes: [2, 2] },
     // The cross streets. R27 has one lane southbound and two northbound; R36 is Tsuki-dori, the slow street. Their
     // speeds make the route shifts of Levels 6 and 7.
@@ -51,12 +49,12 @@ export default {
     S7: { from: [-45, -105], to: 'J7', lanes: [1, 1] },
     W8: { from: [-175, -40], to: 'J8', lanes: [1, 1] },
   },
-  // Kumo Park is behind J1 from the opening camera, so nothing tall hides the first Jam.
+  // Kumo Park is the Block in front of J1 from the opening camera, so nothing tall hides the stem's queue.
   scenery: {
     theme: 'city',
     seed: 20261113,
     landmarks: [{ type: 'tower', name: 'Hikari Tower', at: [0, 80] }],
-    blocks: [{ type: 'park', name: 'Kumo Park', at: [-120, 80] }],
+    blocks: [{ type: 'park', name: 'Kumo Park', at: [-96, -1] }],
     streets: { W1: 'Sakura Avenue', R12: 'Sakura Avenue', R23: 'Sakura Avenue', R34: 'Sakura Avenue', R36: 'Tsuki-dori' },
     avenues: ['W1', 'R12', 'R23', 'R34'],
   },
