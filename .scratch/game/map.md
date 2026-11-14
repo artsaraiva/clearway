@@ -47,7 +47,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Inspector: read-only, always available, not in `Level.tools`. First one: click a car, its route lights up. Heatmap, queue bars, desire lines are backlog.
   - District 1 is 7 Levels: 1–4 from 01, 5 crossroads (Signal), 6 remove a Connection, 7 finale that re-jams the roundabout.
   - Backlog: lane arrows, add/remove lane, junction type swap.
-- Look-dev (03, 2026-11-09). Details in `issues/03-look-dev.md` under Answer; scene at `/lookdev.html` (`src/lookdev/`, throwaway), screenshots in `reference/lookdev-*.png`.
+- Look-dev (03, 2026-11-09). Details in `issues/03-look-dev.md` under Answer; the throwaway scene (`/lookdev.html`, `src/lookdev/`) was deleted from `main` in [#32](https://github.com/artsaraiva/clearway/issues/32); screenshots in `reference/lookdev-*.png`.
   - Verdict: Three.js reaches the look cheaply. Rubric 4 of 4, user confirmed: same family, kerbs and mouths legible, about 1.9 ms per frame with 1,000 cars at retina resolution on an M4 Pro, road from lane polylines only.
   - Chosen: perspective free-look camera (35° FOV, `MapControls`); a ground shader over one baked distance-field texture (road SDF from lane capsules plus a morphological close, island flood fill, grass SDF, contact AO); static AO instead of shadows; no post-processing; instanced trees and cars; merged markings and buildings.
   - For 04: no separate road outline needed, but road edges need attributes (bike band, sidewalk, medians, splitter islands), and props need block polygons from the road graph's faces.
@@ -60,7 +60,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Pedestrians and bikes are decoration. Blocks and their fill belong to the visual-style effort.
   - Seeds: vehicle type is drawn at arrival, and tests run only the shipped seed. Level tests apply earlier solutions, then check jammed and Win.
 - Visual style split out of 03 as its own grilling, [#16](https://github.com/artsaraiva/clearway/issues/16) (2026-11-09).
-- Visual style ([#16](https://github.com/artsaraiva/clearway/issues/16), 2026-11-13). Spec in `.scratch/visual-style/spec.md`; prototype at `/diorama.html`, kept on local branch `16-visual-style-prototype`; screenshots in `reference/diorama-*.png`.
+- Visual style ([#16](https://github.com/artsaraiva/clearway/issues/16), 2026-11-13). Spec in `.scratch/visual-style/spec.md`; the prototype (`/diorama.html`, `src/lookdev/`) was deleted from `main` in [#32](https://github.com/artsaraiva/clearway/issues/32) and stays on the local branch `16-visual-style-prototype` (and in history at `37a6488`); screenshots in `reference/diorama-*.png`.
   - The target is the user's "Anime Map Diorama" design: a Japanese-flavoured toy town on a floating slab. Four looks were prototyped (cel shading, hand-inked, painterly, diorama); the diorama on a street grid won.
   - Recipe: standard soft-lit materials, tone mapping, one soft shadow map, contact-shadow decals, no post-processing except an optional night bloom. Style comes from shape, palette and proportion. All procedural, no authored assets.
   - Overturns look-dev (03): orthographic grab-to-rotate camera instead of perspective, real shadows instead of static AO, and raised Blocks cut from lane geometry instead of the baked ground shader.

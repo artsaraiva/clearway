@@ -6,7 +6,7 @@ Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway
 
 Replace the throwaway `src/render/scene.ts` with a renderer that draws a District as an anime-flavoured miniature diorama: a small Japanese-style town on a floating slab, readable as a traffic puzzle first. Vocabulary in root `GLOSSARY.md`.
 
-The target is the user's "Anime Map Diorama" design. Its proof on the real sim is the prototype at `/diorama.html` (`src/lookdev/diorama.ts`), kept with the three rejected looks on the local branch `16-visual-style-prototype`. Reference screenshots: `.scratch/game/reference/diorama-grid-golden.png`, `diorama-grid-noon.png`, `diorama-night.png`, `diorama-close.png`, `diorama-reveal.png`.
+The target is the user's "Anime Map Diorama" design. Its proof on the real sim was the prototype at `/diorama.html` (`src/lookdev/diorama.ts`, deleted from `main` in #32), kept with the three rejected looks on the local branch `16-visual-style-prototype`. Reference screenshots: `.scratch/game/reference/diorama-grid-golden.png`, `diorama-grid-noon.png`, `diorama-night.png`, `diorama-close.png`, `diorama-reveal.png`.
 
 This overturns three look-dev (03) decisions: the perspective camera, static AO in place of shadows, and the baked distance-field ground.
 
