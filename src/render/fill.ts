@@ -4,11 +4,12 @@ import type { Network } from '../sim/network'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { BuildingKind, Kit } from './kit'
-import { island, park, plaza, tower, towerGround } from './landmarks'
+import { bikeLane, island, park, plaza, tower, towerGround } from './landmarks'
 
 const MARGIN = 3.2 // m of open pavement between a Block's bounding box and its lots
 const GAP = 1 // m of each lot left open on every side of its building
 const MIN_FOOTPRINT = 4 // m: a lot narrower than this stays empty
+const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
 const CLEAR = 1.5 // m a building keeps from the Block's edge; a lot that cannot is dropped
 // As fractions of the distance from the District's centre to its far edge: where lots are large, and where the
 // towers and then the mid-rises give way.
@@ -70,6 +71,7 @@ export function fillBlock(kit: Kit, block: Block, { net, district, field, extent
     else plaza(kit, field, block)
     return
   }
+  if (Math.min(block.x1 - block.x0, block.y1 - block.y0) < NARROW) return bikeLane(kit, field, block)
 
   const centre = middle(extent)
   const reach = Math.max(extent.x1 - extent.x0, extent.y1 - extent.y0) / 2

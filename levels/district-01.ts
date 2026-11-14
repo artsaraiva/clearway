@@ -97,8 +97,13 @@ const district: District = {
       // only the kerb lane turns right, from N2 and from R27: the second lane of each stands unused
       initial: { J2: { disable: ['N2.in1>R12.out1', 'R27.in1>R23.out1'] } },
       solution: [{ at: 'J2', enable: ['N2.in1>R12.out1'] }],
-      // east to where R23 reaches J3's footprint and south to where R27 reaches J7's, both in the Fog
-      pieces: [{ x0: -64, y0: -21, x1: 26, y1: 105 }],
+      // east to where R23 reaches J3's footprint and south to where R27 reaches J7's, both in the Fog. J7's footprint
+      // is 7 m deeper than J8's, so a strip each side of R27 carries the slab's edge on in line with Level 1's.
+      pieces: [
+        { x0: -64, y0: -21, x1: 26, y1: 105 },
+        { x0: -64, y0: -28, x1: -52, y1: -21 },
+        { x0: -31, y0: -28, x1: 26, y1: -21 },
+      ],
     },
   ],
 }

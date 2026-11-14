@@ -76,7 +76,7 @@ Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam
 | Level | Pieces (x0, y0, x1, y1) |
 | --- | --- |
 | 1 | (−175, −28, −64, 105) |
-| 2 | (−64, −21, 26, 105): R27 ends at y = −21, the 19 m footprint of J7 |
+| 2 | (−64, −21, 26, 105), with strips (−64, −28, −52, −21) and (−31, −28, 26, −21) each side of R27, which ends at y = −21, the 19 m footprint of J7. Level 6 fills the notch (−52, −28, −31, −21) |
 | 3 | (26, −28, 116, 105) |
 | 4 | (116, −105, 180, 105) and (64, −105, 116, −28), which carries R56 to its fogged end |
 | 5 | (−33, −105, 64, −28) |
