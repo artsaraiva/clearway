@@ -10,8 +10,8 @@ Give the player three Tools and one Inspector, enough for a seven-Level District
 
 | Tool | What the player changes | Junction types | Teaches in | Sim work |
 | --- | --- | --- | --- | --- |
-| Connector | Turns a Connection on or off | all | Level 1 | none, exists |
-| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 2 | rework ([#6](https://github.com/artsaraiva/clearway/issues/6)) |
+| Connector | Turns a Connection on or off | all | Level 2 | none, exists |
+| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 1 | rework ([#6](https://github.com/artsaraiva/clearway/issues/6)) |
 | Signal | Per Junction: on or off | crossroads, T | Level 5 | rework + gate test ([#7](https://github.com/artsaraiva/clearway/issues/7)) |
 
 ### Connector
@@ -51,15 +51,15 @@ Backlog: congestion heatmap, queue length per Arm, desire lines.
 
 ## District 1 outline
 
-Content is in `.scratch/district-01/spec.md` (grilled in game 06). Level 2 is Priority rule only, Level 5 Signal only, Level 6 connector only. The Tool each Level teaches:
+Content is in `.scratch/district-01/spec.md` (grilled in [#33](https://github.com/artsaraiva/clearway/issues/33)). Level 1 is Priority rule only, Level 2 connector only, Level 5 Signal only, Level 6 connector only. The Tool each Level teaches:
 
-1. Prototype roundabout: connector.
-2. T-junction: Priority rule, swap the main road.
+1. T-junction: Priority rule, swap the main road.
+2. Crossroads with an unused lane: connector.
 3. Crossroads where the fix is upstream: connector and Priority rule.
-4. Two Junctions revealed at once, spillback.
+4. Two Junctions revealed at once, one a roundabout: Spillback.
 5. Crossroads with two heavy crossing flows: Signal (or main-road swap).
 6. A left turn blocks through traffic: remove a Connection.
-7. Finale: the Reveal re-jams the Level 1 roundabout, every Tool allowed.
+7. Finale: the Reveal re-jams the Level 1 T-junction, every Tool allowed.
 
 ## Verification
 
