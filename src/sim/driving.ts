@@ -178,11 +178,24 @@ function goesFirst(u: Vehicle, c: Connection): boolean {
   })
 }
 
-/** Don't block the box: enter only if the outgoing lane has room for us behind whoever is already headed there. */
+/**
+ * Don't block the box: enter only if there is room for us beyond the Connection, behind whoever is already headed there.
+ * Room is measured along our path up to the nearest vehicle ahead, since the stretch of Ring between two mouths is
+ * shorter than a vehicle and says nothing by itself. A vehicle staying on the Ring doesn't wait for room: it follows
+ * its leader through the mouth, or the vehicles of a full Ring would each wait for the next to make room, all the way
+ * round.
+ */
 function hasRoom(c: Connection, v: Vehicle): boolean {
-  const r = c.to.vehicles.at(-1)
-  if (r && r.v > 2) return true
-  let free = r ? r.s - r.type.length : Infinity
+  if (c.from.kind === 'ring' && c.to.kind === 'ring') return true
+  let free = 0
+  let r: Vehicle | undefined
+  for (const lane of v.path.slice(v.path.indexOf(c.to))) {
+    r = lane.vehicles.at(-1)
+    if (r || free > LOOKAHEAD) break
+    free += lane.length
+  }
+  if (!r || r.v > 2) return true
+  free += r.s - r.type.length
   for (const u of c.lane.vehicles) free -= u.type.length + u.type.minGap
   for (const m of c.merges) for (const u of m.lane.vehicles) free -= u.type.length + u.type.minGap
   return free >= v.type.length + v.type.minGap
