@@ -41,11 +41,11 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Pacing target: 2–5 min per level, 5–8 junctions per district.
   - First playable: one district, 4 levels: (1) prototype roundabout, connector only; (2) T-junction, priority rule; (3) crossroads where the fix is upstream; (4) two junctions revealed at once, spillback. Tools: connector, yield/stop. Signals cut until 02 proves them. Screens: fogged map, gauge, win banner, next-level reveal. No menu, no save.
 - Player tools (02, 2026-11-09). Details in `issues/02-player-tools.md` under Answer; spec in `.scratch/player-tools/spec.md`.
-  - District 1 Tools: connector, Priority rule as main/yield per Arm (stop dropped), Signal as Junction-wide on/off with fixed split. Signal is conditional on a crossroads gate test (blocked by 04); timing editor, phases, actuation are backlog.
-  - Turn bans, one-way and closures are connector moves. Roundabouts take connector only; Priority rule and Signal apply to crossroads and T-junctions.
+  - District 1 Tools: connector, Priority rule as main/yield per Arm (stop dropped). A Junction-wide Signal was planned on condition of a crossroads gate test; it failed (see the Signal gate note below), so the Signal is out of v1.
+  - Turn bans, one-way and closures are connector moves. Roundabouts take connector only; the Priority rule applies to crossroads and T-junctions.
   - Conflict rules: equal Arms give way to the right, left turn yields to oncoming straight, yield Arm yields to every main Arm.
   - Inspector: read-only, always available, not in `Level.tools`. First one: click a car, its route lights up. Heatmap, queue bars, desire lines are backlog.
-  - District 1 is 7 Levels: 1–4 from 01, 5 crossroads (Signal), 6 remove a Connection, 7 finale that re-jams the roundabout.
+  - District 1 is 7 Levels: 1–4 from 01, 5 crossroads (a main-road swap, since the Signal failed its gate), 6 remove a Connection, 7 finale that re-jams the roundabout.
   - Backlog: lane arrows, add/remove lane, junction type swap.
 - Look-dev (03, 2026-11-09). Details in `issues/03-look-dev.md` under Answer; the throwaway scene (`/lookdev.html`, `src/lookdev/`) was deleted from `main` in [#32](https://github.com/artsaraiva/clearway/issues/32); screenshots in `reference/lookdev-*.png`.
   - Verdict: Three.js reaches the look cheaply. Rubric 4 of 4, user confirmed: same family, kerbs and mouths legible, about 1.9 ms per frame with 1,000 cars at retina resolution on an M4 Pro, road from lane polylines only.
@@ -112,12 +112,19 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Layout: a 4 × 2 grid of eight Junctions (3 T, 4 crossroads, 1 roundabout), every Road axis-aligned, Revealed clockwise. Columns 90 m apart, rows 80 m, slab about 370 × 210 m. Eight edge Gateways.
   - Queue room: two lanes each way only on the path of the heavy streams (the north row, N2, J4–J5, J5–J6). Those Roads keep about 52 m of lane, 8 cars per lane. J4–J5 keeps 30–35 m on purpose, for Spillback.
   - Roundabout: one, in the south-east corner, Revealed in Level 4 as the cause of the Spillback. Two Ring lanes on a radius of about 18 m. [#49](https://github.com/artsaraiva/clearway/issues/49) copies that size.
-  - Lessons, in order: Priority rule on a T-junction, connector (an unused lane), fix upstream, Spillback, Signal (or a main-road swap if [#7](https://github.com/artsaraiva/clearway/issues/7) fails), turn ban, and a finale that re-jams J1. Teaching Levels restrict Tools.
+  - Lessons, in order: Priority rule on a T-junction, connector (an unused lane), fix upstream, Spillback, a main-road swap at the J6 crossroads, turn ban, and a finale that re-jams J1. Teaching Levels restrict Tools.
   - Route shifts in Levels 6 and 7 come from speed limits on the cross streets (8, 11 and 13.9 m/s), not from slanted Roads.
   - Each Level adds one strip of slab (Level 4 adds two), tiling to a rectangle.
   - The single-roundabout Level is retired, not re-tuned. The determinism test moves to the new Level 1, and the street-grid dev fixture is deleted with it.
-  - [#7](https://github.com/artsaraiva/clearway/issues/7) blocks only Level 5 and runs its gate once, at 7 m lanes and 13.9 m/s.
+  - [#7](https://github.com/artsaraiva/clearway/issues/7) blocked only Level 5 and ran its gate once, at 7 m lanes and 13.9 m/s.
   - Estimates to pin while authoring: a two-lane Junction's footprint (about 19 m) and the lane left on J4–J5.
+- Signal gate ([#7](https://github.com/artsaraiva/clearway/issues/7), 2026-11-14): **failed, so the Signal is out of v1.** The sweep is in the issue's comments; the prototype and its sweep script are in commit `1aa628e`.
+  - The Signal tried: per Priority junction, each Arm green in turn with a fixed equal split (6–20 s green, 1–3 s all red), Priority rules ignored while on.
+  - With straight crossing streams, one or two lanes, Roads of 200–300 m, 6–20 arrivals a minute per Gateway: the best Priority arrangement beat the Signal in every case, and the Signal never reached Flow 0.80. Where every Priority arrangement jams, the Signal jams harder.
+  - Why: a four-Arm cycle gives each Arm a quarter of the time, and every car standing at red counts as 0 in Flow. On Roads this short the wait is a large share of the trip.
+  - The Signal does beat every Priority arrangement in one corner: two lanes, about half the cars turning left, 9 to 12 a minute per Gateway. It reaches 0.80 there only on Roads of 600–800 m, and holds it for 60 s on at most 3 seeds of 6. District 1's Roads are 80–90 m.
+  - Level 5 ([#60](https://github.com/artsaraiva/clearway/issues/60)) is a main-road swap at the J6 crossroads, Priority rule only.
+  - Worth another look only with something this Signal lacks: opposite Arms sharing a green, or timing that follows the queues. Not ticketed.
 
 ## Fog
 
@@ -125,7 +132,6 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 - Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). [#53](https://github.com/artsaraiva/clearway/issues/53).
 - How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), after [#47](https://github.com/artsaraiva/clearway/issues/47).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
-- Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
 
 ## Open work
 
@@ -133,7 +139,7 @@ Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issu
 
 - Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#48](https://github.com/artsaraiva/clearway/issues/48) procedural mode in the browser.
 - Procedural Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts in generated grids: [#49](https://github.com/artsaraiva/clearway/issues/49).
-- Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). Player tools [#7](https://github.com/artsaraiva/clearway/issues/7) (Signal gate test). District 1 Levels [#56](https://github.com/artsaraiva/clearway/issues/56) → [#57](https://github.com/artsaraiva/clearway/issues/57) → [#58](https://github.com/artsaraiva/clearway/issues/58) → [#59](https://github.com/artsaraiva/clearway/issues/59) → [#60](https://github.com/artsaraiva/clearway/issues/60) → [#61](https://github.com/artsaraiva/clearway/issues/61) → [#62](https://github.com/artsaraiva/clearway/issues/62), with [#60](https://github.com/artsaraiva/clearway/issues/60) also blocked by [#7](https://github.com/artsaraiva/clearway/issues/7); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
+- Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). District 1 Levels [#56](https://github.com/artsaraiva/clearway/issues/56) → [#57](https://github.com/artsaraiva/clearway/issues/57) → [#58](https://github.com/artsaraiva/clearway/issues/58) → [#59](https://github.com/artsaraiva/clearway/issues/59) → [#60](https://github.com/artsaraiva/clearway/issues/60) → [#61](https://github.com/artsaraiva/clearway/issues/61) → [#62](https://github.com/artsaraiva/clearway/issues/62); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
 
 ## Resolved tickets
 
