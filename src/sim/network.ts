@@ -58,8 +58,6 @@ export interface Arm {
   /** Direction from the Junction's centre toward the Road's other end, radians counterclockwise from +x (east). */
   angle: number
   priority: Priority
-  /** While its Junction's Signal is on: whether this Arm has green. */
-  light?: 'green' | 'red'
   /** Where the Arm meets the Ring, or the mouth of a Priority junction. */
   center: Vec
   approach: Lane[]
@@ -77,8 +75,6 @@ export interface Junction {
   at: Vec
   /** Counterclockwise: the direction of circulation on a roundabout, and each Arm's neighbour to its right. */
   arms: Arm[]
-  /** On a Priority junction: whether its Signal is on, giving each Arm green in turn in place of the Priority rules. */
-  signal: boolean
 }
 
 export interface Network {
@@ -89,11 +85,6 @@ export interface Network {
 }
 
 export const RING_SPEED = 9
-// A Signal gives each Arm SIGNAL_GREEN s of green in turn, with every Arm red for SIGNAL_CLEARANCE s in between while
-// the Junction empties.
-export const SIGNAL_GREEN = 12
-export const SIGNAL_CLEARANCE = 3
-export const TIMING = { green: SIGNAL_GREEN, clearance: SIGNAL_CLEARANCE } // SWEEP-ONLY
 const MAX_LATERAL_ACCEL = 3
 const ENTRY_SETBACK = 15 // approach stop line distance outside the Ring's outer edge
 const MIN_ROAD_LANE = 10 // m of lane a Road must keep between the footprints of its ends
@@ -165,7 +156,7 @@ export function buildNetwork(district: District, revealed: string[]): Network {
   for (const id of revealed) if (!district.junctions[id]) throw new Error(`reveal names unknown Junction "${id}"`)
   const junctions: Junction[] = Object.entries(district.junctions)
     .filter(([id]) => revealed.includes(id))
-    .map(([id, spec]) => ({ id, type: spec.type, at: { x: spec.at[0], y: spec.at[1] }, arms: [], signal: false }))
+    .map(([id, spec]) => ({ id, type: spec.type, at: { x: spec.at[0], y: spec.at[1] }, arms: [] }))
   const lanes: Lane[] = []
   const gateways: Record<string, Arm> = {}
 
@@ -362,7 +353,7 @@ function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: nu
 }
 
 /** Apply a Change to the network. Throws on a Junction, Road or Connection ref the network doesn't have. */
-export function applyChange(net: Network, { at, enable = [], disable = [], priority = {}, signal }: Change) {
+export function applyChange(net: Network, { at, enable = [], disable = [], priority = {} }: Change) {
   const junction = net.junctions.find((j) => j.id === at)
   if (!junction) throw new Error(`"${at}" is not a Revealed Junction`)
   const all = junction.arms.flatMap((a) => a.connections)
@@ -381,24 +372,5 @@ export function applyChange(net: Network, { at, enable = [], disable = [], prior
     const arm = junction.arms.find((a) => a.road === road)
     if (!arm) throw new Error(`Junction ${at} has no Arm on Road "${road}"`)
     arm.priority = rule
-  }
-  if (signal !== undefined) {
-    if (junction.type !== 'priority') throw new Error(`Junction ${at} is a roundabout: it takes no Signal`)
-    junction.signal = signal
-  }
-}
-
-/**
- * Set the light of every Arm for the step at `time`. A Signal's cycle runs on the sim clock, counterclockwise round
- * the Arms, so it depends only on the time and not on when the Signal was turned on.
- */
-export function setLights(net: Network, time: number) {
-  const phase = TIMING.green + TIMING.clearance
-  for (const junction of net.junctions) {
-    const turn = Math.floor(time / phase) % junction.arms.length
-    const green = time % phase < TIMING.green
-    junction.arms.forEach((arm, k) => {
-      arm.light = junction.signal ? (green && k === turn ? 'green' : 'red') : undefined
-    })
   }
 }

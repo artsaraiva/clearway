@@ -75,19 +75,14 @@ export function accel(v: Vehicle): number {
 
 /**
  * The fastest a vehicle may drive where it is while slowing to a crawl for the end of its lane, or Infinity when it
- * need not: it slows when its next Connection leaves a `yield` Arm and meets an enabled one from a `main` Arm, unless
- * a Signal is on there. Giving
+ * need not: it slows when its next Connection leaves a `yield` Arm and meets an enabled one from a `main` Arm. Giving
  * way costs time even when nobody is coming, so a `yield` Arm carries less than a `main` one, and which Arm is main
  * changes what the Junction can carry (see ADR 0003). The crawl is part of the vehicle's free speed, so Flow counts a
  * vehicle that keeps to it as moving freely.
  */
 export function yieldSpeed(v: Vehicle): number {
   const next = v.lane.conn ? undefined : v.path[0]?.conn // on a Connection it is already past its line
-  const yields =
-    next &&
-    !next.arm.light &&
-    next.arm.priority === 'yield' &&
-    next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main')
+  const yields = next?.arm.priority === 'yield' && next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main')
   return yields ? Math.sqrt(YIELD_CRAWL ** 2 + 2 * YIELD_SLOWING * Math.max(0, v.lane.length - v.s)) : Infinity
 }
 
@@ -100,7 +95,7 @@ function mustStop(v: Vehicle): boolean {
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
-  return c.arm.light === 'red' || conflicting(v, c, dist) || !hasRoom(c, v)
+  return conflicting(v, c, dist) || !hasRoom(c, v)
 }
 
 /**
@@ -112,13 +107,10 @@ function mustStop(v: Vehicle): boolean {
  * way as its Priority rule says (see `givesWay`) and one standing at its line waits for a gap in everything that moves.
  * Vehicles standing at the lines of several Arms would each wait for the next, so among them one goes first (see
  * `goesFirst`).
- *
- * With the Signal on, only the vehicles still inside the Junction count: the other Arms are held at red.
  */
 function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
-  const signalled = !!c.arm.light
   const held = v.v < HELD
-  if (!signalled && held && !goesFirst(v, c)) return true
+  if (held && !goesFirst(v, c)) return true
   for (const { other: o, s, otherS } of c.conflicts) {
     const tMe = eta(dist + s, v.v, v.type.accel, c.lane.speedLimit)
     if (o.arm === c.arm) {
@@ -129,7 +121,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
         return tail > 0 && (u.v < HELD || eta(tail, u.v, u.type.accel, o.lane.speedLimit) > tMe - GAP_BEFORE)
       }
       if (o.lane.vehicles.some(clearsLate)) return true
-      if (signalled || outranks(c, o)) continue
+      if (outranks(c, o)) continue
       if (!held) {
         if (!givesWay(c, o)) continue
         const first = o.from.vehicles[0]

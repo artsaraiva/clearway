@@ -2,7 +2,7 @@ import { Demand, type VehicleType } from './demand'
 import { validateDistrict, revealed, type Change, type District, type Level, type Priority } from './district'
 import { accel } from './driving'
 import { measure, PREWARM } from './metric'
-import { applyChange, buildNetwork, setLights, type Arm, type Connection, type Junction, type Lane, type Network } from './network'
+import { applyChange, buildNetwork, type Arm, type Connection, type Lane, type Network } from './network'
 import { replan, route } from './routing'
 
 export { VEHICLE_TYPES, type VehicleType } from './demand'
@@ -41,7 +41,7 @@ export class Sim {
   sustained = 0
   private demand: Demand
   /** The configuration at the Reveal, which Reset returns to. */
-  private atReveal: { enabled: Set<Connection>; priority: Map<Arm, Priority>; signal: Set<Junction> }
+  private atReveal: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
 
   /**
    * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
@@ -66,7 +66,6 @@ export class Sim {
     this.atReveal = {
       enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),
       priority: new Map(arms.map((a) => [a, a.priority])),
-      signal: new Set(this.net.junctions.filter((j) => j.signal)),
     }
     this.demand = new Demand(this.level.demand, this.level.seed)
     if (prewarm) while (!this.prewarmed) this.step()
@@ -89,7 +88,6 @@ export class Sim {
       arm.priority = this.atReveal.priority.get(arm)!
       for (const c of arm.connections) c.enabled = this.atReveal.enabled.has(c)
     }
-    for (const j of this.net.junctions) j.signal = this.atReveal.signal.has(j)
     replan(this.net, this.vehicles)
   }
 
@@ -101,7 +99,7 @@ export class Sim {
     return this.net.junctions.map((j) => {
       const refs = (on: boolean) => j.arms.flatMap((a) => a.connections.filter((c) => c.enabled === on).map((c) => c.ref))
       const priority = Object.fromEntries(j.arms.map((a) => [a.road, a.priority]))
-      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority, signal: j.signal }) }
+      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority }) }
     })
   }
 
@@ -116,7 +114,6 @@ export class Sim {
   }
 
   step() {
-    setLights(this.net, this.time)
     this.vehicles.push(...this.demand.spawn(this.net, this.time))
     for (const v of this.vehicles) v.acc = accel(v)
     for (const v of this.vehicles) {
