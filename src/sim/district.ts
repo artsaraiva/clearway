@@ -1,4 +1,5 @@
-import { applyChange, buildNetwork } from './network'
+import { overlaps, type Bounds } from './geometry'
+import { applyChange, buildNetwork, type Network } from './network'
 
 export type Priority = 'main' | 'yield'
 export type Tool = 'connector' | 'priority'
@@ -64,6 +65,13 @@ export interface Level {
   initial: Record<string, Omit<Change, 'at'>>
   /** Reference solution. */
   solution: Change[]
+  /**
+   * The pieces of slab this Level's Reveal adds, as road plate: rectangles that never overlap each other or an earlier
+   * Level's. A Reveal only ever adds slab: the Level's Blocks are cut within its own pieces, so no later Reveal changes
+   * them, and its new Roads must stay on them. The slab Revealed so far carries every Road, and a Road that leaves the
+   * map ends at its edge. For the renderer; the sim never reads it.
+   */
+  pieces: Bounds[]
 }
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -108,6 +116,7 @@ export const revealed = (district: District, index: number) => district.levels.s
 
 /** Check every Level of a District file, throwing a readable error on the first problem. */
 export function validateDistrict(district: District) {
+  let before: Network | null = null
   district.levels.forEach((level, n) => {
     try {
       const net = buildNetwork(district, revealed(district, n))
@@ -120,8 +129,60 @@ export function validateDistrict(district: District) {
       }
       for (const [at, initial] of Object.entries(level.initial)) applyChange(net, { at, ...initial })
       for (const change of level.solution) applyChange(net, change)
+      checkPieces(district, n, net, before)
+      before = net
     } catch (e) {
       throw new Error(`Level ${n + 1}: ${(e as Error).message}`)
     }
   })
+}
+
+const SLACK = 0.01 // m a lane may stand past the slab's edge, for rounding
+const PAST = 0.5 // m past a Gateway that must already be off the slab
+
+/**
+ * Check Level `n`'s pieces of slab: each a rectangle overlapping no other, the slab so far carrying the Level's
+ * network `net` with each Gateway at its edge, and every lane new since the network `before` on the Level's own pieces.
+ */
+function checkPieces(district: District, n: number, net: Network, before: Network | null) {
+  const { pieces } = district.levels[n]
+  if (!pieces.length) throw new Error('it adds no pieces of slab')
+  const earlier = district.levels.slice(0, n).flatMap((level) => level.pieces)
+  pieces.forEach((piece, i) => {
+    if (!(piece.x0 < piece.x1 && piece.y0 < piece.y1)) throw new Error(`its piece ${i + 1} needs x0 < x1 and y0 < y1`)
+    const clash = [...earlier, ...pieces.slice(0, i)].find((other) => overlaps(other, piece))
+    if (clash)
+      throw new Error(`its piece ${i + 1} overlaps a piece of Level ${district.levels.findIndex((l) => l.pieces.includes(clash)) + 1}`)
+  })
+  const on = (rects: Bounds[], x: number, y: number, slack = SLACK) =>
+    rects.some((r) => x >= r.x0 - slack && x <= r.x1 + slack && y >= r.y0 - slack && y <= r.y1 + slack)
+  const slab = [...earlier, ...pieces]
+  const old = new Set(before?.lanes.map((lane) => lane.id))
+  const where = (x: number, y: number) => `(${x.toFixed(1)}, ${y.toFixed(1)})`
+
+  for (const lane of net.lanes) {
+    const { pts } = lane.line
+    // A Road lane at its full width; Ring and Connection lanes along their centre line.
+    const half = 'road' in lane.owner ? (district.roads[lane.owner.road].laneWidth ?? district.roadDefaults.laneWidth) / 2 : 0
+    const heading = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x)
+    for (const p of pts) {
+      for (const side of half ? [-half, half] : [0]) {
+        const [x, y] = [p.x - Math.sin(heading) * side, p.y + Math.cos(heading) * side]
+        if (!on(slab, x, y)) throw new Error(`lane ${lane.id} runs off the slab at ${where(x, y)}`)
+        if (!old.has(lane.id) && !on(pieces, x, y)) {
+          throw new Error(`lane ${lane.id} runs onto an earlier Level's slab at ${where(x, y)}: a Reveal only adds slab`)
+        }
+      }
+    }
+  }
+  for (const [road, arm] of Object.entries(net.gateways)) {
+    for (const lane of arm.exit) {
+      const { pts } = lane.line
+      const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]]
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      if (on(slab, b.x + ((b.x - a.x) / len) * PAST, b.y + ((b.y - a.y) / len) * PAST, 0)) {
+        throw new Error(`Road ${road} leaves the map at ${where(b.x, b.y)}, so the slab must end there`)
+      }
+    }
+  }
 }

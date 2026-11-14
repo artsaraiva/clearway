@@ -1,22 +1,16 @@
 import * as THREE from 'three'
-import type { Vec } from '../sim/geometry'
-import { KERB } from './blocks'
+import { middle, type Bounds, type Vec } from '../sim/geometry'
+import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { raised } from './shapes'
-import type { Bounds } from './slab'
 
 const [GRASS, STONE, CREAM, CORAL, VERMILION, PLAZA] = ['#b5dc95', '#ddd6c9', '#fbf6ef', '#f08a6e', '#e5583f', '#ece3d1']
 const TAU = Math.PI * 2
 
-/** A Block's outline, with its bounding box. */
-export interface Block extends Bounds {
-  loop: Vec[]
-}
-
-/** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. */
+/** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. Not closed into a brick. */
 function overlay(kit: Kit, field: Field, block: Block, inset: number, thickness: number, color: string) {
-  for (const loop of field.outlines(inset)) {
+  for (const loop of field.outlines(inset, [block])) {
     if (inside(block.loop, loop[0].x, loop[0].y)) kit.push(raised(loop, thickness, thickness * 0.4).translate(0, KERB, 0), color)
   }
 }
@@ -34,8 +28,8 @@ function area(loop: Vec[]): number {
 export const towerGround = (x: number, y: number): Bounds => ({ x0: x - 18, y0: y - 20, x1: x + 20, y1: y + 28 })
 
 /**
- * The tower landmark: stacked cylinders in coral and cream with two glazed decks and a beacon, on a podium. A fountain
- * stands north of it and sakura around it, wherever the pavement reaches.
+ * The tower landmark, as one brick: stacked cylinders in coral and cream with two glazed decks and a beacon, on a
+ * podium. A fountain stands north of it and sakura around it, wherever the pavement reaches.
  */
 export function tower(kit: Kit, field: Field, x: number, y: number) {
   const base = KERB + 1.4
@@ -61,12 +55,14 @@ export function tower(kit: Kit, field: Field, x: number, y: number) {
   kit.drum(CREAM, x, y, base + 57.2, 0.28, 0.28, 12.8)
   kit.ball(kit.bulb, x, y, base + 70, 0.52)
   kit.shadow(x, y, base, 20, 20, true)
+  kit.brick('building', x, y, KERB, 3)
 
   const fountain = y + 20.8
   if (field.sample(x, fountain) >= 6) {
     kit.drum(STONE, x, fountain, KERB, 4.8, 4.8, 1.12)
     kit.drum(kit.water, x, fountain, KERB + 0.2, 4.08, 4.08, 1)
     kit.drum(STONE, x, fountain, KERB, 0.72, 0.72, 3)
+    kit.brick('building', x, fountain, KERB)
   }
   for (const dx of [-14.4, 16.4]) {
     for (const dy of [24.4, 4, -16.4]) if (field.sample(x + dx, y + dy) >= 1.5) kit.tree(x + dx, y + dy, KERB, 0.8, 'sakura')
@@ -76,6 +72,8 @@ export function tower(kit: Kit, field: Field, x: number, y: number) {
 /** A plaza Block: paved in a warmer stone, and left open. */
 export function plaza(kit: Kit, field: Field, block: Block) {
   overlay(kit, field, block, 0.4, 0.08, PLAZA)
+  const mid = middle(block)
+  kit.brick('ground', mid.x, mid.y, KERB)
 }
 
 /** A park Block: a lawn, a pond at `(x, y)` with a little red deck, and trees over the rest. Pond and tree count grow with the Block. */
@@ -87,6 +85,8 @@ export function park(kit: Kit, field: Field, block: Block, x: number, y: number)
   kit.drum(STONE, x, y, ground, 13.6 * s, 9.6 * s, 0.32)
   kit.drum(kit.water, x, y, ground + 0.08, 12.6 * s, 8.8 * s, 0.32)
   kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), VERMILION, x - 10.8 * s, y, ground + 0.32)
+  const mid = middle(block)
+  kit.brick('ground', mid.x, mid.y, KERB)
   const trees = Math.min(70, Math.max(12, Math.round(size / 60)))
   for (let tries = 0, n = 0; tries < trees * 8 && n < trees; tries++) {
     const [tx, ty] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
@@ -100,6 +100,7 @@ export function park(kit: Kit, field: Field, block: Block, x: number, y: number)
 /** A roundabout's island: a lawn with one big sakura, ringed by small trees when there is room. */
 export function island(kit: Kit, field: Field, block: Block, centre: Vec) {
   overlay(kit, field, block, 1.2, 0.5, GRASS)
+  kit.brick('ground', centre.x, centre.y, KERB)
   const ground = KERB + 0.5
   const r = Math.min(...block.loop.map((p) => Math.hypot(p.x - centre.x, p.y - centre.y)))
   kit.tree(centre.x, centre.y, ground, Math.min(2.6, Math.max(0.8, r / 12.7)), 'sakura')

@@ -3,6 +3,35 @@ export interface Vec {
   y: number
 }
 
+/** A rectangle in metres, from `x0` to `x1` east and from `y0` to `y1` north. */
+export interface Bounds {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/** Whether two rectangles overlap by more than an edge. */
+export const overlaps = (a: Bounds, b: Bounds) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
+
+/** The rectangle around some points. */
+export function around(pts: Vec[]): Bounds {
+  const [xs, ys] = [pts.map((p) => p.x), pts.map((p) => p.y)]
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) }
+}
+
+/** The rectangle around some rectangles. */
+export const extent = (rects: Bounds[]): Bounds =>
+  around(
+    rects.flatMap((r) => [
+      { x: r.x0, y: r.y0 },
+      { x: r.x1, y: r.y1 },
+    ]),
+  )
+
+/** The middle of a rectangle. */
+export const middle = (b: Bounds): Vec => ({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 })
+
 /** Polyline with cumulative arc length, for position lookup along a lane. */
 export interface Polyline {
   pts: Vec[]

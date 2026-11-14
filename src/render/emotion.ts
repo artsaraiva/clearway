@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { StuckCar } from './cars'
-import { canvasTexture } from './shapes'
+import { canvasTexture, puff } from './shapes'
 
 const MARKS = 60 // anger marks on screen at once; they go to the longest-stuck cars
 const [STEAM_AFTER, SHOUT_AFTER] = [10, 9] // real seconds stuck
@@ -47,14 +47,7 @@ export function createJamEmotion() {
       }
     }
   })
-  const cloud = canvasTexture(64, 64, (g) => {
-    const fade = g.createRadialGradient(32, 32, 4, 32, 32, 30)
-    fade.addColorStop(0, 'rgba(255,255,255,1)')
-    fade.addColorStop(0.7, 'rgba(255,255,255,0.9)')
-    fade.addColorStop(1, 'rgba(255,255,255,0)')
-    g.fillStyle = fade
-    g.fillRect(0, 0, 64, 64)
-  })
+  const cloud = puff()
   const shouts = SHOUTS.map((text) =>
     canvasTexture(256, 128, (g) => {
       g.fillStyle = '#fff'

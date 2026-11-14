@@ -36,14 +36,15 @@ Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt i
 
 - A District is drawn as a finite slab floating in open sky: soil, sand and grass layers, then a road-coloured plate. A soft shadow sits in the air beneath it. The sky is a three-stop gradient behind a transparent canvas.
 - **Fog has no visual.** Unrevealed parts of a District are simply not there. Fog stays in the glossary as the rule that fogged Junctions do not exist in the sim.
-- Each Level authors one rectangle in the District file: the piece of slab its Reveal adds. The slab is the union of the rectangles Revealed so far.
+- Each Level authors one or more rectangles in the District file: the pieces of slab its Reveal adds (harder Levels can add more). The slab is every piece Revealed so far.
+- A Reveal only ever adds slab, next to the slab already there. A Level's Blocks are cut within its own pieces and keep clear of their outline, so a seam between two Levels' pieces is road plate and no later Reveal changes an earlier Level's Blocks. A Level's new Roads stay on its own pieces. (Settled with the user after the first Reveal playtest, 2026-11-14.)
 - Roads run to the slab edge and stop. Cars grow in at a Gateway and shrink out at one. No tunnels, ramps or bridges off the slab.
 
 ## Roads and Blocks
 
 - The road is the plate. A **Block** is a raised slab (about 1.2 m, bevelled) standing on it, coloured as pavement.
 - Block outlines are cut from the lane geometry, not authored: a distance field over Road lanes at full width, the mouth of each Junction, and a car's width along every turning Connection (which rounds the corners), contoured with marching squares. The same field gives pavement centre lines for walkers and inset outlines for lawns. This handles a roundabout and a street grid with the same code. The ground bake from look-dev is retired, and its kerb-wave artefact with it.
-- The prototype computes the field by brute force (1.3 s for nine Junctions). The real renderer needs a spatial grid over lane segments, and only recomputes the newly Revealed piece.
+- The prototype computes the field by brute force (1.3 s for nine Junctions). The real renderer needs a spatial grid over lane segments, and only computes the newly Revealed pieces.
 - First version edges: the pavement is the rim of the Block, and a roundabout island is a raised slab with a tree. Bike bands, medians and splitter islands are cut. The `bikeBand`, `sidewalk` and `median` Road attributes stay unread.
 - **Paint:** a dashed centre line per Road, lane dividers where a direction has more than one lane, and zebra stripes at Junction mouths (decoration until pedestrians become a mechanic).
 - **Priority** is shown in the world as road paint (give-way triangles on a yielding Arm) and is re-read from the sim on every Change. No in-world signs. Signal lamps are designed when the Signal Tool ([#7](https://github.com/artsaraiva/clearway/issues/7)) passes its gate test.
@@ -69,7 +70,7 @@ Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt i
 
 ## Reveal animation
 
-On a Reveal the new piece assembles brick by brick: slab layers, road plate, Blocks, buildings (drop with a squash), trees and lamps (pop in), with dust where large pieces land. When it finishes the piece is merged into the static meshes, cars grow in, and confetti fires. Decoration and labels for the new piece appear after it lands.
+On a Reveal the Level's pieces assemble brick by brick next to the slab already there: slab layers, road plate, Blocks, buildings (drop with a squash), trees and lamps (pop in), with dust where large pieces land. When it finishes the pieces are merged into the static meshes, cars grow in, and confetti fires. Decoration and labels for the new pieces appear after they land. Nothing already on the slab disappears or is rebuilt.
 
 ## Sky and ambient life
 
@@ -86,7 +87,7 @@ Frosted-glass pills and round buttons (compass, recenter, tilt toggle), as in th
 
 ## District file additions
 
-The renderer needs, per District: a theme, the seed for Block fill, authored landmarks and special Blocks, street names, and one slab rectangle per Level. `roadDefaults.laneWidth` becomes about 7 m.
+The renderer needs, per District: a theme, the seed for Block fill, authored landmarks and special Blocks, street names, and one or more pieces of slab per Level. `roadDefaults.laneWidth` becomes about 7 m.
 
 ## Budget
 

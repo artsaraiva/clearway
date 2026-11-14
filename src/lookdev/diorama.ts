@@ -312,6 +312,7 @@ const district: District = {
         ),
       ),
       solution: [],
+      pieces: [{ x0: -EDGE, y0: -EDGE, x1: EDGE, y1: EDGE }],
     },
   ],
 }

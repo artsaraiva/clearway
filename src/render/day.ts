@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { centre, type Bounds } from './slab'
+import type { Bounds } from '../sim/geometry'
+import { centre } from './slab'
 
 const DAY = 180 // real seconds per day
 const START = 0 // the day opens in the morning

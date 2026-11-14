@@ -45,6 +45,8 @@ export default {
       solution: [
         { at: 'J1', enable: ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1'], disable: ['*.in1>*.ring0', '*.ring0>*.out1'] },
       ],
+      // out to the four Gateways
+      pieces: [{ x0: -178.5, y0: -178.5, x1: 178.5, y1: 178.5 }],
     },
   ],
 } satisfies District

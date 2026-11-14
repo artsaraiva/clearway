@@ -46,12 +46,14 @@ export class Sim {
   /**
    * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
    * Levels, as Changes on top of their initial configurations: the earlier Sim's `configuration()`, or reference
-   * solutions.
+   * solutions. With `prewarm: false` the caller runs the Pre-warm, stepping until `prewarmed`, so it can be spread
+   * over the frames of the Reveal animation.
    */
   constructor(
     readonly district: District,
     levelIndex = 0,
     carried: Change[] = [],
+    { prewarm = true } = {},
   ) {
     validateDistrict(district)
     const levels = district.levels.slice(0, levelIndex + 1)
@@ -66,7 +68,12 @@ export class Sim {
       priority: new Map(arms.map((a) => [a, a.priority])),
     }
     this.demand = new Demand(this.level.demand, this.level.seed)
-    while (this.time < PREWARM) this.step()
+    if (prewarm) while (!this.prewarmed) this.step()
+  }
+
+  /** Whether the Pre-warm is done, so the Level can be shown. */
+  get prewarmed() {
+    return this.time >= PREWARM
   }
 
   /** Off-screen spawn queues per Gateway. */

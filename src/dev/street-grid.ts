@@ -2,11 +2,22 @@ import type { District, Point, RoadSpec } from '../sim/district'
 
 // ponytail: a dev fixture, not a playable District. It is the visual-style prototype's 3×3 street grid with 7 m lanes,
 // opened with `?district=grid` to check the renderer on Priority junctions while District 1 is a single roundabout.
-// It has no jam and no solution, so it never wins. Delete it when #33 settles a real street-grid District.
+// Each Level Reveals one column of Junctions, west to east, to check the Reveal animation, and the last adds its column
+// as two pieces of slab; `?level=3` opens the whole grid. Its Levels are not tuned and have no solutions, so `N`
+// Reveals the next one without a Win. Delete it when #33 settles a real street-grid District.
 const VX = [-88, -32, 24] // the three north–south streets
 const HY = [80, 16, -48] // the three east–west streets
 const EDGE = 130
-const GATEWAYS = ['N0', 'N1', 'N2', 'S0', 'S1', 'S2', 'W0', 'W1', 'W2', 'E0']
+// By Level: the Gateways once its column is Revealed. The Roads into the next column end at a Gateway until then.
+const GATEWAYS = [
+  ['N0', 'S0', 'W0', 'W1', 'W2', 'H0a', 'H1a', 'H2a'],
+  ['N0', 'N1', 'S0', 'S1', 'W0', 'W1', 'W2', 'H0b', 'H1b', 'H2b'],
+  ['N0', 'N1', 'N2', 'S0', 'S1', 'S2', 'W0', 'W1', 'W2', 'E0'],
+]
+// Where each column's piece of slab meets the next: where the Roads into the next column end, 12 m short of its
+// Junctions (their footprint, with 7 m lanes).
+const SEAMS = [-EDGE, VX[1] - 12, VX[2] - 12, EDGE]
+const SPLIT = 48 // where the last column's two pieces meet, between its first two rows
 // By row: the two north–south Roads meeting there, which have Priority.
 const MAIN = [
   ['N', 'Va'],
@@ -52,21 +63,25 @@ export default {
     },
     avenues: ['N1', 'V1a', 'V1b', 'S1'],
   },
-  levels: [
-    {
-      reveal: junctions.map(({ id }) => id),
-      seed: 8,
-      tools: [],
-      demand: Object.fromEntries(
-        GATEWAYS.map((g) => [g, { rate: 7, to: Object.fromEntries(GATEWAYS.filter((o) => o !== g).map((o) => [o, 1])) }]),
-      ),
-      initial: Object.fromEntries(
-        junctions.map(({ id, i, j }) => [
-          id,
-          { priority: Object.fromEntries(MAIN[j].map((r) => [r[0] + i + r.slice(1), 'main' as const])) },
-        ]),
-      ),
-      solution: [],
-    },
-  ],
+  levels: VX.map((_, i) => ({
+    reveal: junctions.filter((junction) => junction.i === i).map(({ id }) => id),
+    seed: 8,
+    tools: [],
+    demand: Object.fromEntries(
+      GATEWAYS[i].map((g) => [g, { rate: 7, to: Object.fromEntries(GATEWAYS[i].filter((o) => o !== g).map((o) => [o, 1])) }]),
+    ),
+    initial: Object.fromEntries(
+      junctions
+        .filter((junction) => junction.i === i)
+        .map(({ id, j }) => [id, { priority: Object.fromEntries(MAIN[j].map((r) => [r[0] + i + r.slice(1), 'main' as const])) }]),
+    ),
+    solution: [],
+    pieces:
+      i < 2
+        ? [{ x0: SEAMS[i], y0: -EDGE, x1: SEAMS[i + 1], y1: EDGE }]
+        : [
+            { x0: SEAMS[i], y0: SPLIT, x1: SEAMS[i + 1], y1: EDGE },
+            { x0: SEAMS[i], y0: -EDGE, x1: SEAMS[i + 1], y1: SPLIT },
+          ],
+  })),
 } satisfies District
