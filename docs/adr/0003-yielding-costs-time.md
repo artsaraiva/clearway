@@ -13,5 +13,5 @@ Larger or smaller gap-acceptance times did not help, and no single rule in `conf
 - The effect needs headroom between the yield ceiling and the lane's limit. At 13.9 m/s there is enough. At 8 m/s a lane carries about 25 vehicles a minute and the window is narrow.
 - Arms that are all `main` or all `yield`, and roundabouts, are unchanged: no Connection there meets one from a `main` Arm while its own Arm yields.
 - The crawl speed equals the speed under which a vehicle counts as standing in a queue. So a yielding vehicle reaches its line as good as standing, and waits for a gap in everything that moves.
-- A Road that must yield looks slow along its whole length. Whether that reads well is for playtesting.
+- A Road that must yield looks slow along its whole length. Playtested on the street-grid fixture on 2026-11-14 and accepted.
 - The two constants are tuning. Changing them means re-checking every Level that uses the Priority rule.

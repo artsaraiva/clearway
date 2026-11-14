@@ -106,7 +106,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Change: a vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming. A yield Arm now carries less than a main one.
   - This overturns [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict. With a nearly empty stem, 24 of 24 grids have a priority-swap Level that meets the bar at 13.9 m/s (62 of 103 Levels, windows 1.05–1.53×). At 8 m/s only 4 of 24 do (windows 0.97–1.25×), because a lane tops out near 25 vehicles a minute.
   - So the bar is reachable, and the speed of a 7 m-lane District decides it. That is one more input for [#33](https://github.com/artsaraiva/clearway/issues/33). [#48](https://github.com/artsaraiva/clearway/issues/48) is no longer on hold.
-  - Not playtested: how the crawl looks and feels in the game.
+  - Playtested on the street-grid fixture (2026-11-14): the crawl looks fine. That fixture now jams, since every east–west Road there yields.
 
 ## Fog
 
