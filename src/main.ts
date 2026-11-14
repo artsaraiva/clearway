@@ -1,5 +1,4 @@
-import district01 from '../levels/district-01'
-import streetGrid from './dev/street-grid'
+import district from '../levels/district-01'
 import { createView } from './render/view'
 import { DT, Sim } from './sim/sim'
 import { createUI } from './ui/ui'
@@ -13,8 +12,6 @@ const PREWARM_BUDGET = 4
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)
-// Dev only: `?district=grid` opens the street-grid fixture instead of District 1.
-const district = import.meta.env.DEV && params.get('district') === 'grid' ? streetGrid : district01
 // ponytail: dev-only resume for playtesting. A Reveal writes its Level to the URL (`?level=2`) and the configuration it
 // carried over to sessionStorage, so a reload reopens that Level. That lives in one tab only, and `?level=` skips the
 // Win: a later Level opened directly starts from the earlier Levels' initial configurations. The rest of the Reveal's

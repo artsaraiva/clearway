@@ -95,8 +95,8 @@ it('gives the T-junction the same result every run', () => {
 })
 
 /**
- * Two Levels: the roundabout of District 1 with its east Road running into the Fog, then a crossroads Revealed on that
- * Road with every way in from the roundabout closed.
+ * Two Levels: a roundabout with its east Road running into the Fog, then a crossroads Revealed on that Road with every
+ * way in from the roundabout closed.
  */
 function twoLevels(): District {
   const fromR = ['R.in0', 'R.in1'].flatMap((lane) => ['N2.out0', 'E2.out0', 'S2.out0'].map((out) => `${lane}>${out}`))
