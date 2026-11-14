@@ -180,3 +180,43 @@ it('carries a won Level over a Reveal, which jams until its own reference soluti
   for (const change of district.levels[1].solution) second.apply(change)
   expect(run(second, 300, () => second.won).won).toBe(true)
 })
+
+/**
+ * A roundabout the size of one Block on 7 m lanes: a Ring 60 m across with two lanes, between four Gateways on two-lane
+ * Roads, heavy north–south. It starts with both Approach lanes feeding the outer Ring lane and the inner one closed.
+ */
+function roundabout(): District {
+  const inner = ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1']
+  const outer = ['*.in1>*.ring0', '*.ring0>*.out1']
+  const corridor = (other: string) => ({ rate: 22, to: { [other]: 0.8, E: 0.1, W: 0.1 } })
+  const side = (other: string) => ({ rate: 4, to: { [other]: 0.5, N: 0.25, S: 0.25 } })
+  return {
+    roadDefaults: { speed: 13.9, laneWidth: 7, bikeBand: false, sidewalk: 0, median: 0 },
+    junctions: { J: { type: 'roundabout', at: [0, 0], radius: 23, ringLanes: 2 } },
+    roads: {
+      N: { from: [0, 90], to: 'J', lanes: [2, 2] },
+      E: { from: [90, 0], to: 'J', lanes: [2, 2] },
+      S: { from: [0, -90], to: 'J', lanes: [2, 2] },
+      W: { from: [-90, 0], to: 'J', lanes: [2, 2] },
+    },
+    levels: [
+      {
+        reveal: ['J'],
+        seed: 8,
+        tools: ['connector'],
+        demand: { N: corridor('S'), S: corridor('N'), E: side('W'), W: side('E') },
+        initial: { J: { disable: inner, enable: outer } },
+        solution: [{ at: 'J', enable: inner, disable: outer }],
+        pieces: [{ x0: -90, y0: -90, x1: 90, y1: 90 }],
+      },
+    ],
+  }
+}
+
+it('jams a one-Block roundabout squeezed onto its outer Ring lane, and clears it once the inner lane opens', () => {
+  const district = roundabout()
+  expect(run(new Sim(district), 180).flow).toBeLessThan(0.5)
+  const sim = new Sim(district)
+  for (const change of district.levels[0].solution) sim.apply(change)
+  expect(run(sim, 300, () => sim.won).won).toBe(true)
+})
