@@ -120,7 +120,7 @@ The reference configuration is written in the District's test, not in the Distri
 
 ## Verification
 
-By playing, per `CLAUDE.md`, plus two test seams. **The second is a proposal and needs the user's yes before any test is written.**
+By playing, per `CLAUDE.md`, plus its two test seams (the Districts seam was agreed 2026-11-14).
 
 - **Simulation outcomes** (`src/sim`), unchanged in kind: a fixture jams as configured, a known Change clears the Jam, and a seed gives the same result every run. District 1's two built Levels become these fixtures: the same Junctions, Demand, initial configuration and solution, as owned Tiles and Changes.
 - **Districts** (`levels/`), replacing the Levels seam: for each recorded purchase order of each District, the reference configuration leaves no Junction jammed after any purchase, and with every Tile owned and nothing changed, Income stays under the Jam bar.
@@ -129,12 +129,10 @@ Assert outcomes only: jammed, cleared, Income over or under a bar, Won.
 
 ## Issues
 
-Proposed split, not yet created:
-
-1. **Tiles in the District file and the Sim.** The format, `validateDistrict`, Roads that stop at an unowned edge, `Sim` built from owned Tiles, and the two Levels moved to sim fixtures.
-2. **Demand from streams.** The stream type, continuity, and the two route checks. Blocked by 1.
-3. **The game page.** Economy state, buying, Reveal builds made ahead, the minimum screen, `/` switched over. Blocked by 1 and 2.
-4. **District 1 tuned to the bars.** Streams, price curve, the report script and the District test. Blocked by 1 and 2.
+- [#77](https://github.com/artsaraiva/clearway/issues/77) Tiles in the District file and the Sim
+- [#78](https://github.com/artsaraiva/clearway/issues/78) Demand from streams, blocked by #77
+- [#79](https://github.com/artsaraiva/clearway/issues/79) The game page, with yen and Tile buying, blocked by #77 and #78
+- [#80](https://github.com/artsaraiva/clearway/issues/80) District 1 tuned to the bars, blocked by #77 and #78
 
 ## Not in this spec
 

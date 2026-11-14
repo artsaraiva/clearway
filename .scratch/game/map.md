@@ -170,9 +170,9 @@ Look (since [#16](https://github.com/artsaraiva/clearway/issues/16)): an anime-f
 
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
-- Land game: spec in `.scratch/land-game/spec.md`. Its four build issues are listed there and not yet created.
+- Land game (spec in `.scratch/land-game/spec.md`): [#77](https://github.com/artsaraiva/clearway/issues/77) Tiles in the District file and the Sim → [#78](https://github.com/artsaraiva/clearway/issues/78) Demand from streams → [#79](https://github.com/artsaraiva/clearway/issues/79) the game page and [#80](https://github.com/artsaraiva/clearway/issues/80) District 1 tuned to the bars.
 - Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#55](https://github.com/artsaraiva/clearway/issues/55) Tool roster, [#48](https://github.com/artsaraiva/clearway/issues/48) the endless map, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians.
-- Larger Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) generator for a 24-Junction District of Tiles, after the land game's District file. Roundabouts: [#49](https://github.com/artsaraiva/clearway/issues/49) in generated grids, [#71](https://github.com/artsaraiva/clearway/issues/71) a small roundabout that can stand still.
+- Larger Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) generator for a 24-Junction District of Tiles, after [#77](https://github.com/artsaraiva/clearway/issues/77) and [#80](https://github.com/artsaraiva/clearway/issues/80). Roundabouts: [#49](https://github.com/artsaraiva/clearway/issues/49) in generated grids, [#71](https://github.com/artsaraiva/clearway/issues/71) a small roundabout that can stand still.
 - Closed by the verdict: [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates and [#53](https://github.com/artsaraiva/clearway/issues/53) other Level templates (authored Jams are retired); District 1 Levels [#58](https://github.com/artsaraiva/clearway/issues/58)–[#62](https://github.com/artsaraiva/clearway/issues/62) ([#72](https://github.com/artsaraiva/clearway/issues/72)).
 
 ## Resolved tickets
