@@ -1,5 +1,5 @@
-import { overlaps, type Bounds } from './geometry'
-import { applyChange, buildNetwork, type Network } from './network'
+import { overlaps, type Bounds, type Vec } from './geometry'
+import { applyChange, buildNetwork, type Lane, type Network } from './network'
 
 export type Priority = 'main' | 'yield'
 export type Tool = 'connector' | 'priority'
@@ -69,7 +69,8 @@ export interface Level {
    * The pieces of slab this Level's Reveal adds, as road plate: rectangles that never overlap each other or an earlier
    * Level's. A Reveal only ever adds slab: the Level's Blocks are cut within its own pieces, so no later Reveal changes
    * them, and its new Roads must stay on them. The slab Revealed so far carries every Road, and a Road that leaves the
-   * map ends at its edge. For the renderer; the sim never reads it.
+   * District ends at its edge. A Road into the Fog may stop short of it (see `fogReach`). For the renderer; the sim
+   * never reads it.
    */
   pieces: Bounds[]
 }
@@ -137,6 +138,43 @@ export function validateDistrict(district: District) {
   })
 }
 
+/** A lane of a Road into the Fog, carried straight on from its Gateway (`from`) to `to`. `half` is half its width. */
+export interface Reach {
+  lane: Lane
+  from: Vec
+  to: Vec
+  half: number
+}
+
+const REACH_STEP = 0.25 // m between the points tried along a lane carried on
+
+/**
+ * Where the lanes of each Road into the Fog would run on past their Gateway: straight on, as far as the slab Revealed
+ * in `net` goes, and no further than the fogged Junction's centre. Such a Road may stop short of the slab's edge,
+ * since Junctions differ in footprint. The stretch beyond it is road plate, kept for the Junction to come: the only
+ * earlier slab a Reveal may run new lanes onto.
+ */
+export function fogReach(district: District, net: Network): Reach[] {
+  const ids = new Set(net.junctions.map((j) => j.id))
+  const slab = district.levels.filter((l) => l.reveal.every((id) => ids.has(id))).flatMap((l) => l.pieces)
+  const on = (x: number, y: number) => slab.some((r) => x >= r.x0 - SLACK && x <= r.x1 + SLACK && y >= r.y0 - SLACK && y <= r.y1 + SLACK)
+  return Object.entries(net.gateways).flatMap(([road, arm]) => {
+    const spec = district.roads[road]
+    const fogged = [spec.from, spec.to].find((end) => typeof end === 'string' && !ids.has(end))
+    if (typeof spec.from !== 'string' || typeof spec.to !== 'string' || typeof fogged !== 'string') return [] // on the District edge
+    const [cx, cy] = district.junctions[fogged].at
+    const [ux, uy] = [Math.cos(arm.angle), Math.sin(arm.angle)]
+    const half = (spec.laneWidth ?? district.roadDefaults.laneWidth) / 2
+    const ends = [...arm.exit.map((lane) => ({ lane, from: lane.line.pts[lane.line.pts.length - 1] })), ...arm.approach.map((lane) => ({ lane, from: lane.line.pts[0] }))] // prettier-ignore
+    return ends.map(({ lane, from }) => {
+      const far = (cx - from.x) * ux + (cy - from.y) * uy
+      let d = 0
+      while (d + REACH_STEP <= far && on(from.x + ux * (d + REACH_STEP), from.y + uy * (d + REACH_STEP))) d += REACH_STEP
+      return { lane, from, to: { x: from.x + ux * d, y: from.y + uy * d }, half }
+    })
+  })
+}
+
 const SLACK = 0.01 // m a lane may stand past the slab's edge, for rounding
 const PAST = 0.5 // m past a Gateway that must already be off the slab
 
@@ -158,6 +196,14 @@ function checkPieces(district: District, n: number, net: Network, before: Networ
     rects.some((r) => x >= r.x0 - slack && x <= r.x1 + slack && y >= r.y0 - slack && y <= r.y1 + slack)
   const slab = [...earlier, ...pieces]
   const old = new Set(before?.lanes.map((lane) => lane.id))
+  // Earlier slab kept for this Level's Junctions: where the Roads into the Fog were carried on.
+  const kept = before ? fogReach(district, before) : []
+  const reserved = (x: number, y: number) =>
+    kept.some(({ from, to, half }) => {
+      const [dx, dy] = [to.x - from.x, to.y - from.y]
+      const t = Math.max(0, Math.min(1, ((x - from.x) * dx + (y - from.y) * dy) / (dx * dx + dy * dy || 1)))
+      return Math.hypot(x - from.x - dx * t, y - from.y - dy * t) <= half + SLACK
+    })
   const where = (x: number, y: number) => `(${x.toFixed(1)}, ${y.toFixed(1)})`
 
   for (const lane of net.lanes) {
@@ -169,13 +215,15 @@ function checkPieces(district: District, n: number, net: Network, before: Networ
       for (const side of half ? [-half, half] : [0]) {
         const [x, y] = [p.x - Math.sin(heading) * side, p.y + Math.cos(heading) * side]
         if (!on(slab, x, y)) throw new Error(`lane ${lane.id} runs off the slab at ${where(x, y)}`)
-        if (!old.has(lane.id) && !on(pieces, x, y)) {
+        if (!old.has(lane.id) && !on(pieces, x, y) && !reserved(x, y)) {
           throw new Error(`lane ${lane.id} runs onto an earlier Level's slab at ${where(x, y)}: a Reveal only adds slab`)
         }
       }
     }
   }
   for (const [road, arm] of Object.entries(net.gateways)) {
+    const { from, to } = district.roads[road]
+    if (typeof from === 'string' && typeof to === 'string') continue // into the Fog: it may stop short of the edge
     for (const lane of arm.exit) {
       const { pts } = lane.line
       const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]]

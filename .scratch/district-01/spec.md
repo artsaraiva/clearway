@@ -71,12 +71,12 @@ Columns sit 90 m apart, rows 80 m apart. The slab is about 355 × 210 m: x from 
 
 ### Slab pieces
 
-Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam sits just outside the footprint of the next Junction, where the Road into the Fog ends, so each Level's Roads stay on its own pieces. Starting numbers, pinned against the real footprints:
+Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam sits just outside the footprint of the next Junction, where the Road into the Fog ends, so each Level's Roads stay on its own pieces. Footprints differ (12 m and 19 m), so where two Roads into the Fog end at different depths the edge follows the shallower footprint: the other Road stops short of it and runs on as plate, and that stretch is kept for its Junction ([#57](https://github.com/artsaraiva/clearway/issues/57)). Starting numbers, pinned against the real footprints:
 
 | Level | Pieces (x0, y0, x1, y1) |
 | --- | --- |
 | 1 | (−175, −28, −64, 105) |
-| 2 | (−64, −21, 26, 105), with strips (−64, −28, −52, −21) and (−31, −28, 26, −21) each side of R27, which ends at y = −21, the 19 m footprint of J7. Level 6 fills the notch (−52, −28, −31, −21) |
+| 2 | (−64, −28, 26, 105). R27 ends 7 m short of that edge, at y = −21, the 19 m footprint of J7, and runs on to it as plate |
 | 3 | (26, −28, 116, 105) |
 | 4 | (116, −105, 180, 105) and (64, −105, 116, −28), which carries R56 to its fogged end |
 | 5 | (−33, −105, 64, −28) |

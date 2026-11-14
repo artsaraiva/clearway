@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import type { District } from '../sim/district'
+import { fogReach, type District } from '../sim/district'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
 import { dashes, mid, ribbons } from './ribbons'
@@ -63,7 +63,16 @@ export function createRoads(net: Network, district: District) {
     const road = roads.get(lane.owner.road) ?? roads.set(lane.owner.road, { forward: [], backward: [] }).get(lane.owner.road)!
     road[lane.owner.forward ? 'forward' : 'backward'].push(lane)
   }
-  for (const { forward, backward } of roads.values()) {
+  // A Road into the Fog is painted on to where its plate ends, past its Gateway.
+  const reach = new Map(fogReach(district, net).map((r) => [r.lane, r.to]))
+  const carried = (lane: Lane): Lane => {
+    const to = reach.get(lane)
+    if (!to) return lane
+    const { pts } = lane.line
+    return { ...lane, line: { ...lane.line, pts: lane.toGateway ? [...pts, to] : [to, ...pts] } }
+  }
+  for (const road of roads.values()) {
+    const [forward, backward] = [road.forward.map(carried), road.backward.map(carried)]
     between(forward, 6)
     between(backward, 6)
     // The highest index is the innermost lane of its direction.
