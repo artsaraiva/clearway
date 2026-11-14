@@ -86,7 +86,11 @@ export interface Network {
 
 export const RING_SPEED = 9
 const MAX_LATERAL_ACCEL = 3
-const ENTRY_SETBACK = 15 // approach stop line distance outside the Ring's outer edge
+const ENTRY_SETBACK = 10 // approach stop line distance outside the Ring's outer edge
+// Half the width of an Arm's mouth on the Ring: its lanes plus MOUTH_MARGIN, and at least MIN_MOUTH, since a narrower
+// mouth turns the entry and exit curves too tightly to drive above 5 m/s.
+const MOUTH_MARGIN = 1
+const MIN_MOUTH = 11
 const MIN_ROAD_LANE = 10 // m of lane a Road must keep between the footprints of its ends
 const MIN_RING_ARC = Math.PI / 36 // 5° of Ring between the mouths of neighbouring Arms
 const CORNER = 5 // m from where the edges of a Priority junction's Roads meet back to their stop lines
@@ -314,7 +318,8 @@ function buildPriority(junction: Junction, reach: number): Lane[] {
 function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: number): Lane[] {
   const { arms } = junction
   if (arms.length < 3 || arms.length > 6) throw new Error(`Junction ${junction.id} is a roundabout with ${arms.length} Arms (takes 3 to 6)`)
-  const mouth = (arm: Arm) => Math.asin(Math.min(0.9, (Math.max(arm.approach.length, arm.exit.length) * w + 8) / R)) // half-angle on the Ring
+  const halfMouth = (arm: Arm) => Math.max(Math.max(arm.approach.length, arm.exit.length) * w + MOUTH_MARGIN, MIN_MOUTH)
+  const mouth = (arm: Arm) => Math.asin(Math.min(0.9, halfMouth(arm) / R)) // half-angle on the Ring
   const ringR = (i: number) => R + (ringLanes / 2 - i - 0.5) * w
   const shift = (p: Vec) => ({ x: p.x + junction.at.x, y: p.y + junction.at.y })
   const lanes: Lane[] = []
