@@ -51,7 +51,7 @@ it('jams a crossroads with every Connection from one Arm disabled', () => {
   expect(run(new Sim(crossroads({ X: { disable: fromN } })), 180).flow).toBeLessThan(0.5)
 })
 
-/** A T-junction Level: a road heavy from W to E and a light side road S, with the side road as the main road. */
+/** A T-junction Level: a road heavy from W to E and a nearly empty side road S, with the side road as the main road. */
 function tJunction(): District {
   return {
     roadDefaults: { speed: 13.9, laneWidth: 3.5, bikeBand: false, sidewalk: 0, median: 0 },
@@ -67,9 +67,8 @@ function tJunction(): District {
         seed: 4,
         tools: ['priority'],
         demand: {
-          W: { rate: 24, to: { E: 0.9, S: 0.1 } },
-          E: { rate: 4, to: { W: 1 } },
-          S: { rate: 8, to: { W: 0.5, E: 0.5 } },
+          W: { rate: 17, to: { E: 1 } },
+          S: { rate: 1, to: { W: 0.5, E: 0.5 } },
         },
         initial: { T: { priority: { S: 'main' } } },
         solution: [{ at: 'T', priority: { W: 'main', E: 'main', S: 'yield' } }],
@@ -79,7 +78,7 @@ function tJunction(): District {
   }
 }
 
-it('jams a T-junction whose heavy road yields to its light road', () => {
+it('jams a T-junction whose heavy road yields, even to a light road that is nearly empty', () => {
   expect(run(new Sim(tJunction()), 180).flow).toBeLessThan(0.5)
 })
 
