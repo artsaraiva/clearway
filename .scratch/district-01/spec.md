@@ -1,6 +1,6 @@
 # District 1: Seven Levels on a street grid
 
-Status: open (grilled 2026-11-14 in [#33](https://github.com/artsaraiva/clearway/issues/33), amended the same day after [#56](https://github.com/artsaraiva/clearway/issues/56) and [#7](https://github.com/artsaraiva/clearway/issues/7); replaces the ladder grilled 2026-11-12 in `.scratch/game/issues/06-junction-chain.md`)
+Status: stopped at Levels 1 and 2 (2026-11-14, [#72](https://github.com/artsaraiva/clearway/issues/72)). The game becomes a city that grows by buying land, so Levels 3–7 ([#58](https://github.com/artsaraiva/clearway/issues/58)–[#62](https://github.com/artsaraiva/clearway/issues/62)) are closed as not planned; they reopen if the prototype in [#74](https://github.com/artsaraiva/clearway/issues/74) fails. The road graph is that prototype's map. Was: open (grilled 2026-11-14 in [#33](https://github.com/artsaraiva/clearway/issues/33), amended the same day after [#56](https://github.com/artsaraiva/clearway/issues/56) and [#7](https://github.com/artsaraiva/clearway/issues/7); replaces the ladder grilled 2026-11-12 in `.scratch/game/issues/06-junction-chain.md`)
 
 ## Goal
 
