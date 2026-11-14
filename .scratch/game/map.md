@@ -106,8 +106,8 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
 - How does District 1 change for 7 m lanes, small Blocks and a street grid first? [#33](https://github.com/artsaraiva/clearway/issues/33).
-- Does the Priority rule change Flow enough to carry a Level? [#45](https://github.com/artsaraiva/clearway/issues/45) found a main-road swap barely moves it, which also touches the hand-written T-junction Levels. Not ticketed yet.
-- Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). Not ticketed yet.
+- Does the Priority rule change Flow enough to carry a Level? [#45](https://github.com/artsaraiva/clearway/issues/45) found a main-road swap barely moves it, which also touches the hand-written T-junction Levels. [#52](https://github.com/artsaraiva/clearway/issues/52).
+- Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). [#53](https://github.com/artsaraiva/clearway/issues/53).
 - How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), on hold since [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict.
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 - Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
