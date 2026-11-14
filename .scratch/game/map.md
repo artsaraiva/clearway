@@ -107,12 +107,21 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - This overturns [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict. With a nearly empty stem, 24 of 24 grids have a priority-swap Level that meets the bar at 13.9 m/s (62 of 103 Levels, windows 1.05–1.53×). At 8 m/s only 4 of 24 do (windows 0.97–1.25×), because a lane tops out near 25 vehicles a minute.
   - So the bar is reachable, and the speed of a 7 m-lane District decides it. That is one more input for [#33](https://github.com/artsaraiva/clearway/issues/33). [#48](https://github.com/artsaraiva/clearway/issues/48) is no longer on hold.
   - Playtested on the street-grid fixture (2026-11-14): the crawl looks fine. That fixture now jams, since every east–west Road there yields.
+- District 1 on the diorama ([#33](https://github.com/artsaraiva/clearway/issues/33), grilling, 2026-11-14). Answer in the issue; spec rewritten in `.scratch/district-01/spec.md`; Level issues [#56](https://github.com/artsaraiva/clearway/issues/56)–[#62](https://github.com/artsaraiva/clearway/issues/62). This replaces the ladder from the junction chain (06).
+  - Scale: lanes are 7 m in the sim as well as on screen, one geometry. Speed limit 13.9 m/s; if it looks frantic, the default play speed drops to 2× and the sim speed stays.
+  - Layout: a 4 × 2 grid of eight Junctions (3 T, 4 crossroads, 1 roundabout), every Road axis-aligned, Revealed clockwise. Columns 90 m apart, rows 80 m, slab about 370 × 210 m. Eight edge Gateways.
+  - Queue room: two lanes each way only on the path of the heavy streams (the north row, N2, J4–J5, J5–J6). Those Roads keep about 52 m of lane, 8 cars per lane. J4–J5 keeps 30–35 m on purpose, for Spillback.
+  - Roundabout: one, in the south-east corner, Revealed in Level 4 as the cause of the Spillback. Two Ring lanes on a radius of about 18 m. [#49](https://github.com/artsaraiva/clearway/issues/49) copies that size.
+  - Lessons, in order: Priority rule on a T-junction, connector (an unused lane), fix upstream, Spillback, Signal (or a main-road swap if [#7](https://github.com/artsaraiva/clearway/issues/7) fails), turn ban, and a finale that re-jams J1. Teaching Levels restrict Tools.
+  - Route shifts in Levels 6 and 7 come from speed limits on the cross streets (8, 11 and 13.9 m/s), not from slanted Roads.
+  - Each Level adds one strip of slab (Level 4 adds two), tiling to a rectangle.
+  - The single-roundabout Level is retired, not re-tuned. The determinism test moves to the new Level 1, and the street-grid dev fixture is deleted with it.
+  - [#7](https://github.com/artsaraiva/clearway/issues/7) blocks only Level 5 and runs its gate once, at 7 m lanes and 13.9 m/s.
+  - Estimates to pin while authoring: a two-lane Junction's footprint (about 19 m) and the lane left on J4–J5.
 
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
-- How does District 1 change for 7 m lanes, small Blocks and a street grid first? [#33](https://github.com/artsaraiva/clearway/issues/33).
-- What speed does a 7 m-lane District drive at? The priority swap meets the bar at 13.9 m/s and mostly not at 8 m/s ([#52](https://github.com/artsaraiva/clearway/issues/52)). Part of [#33](https://github.com/artsaraiva/clearway/issues/33).
 - Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). [#53](https://github.com/artsaraiva/clearway/issues/53).
 - How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), after [#47](https://github.com/artsaraiva/clearway/issues/47).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
@@ -122,12 +131,13 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
-- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#48](https://github.com/artsaraiva/clearway/issues/48) procedural mode in the browser.
+- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#48](https://github.com/artsaraiva/clearway/issues/48) procedural mode in the browser.
 - Procedural Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts in generated grids: [#49](https://github.com/artsaraiva/clearway/issues/49).
-- Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). Player tools [#7](https://github.com/artsaraiva/clearway/issues/7) (Signal gate test). District 1 Levels are re-issued after [#33](https://github.com/artsaraiva/clearway/issues/33); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
+- Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). Player tools [#7](https://github.com/artsaraiva/clearway/issues/7) (Signal gate test). District 1 Levels [#56](https://github.com/artsaraiva/clearway/issues/56) → [#57](https://github.com/artsaraiva/clearway/issues/57) → [#58](https://github.com/artsaraiva/clearway/issues/58) → [#59](https://github.com/artsaraiva/clearway/issues/59) → [#60](https://github.com/artsaraiva/clearway/issues/60) → [#61](https://github.com/artsaraiva/clearway/issues/61) → [#62](https://github.com/artsaraiva/clearway/issues/62), with [#60](https://github.com/artsaraiva/clearway/issues/60) also blocked by [#7](https://github.com/artsaraiva/clearway/issues/7); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
 
 ## Resolved tickets
 
+- [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama (answer in the issue; spec in `../district-01/spec.md`)
 - [#52](https://github.com/artsaraiva/clearway/issues/52) Does the Priority rule change Flow enough to carry a Level? (findings in the issue; ADR 0003)
 - [#45](https://github.com/artsaraiva/clearway/issues/45) Procedural Districts check (report in the issue; verdict above)
 - [#43](https://github.com/artsaraiva/clearway/issues/43) Procedural Districts (answer in the issue), [#34](https://github.com/artsaraiva/clearway/issues/34) its research (`../procedural-districts/research.md`)
