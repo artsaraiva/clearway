@@ -27,7 +27,7 @@ Simulating a Level hidden from the player for a fixed stretch after a Reveal, so
 _Avoid_: Warm-up
 
 **Tool**:
-Something the player can change about a Junction: a lane Connection, a Priority rule or a Signal. Each Level lists which Tools are allowed.
+Something the player can change about a Junction: a lane Connection or a Priority rule. Each Level lists which Tools are allowed.
 _Avoid_: Action, power-up, upgrade
 
 **Inspector**:
@@ -53,7 +53,7 @@ A place where Roads meet and vehicles cross, merge or turn: a roundabout or a Pr
 _Avoid_: Node, intersection
 
 **Priority junction**:
-A Junction without a ring, where Arms meet directly and Priority rules or a Signal decide who goes. A T-junction has 3 Arms, a crossroads 4.
+A Junction without a ring, where Arms meet directly and Priority rules decide who goes. A T-junction has 3 Arms, a crossroads 4.
 _Avoid_: Intersection, plain junction
 
 **Ring**:
@@ -94,10 +94,6 @@ _Avoid_: Link, turn, lane arrow
 **Priority rule**:
 Whether an Arm is a main road or must yield to the other Arms of its Junction. A vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming, so a yielding Arm carries less traffic than a main one. Equal Arms give way to the right. On a roundabout the ring is always main.
 _Avoid_: Right of way setting, control, stop sign
-
-**Signal**:
-A Junction-wide mode that gives each Arm green in turn, replacing the Priority rules of that Junction while on.
-_Avoid_: Traffic light, phase
 
 **Spillback**:
 A queue at one Junction growing back along a road until it blocks the Junction upstream.
