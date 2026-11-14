@@ -101,14 +101,20 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Reading: the swap moves the queue from one Arm to the other and leaves Flow about the same. In nearly every mix the seeds that jam and the seeds that Win add up to about 10, so the Level jams or Wins by its seed, not by its Priority rule.
   - Measured with 7 m lanes, 56–64 m between parallel Roads, 8 m/s and 60 m Gateway Roads, none settled until [#33](https://github.com/artsaraiva/clearway/issues/33). The T-junction alone was also scanned at 13.9 m/s and with 200 m Roads, with the same result.
   - By [#43](https://github.com/artsaraiva/clearway/issues/43)'s gate the plan stops at generated Districts reviewed by a human ([#47](https://github.com/artsaraiva/clearway/issues/47)); [#48](https://github.com/artsaraiva/clearway/issues/48) is told. Only the priority swap was measured, so other templates are still unknown.
+- Yielding costs time ([#52](https://github.com/artsaraiva/clearway/issues/52), 2026-11-14). Findings in the issue; decision in `docs/adr/0003-yielding-costs-time.md`.
+  - Cause of [#45](https://github.com/artsaraiva/clearway/issues/45)'s result: a T-junction carried about 23–25 vehicles a minute in total whichever Arm was main, so a swap only moved the queue. Gap times and the rules in `conflicting` were not the lever.
+  - Change: a vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming. A yield Arm now carries less than a main one.
+  - This overturns [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict. With a nearly empty stem, 24 of 24 grids have a priority-swap Level that meets the bar at 13.9 m/s (62 of 103 Levels, windows 1.05–1.53×). At 8 m/s only 4 of 24 do (windows 0.97–1.25×), because a lane tops out near 25 vehicles a minute.
+  - So the bar is reachable, and the speed of a 7 m-lane District decides it. That is one more input for [#33](https://github.com/artsaraiva/clearway/issues/33). [#48](https://github.com/artsaraiva/clearway/issues/48) is no longer on hold.
+  - Playtested on the street-grid fixture (2026-11-14): the crawl looks fine. That fixture now jams, since every east–west Road there yields.
 
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
 - How does District 1 change for 7 m lanes, small Blocks and a street grid first? [#33](https://github.com/artsaraiva/clearway/issues/33).
-- Does the Priority rule change Flow enough to carry a Level? [#45](https://github.com/artsaraiva/clearway/issues/45) found a main-road swap barely moves it, which also touches the hand-written T-junction Levels. [#52](https://github.com/artsaraiva/clearway/issues/52).
+- What speed does a 7 m-lane District drive at? The priority swap meets the bar at 13.9 m/s and mostly not at 8 m/s ([#52](https://github.com/artsaraiva/clearway/issues/52)). Part of [#33](https://github.com/artsaraiva/clearway/issues/33).
 - Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). [#53](https://github.com/artsaraiva/clearway/issues/53).
-- How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), on hold since [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict.
+- How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), after [#47](https://github.com/artsaraiva/clearway/issues/47).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 - Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
 
@@ -122,6 +128,7 @@ Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issu
 
 ## Resolved tickets
 
+- [#52](https://github.com/artsaraiva/clearway/issues/52) Does the Priority rule change Flow enough to carry a Level? (findings in the issue; ADR 0003)
 - [#45](https://github.com/artsaraiva/clearway/issues/45) Procedural Districts check (report in the issue; verdict above)
 - [#43](https://github.com/artsaraiva/clearway/issues/43) Procedural Districts (answer in the issue), [#34](https://github.com/artsaraiva/clearway/issues/34) its research (`../procedural-districts/research.md`)
 - [#16](https://github.com/artsaraiva/clearway/issues/16) Visual style (answer in the issue; spec in `../visual-style/spec.md`)

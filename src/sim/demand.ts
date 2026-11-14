@@ -1,4 +1,5 @@
 import type { Level } from './district'
+import { yieldSpeed } from './driving'
 import type { Lane, Network } from './network'
 import { route, travelTime } from './routing'
 import type { Vehicle } from './sim'
@@ -99,6 +100,7 @@ export class Demand {
           dest: q.shift()!.dest,
           waiting: false,
         }
+        veh.v = Math.min(veh.v, yieldSpeed(veh)) // a Road that must yield is entered at the speed it is driven at
         lane.vehicles.push(veh)
         spawned.push(veh)
       }

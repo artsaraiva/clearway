@@ -7,6 +7,11 @@ const DECISION_DIST = 60
 const HARD_BRAKE = 4 // closer to the line than this braking allows, a vehicle proceeds
 const LOOKAHEAD = 150
 const HELD = 0.5 // m/s: slower than this, a vehicle is standing in a queue or at its line
+// A vehicle giving way to a `main` Arm reaches its line at YIELD_CRAWL m/s, slowing at YIELD_SLOWING m/s² however clear
+// the road is. That is gentle enough to hold it under the limit along a whole Road of a few hundred metres, and the
+// crawl is no faster than HELD, so it arrives as good as standing and waits for a gap in everything that moves.
+const YIELD_CRAWL = 0.5
+const YIELD_SLOWING = 0.35
 const ONCOMING = Math.PI / 4 // an Arm within this of straight ahead is the oncoming one
 
 /** IDM against the nearest leader along the path, a merging committed vehicle, or the stop line. */
@@ -50,6 +55,7 @@ export function accel(v: Vehicle): number {
     }
     base += lane.length
   }
+  v0 = Math.min(v0, yieldSpeed(v))
   v.vFree = Math.min(v0, Math.sqrt(v.vFreeIn ** 2 + 2 * t.accel * Math.max(0, v.s)))
   v.waiting = mustStop(v)
   if (v.waiting) {
@@ -65,6 +71,19 @@ export function accel(v: Vehicle): number {
     a -= t.accel * (sStar / Math.max(gap, 0.1)) ** 2
   }
   return Math.max(a, -9)
+}
+
+/**
+ * The fastest a vehicle may drive where it is while slowing to a crawl for the end of its lane, or Infinity when it
+ * need not: it slows when its next Connection leaves a `yield` Arm and meets an enabled one from a `main` Arm. Giving
+ * way costs time even when nobody is coming, so a `yield` Arm carries less than a `main` one, and which Arm is main
+ * changes what the Junction can carry (see ADR 0003). The crawl is part of the vehicle's free speed, so Flow counts a
+ * vehicle that keeps to it as moving freely.
+ */
+export function yieldSpeed(v: Vehicle): number {
+  const next = v.lane.conn ? undefined : v.path[0]?.conn // on a Connection it is already past its line
+  const yields = next?.arm.priority === 'yield' && next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main')
+  return yields ? Math.sqrt(YIELD_CRAWL ** 2 + 2 * YIELD_SLOWING * Math.max(0, v.lane.length - v.s)) : Infinity
 }
 
 /** Whether the front vehicle of a segment lane must hold at the line before entering its next connection. */

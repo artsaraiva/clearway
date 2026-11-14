@@ -60,7 +60,8 @@ if (import.meta.env.DEV) {
 let acc = 0
 let last = performance.now()
 requestAnimationFrame(function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000)
+  // The first frame's timestamp can be earlier than the `last` taken at load, so never step back in time.
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
   last = now
   if (!sim.prewarmed) {
     const end = performance.now() + PREWARM_BUDGET

@@ -92,7 +92,7 @@ A permitted path inside a Junction from one incoming Lane to one outgoing Lane. 
 _Avoid_: Link, turn, lane arrow
 
 **Priority rule**:
-Whether an Arm is a main road or must yield to the other Arms of its Junction. Equal Arms give way to the right. On a roundabout the ring is always main.
+Whether an Arm is a main road or must yield to the other Arms of its Junction. A vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming, so a yielding Arm carries less traffic than a main one. Equal Arms give way to the right. On a roundabout the ring is always main.
 _Avoid_: Right of way setting, control, stop sign
 
 **Signal**:

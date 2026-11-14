@@ -10,18 +10,19 @@ import { buildNetwork } from '../src/sim/network'
 import { route, travelTime } from '../src/sim/routing'
 import { Sim } from '../src/sim/sim'
 
-// Not settled until #33: 7 m lanes, 56–64 m between parallel Roads, 8 m/s (the street-grid fixture's speed), and one more
-// Block of Road out to each Gateway.
+// Not settled until #33: 7 m lanes, 56–64 m between parallel Roads, and one more Block of Road out to each Gateway. The
+// speed is not settled either, so each grid runs at the street-grid fixture's and at District 1's.
 const LANE_WIDTH = 7
-const SPEED = 8
+const SPEEDS = [8, 13.9]
 const SPACING = [56, 64]
 const EDGE = 60
 const FOOTPRINT = 12 // of a 1-lane right-angle Priority junction with 7 m lanes: where a Road from the Fog ends
 
-// Vehicles per minute at Demand scale 1, in the proportions of the T-junction in `src/sim/sim.test.ts`.
-const HEAVY = 24
-const COUNTER = 4
-const SIDE = 4 // per side stream; there are up to two
+// Vehicles per minute at Demand scale 1. The stem is nearly empty: since #52 a yield Arm crawls to its line, so the
+// heavy stream jams by yielding at all, and the stem has little to push through it once it yields itself.
+const HEAVY = 16
+const COUNTER = 1
+const SIDE = 0.5 // per side stream; there are up to two
 
 const SEEDS = Array.from({ length: 10 }, (_, i) => i + 1)
 const STEP = 0.025 // the Demand scales tried are multiples of this
@@ -49,7 +50,7 @@ interface Grid {
 }
 
 /** A warped grid for a seed: 2×4 or 3×3, a corner or more left out, a few Roads removed, every Junction keeping 3–4 Arms. */
-function grid(seed: number): Grid {
+function grid(seed: number, speed: number): Grid {
   const rng = mulberry32(seed)
   const int = (n: number) => Math.floor(rng() * n)
   const [cols, rows] = rng() < 0.5 ? [4, 2] : [3, 3]
@@ -137,7 +138,7 @@ function grid(seed: number): Grid {
     return {
       shape: `${rows}×${cols}, ${ids.length} Junctions`,
       district: {
-        roadDefaults: { speed: SPEED, laneWidth: LANE_WIDTH, bikeBand: false, sidewalk: 0, median: 0 },
+        roadDefaults: { speed, laneWidth: LANE_WIDTH, bikeBand: false, sidewalk: 0, median: 0 },
         junctions,
         roads: Object.fromEntries(Object.entries(roads).map(([road, { spec }]) => [road, spec])),
         levels,
@@ -263,19 +264,17 @@ const MIXES: Record<string, (heavy: number, light: number) => Pick<Level, 'deman
     ...stemYields,
   }),
 }
-const HEAVY_RATES = [12, 16, 20, 24, 28, 32, 36]
+const HEAVY_RATES = [10, 12, 14, 16, 18, 20, 24]
 const LIGHT_RATES = [1, 2, 3, 4, 6, 8, 12]
 
 /** Every mix on a T-junction alone: how many of the 10 seeds jam untouched, and how many Win with the solution. */
 function scan() {
   let cells = 0
   let best = { jams: 0, wins: 0 }
-  for (const [speed, reach] of [
-    [SPEED, 72],
-    [SPEED, 200],
-    [13.9, 72],
-    [13.9, 200],
-  ])
+  for (const [speed, reach] of SPEEDS.flatMap((speed) => [
+    [speed, 72],
+    [speed, 200],
+  ]))
     // prettier-ignore
     for (const [name, mix] of Object.entries(MIXES)) {
       console.log(`\n${name}, ${speed} m/s, ${reach} m Roads. Cells: seeds that jam / seeds that Win.\n`)
@@ -296,30 +295,35 @@ function scan() {
 }
 
 const fmt = (scale: number | null) => (scale === null ? 'none' : scale.toFixed(3))
-const widths: number[] = []
-let meeting = 0
-console.log('| Grid | Shape | T-junction | Level | Lowest that jams | Highest that Wins | Window | Scales that do both | Meets the bar |')
-console.log('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
-for (let seed = 1; seed <= GRIDS; seed++) {
-  const made = grid(seed)
-  validateDistrict(made.district)
-  let met = false
-  for (const tee of made.tees) {
-    const level = prioritySwap(made.district, tee)
-    const row = (rest: string) => console.log(`| ${seed} | ${made.shape} | ${tee.id} | ${tee.level + 1} | ${rest} |`)
-    if (!level) {
-      row('no stream | | | | no')
-      continue
+for (const speed of SPEEDS) {
+  const widths: number[] = []
+  let meeting = 0
+  let levels = 0
+  console.log(`\n${speed} m/s\n`)
+  console.log('| Grid | Shape | T-junction | Level | Lowest that jams | Highest that Wins | Window | Scales that do both | Meets the bar |')
+  console.log('| --- | --- | --- | --- | --- | --- | --- | --- | --- |')
+  for (let seed = 1; seed <= GRIDS; seed++) {
+    const made = grid(seed, speed)
+    validateDistrict(made.district)
+    let met = false
+    for (const tee of made.tees) {
+      const level = prioritySwap(made.district, tee)
+      const row = (rest: string) => console.log(`| ${seed} | ${made.shape} | ${tee.id} | ${tee.level + 1} | ${rest} |`)
+      if (!level) {
+        row('no stream | | | | no')
+        continue
+      }
+      const { jam, win, width, both } = demandWindow(made.district, tee.level, level)
+      const ok = width >= BAR && both > 0
+      met ||= ok
+      levels += +ok
+      if (width) widths.push(width)
+      row(`${fmt(jam)} | ${fmt(win)} | ${width ? width.toFixed(2) + '×' : 'none'} | ${both} | ${ok ? 'yes' : 'no'}`)
     }
-    const { jam, win, width, both } = demandWindow(made.district, tee.level, level)
-    const ok = width >= BAR && both > 0
-    met ||= ok
-    if (width) widths.push(width)
-    row(`${fmt(jam)} | ${fmt(win)} | ${width ? width.toFixed(2) + '×' : 'none'} | ${both} | ${ok ? 'yes' : 'no'}`)
+    if (!made.tees.length) console.log(`| ${seed} | ${made.shape} | none | | | | | | no |`)
+    meeting += +met
   }
-  if (!made.tees.length) console.log(`| ${seed} | ${made.shape} | none | | | | | | no |`)
-  meeting += +met
+  console.log(`\n${meeting} of ${GRIDS} grids have a priority-swap Level that meets the bar, ${levels} Levels in all.`)
+  console.log(`${widths.length} Levels have a window, from ${Math.min(...widths).toFixed(2)}× to ${Math.max(...widths).toFixed(2)}×.`)
 }
-console.log(`\n${meeting} of ${GRIDS} grids have a priority-swap Level that meets the bar.`)
-console.log(`${widths.length} Levels have a window, from ${Math.min(...widths).toFixed(2)}× to ${Math.max(...widths).toFixed(2)}×.`)
 scan()
