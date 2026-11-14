@@ -95,13 +95,20 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Scenery is generated in full from an authored word list, and stays editable in the file. Review is the normal game loading the file, plus the seed sweep; no preview screen.
   - Test seams are unchanged. The determinism test is a question for [#48](https://github.com/artsaraiva/clearway/issues/48).
   - Glossary: "hand-authored" left the District entry.
+- Procedural Districts check ([#45](https://github.com/artsaraiva/clearway/issues/45), prototype, 2026-11-14). Report in the issue; the throwaway script is `scripts/priority-swap.ts`.
+  - Verdict: **not reachable**. 0 of 24 generated grids have a priority-swap Level that meets the bar, out of 103 Levels (one per T-junction). Every grid passed `validateDistrict`.
+  - The window is inverted. The highest Demand that Wins on 10 of 10 seeds is 0.46–0.68 times the lowest that jams on 10 of 10; the bar needs 1.2. No scale in the gap does both. No looser bar helps: on a T-junction alone, the best of 588 Demand mixes jams on 4 of 10 seeds and Wins on 4.
+  - Reading: the swap moves the queue from one Arm to the other and leaves Flow about the same. In nearly every mix the seeds that jam and the seeds that Win add up to about 10, so the Level jams or Wins by its seed, not by its Priority rule.
+  - Measured with 7 m lanes, 56–64 m between parallel Roads, 8 m/s and 60 m Gateway Roads, none settled until [#33](https://github.com/artsaraiva/clearway/issues/33). The T-junction alone was also scanned at 13.9 m/s and with 200 m Roads, with the same result.
+  - By [#43](https://github.com/artsaraiva/clearway/issues/43)'s gate the plan stops at generated Districts reviewed by a human ([#47](https://github.com/artsaraiva/clearway/issues/47)); [#48](https://github.com/artsaraiva/clearway/issues/48) is told. Only the priority swap was measured, so other templates are still unknown.
 
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
 - How does District 1 change for 7 m lanes, small Blocks and a street grid first? [#33](https://github.com/artsaraiva/clearway/issues/33).
-- Can a generated Level reach the 10 of 10 bar? [#45](https://github.com/artsaraiva/clearway/issues/45).
-- How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), after [#47](https://github.com/artsaraiva/clearway/issues/47).
+- Does the Priority rule change Flow enough to carry a Level? [#45](https://github.com/artsaraiva/clearway/issues/45) found a main-road swap barely moves it, which also touches the hand-written T-junction Levels. [#52](https://github.com/artsaraiva/clearway/issues/52).
+- Does another Level template reach the 10 of 10 bar? Only the priority swap is measured ([#45](https://github.com/artsaraiva/clearway/issues/45)). [#53](https://github.com/artsaraiva/clearway/issues/53).
+- How does the generator run in the browser as a procedural mode? [#48](https://github.com/artsaraiva/clearway/issues/48), on hold since [#45](https://github.com/artsaraiva/clearway/issues/45)'s verdict.
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 - Does the Signal pass its crossroads gate test? Answered by [#7](https://github.com/artsaraiva/clearway/issues/7). If not, Level 5 becomes a main-road swap.
 
@@ -110,11 +117,12 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
 - Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#48](https://github.com/artsaraiva/clearway/issues/48) procedural mode in the browser.
-- Procedural Districts: [#45](https://github.com/artsaraiva/clearway/issues/45) (the check) → [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts in generated grids: [#49](https://github.com/artsaraiva/clearway/issues/49).
+- Procedural Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts in generated grids: [#49](https://github.com/artsaraiva/clearway/issues/49).
 - Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). Player tools [#7](https://github.com/artsaraiva/clearway/issues/7) (Signal gate test). District 1 Levels are re-issued after [#33](https://github.com/artsaraiva/clearway/issues/33); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
 
 ## Resolved tickets
 
+- [#45](https://github.com/artsaraiva/clearway/issues/45) Procedural Districts check (report in the issue; verdict above)
 - [#43](https://github.com/artsaraiva/clearway/issues/43) Procedural Districts (answer in the issue), [#34](https://github.com/artsaraiva/clearway/issues/34) its research (`../procedural-districts/research.md`)
 - [#16](https://github.com/artsaraiva/clearway/issues/16) Visual style (answer in the issue; spec in `../visual-style/spec.md`)
 - [#34](https://github.com/artsaraiva/clearway/issues/34) Procedural Districts research (answer in the issue; findings in `../procedural-districts/research.md`)
