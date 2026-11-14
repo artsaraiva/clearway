@@ -65,7 +65,7 @@ Columns sit 90 m apart, rows 80 m apart. The slab is about 355 × 210 m: x from 
 
 - Edge Gateway Roads start at the slab edge: W1 from (−175, 40), N2 from (−45, 105), N3 from (45, 105), N4 from (135, 105), E5 from (180, −40), S6 from (45, −105), S7 from (−45, −105), W8 from (−175, −40).
 - **Measured in [#56](https://github.com/artsaraiva/clearway/issues/56).** A Junction's footprint is 12 m with one lane each way and 19 m where a two-lane Road meets it. North-row Roads keep 52 m of lane (8 cars per lane), R18 49 m, R27 and R36 42 m, W1 21 m. A Road needs at least 10 m of lane.
-- **R45 keeps about 42 m of lane**, 6 cars per lane (estimated; pin in Level 4). J5's queue must reach J4 within the Pre-warm: raise the Demand first, and shorten R45 only if that fails.
+- **R45 keeps 42 m of lane**, 6 cars per lane, and E5 26 m (measured). J5's queue must reach J4 within the Pre-warm, so raise the Demand. R45 cannot be shorter without moving a Junction.
 - **A turning lane is slow.** The right turn from R18 onto R12's kerb lane is driven at 4.3 m/s, so one turning lane carries about 14 vehicles a minute. That is also about where a yielding lane starts to jam, so Levels built on either have narrow Demand windows.
 - **The cross-street speeds make the route shifts** of Levels 6 and 7 (see those Levels). Routing is lane length ÷ speed limit; the yield crawl is not in it, so the Priority rule never moves a route.
 
