@@ -74,7 +74,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     if (selected && sim.level.tools.includes('connector')) {
       const ends = [
         ...[...selected.approach, ...selected.ringIn].map((lane) => ({ lane, dir: 'in', at: lane.line.pts[lane.line.pts.length - 1] })),
-        ...[...selected.ringOut, ...selected.exit].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
+        ...[...new Set(selected.connections.map((c) => c.to))].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
       ]
       const hit = ends.filter((m) => dist(m.at) < MARKER_PICK).sort((a, b) => dist(a.at) - dist(b.at))[0]
       if (hit?.dir === 'in') armed = hit.lane
