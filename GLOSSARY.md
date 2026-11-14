@@ -7,7 +7,7 @@ A browser puzzle game where the player clears traffic jams by changing how junct
 ### Play
 
 **District**:
-One hand-authored map holding a chain of Junctions. The unit of a play session; the player works through a District one Level at a time.
+One map holding a chain of Junctions. The unit of a play session; the player works through a District one Level at a time.
 _Avoid_: Map, world, campaign, chapter
 
 **Level**:
