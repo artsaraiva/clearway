@@ -4,11 +4,12 @@ import { createView } from './render/view'
 import { DT, Sim } from './sim/sim'
 import { createUI } from './ui/ui'
 
-// ms of each frame spent on a Reveal's Pre-warm, while its piece of slab assembles.
-// ponytail: that covers a Pre-warm of about 2.5 s on the main thread within the 7 s build; a longer one keeps the new
-// Level's cars off a finished slab until it is done. Move the Pre-warm to a worker with the sim (the road-network
-// spec's gate) if a District's Pre-warm gets that slow.
-const PREWARM_BUDGET = 6
+// ms of each frame spent on a Reveal's Pre-warm while its pieces of slab assemble: small enough to leave a 120 Hz frame
+// room to draw.
+// ponytail: that covers a Pre-warm of about 1.5 s on the main thread within the 7 s build at 60 frames a second; a
+// longer one keeps the new Level's cars off a finished slab until it is done. Move the Pre-warm to a worker with the
+// sim (the road-network spec's gate) if a District's Pre-warm gets that slow.
+const PREWARM_BUDGET = 4
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)

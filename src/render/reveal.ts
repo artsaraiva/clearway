@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { middle, type Bounds } from '../sim/geometry'
+import { extent, middle } from '../sim/geometry'
 import type { Materials, Stage } from './kit'
 import type { Build } from './scenery'
 import { puff } from './shapes'
@@ -10,7 +10,7 @@ const FALL = 25 // m a dropping brick falls
 const JITTER = 0.05 // s at random on each brick's start, so that a row of tiles never lands as one
 // Per stage: when its first brick starts and how much later its farthest one does (s). The slab's stages count from
 // the start of the Reveal, the rest from the start of their Block. The farthest brick is the one farthest from the
-// middle of the new piece of slab.
+// middle of the Level's pieces of slab.
 const STARTS: Record<Stage, [at: number, spread: number]> = {
   soil: [0, 1.1],
   sand: [0.4, 1.1],
@@ -22,15 +22,10 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
   building: [0.45, 1.5],
   tree: [0.6, 1.5],
 }
-// When the Blocks start dropping, and how much later the farthest one does. A Block that replaces one the Reveal cut
-// again drops first, the moment the old ones are taken away.
-const BLOCKS: [at: number, spread: number] = [2.6, 2]
+const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
 const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
 const CONFETTI = ['#f26d5b', '#4f8fe8', '#f6c85f', '#7cc6a4', '#b9a3e3', '#ff9db5']
 const ROW = 1024 // texels per row of the transforms texture, two per brick
-// What a brick does once its start comes: drop in (or grow in), or simply appear, as a Block that comes out just as
-// the one it replaces did.
-const [MOVES, APPEARS] = [0, 1]
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
 const [ON_ITS_WAY, SETTLING, LANDED] = [0, 1, 2]
 
@@ -48,47 +43,37 @@ const MOVE = `#include <begin_vertex>
 export interface Moments {
   /** The last tile of road plate has landed: its paint can show. */
   plate(): void
-  /** The Blocks start dropping: the old ones they replace go. */
-  blocks(): void
   /** Everything has landed and the build is static scenery again. */
   done(): void
 }
 
-/**
- * When each brick of a build starts, by its stage, its Block, and how far it lies from the middle of the new piece of
- * slab; and what it does then.
- */
-function schedule({ bricks, blocks, plate }: Build) {
-  const centre = middle(plate)
-  const slab = slabBounds(plate)
+/** When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces. */
+function schedule({ bricks, blocks, pieces }: Build): Float32Array {
+  const area = extent(pieces)
+  const centre = middle(area)
+  const slab = slabBounds(area)
   const reach = Math.hypot(slab.x1 - slab.x0, slab.y1 - slab.y0) / 2
   const far = (x: number, y: number) => Math.min(1, Math.hypot(x - centre.x, y - centre.y) / reach)
-  const starts = blocks.map((b) => BLOCKS[0] + (b.replaces ? 0 : far(b.middle.x, b.middle.y) * BLOCKS[1]))
-  const unchanged = (block: number) => block >= 0 && blocks[block].unchanged
-  return {
-    delays: new Float32Array(
-      bricks.map((b) =>
-        unchanged(b.block)
-          ? BLOCKS[0]
-          : (b.block < 0 ? 0 : starts[b.block]) + STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1] + Math.random() * JITTER,
-      ),
+  const starts = blocks.map((b) => BLOCKS[0] + far(b.middle.x, b.middle.y) * BLOCKS[1])
+  return new Float32Array(
+    bricks.map(
+      (b) => (b.block < 0 ? 0 : starts[b.block]) + STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1] + Math.random() * JITTER,
     ),
-    moves: new Uint8Array(bricks.map((b) => (unchanged(b.block) ? APPEARS : MOVES))),
-  }
+  )
 }
 
 /** A sprite puff's motion: velocity (m/s), gravity (m/s²), size as it starts and as it ends (m), how long it lasts (s), colour and opacity. */
 const PUFF = { vx: 0, vy: 2.4, vz: 0, gravity: 0, from: 1.4, to: 5, lasts: 0.6, color: '#ffffff', opacity: 0.75 }
 
 /**
- * The Reveal animation: a new piece of slab assembling brick by brick. Slab layers, road plate, Blocks and buildings
- * drop with a squash, trees and lamps pop in, dust flies where large bricks land, and confetti fires when it is done.
- * The build's meshes are drawn through copies of their materials that move each brick by its own transform, read
- * from a texture, so a build costs no more draw calls than the finished scenery.
+ * The Reveal animation: a Level's pieces of slab assembling brick by brick next to the slab already there. Slab
+ * layers, road plate, Blocks and buildings drop with a squash, trees and lamps pop in, dust flies where large bricks
+ * land, and confetti fires when it is done. The build's meshes are drawn through copies of their materials that move
+ * each brick by its own transform, read from a texture, so a build costs no more draw calls than the finished scenery.
  * ponytail: 140 puffs fly at once, and a landing past that throws no dust (the slab layers' dust lands inside the slab
- * anyway); grow the pool, or draw puffs as points, if a large piece's dust looks thin. And the whole transforms
- * texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that changed if
- * pieces ever reach tens of thousands of bricks.
+ * anyway); grow the pool, or draw puffs as points, if a large Reveal's dust looks thin. And the whole transforms
+ * texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that changed if a
+ * Reveal ever reaches tens of thousands of bricks.
  */
 export function createReveal(materials: Materials) {
   const group = new THREE.Group()
@@ -101,9 +86,13 @@ export function createReveal(materials: Materials) {
     }
     return moving
   }
-  // Made on the first Reveal and kept, so that later ones compile nothing.
-  let moving: Map<THREE.Material, THREE.Material> | undefined
-  let depth: THREE.MeshDepthMaterial | undefined
+  const moving = new Map<THREE.Material, THREE.Material>(
+    [materials.solid, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map((m) => [
+      m,
+      copy(m),
+    ]),
+  )
+  const depth = copy(new THREE.MeshDepthMaterial())
 
   const texture = puff()
   const puffs = Array.from({ length: 140 }, () => {
@@ -125,30 +114,48 @@ export function createReveal(materials: Materials) {
 
   let build: Build | null = null
   let moments: Moments
-  let originals = new Map<THREE.Mesh, THREE.Material>()
-  let { delays, moves } = { delays: new Float32Array(0), moves: new Uint8Array(0) }
+  let delays: Float32Array = new Float32Array(0)
   let state = new Uint8Array(0)
   let landed = 0
   let plateAt = 0
   let t = 0
-  let [plated, blocked] = [false, false]
+  let plated = false
 
-  /** Turn the build back into static scenery, and celebrate. A build that lands early still passes every moment. */
-  const finish = (plate: Bounds) => {
-    if (!plated) moments.plate()
-    if (!blocked) moments.blocks()
-    for (const [mesh, material] of originals) {
-      mesh.material = material
+  /** Draw a build's meshes through the moving materials, every brick at its anchor and at no size: nothing shows yet. */
+  const hide = (next: Build) => {
+    for (const mesh of next.meshes) {
+      mesh.material = moving.get(mesh.material as THREE.Material)!
+      if (mesh.castShadow) mesh.customDepthMaterial = depth
+      mesh.frustumCulled = false // bricks move off the mesh's bounds
+    }
+    const rows = Math.max(1, Math.ceil((2 * next.bricks.length) / ROW))
+    const data = new Float32Array(ROW * rows * 4)
+    next.bricks.forEach((b, i) => data.set([b.at.x, b.at.y, b.at.z, 0], 8 * i))
+    transforms.value.dispose()
+    transforms.value = new THREE.DataTexture(data, ROW, rows, THREE.RGBAFormat, THREE.FloatType)
+    transforms.value.needsUpdate = true
+  }
+  /** Draw a build's meshes through their own materials again: static scenery. */
+  const show = (next: Build) => {
+    for (const mesh of next.meshes) {
+      const original = [...moving].find(([, m]) => m === mesh.material)
+      if (original) mesh.material = original[0]
       mesh.customDepthMaterial = undefined
       mesh.frustumCulled = true
     }
-    originals = new Map()
+  }
+
+  /** Turn the build back into static scenery, and celebrate over its pieces. A build that lands early still shows its paint. */
+  const finish = (done: Build) => {
+    if (!plated) moments.plate()
+    show(done)
     build = null
     for (let i = 0; i < 50; i++) {
+      const piece = done.pieces[i % done.pieces.length]
       spawn(
-        THREE.MathUtils.lerp(plate.x0, plate.x1, Math.random()),
+        THREE.MathUtils.lerp(piece.x0, piece.x1, Math.random()),
         8 + Math.random() * 12,
-        -THREE.MathUtils.lerp(plate.y0, plate.y1, Math.random()),
+        -THREE.MathUtils.lerp(piece.y0, piece.y1, Math.random()),
         {
           vx: (Math.random() - 0.5) * 20,
           vy: 30 + Math.random() * 24,
@@ -174,33 +181,25 @@ export function createReveal(materials: Materials) {
       return build !== null
     },
 
+    /**
+     * Compile what drawing `ahead`, a build made ahead of its Reveal, will need, by drawing one frame of `scene` with it
+     * in and nothing of it showing. Without this the Reveal's first frame stalls on it.
+     */
+    warm(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, ahead: Build) {
+      hide(ahead)
+      scene.add(...ahead.meshes)
+      renderer.render(scene, camera)
+      scene.remove(...ahead.meshes)
+      show(ahead)
+    },
+
     /** Start assembling a Reveal's build, whose meshes are already in the scene. `on` hears of the moments along the way. */
     play(next: Build, on: Moments) {
-      ;[build, moments, t, plated, blocked, landed] = [next, on, 0, false, false, 0]
-      moving ??= new Map(
-        [materials.solid, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map((m) => [
-          m,
-          copy(m),
-        ]),
-      )
-      depth ??= copy(new THREE.MeshDepthMaterial())
-      for (const mesh of next.meshes) {
-        originals.set(mesh, mesh.material as THREE.Material)
-        mesh.material = moving.get(mesh.material as THREE.Material)!
-        if (mesh.castShadow) mesh.customDepthMaterial = depth
-        mesh.frustumCulled = false // bricks move off the mesh's bounds
-      }
-
-      ;({ delays, moves } = schedule(next))
+      ;[build, moments, t, plated, landed] = [next, on, 0, false, 0]
+      hide(next)
+      delays = schedule(next)
       state = new Uint8Array(next.bricks.length)
       plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.stage === 'plate' ? [delays[i] + DURATION / 2] : [])))
-      // Every brick starts at its anchor, at no size at all.
-      const rows = Math.max(1, Math.ceil((2 * next.bricks.length) / ROW))
-      const data = new Float32Array(ROW * rows * 4)
-      next.bricks.forEach((b, i) => data.set([b.at.x, b.at.y, b.at.z, 0], 8 * i))
-      transforms.value.dispose()
-      transforms.value = new THREE.DataTexture(data, ROW, rows, THREE.RGBAFormat, THREE.FloatType)
-      transforms.value.needsUpdate = true
     },
 
     /** `dt` is the real seconds since the last frame. */
@@ -221,7 +220,7 @@ export function createReveal(materials: Materials) {
 
       t += dt
       // The windows and lamps glow with the time of day, which is all of the materials that changes.
-      for (const [original, copied] of moving!) {
+      for (const [original, copied] of moving) {
         if ('emissiveIntensity' in original)
           (copied as THREE.MeshStandardMaterial).emissiveIntensity = (original as THREE.MeshStandardMaterial).emissiveIntensity
       }
@@ -229,10 +228,9 @@ export function createReveal(materials: Materials) {
       const { bricks } = build
       for (let i = 0; i < bricks.length; i++) {
         const u = (t - delays[i]) / DURATION
-        // A brick that appears does so in the very update that takes away the Block it replaces.
-        if (state[i] === LANDED || (moves[i] === APPEARS ? u < 0 : u <= 0)) continue
+        if (state[i] === LANDED || u <= 0) continue
         let [sx, sy, lift] = [1, 1, 0]
-        if (u >= 1 || moves[i] === APPEARS) {
+        if (u >= 1) {
           state[i] = LANDED
           landed++
         } else if (POPS.has(bricks[i].stage)) {
@@ -259,11 +257,7 @@ export function createReveal(materials: Materials) {
         plated = true
         moments.plate()
       }
-      if (!blocked && t >= BLOCKS[0]) {
-        blocked = true
-        moments.blocks()
-      }
-      if (landed === bricks.length) finish(build.plate)
+      if (landed === bricks.length) finish(build)
     },
   }
 }

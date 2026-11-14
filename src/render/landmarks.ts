@@ -10,7 +10,7 @@ const TAU = Math.PI * 2
 
 /** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. Not closed into a brick. */
 function overlay(kit: Kit, field: Field, block: Block, inset: number, thickness: number, color: string) {
-  for (const loop of field.outlines(inset)) {
+  for (const loop of field.outlines(inset, [block])) {
     if (inside(block.loop, loop[0].x, loop[0].y)) kit.push(raised(loop, thickness, thickness * 0.4).translate(0, KERB, 0), color)
   }
 }

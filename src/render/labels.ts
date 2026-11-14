@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { District } from '../sim/district'
-import { pointAt } from '../sim/geometry'
+import { pointAt, type Bounds } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Field } from './field'
 import { v3 } from './ribbons'
@@ -31,8 +31,11 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, di
     labels.push({ el, at, ahead, shown: '' })
   }
 
-  /** Label what is out of the Fog: the streets of `net`, and the landmarks on a Block of `field`. */
-  const show = (net: Network, field: Field) => {
+  /**
+   * Label what is out of the Fog: the streets of `net`, and the landmarks on a Block of `field` on the Revealed pieces
+   * of slab `pieces` (the field may already hold a later Level, made ahead of its Reveal).
+   */
+  const show = (net: Network, field: Field, pieces: Bounds[]) => {
     layer.replaceChildren()
     labels = []
     const { scenery } = district
@@ -56,7 +59,8 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, di
     }
     // A landmark off every Block is still in the Fog, and stays unnamed.
     for (const { type, name, at } of [...scenery.landmarks, ...scenery.blocks]) {
-      if (name && field.sample(...at) > 0)
+      const [x, y] = at
+      if (name && field.sample(x, y) > 0 && pieces.some((p) => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1))
         add(`● ${name}`, new THREE.Vector3(at[0], LANDMARKS[type].height, -at[1]), undefined, LANDMARKS[type].color)
     }
   }

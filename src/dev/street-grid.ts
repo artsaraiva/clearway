@@ -2,9 +2,9 @@ import type { District, Point, RoadSpec } from '../sim/district'
 
 // ponytail: a dev fixture, not a playable District. It is the visual-style prototype's 3×3 street grid with 7 m lanes,
 // opened with `?district=grid` to check the renderer on Priority junctions while District 1 is a single roundabout.
-// Each Level Reveals one column of Junctions, west to east, to check the Reveal animation; `?level=3` opens the whole
-// grid. Its Levels are not tuned and have no solutions, so `N` Reveals the next one without a Win. Delete it when #33
-// settles a real street-grid District.
+// Each Level Reveals one column of Junctions, west to east, to check the Reveal animation, and the last adds its column
+// as two pieces of slab; `?level=3` opens the whole grid. Its Levels are not tuned and have no solutions, so `N`
+// Reveals the next one without a Win. Delete it when #33 settles a real street-grid District.
 const VX = [-88, -32, 24] // the three north–south streets
 const HY = [80, 16, -48] // the three east–west streets
 const EDGE = 130
@@ -17,6 +17,7 @@ const GATEWAYS = [
 // Where each column's piece of slab meets the next: where the Roads into the next column end, 12 m short of its
 // Junctions (their footprint, with 7 m lanes).
 const SEAMS = [-EDGE, VX[1] - 12, VX[2] - 12, EDGE]
+const SPLIT = 48 // where the last column's two pieces meet, between its first two rows
 // By row: the two north–south Roads meeting there, which have Priority.
 const MAIN = [
   ['N', 'Va'],
@@ -75,6 +76,12 @@ export default {
         .map(({ id, j }) => [id, { priority: Object.fromEntries(MAIN[j].map((r) => [r[0] + i + r.slice(1), 'main' as const])) }]),
     ),
     solution: [],
-    slab: { x0: SEAMS[i], y0: -EDGE, x1: SEAMS[i + 1], y1: EDGE },
+    pieces:
+      i < 2
+        ? [{ x0: SEAMS[i], y0: -EDGE, x1: SEAMS[i + 1], y1: EDGE }]
+        : [
+            { x0: SEAMS[i], y0: SPLIT, x1: SEAMS[i + 1], y1: EDGE },
+            { x0: SEAMS[i], y0: -EDGE, x1: SEAMS[i + 1], y1: SPLIT },
+          ],
   })),
 } satisfies District

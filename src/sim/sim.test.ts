@@ -28,7 +28,7 @@ function crossroads(initial: Level['initial'] = {}): District {
         demand: Object.fromEntries(['N', 'E', 'S', 'W'].map((g) => [g, { rate: 4, to: others(g) }])),
         initial,
         solution: [],
-        slab: { x0: -150, y0: -150, x1: 150, y1: 150 },
+        pieces: [{ x0: -150, y0: -150, x1: 150, y1: 150 }],
       },
     ],
   }
@@ -73,7 +73,7 @@ function tJunction(): District {
         },
         initial: { T: { priority: { S: 'main' } } },
         solution: [{ at: 'T', priority: { W: 'main', E: 'main', S: 'yield' } }],
-        slab: { x0: -200, y0: -200, x1: 200, y1: 200 },
+        pieces: [{ x0: -200, y0: -200, x1: 200, y1: 200 }],
       },
     ],
   }
@@ -135,7 +135,7 @@ function twoLevels(): District {
           { at: 'J1', enable: ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1'], disable: ['*.in1>*.ring0', '*.ring0>*.out1'] },
         ],
         // east to where Road R reaches the crossroads' footprint, in the Fog
-        slab: { x0: -178.5, y0: -178.5, x1: 388, y1: 178.5 },
+        pieces: [{ x0: -178.5, y0: -178.5, x1: 388, y1: 178.5 }],
       },
       {
         reveal: ['J2'],
@@ -152,7 +152,7 @@ function twoLevels(): District {
         },
         initial: { J2: { disable: fromR } },
         solution: [{ at: 'J2', enable: fromR }],
-        slab: { x0: 388, y0: -150, x1: 550, y1: 150 },
+        pieces: [{ x0: 388, y0: -150, x1: 550, y1: 150 }],
       },
     ],
   }

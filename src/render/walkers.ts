@@ -1,16 +1,14 @@
 import * as THREE from 'three'
-import { around, overlaps, pointAt, polyline, type Bounds, type Polyline, type Vec } from '../sim/geometry'
+import { pointAt, polyline, type Bounds, type Polyline } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import { KERB } from './blocks'
-import { inside, sameLoop, type Field } from './field'
+import { inside, type Field } from './field'
 
 const INSET = 1.6 // m in from the kerb: the pavement's centre line
 const SPACING = 85 // m of pavement per walker
 const SHIRTS = ['#f26d5b', '#4f8fe8', '#f6c85f', '#ffffff', '#7cc6a4', '#b9a3e3', '#2f3440', '#ff9db5'].map((c) => new THREE.Color(c))
 
 interface Walker {
-  /** The pavement's centre line it laps, as the field outlines it. */
-  loop: Vec[]
   line: Polyline
   s: number
   /** m/s, either way round. */
@@ -45,24 +43,17 @@ export function createWalkers() {
     walkers.forEach((walker, i) => bodies.setColorAt(i, walker.shirt))
     group.add(bodies, heads)
   }
-  /** Whether anyone already walks this stretch of pavement. */
-  const walked = (loop: Vec[]) => walkers.some((walker) => sameLoop(walker.loop, loop))
-
   return {
     group,
 
-    /**
-     * Walkers on every stretch of pavement of `field` that reaches into `region` and has none yet. Nobody can reach a
-     * roundabout's island.
-     */
-    add(net: Network, field: Field, region: Bounds) {
+    /** Walkers on the pavement of the pieces of slab `pieces`, laid in `field`. Nobody can reach a roundabout's island. */
+    add(net: Network, field: Field, pieces: Bounds[]) {
       const islands = net.junctions.filter((j) => j.type === 'roundabout').map((j) => j.at)
-      for (const loop of field.outlines(INSET)) {
-        if (!overlaps(around(loop), region) || islands.some((at) => inside(loop, at.x, at.y)) || walked(loop)) continue
+      for (const loop of field.outlines(INSET, pieces)) {
+        if (islands.some((at) => inside(loop, at.x, at.y))) continue
         const line = polyline([...loop, loop[0]])
         for (let k = Math.max(2, Math.round(line.length / SPACING)); k > 0; k--) {
           walkers.push({
-            loop,
             line,
             s: Math.random() * line.length,
             speed: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1),
@@ -71,13 +62,6 @@ export function createWalkers() {
           })
         }
       }
-      remesh()
-    },
-
-    /** Take away the walkers in `region` whose pavement `field` no longer has: the Reveal has cut their Block again. */
-    remove(region: Bounds, field: Field) {
-      const kept = field.outlines(INSET)
-      walkers = walkers.filter((walker) => !overlaps(around(walker.loop), region) || kept.some((loop) => sameLoop(loop, walker.loop)))
       remesh()
     },
 

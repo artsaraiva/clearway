@@ -13,17 +13,18 @@ import { createMaterials } from './kit'
 import { createLabels } from './labels'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
-import { createScenery } from './scenery'
+import { createScenery, finish, type Build, type Building } from './scenery'
 import { createSky } from './sky'
 import { createUnderShadow, slabBounds } from './slab'
 import { createWalkers } from './walkers'
 
 const SHRINK = 0.3 // s for the cars to shrink out as a Reveal starts
-const GROW = 1.5 // per second: how fast the new Level's cars grow in once its piece has landed
+const GROW = 1.5 // per second: how fast the new Level's cars grow in once its pieces have landed
+const AHEAD = 2 // ms of each frame spent building the next Level's Reveal while this one plays
 
 export type View = ReturnType<typeof createView>
 
-/** Draws a Sim's District as a slab in open sky, and each Reveal as the next piece of slab assembling. */
+/** Draws a Sim's District as a slab in open sky, and each Reveal as the next Level's pieces of slab assembling. */
 export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
@@ -33,13 +34,15 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
 
   const { district } = sim
   const levelOf = (s: Sim) => district.levels.indexOf(s.level)
-  /** The slab once Level `level` is Revealed: its road plate and grass rim. */
-  const slabAt = (level: number) => slabBounds(extent(district.levels.slice(0, level + 1).map((l) => l.slab)))
-  const whole = extent(district.levels.map((l) => l.slab))
+  /** Every piece of slab out of the Fog once Level `level` is Revealed. */
+  const piecesAt = (level: number) => district.levels.slice(0, level + 1).flatMap((l) => l.pieces)
+  /** The slab once Level `level` is Revealed, as a rectangle: its road plate and grass rim. */
+  const slabAt = (level: number) => slabBounds(extent(piecesAt(level)))
+  const whole = extent(piecesAt(district.levels.length - 1))
   const field = createField(district, whole)
   const materials = createMaterials()
   const scenery = createScenery(district, field, materials)
-  const laid = scenery.lay(sim.net, levelOf(sim))
+  const laid = scenery.lay(levelOf(sim))
   const slab = slabAt(levelOf(sim))
   const { camera, resize, update: updateCamera, fit } = createCamera(canvas, slab)
   // Lit for the whole District from the start, so that no Reveal moves the shadows of the slab already there.
@@ -50,12 +53,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   let roads = createRoads(sim.net, district)
   const cars = createCars(sim.net)
   const walkers = createWalkers()
-  walkers.add(sim.net, field, whole)
+  walkers.add(sim.net, field, piecesAt(levelOf(sim)))
   const emotion = createJamEmotion()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
   const labels = createLabels(canvas, camera, district)
-  labels.show(sim.net, field)
+  labels.show(sim.net, field, piecesAt(levelOf(sim)))
   const reveal = createReveal(materials)
   const scene = new THREE.Scene().add(
     ...day.lights,
@@ -80,6 +83,16 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   }
   window.addEventListener('resize', fitCanvas)
   fitCanvas()
+
+  // The next Level's Reveal, built ahead so that pressing Next starts it at once. The first is built now and its
+  // shaders compiled; any later one a few milliseconds a frame while the Level before it plays.
+  const prepare = (level: number): { level: number; building: Building; build?: Build } | null =>
+    district.levels[level] ? { level, building: scenery.reveal(level) } : null
+  let ahead = prepare(levelOf(sim) + 1)
+  if (ahead) {
+    ahead.build = finish(ahead.building)
+    reveal.warm(renderer, scene, camera, ahead.build)
+  }
 
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -124,17 +137,17 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
     },
 
     /**
-     * Play the Reveal of `level`'s Level, the Sim that the Reveal rebuilt: its piece of slab assembles, then its cars
-     * grow in. The cars wait for the Sim's Pre-warm, which the caller runs meanwhile.
-     * ponytail: the piece is cut and filled in this one call (about 130 ms for a column of the street grid), and the
-     * first Reveal of a page compiles its shaders on its first frame (about 120 ms), so the click that starts it
-     * stutters. Build across frames, or in a worker, if a larger piece makes that a noticeable pause.
+     * Play the Reveal of `level`'s Level, the Sim that the Reveal rebuilt: its pieces of slab assemble next to the slab
+     * already there, then its cars grow in. The cars wait for the Sim's Pre-warm, which the caller runs meanwhile. A
+     * Level won before its Reveal was built ahead is built now, at once.
      */
     reveal(level: Sim) {
-      const build = scenery.reveal(level.net, levelOf(level))
+      const k = levelOf(level)
+      const build = ahead?.level === k ? (ahead.build ?? finish(ahead.building)) : finish(scenery.reveal(k))
+      ahead = null
       scene.add(...build.meshes)
       const paint = createRoads(level.net, district)
-      const grown = slabAt(levelOf(level))
+      const grown = slabAt(k)
       fit(grown)
       under.fit(grown, true)
       ;[next, inspected] = [level, null]
@@ -150,17 +163,11 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
           roads = paint
           scene.add(roads.group)
         },
-        blocks() {
-          for (const mesh of build.replaced) {
-            scene.remove(mesh)
-            mesh.geometry.dispose()
-          }
-          walkers.remove(build.region, field)
-        },
         done() {
-          walkers.add(level.net, field, build.region)
-          labels.show(level.net, field)
+          walkers.add(level.net, field, build.pieces)
+          labels.show(level.net, field, piecesAt(k))
           sky.fit(grown)
+          ahead = prepare(k + 1)
         },
       })
     },
@@ -170,6 +177,13 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
      * moves on its own (the day, the sky, the walkers, the Jam emotion and a Reveal), so a pause stops the whole world.
      */
     render(dt: number) {
+      if (ahead && !ahead.build && !this.revealing) {
+        const end = performance.now() + AHEAD
+        while (!ahead.build && performance.now() < end) {
+          const step = ahead.building.next()
+          if (step.done) ahead.build = step.value
+        }
+      }
       reveal.update(dt)
       if (next && !reveal.playing && next.prewarmed) {
         shown = next
