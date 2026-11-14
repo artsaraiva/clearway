@@ -109,7 +109,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Playtested on the street-grid fixture (2026-11-14): the crawl looks fine. That fixture now jams, since every east–west Road there yields.
 - District 1 on the diorama ([#33](https://github.com/artsaraiva/clearway/issues/33), grilling, 2026-11-14). Answer in the issue; spec rewritten in `.scratch/district-01/spec.md`; Level issues [#56](https://github.com/artsaraiva/clearway/issues/56)–[#62](https://github.com/artsaraiva/clearway/issues/62). This replaces the ladder from the junction chain (06).
   - Scale: lanes are 7 m in the sim as well as on screen, one geometry. Speed limit 13.9 m/s; if it looks frantic, the default play speed drops to 2× and the sim speed stays.
-  - Layout: a 4 × 2 grid of eight Junctions (3 T, 4 crossroads, 1 roundabout), every Road axis-aligned, Revealed clockwise. Columns 90 m apart, rows 80 m, slab about 370 × 210 m. Eight edge Gateways.
+  - Layout: a 4 × 2 grid of eight Junctions (3 T, 4 crossroads, 1 roundabout; amended below), every Road axis-aligned, Revealed clockwise. Columns 90 m apart, rows 80 m, slab about 370 × 210 m. Eight edge Gateways.
   - Queue room: two lanes each way only on the path of the heavy streams (the north row, N2, J4–J5, J5–J6). Those Roads keep about 52 m of lane, 8 cars per lane. J4–J5 keeps 30–35 m on purpose, for Spillback.
   - Roundabout: one, in the south-east corner, Revealed in Level 4 as the cause of the Spillback. Two Ring lanes on a radius of about 18 m. [#49](https://github.com/artsaraiva/clearway/issues/49) copies that size.
   - Lessons, in order: Priority rule on a T-junction, connector (an unused lane), fix upstream, Spillback, a main-road swap at the J6 crossroads, turn ban, and a finale that re-jams J1. Teaching Levels restrict Tools.
@@ -126,6 +126,14 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
   - Level 5 ([#60](https://github.com/artsaraiva/clearway/issues/60)) is a main-road swap at the J6 crossroads, Priority rule only.
   - Worth another look only with something this Signal lacks: opposite Arms sharing a green, or timing that follows the queues. Not ticketed.
 
+- District 1 amended ([#33](https://github.com/artsaraiva/clearway/issues/33), second grilling, 2026-11-14), after [#56](https://github.com/artsaraiva/clearway/issues/56) and [#7](https://github.com/artsaraiva/clearway/issues/7). Amendment in the issue; spec updated.
+  - No roundabout in District 1. With 7 m lanes, two-lane Arms 90° apart need a Ring radius of 33 m, which leaves J4–J5 6 m of lane. A one-lane Ring fits but cannot hold Level 4's puzzle, and a larger one breaks the Block proportion.
+  - J5 is a T-junction in the same place. Level 4 keeps its lesson: the fix is J5's second right-turn lane, downstream of the Jam. The slab is about 355 × 210 m, with 4 T-junctions and 4 crossroads.
+  - Re-sizing the roundabout for 7 m lanes is [#67](https://github.com/artsaraiva/clearway/issues/67); [#49](https://github.com/artsaraiva/clearway/issues/49) waits on it. Which later District opens on the roundabout is decided when that District is grilled.
+  - Level 5 is a main-road swap at J6, so District 1 ships with two Tools.
+  - Level 1 ships at 13 a minute up the stem, with a fix of two Changes. A turning lane carries about 14 a minute, about where a yielding lane starts to jam, so [#57](https://github.com/artsaraiva/clearway/issues/57) measures Level 3's Demand window before authoring.
+  - Kumo Park moves south-east of J1, so the stem's queue is in view from the opening camera.
+
 ## Fog
 
 - Brute-force limit after the first district: change count, budget currency, or stars only? Deferred in 01; revisit once District 1 plays end to end. Not ticketed yet.
@@ -138,7 +146,7 @@ A browser puzzle game: the player fixes traffic jams by changing how junctions w
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
 - Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#48](https://github.com/artsaraiva/clearway/issues/48) procedural mode in the browser.
-- Procedural Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts in generated grids: [#49](https://github.com/artsaraiva/clearway/issues/49).
+- Procedural Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) scaffolding tool → [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates → [#48](https://github.com/artsaraiva/clearway/issues/48). Roundabouts: [#67](https://github.com/artsaraiva/clearway/issues/67) proportions for 7 m lanes → [#49](https://github.com/artsaraiva/clearway/issues/49) in generated grids.
 - Build chain: renderer [#25](https://github.com/artsaraiva/clearway/issues/25) → [#26](https://github.com/artsaraiva/clearway/issues/26) → [#27](https://github.com/artsaraiva/clearway/issues/27) and [#28](https://github.com/artsaraiva/clearway/issues/28) → [#29](https://github.com/artsaraiva/clearway/issues/29), [#30](https://github.com/artsaraiva/clearway/issues/30), [#31](https://github.com/artsaraiva/clearway/issues/31) → [#32](https://github.com/artsaraiva/clearway/issues/32). District 1 Levels [#56](https://github.com/artsaraiva/clearway/issues/56) → [#57](https://github.com/artsaraiva/clearway/issues/57) → [#58](https://github.com/artsaraiva/clearway/issues/58) → [#59](https://github.com/artsaraiva/clearway/issues/59) → [#60](https://github.com/artsaraiva/clearway/issues/60) → [#61](https://github.com/artsaraiva/clearway/issues/61) → [#62](https://github.com/artsaraiva/clearway/issues/62); the old ones ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) are closed as superseded.
 
 ## Resolved tickets
