@@ -2,7 +2,7 @@ import { overlaps, type Bounds } from './geometry'
 import { applyChange, buildNetwork, type Network } from './network'
 
 export type Priority = 'main' | 'yield'
-export type Tool = 'connector' | 'priority'
+export type Tool = 'connector' | 'priority' | 'signal'
 /** Metres, x east and y north. */
 export type Point = [number, number]
 
@@ -45,12 +45,16 @@ export interface RoadSpec extends Partial<RoadAttributes> {
  *
  * `priority` sets the Priority rule per Arm of a Priority junction, keyed by Road id. Every Arm starts as `yield`, and
  * Arms that are all `main` or all `yield` make the same uncontrolled Junction.
+ *
+ * `signal` turns the Signal of a Priority junction on or off. While it is on, the Junction's Priority rules are kept
+ * but ignored.
  */
 export interface Change {
   at: string
   enable?: string[]
   disable?: string[]
   priority?: Record<string, Priority>
+  signal?: boolean
 }
 
 export interface Level {
@@ -123,6 +127,9 @@ export function validateDistrict(district: District) {
       const gateways = Object.keys(net.gateways)
       if (level.tools.includes('priority') && !net.junctions.some((j) => j.type === 'priority')) {
         throw new Error('the Priority rule Tool needs a Revealed Priority junction')
+      }
+      if (level.tools.includes('signal') && !net.junctions.some((j) => j.type === 'priority')) {
+        throw new Error('the Signal Tool needs a Revealed Priority junction')
       }
       for (const id of [...Object.keys(level.demand), ...Object.values(level.demand).flatMap((d) => Object.keys(d.to))]) {
         if (!net.gateways[id]) throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${gateways.join(', ')})`)
