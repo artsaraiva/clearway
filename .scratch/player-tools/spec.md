@@ -49,7 +49,7 @@ Content is in `.scratch/district-01/spec.md` (grilled in [#33](https://github.co
 1. T-junction: Priority rule, swap the main road.
 2. Crossroads with an unused lane: connector.
 3. Crossroads where the fix is upstream: connector and Priority rule.
-4. Two Junctions revealed at once, one a roundabout: Spillback.
+4. Two Junctions revealed at once: Spillback.
 5. Crossroads with a heavy and a moderate crossing flow: Priority rule, swap the main road.
 6. A left turn blocks through traffic: remove a Connection.
 7. Finale: the Reveal re-jams the Level 1 T-junction, every Tool allowed.
