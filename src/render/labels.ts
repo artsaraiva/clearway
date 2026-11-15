@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { pointAt, type Bounds } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
+import type { DemandSpec } from '../sim/spec'
 import type { Field } from './field'
 import { v3 } from './ribbons'
 import type { Scenery } from './scenery'
@@ -12,10 +13,12 @@ const LANDMARKS = {
   plaza: { color: '#8a6d3b', height: 10 },
 }
 const AHEAD = 20 // m along a Road to the second point its on-screen direction is read from
+const GATEWAY = { beyond: 9, height: 6, color: '#4a5568' } // m past the end of a Gateway's Road, and above it
 
 /**
- * Names from the scenery as DOM labels over the canvas: each street's name lying along its longest Road, and
- * each named landmark's with a coloured dot. Scenery that names nothing gets none. Styled by `.labels` in the page.
+ * DOM labels over the canvas: each Gateway's trips a minute, and the names from the scenery, which are each street's
+ * name lying along its longest Road and each named landmark's with a coloured dot. Scenery that names nothing gets no
+ * names. Styled by `.labels` in the page.
  * ponytail: labels never make room for each other, so two names can overlap at some camera angles. That is rare with
  * the handful a City has today; hide the lesser of an overlapping pair when Cities carry more names.
  */
@@ -32,12 +35,22 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
   }
 
   /**
-   * Label what is on the slab: the streets of `net`, and the landmarks on a Block of `field` on the pieces of slab
-   * `pieces`.
+   * Label what is on the slab: the Gateways of `net` with the trips a minute `rates` sends from each, its streets, and
+   * the landmarks on a Block of `field` on the pieces of slab `pieces`.
    */
-  const show = (net: Network, field: Field, pieces: Bounds[]) => {
+  const show = (net: Network, rates: DemandSpec, field: Field, pieces: Bounds[]) => {
     layer.replaceChildren()
     labels = []
+    for (const [id, arm] of Object.entries(net.gateways)) {
+      // Just past where the Road leaves the slab. A Gateway that reaches no other sends nothing.
+      const end = arm.exit[0].line.pts[arm.exit[0].line.pts.length - 1]
+      const start = arm.approach[0].line.pts[0]
+      const [x, y] = [
+        (end.x + start.x) / 2 + Math.cos(arm.angle) * GATEWAY.beyond,
+        (end.y + start.y) / 2 + Math.sin(arm.angle) * GATEWAY.beyond,
+      ]
+      add(`${(rates[id]?.rate ?? 0).toFixed(1)}/min`, new THREE.Vector3(x, GATEWAY.height, -y), undefined, GATEWAY.color)
+    }
     const roads = new Map<string, Lane[]>()
     for (const lane of net.lanes) {
       if ('road' in lane.owner) roads.set(lane.owner.road, [...(roads.get(lane.owner.road) ?? []), lane])

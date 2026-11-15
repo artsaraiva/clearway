@@ -9,6 +9,7 @@ const REACH = 8
 const HALF_CAR = 1.6 // half a car's width plus a little clearance
 const INSET = 2 // m of bare road plate between a Block and the slab's edge
 const MIN_AREA = 30 // m²: an outline enclosing less than this is a sliver, not a Block
+const GROW = 200 // m of room the grid takes beyond a piece laid outside it, so that not every Tile re-cuts it
 
 /** The distance field the Blocks are cut from, over the slab laid so far. */
 export interface Field {
@@ -28,6 +29,8 @@ export interface Field {
    * an `earlier` piece keep their values, so nothing a Rebuild adds changes them.
    */
   lay(net: Network, spec: NetworkSpec, pieces: Bounds[], earlier: Bounds[]): void
+  /** Take the samples of `pieces` off again, as an Undo does. Samples on a piece of `rest` keep their values. */
+  lift(pieces: Bounds[], rest: Bounds[]): void
 }
 
 type Strip = [ax: number, ay: number, bx: number, by: number, halfWidth: number]
@@ -131,25 +134,36 @@ export function inside(loop: Vec[], x: number, y: number): boolean {
 const CASES = ['', 'LB', 'BR', 'LR', 'RT', 'LTBR', 'BT', 'LT', 'LT', 'BT', 'LBRT', 'RT', 'LR', 'BR', 'LB', '']
 
 /**
- * The field over `whole`, everything the slab may grow to cover, so its samples never move as the slab grows. It
- * starts with no slab at all: each `lay` adds its part. Connections count whether enabled or not, so no Change moves a
- * Block.
+ * The field under a slab with no bounds. It starts with no slab at all: each `lay` adds its part, and the grid of
+ * samples grows to take a piece laid beyond it. The samples sit on one lattice however the grid grows, so none ever
+ * moves. Connections count whether enabled or not, so no Change moves a Block.
  */
-export function createField(whole: Bounds): Field {
-  const { x0, y0 } = whole
-  const nx = Math.ceil((whole.x1 - x0) / CELL) + 1
-  const ny = Math.ceil((whole.y1 - y0) / CELL) + 1
-  const f = new Float32Array(nx * ny).fill(-REACH)
+export function createField(): Field {
+  // Sample (i, j) of the grid lies at (x0 + i × CELL, y0 + j × CELL), and x0 and y0 are whole multiples of CELL.
+  let [x0, y0, nx, ny] = [0, 0, 0, 0]
+  let f = new Float32Array(0)
   /** Sample index range covering sim coordinates `lo`..`hi` along an axis that starts at `origin` and has `n` samples. */
   const span = (lo: number, hi: number, origin: number, n: number) => [
     Math.max(0, Math.ceil((lo - origin) / CELL)),
     Math.min(n - 1, Math.floor((hi - origin) / CELL)),
   ]
+  const on = (rects: Bounds[], x: number, y: number) => rects.some((p) => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1)
+  /** Grow the grid until it covers `area`, keeping every sample it has. */
+  const cover = (area: Bounds) => {
+    if (nx && area.x0 >= x0 && area.y0 >= y0 && area.x1 <= x0 + (nx - 1) * CELL && area.y1 <= y0 + (ny - 1) * CELL) return
+    const grown = nx ? extent([area, { x0, y0, x1: x0 + (nx - 1) * CELL, y1: y0 + (ny - 1) * CELL }]) : area
+    const [i0, j0] = [Math.floor((grown.x0 - GROW) / CELL), Math.floor((grown.y0 - GROW) / CELL)]
+    const [mx, my] = [Math.ceil((grown.x1 + GROW) / CELL) - i0 + 1, Math.ceil((grown.y1 + GROW) / CELL) - j0 + 1]
+    const g = new Float32Array(mx * my).fill(-REACH)
+    const [di, dj] = [Math.round(x0 / CELL) - i0, Math.round(y0 / CELL) - j0]
+    for (let j = 0; j < ny; j++) g.set(f.subarray(j * nx, (j + 1) * nx), (j + dj) * mx + di)
+    ;[x0, y0, nx, ny, f] = [i0 * CELL, j0 * CELL, mx, my, g]
+  }
 
   return {
     lay(net, spec, pieces, earlier) {
-      const on = (rects: Bounds[], x: number, y: number) => rects.some((p) => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1)
       const area = extent(pieces)
+      cover(area)
       const [ri0, ri1] = span(area.x0, area.x1, x0, nx)
       const [rj0, rj1] = span(area.y0, area.y1, y0, ny)
       // The samples this call owns: on its pieces and on no earlier one. They start clear of the road.
@@ -190,7 +204,20 @@ export function createField(whole: Bounds): Field {
       }
     },
 
+    lift(pieces, rest) {
+      const area = extent(pieces)
+      const [i0, i1] = span(area.x0, area.x1, x0, nx)
+      const [j0, j1] = span(area.y0, area.y1, y0, ny)
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          const [x, y] = [x0 + i * CELL, y0 + j * CELL]
+          if (on(pieces, x, y) && !on(rest, x, y)) f[j * nx + i] = -REACH
+        }
+      }
+    },
+
     sample(x, y) {
+      if (nx < 2) return -REACH
       const [gx, gy] = [(x - x0) / CELL, (y - y0) / CELL]
       const [i, j] = [Math.max(0, Math.min(nx - 2, Math.floor(gx))), Math.max(0, Math.min(ny - 2, Math.floor(gy)))]
       const [u, v] = [gx - i, gy - j]

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { pointAt, polyline, type Bounds, type Polyline } from '../sim/geometry'
+import { pointAt, polyline, sameBounds, type Bounds, type Polyline } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import { KERB } from './blocks'
 import { inside, type Field } from './field'
@@ -15,6 +15,8 @@ interface Walker {
   speed: number
   phase: number
   shirt: THREE.Color
+  /** The piece of slab whose pavement it walks. */
+  piece: Bounds
 }
 
 /**
@@ -49,19 +51,28 @@ export function createWalkers() {
     /** Walkers on the pavement of the pieces of slab `pieces`, laid in `field`. Nobody can reach a roundabout's island. */
     add(net: Network, field: Field, pieces: Bounds[]) {
       const islands = net.junctions.filter((j) => j.type === 'roundabout').map((j) => j.at)
-      for (const loop of field.outlines(INSET, pieces)) {
-        if (islands.some((at) => inside(loop, at.x, at.y))) continue
-        const line = polyline([...loop, loop[0]])
-        for (let k = Math.max(2, Math.round(line.length / SPACING)); k > 0; k--) {
-          walkers.push({
-            line,
-            s: Math.random() * line.length,
-            speed: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1),
-            phase: Math.random() * 10,
-            shirt: SHIRTS[Math.floor(Math.random() * SHIRTS.length)],
-          })
+      for (const piece of pieces) {
+        for (const loop of field.outlines(INSET, [piece])) {
+          if (islands.some((at) => inside(loop, at.x, at.y))) continue
+          const line = polyline([...loop, loop[0]])
+          for (let k = Math.max(2, Math.round(line.length / SPACING)); k > 0; k--) {
+            walkers.push({
+              line,
+              s: Math.random() * line.length,
+              speed: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1),
+              phase: Math.random() * 10,
+              shirt: SHIRTS[Math.floor(Math.random() * SHIRTS.length)],
+              piece,
+            })
+          }
         }
       }
+      remesh()
+    },
+
+    /** Take the walkers off the pieces of slab `pieces`, which a Swap or an Undo is lifting. */
+    remove(pieces: Bounds[]) {
+      walkers = walkers.filter((walker) => !pieces.some((p) => sameBounds(p, walker.piece)))
       remesh()
     },
 

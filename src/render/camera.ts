@@ -32,6 +32,8 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   const frame = () => {
     const h = Math.max(half, (1.5 * half * height) / width)
     Object.assign(camera, { left: (-h * width) / height, right: (h * width) / height, top: h, bottom: -h })
+    // Deep enough for a slab of any size, from any angle and wherever the camera is panned over it.
+    ;[camera.near, camera.far] = [Math.min(1, DISTANCE - 4 * half), Math.max(3000, DISTANCE + 4 * half)]
     camera.updateProjectionMatrix()
   }
   let fit: { from: number[]; to: number[]; t: number } | null = null

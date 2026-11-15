@@ -25,7 +25,7 @@ export interface Surroundings {
   spec: NetworkSpec
   scenery: Scenery
   field: Field
-  /** Everything the slab may grow to cover: the centre and far edge are measured on it. */
+  /** The ground the fill is graded over, towers at its centre and houses toward its edge: `out` is measured on it. */
   extent: Bounds
 }
 

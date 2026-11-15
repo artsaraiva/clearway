@@ -14,6 +14,9 @@ export interface Bounds {
 /** Whether two rectangles overlap by more than an edge. */
 export const overlaps = (a: Bounds, b: Bounds) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
 
+/** Whether two rectangles are the same one. */
+export const sameBounds = (a: Bounds, b: Bounds) => a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
+
 /** The rectangle around some points. */
 export function around(pts: Vec[]): Bounds {
   const [xs, ys] = [pts.map((p) => p.x), pts.map((p) => p.y)]
