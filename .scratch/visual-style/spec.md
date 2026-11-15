@@ -77,7 +77,7 @@ A clear cyan noon, an orange and pink dusk, and a deep blue night that stays bri
 
 ## Camera
 
-Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans (swapped by [#15](https://github.com/artsaraiva/clearway/issues/15): left drag pans, right drag rotates); tilt is clamped between roughly 24° and 72° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
+Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the pointer, as set by [#15](https://github.com/artsaraiva/clearway/issues/15) and built in [#109](https://github.com/artsaraiva/clearway/issues/109); the camera buttons are in `.scratch/ui-ux/spec.md`. Tilt is clamped between roughly 24° and 72° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
 
 ## The slab
 

@@ -5,9 +5,10 @@ import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
 import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
-import { createTools, type Gesture } from './tools'
+import { createCameraButtons } from './camera-buttons'
+import { CLICK_SLOP, watchPresses, type Gesture } from './press'
+import { createTools } from './tools'
 
-const CLICK_SLOP = 4 // px the pointer may move between press and release
 /**
  * The most of its length yen's fill takes while the next Tile is out of reach. The last step to full comes only when
  * the Tile is affordable, so a fill a pixel short of the Price never passes for full.
@@ -63,9 +64,9 @@ function icon(layout: Layout) {
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
  * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts with the Price
- * and Undo bottom-centre, and the menu bottom-left. Bottom-right is kept for the camera buttons. While a Layout is in
- * the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are used in the world
- * (`./tools`).
+ * and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left. While a Layout is in the hand,
+ * every click on the board drops it. Otherwise the Tools and the route Inspector are used in the world (`./tools`).
+ * Drags on the board move the camera, except a drag from a lane end of the selected Junction, which draws a Connection.
  */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -119,6 +120,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
           <dt>Turn it back</dt><dd><kbd>Shift</kbd> <kbd>R</kbd></dd>
           <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
           <dt>Deselect</dt><dd><kbd>Esc</kbd></dd>
+          <dt>Frame the whole City</dt><dd><kbd>F</kbd></dd>
         </dl>
       </div>
     </div>`
@@ -276,15 +278,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
    * puts the Layout back.
    */
   let right = { x: 0, y: 0, held: false }
-  // In the capture phase, ahead of the Tools, which keep a press on a lane end to themselves.
-  window.addEventListener(
-    'pointerdown',
-    (e) => {
-      if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
-      if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
-    },
-    { capture: true },
-  )
+  window.addEventListener('pointerdown', (e) => {
+    if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
+    if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
+  })
   const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
   window.addEventListener('pointermove', (e) => {
     if (!hand) return
@@ -330,44 +327,60 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     }
   })
 
-  // A click is a press and release in one spot, and a drag moves the camera, unless the Tools take the press to draw a
-  // Connection. These listen in the capture phase, so a press the Tools take never reaches the camera. While a Layout
-  // is in the hand, every click on the board drops it, and the Layout stays in the hand.
-  let onBoard: { x: number; y: number; gesture: Gesture | null; dragging: boolean } | null = null
-  window.addEventListener(
-    'pointerdown',
-    (e) => {
-      onBoard = null
-      if (e.button !== 0 || e.target !== canvas) return
-      const gesture = tools.press(e)
-      if (gesture) {
-        e.stopPropagation()
-        canvas.setPointerCapture(e.pointerId)
-      }
-      onBoard = { x: e.clientX, y: e.clientY, gesture, dragging: false }
+  /** A press whose drag moves the camera, with a grabbing hand while it does. */
+  const moving = (move: NonNullable<Gesture['drag']>, end?: Gesture['end']): Gesture => ({
+    drag(e, from) {
+      canvas.style.cursor = 'grabbing'
+      move(e, from)
     },
-    { capture: true },
-  )
-  window.addEventListener('pointermove', (e) => {
-    if (!onBoard?.gesture) return
-    onBoard.dragging ||= moved(e, onBoard)
-    if (onBoard.dragging) onBoard.gesture.drag?.(e)
+    end(e, click) {
+      canvas.style.cursor = ''
+      end?.(e, click)
+    },
   })
-  window.addEventListener(
-    'pointerup',
+  // A press on the board is a click until it moves past the slop, then a drag that moves the camera: a left drag pans,
+  // and a right drag rotates, as does a left drag with Shift, Ctrl or ⌘ for a trackpad. A left press on a lane end of
+  // the selected Junction is the Tools': its drag draws a Connection, and the camera never sees it. The wheel zooms
+  // toward the pointer, unless a Tile in the hand takes it to turn. A right click without movement puts the Layout in
+  // the hand back (above), and a right drag rotates whatever the hand holds.
+  watchPresses(canvas, (e) => {
+    const rotating = e.button === 2 || (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey))
+    if (rotating) return moving((e, from) => view.camera.rotate(e.clientX - from.clientX, e.clientY - from.clientY))
+    if (e.button !== 0) return null
+    return (
+      tools.press(e) ??
+      moving(
+        (e, from) => view.camera.pan(from, e),
+        (e, click) => click && clickBoard(e),
+      )
+    )
+  })
+  canvas.addEventListener(
+    'wheel',
     (e) => {
-      if (e.button !== 0 || !onBoard) return
-      const { gesture } = onBoard
-      const click = !onBoard.dragging && !moved(e, onBoard)
-      onBoard = null
-      if (gesture) return gesture.end?.(e, click)
-      if (!click || e.target !== canvas) return
-      const p = hand && view.pick(e)
-      if (hand?.how === 'picked' && p) place(hand.layout, rotation, cellAt(p))
-      else if (!hand) tools.click(e)
+      e.preventDefault()
+      // In pixels, whatever the wheel counts in; a pinch on a trackpad comes as small turns with Ctrl held.
+      view.camera.zoomAt(e, e.deltaY * [1, 16, 100][e.deltaMode] * (e.ctrlKey ? 10 : 1))
     },
-    { capture: true },
+    { passive: false },
   )
+
+  /**
+   * A click on the board: a drop while a Layout is in the hand, and otherwise the Tools' (a Junction, an Arm's Priority
+   * rule, a car, or empty board). Nothing is picked during a Rebuild.
+   */
+  function clickBoard(e: PointerEvent) {
+    if (view.rebuilding) return
+    // While a Layout is in the hand, every click is a drop, and the Layout stays in the hand.
+    if (hand) {
+      const p = view.pick(e)
+      if (hand.how === 'picked' && p) place(hand.layout, rotation, cellAt(p))
+      return
+    }
+    tools.click(e)
+  }
+
+  const cameraButtons = createCameraButtons(root, view)
 
   return {
     /** Sim seconds per real second: 0 while paused. */
@@ -388,6 +401,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
+      cameraButtons.update()
 
       // Yen counts whole yen down, so it never shows the Price before the Tile is affordable. Its fill is full exactly
       // when the next Tile is affordable, which in a Free run, at a Price of ¥0, is always.
@@ -398,7 +412,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
         el.classList.toggle('on', hand?.layout === layout)
         el.classList.toggle('short', hand?.layout === layout && !affordable)
       }
-      turnPictures((((view.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
+      turnPictures((((view.camera.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
       show.yen(Math.floor(game.yen).toLocaleString('en'))
       show.yenFill(`${affordable ? 100 : ((100 * SHORT_OF_PRICE * game.yen) / game.price).toFixed(1)}%`)
       show.income(`${yen(game.income)} a minute`)

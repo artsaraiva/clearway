@@ -1,23 +1,16 @@
 import type { Game } from '../game/game'
+import type { ScreenPoint } from '../render/camera'
 import { connection, type Target } from '../render/tools'
-import type { Pointer, View } from '../render/view'
+import type { View } from '../render/view'
 import type { Vec } from '../sim/geometry'
 import type { Arm, Connection, Junction, Lane } from '../sim/network'
 import { junctionId } from '../sim/tiles'
+import type { Gesture } from './press'
 
 const SNAP = 16 // px from a legal lane end at which a Connection being drawn snaps to it
 const HINTS: Record<Junction['type'], string> = {
   priority: 'Click the paint to give a road priority. Drag between lane ends to connect them.',
   roundabout: 'Drag between lane ends to connect them. The ring always has priority.',
-}
-
-/**
- * What a press the Tools take turns into: `drag` runs for each move once it is a drag, and `end` on release, with
- * `click` if it never became one.
- */
-export interface Gesture {
-  drag?(e: PointerEvent): void
-  end?(e: PointerEvent, click: boolean): void
 }
 
 /**
@@ -28,8 +21,8 @@ export interface Gesture {
  * a click on each in turn. A click on a car shows its route. `Esc`, a click on empty board or selecting something else
  * lets go. While `busy` (a Layout in the hand, or a Rebuild playing) nothing is selectable.
  *
- * The page routes presses on the board here: `press` takes the ones that draw a Connection, and `click` gets every other
- * click. The Tools follow the pointer themselves for the hover.
+ * The page routes presses on the board here (`watchPresses`): `press` takes the ones that draw a Connection, and `click`
+ * gets every other click. The Tools follow the pointer themselves for the hover.
  */
 export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, busy: () => boolean) {
   panel.innerHTML = `
@@ -45,13 +38,13 @@ export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game:
   let from: Lane | null = null
   let aim: Vec | null = null
   let snap: Connection | null = null
-  // The camera's cursor, shown wherever the pointer is not over something to click.
+  // The canvas's own cursor, shown wherever the pointer is not over something to click.
   const rest = canvas.style.cursor
-  let cursor = rest
 
   const show = () => view.showTools({ hovered, selected, under, from, aim, snap })
+  // The camera writes the cursor too, while it is dragged, so this reads it back rather than remembering it.
   const point = (c: string) => {
-    if (c !== cursor) canvas.style.cursor = cursor = c
+    if (canvas.style.cursor !== c) canvas.style.cursor = c
   }
   const letGo = () => {
     from = aim = snap = null
@@ -71,7 +64,7 @@ export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game:
   }
 
   /** Draw the Connection from the picked lane to the pointer, snapped to the nearest legal lane end within reach. */
-  const follow = (e: Pointer) => {
+  const follow = (e: ScreenPoint) => {
     const lane = from
     if (!lane || !selected) return
     aim = view.pick(e)
@@ -141,21 +134,17 @@ export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game:
   const click = (e: PointerEvent) => {
     if (busy()) return
     letGo()
-    if (selected) {
-      const t = view.toolAt(e, selected)
-      if (t?.kind === 'rule') {
-        flip(t.arm)
-        return show()
-      }
-      // Anywhere else on the selected Junction, a click only lets go of a picked lane end.
-      if (t || view.junctionAt(e) === selected) return show()
-    }
+    const t = selected && view.toolAt(e, selected)
     const junction = view.junctionAt(e)
-    if (junction) return select(junction)
-    // A car or empty board: the Junction is let go either way.
-    const car = view.carAt(e)
-    select(null)
-    view.inspectCar(car)
+    if (t?.kind === 'rule') flip(t.arm)
+    // Anywhere else on the selected Junction, a click only lets go of a picked lane end.
+    else if (!t && !(selected && junction === selected)) {
+      // A car or empty board lets the Junction go.
+      const car = junction ? null : view.carAt(e)
+      select(junction)
+      if (!junction) view.inspectCar(car)
+    }
+    hover(e)
   }
 
   /** Let go of everything the Tools show, as when a Rebuild replaces the network. */

@@ -62,6 +62,9 @@
         width: 100%;
         height: 100%;
         display: block;
+        /* A left drag pans the board. */
+        cursor: grab;
+        touch-action: none;
       }
       .labels {
         position: fixed;
@@ -93,8 +96,8 @@
         font-weight: 800;
       }
 
-      /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the menu
-             bottom-left. Bottom-right is kept for the camera buttons, and nothing covers the middle of the board. --- */
+      /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the camera's
+             buttons bottom-right and the menu bottom-left. Nothing covers the middle of the board. --- */
       #ui {
         position: fixed;
         inset: 0;
@@ -382,6 +385,18 @@
       .menu {
         left: var(--edge);
         bottom: var(--edge);
+      }
+      .camera {
+        right: var(--edge);
+        bottom: var(--edge);
+        display: flex;
+        gap: 10px;
+      }
+      /* In a narrow window the camera's buttons stand in a column, clear of the bar. */
+      @media (max-width: 1000px) {
+        .camera {
+          flex-direction: column;
+        }
       }
       .menu .sheet {
         position: absolute;
