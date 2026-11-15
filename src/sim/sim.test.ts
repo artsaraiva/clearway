@@ -220,3 +220,19 @@ it('jams a one-Block roundabout squeezed onto its outer Ring lane, and clears it
   for (const change of district.levels[0].solution) sim.apply(change)
   expect(run(sim, 300, () => sim.won).won).toBe(true)
 })
+
+/** The one-Block roundabout in its default configuration, with most trips from every Gateway turning left, three quarters of the way round the Ring. */
+function leftTurnRoundabout(seed: number): District {
+  const district = roundabout()
+  const gateways = ['N', 'W', 'S', 'E'] // counterclockwise, the way the Ring turns
+  const demand = Object.fromEntries(
+    gateways.map((g, i) => [g, { rate: 14, to: { [gateways[(i + 3) % 4]]: 0.8, [gateways[(i + 2) % 4]]: 0.2 } }]),
+  )
+  return { ...district, levels: [{ ...district.levels[0], seed, demand, initial: {}, solution: [] }] }
+}
+
+it.each([2, 3])('keeps a full roundabout moving: trips still arrive after ten minutes (seed %i)', (seed) => {
+  const sim = run(new Sim(leftTurnRoundabout(seed)), 600)
+  const arrived = sim.completed
+  expect(run(sim, 60).completed).toBeGreaterThan(arrived)
+})
