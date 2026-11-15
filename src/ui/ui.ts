@@ -1,15 +1,15 @@
 import type { View } from '../render/view'
-import type { Priority } from '../sim/district'
 import type { Arm, Lane } from '../sim/network'
 import { WIN_FLOW, WIN_TIME, type Sim, type Vehicle } from '../sim/sim'
+import type { Priority } from '../sim/spec'
 
 const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
 const CLICK_SLOP = 4 // px the pointer may move between press and release
 
-/** `next`, when there is a Level after this one, Reveals it. */
-export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View, next?: () => void) {
+/** The minimum screen: the Flow gauge, the clock, and both Tools on every Junction. */
+export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim, view: View) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
@@ -23,29 +23,26 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
     $('node').hidden = !arm
     if (arm) $('node-name').textContent = `${arm.junction}: ${arm.road} arm`
     // On a roundabout the Ring is always main, so the Priority rule isn't offered there.
-    const prio = root.querySelector<HTMLElement>('#prio')
-    if (prio) prio.hidden = !arm || sim.district.junctions[arm.junction].type !== 'priority'
+    $('prio').hidden = !arm || sim.spec.junctions[arm.junction].type !== 'priority'
     view.showArm(arm, null)
   }
 
-  /** The panels for the current Level: its Tools, and a button for the next Level when there is one. */
   const lay = () => {
-    const { tools } = sim.level
     root.innerHTML = `
       <div class="panel gauge">
         <div class="row"><span>Flow</span><b id="flow-pct"></b></div>
         <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
         <div class="sub" id="flow-sub"></div>
       </div>
-      <div class="panel banner" id="banner" hidden>Level won!${next ? ' <button id="next">Next Level</button>' : ''}</div>
+      <div class="panel banner" id="banner" hidden>Holding</div>
       <div class="panel time">
         <button data-scale="0">Pause</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
         <button id="reset">Reset</button>
       </div>
       <div class="panel node" id="node" hidden>
         <div class="row"><b id="node-name"></b><span class="hint">Esc to close</span></div>
-        ${tools.includes('priority') ? '<div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>' : ''}
-        ${tools.includes('connector') ? '<div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>' : ''}
+        <div class="prio" id="prio"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>
+        <div class="hint">Click a blue lane end, then an orange one, to toggle that connection.</div>
       </div>`
     root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
     root
@@ -54,7 +51,6 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
         (b) =>
           (b.onclick = () => selected && sim.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
       )
-    if (next) $('next').onclick = next
     $('reset').onclick = () => {
       sim.reset()
       select(selected)
@@ -63,15 +59,15 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
   lay()
   window.addEventListener('keydown', (e) => e.key === 'Escape' && select(null))
 
-  // A click is a press and release in one spot: a drag moves the camera instead. Nothing is picked during a Reveal.
+  // A click is a press and release in one spot: a drag moves the camera instead. Nothing is picked during a Rebuild.
   let down = { x: 0, y: 0 }
   canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY }))
   canvas.addEventListener('pointerup', (e) => {
-    if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_SLOP || view.revealing) return
+    if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > CLICK_SLOP || view.rebuilding) return
     const p = view.pick(e)
     if (!p) return
     const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)
-    if (selected && sim.level.tools.includes('connector')) {
+    if (selected) {
       const ends = [
         ...[...selected.approach, ...selected.ringIn].map((lane) => ({ lane, dir: 'in', at: lane.line.pts[lane.line.pts.length - 1] })),
         ...[...new Set(selected.connections.map((c) => c.to))].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
@@ -99,10 +95,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       return scale
     },
 
-    /** Show a newly Revealed Level: the Sim the Reveal rebuilt, and `after` to Reveal the Level after it, if any. */
-    show(level: Sim, after?: () => void) {
-      ;[sim, next, selected, armed] = [level, after, null, null]
-      lay()
+    /** Show the Sim a Rebuild made in place of the one before. */
+    show(rebuilt: Sim) {
+      sim = rebuilt
+      select(null)
     },
 
     update() {
@@ -111,9 +107,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, sim: Sim,
       fill.style.width = `${Math.min(100, sim.flow * 100)}%`
       fill.className = sim.flow >= WIN_FLOW ? 'good' : ''
       const queued = Object.values(sim.queues).reduce((n, q) => n + q.length, 0)
-      $('banner').hidden = !sim.won
+      $('banner').hidden = !sim.holding
       $('flow-sub').textContent =
-        sim.sustained > 0 && !sim.won
+        sim.sustained > 0 && !sim.holding
           ? `Hold it: ${Math.ceil(WIN_TIME - sim.sustained)} s to go`
           : `${sim.vehicles.length} cars · ${queued} waiting off-map · ${Math.floor(sim.time)} s`
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))

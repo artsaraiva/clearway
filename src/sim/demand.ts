@@ -1,4 +1,4 @@
-import type { Level } from './district'
+import type { DemandSpec } from './spec'
 import { yieldSpeed } from './driving'
 import type { Lane, Network } from './network'
 import { route, travelTime } from './routing'
@@ -29,7 +29,7 @@ export interface Arrival {
 const SPAWN_GAP = 3
 const QUEUE_COST = 0.5 // s of trip time per vehicle already on an Approach lane
 
-/** Arrivals at each Gateway and their spawn onto the map. Owns the Level's random stream. */
+/** Arrivals at each Gateway and their spawn onto the map. Owns the Sim's random stream. */
 export class Demand {
   /** Off-screen spawn queues per Gateway. */
   readonly queues: Record<string, Arrival[]> = {}
@@ -38,7 +38,7 @@ export class Demand {
   private nextId = 1
 
   constructor(
-    private readonly demand: Level['demand'],
+    private readonly demand: DemandSpec,
     seed: number,
   ) {
     this.rng = mulberry32(seed)

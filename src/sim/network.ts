@@ -1,11 +1,11 @@
-import type { Change, District, JunctionSpec, Priority } from './district'
+import type { Change, JunctionSpec, NetworkSpec, Priority } from './spec'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
 import type { Vehicle } from './sim'
 
 export type LaneKind = 'road' | 'ring' | 'connection'
 
 export interface Lane {
-  /** Stable across Reveals. */
+  /** Stable across Rebuilds. */
   id: string
   kind: LaneKind
   /** A Road lane belongs to its Road and a direction (`forward` is from→to); Ring and Connection lanes belong to their Junction. */
@@ -124,14 +124,14 @@ const startHeading = (l: Lane) => {
 }
 
 /** Distance from a Junction's centre to where its Roads' lanes end. Throws if a Priority junction's Arms are too close in angle. */
-function footprint(district: District, id: string): number {
-  const spec = district.junctions[id]
-  const w = district.roadDefaults.laneWidth
+function footprint(network: NetworkSpec, id: string): number {
+  const spec = network.junctions[id]
+  const w = network.roadDefaults.laneWidth
   if (spec.type === 'roundabout') return spec.radius + (spec.ringLanes * w) / 2 + ENTRY_SETBACK
-  const ends = Object.entries(district.roads)
+  const ends = Object.entries(network.roads)
     .flatMap(([road, r]) => {
       const other = r.from === id ? r.to : r.to === id ? r.from : undefined
-      const at = typeof other === 'string' ? district.junctions[other]?.at : other
+      const at = typeof other === 'string' ? network.junctions[other]?.at : other
       if (!at) return []
       return [{ road, angle: Math.atan2(at[1] - spec.at[1], at[0] - spec.at[0]), halfWidth: Math.max(...r.lanes) * (r.laneWidth ?? w) }]
     })
@@ -152,27 +152,28 @@ function footprint(district: District, id: string): number {
 }
 
 /**
- * The network of the Revealed Junctions, every Junction in its type's default configuration. A Road with one end
- * Revealed is a Gateway; a Road with neither is left out. Throws a readable error on a District file it can't build.
+ * The network of a spec, every Junction in its type's default configuration. A Road with a point for an end is a
+ * Gateway. Throws a readable error on a spec it can't build.
  */
-export function buildNetwork(district: District, revealed: string[]): Network {
-  const w = district.roadDefaults.laneWidth
-  for (const id of revealed) if (!district.junctions[id]) throw new Error(`reveal names unknown Junction "${id}"`)
-  const junctions: Junction[] = Object.entries(district.junctions)
-    .filter(([id]) => revealed.includes(id))
-    .map(([id, spec]) => ({ id, type: spec.type, at: { x: spec.at[0], y: spec.at[1] }, arms: [] }))
+export function buildNetwork(network: NetworkSpec): Network {
+  const w = network.roadDefaults.laneWidth
+  const junctions: Junction[] = Object.entries(network.junctions).map(([id, spec]) => ({
+    id,
+    type: spec.type,
+    at: { x: spec.at[0], y: spec.at[1] },
+    arms: [],
+  }))
   const lanes: Lane[] = []
   const gateways: Record<string, Arm> = {}
 
-  for (const [id, road] of Object.entries(district.roads)) {
+  for (const [id, road] of Object.entries(network.roads)) {
     const [a, b] = [road.from, road.to].map((end) => {
       if (typeof end !== 'string') return { at: { x: end[0], y: end[1] }, trim: 0, junction: undefined }
-      const spec = district.junctions[end]
+      const spec = network.junctions[end]
       if (!spec) throw new Error(`Road ${id} ends at unknown Junction "${end}"`)
-      return { at: { x: spec.at[0], y: spec.at[1] }, trim: footprint(district, end), junction: junctions.find((j) => j.id === end) }
+      return { at: { x: spec.at[0], y: spec.at[1] }, trim: footprint(network, end), junction: junctions.find((j) => j.id === end) }
     })
-    if (typeof road.from !== 'string' && typeof road.to !== 'string') throw new Error(`Road ${id} joins no Junction`)
-    if (!a.junction && !b.junction) continue // still in Fog
+    if (!a.junction && !b.junction) throw new Error(`Road ${id} joins no Junction`)
     const length = Math.hypot(b.at.x - a.at.x, b.at.y - a.at.y)
     const laneLength = length - a.trim - b.trim
     if (laneLength < MIN_ROAD_LANE) {
@@ -184,7 +185,7 @@ export function buildNetwork(district: District, revealed: string[]): Network {
     /** `t` m from `a` along the Road, `lat` m right of forward traffic. */
     const at = (t: number, lat: number) => ({ x: a.at.x + u.x * t + u.y * lat, y: a.at.y + u.y * t - u.x * lat })
     const laneWidth = road.laneWidth ?? w
-    const speed = road.speed ?? district.roadDefaults.speed
+    const speed = road.speed ?? network.roadDefaults.speed
     const [nForward, nBackward] = road.lanes
     const forward = Array.from({ length: nForward }, (_, i) => {
       const lat = (nForward - i - 0.5) * laneWidth
@@ -234,12 +235,12 @@ export function buildNetwork(district: District, revealed: string[]): Network {
   }
 
   for (const junction of junctions) {
-    const spec = district.junctions[junction.id]
+    const spec = network.junctions[junction.id]
     junction.arms.sort((a, b) => a.angle - b.angle)
     lanes.push(
       ...(spec.type === 'roundabout'
         ? buildRoundabout(junction, spec.radius, spec.ringLanes, w)
-        : buildPriority(junction, footprint(district, junction.id))),
+        : buildPriority(junction, footprint(network, junction.id))),
     )
   }
   return { lanes, junctions, gateways }
@@ -286,8 +287,10 @@ function findConflicts(connections: Connection[]) {
  */
 function buildPriority(junction: Junction, reach: number): Lane[] {
   const { arms } = junction
-  if (arms.length < 3 || arms.length > 4)
-    throw new Error(`Junction ${junction.id} is a Priority junction with ${arms.length} Arms (takes 3 or 4)`)
+  if (arms.length < 2 || arms.length > 4)
+    throw new Error(`Junction ${junction.id} is a Priority junction with ${arms.length} Arms (takes 2 to 4)`)
+  // With two Arms the Road only carries on, whatever its bend (ADR 0004): every lane keeps to its own lane.
+  const through = arms.length === 2
   const lanes: Lane[] = []
   for (const arm of arms) {
     arm.center = { x: junction.at.x + Math.cos(arm.angle) * reach, y: junction.at.y + Math.sin(arm.angle) * reach }
@@ -296,7 +299,7 @@ function buildPriority(junction: Junction, reach: number): Lane[] {
         if (out === arm) continue // no U-turns
         // How far the Connection deflects from straight on: negative to the right, positive to the left.
         const turn = Math.atan2(Math.sin(out.angle - arm.angle - Math.PI), Math.cos(out.angle - arm.angle - Math.PI))
-        const [right, left] = [turn < -STRAIGHT, turn > STRAIGHT]
+        const [right, left] = [!through && turn < -STRAIGHT, !through && turn > STRAIGHT]
         // Default enabled set: the rightmost lane turns right into the rightmost lane, the leftmost turns left into the
         // leftmost, and every lane goes straight on into its own lane (so a single lane takes all turns).
         const takes = right ? from.index === 0 : left ? from.index === arm.approach.length - 1 : true
@@ -360,7 +363,7 @@ function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: nu
 /** Apply a Change to the network. Throws on a Junction, Road or Connection ref the network doesn't have. */
 export function applyChange(net: Network, { at, enable = [], disable = [], priority = {} }: Change) {
   const junction = net.junctions.find((j) => j.id === at)
-  if (!junction) throw new Error(`"${at}" is not a Revealed Junction`)
+  if (!junction) throw new Error(`"${at}" is not a Junction of the network`)
   const all = junction.arms.flatMap((a) => a.connections)
   const set = (refs: string[], on: boolean) => {
     for (const ref of refs) {

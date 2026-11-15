@@ -24,10 +24,10 @@ export type BuildingKind = 'house' | 'mid-rise' | 'tower'
 export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
 
-/** What a brick is, which decides when and how it comes in during a Reveal. */
+/** What a brick is, which decides when and how it comes in during a Rebuild. */
 export type Stage = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
 
-/** One brick of the slab or of what stands on it: the unit that drops or pops in during a Reveal. */
+/** One brick of the slab or of what stands on it: the unit that drops or pops in during a Rebuild. */
 export interface Brick {
   stage: Stage
   /** The point it lands on, or grows out of, in Three coordinates. */

@@ -1,6 +1,6 @@
-import { fogReach, type District } from '../sim/district'
 import { extent, type Bounds, type Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
+import type { NetworkSpec } from '../sim/spec'
 
 const CELL = 1.25 // m between samples
 // The field is exact up to this far from a lane's edge and flat beyond it, so each lane segment only touches the
@@ -10,7 +10,7 @@ const HALF_CAR = 1.6 // half a car's width plus a little clearance
 const INSET = 2 // m of bare road plate between a Block and the slab's edge
 const MIN_AREA = 30 // m²: an outline enclosing less than this is a sliver, not a Block
 
-/** The distance field the Blocks are cut from, over the slab Revealed so far. */
+/** The distance field the Blocks are cut from, over the slab laid so far. */
 export interface Field {
   /**
    * Metres clear of the road at a sim point: above zero inside a Block, capped at `REACH` and by the distance to the
@@ -23,19 +23,19 @@ export interface Field {
    */
   outlines(level: number, on: Bounds[]): Vec[][]
   /**
-   * Lay down the samples of one Level's pieces of slab, for its network `net`: its Blocks keep clear of the outline of
-   * its own pieces, so a seam with another Level's is road plate. Samples on an `earlier` piece keep their values, so
-   * nothing a Reveal adds changes them.
+   * Lay down the samples of the pieces of slab `pieces`, for the network `net` built from `spec`: their Blocks keep
+   * clear of the outline of the pieces together, so a seam with pieces laid at another time is road plate. Samples on
+   * an `earlier` piece keep their values, so nothing a Rebuild adds changes them.
    */
-  lay(net: Network, pieces: Bounds[], earlier: Bounds[]): void
+  lay(net: Network, spec: NetworkSpec, pieces: Bounds[], earlier: Bounds[]): void
 }
 
 type Strip = [ax: number, ay: number, bx: number, by: number, halfWidth: number]
 
 /** Everything that is road, as strips: Road and Ring lanes at full width, Connections, and the mouth of each Priority junction. */
-function roadStrips(net: Network, district: District): Strip[] {
-  const w = district.roadDefaults.laneWidth
-  const laneWidth = (road: string) => district.roads[road].laneWidth ?? w
+function roadStrips(net: Network, spec: NetworkSpec): Strip[] {
+  const w = spec.roadDefaults.laneWidth
+  const laneWidth = (road: string) => spec.roads[road].laneWidth ?? w
   const roundabouts = new Set(net.junctions.filter((j) => j.type === 'roundabout').map((j) => j.id))
   const strips: Strip[] = []
   for (const lane of net.lanes) {
@@ -50,8 +50,6 @@ function roadStrips(net: Network, district: District): Strip[] {
     const { pts } = lane.line
     for (let i = 1; i < pts.length; i++) strips.push([pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y, half])
   }
-  // A Road into the Fog that stops short of the slab's edge runs on to it as plate.
-  for (const { from, to, half } of fogReach(district, net)) strips.push([from.x, from.y, to.x, to.y, half])
   // The mouth of a Priority junction: every Road lane carried straight on until it is level with the centre.
   for (const junction of net.junctions) {
     if (junction.type !== 'priority') continue
@@ -68,8 +66,8 @@ function roadStrips(net: Network, district: District): Strip[] {
 }
 
 /**
- * The edge of one Level's ground, as strips `INSET` wide: the outline of its pieces of slab, which meet edge to edge but
- * never overlap. Where two of its pieces meet is not edge, so a Block runs on across it.
+ * The edge of the ground laid at one time, as strips `INSET` wide: the outline of its pieces of slab, which meet edge to
+ * edge but never overlap. Where two of its pieces meet is not edge, so a Block runs on across it.
  */
 function edgeStrips(plates: Bounds[]): Strip[] {
   const near = (a: number, b: number) => Math.abs(a - b) < 1e-6
@@ -133,11 +131,11 @@ export function inside(loop: Vec[], x: number, y: number): boolean {
 const CASES = ['', 'LB', 'BR', 'LR', 'RT', 'LTBR', 'BT', 'LT', 'LT', 'BT', 'LBRT', 'RT', 'LR', 'BR', 'LB', '']
 
 /**
- * The field over `whole`, every Level's pieces of slab together, so its samples never move as the slab grows. It starts
- * with no slab at all: each Level's `lay` adds its part. Connections count whether enabled or not, so no Change moves a
+ * The field over `whole`, everything the slab may grow to cover, so its samples never move as the slab grows. It
+ * starts with no slab at all: each `lay` adds its part. Connections count whether enabled or not, so no Change moves a
  * Block.
  */
-export function createField(district: District, whole: Bounds): Field {
+export function createField(whole: Bounds): Field {
   const { x0, y0 } = whole
   const nx = Math.ceil((whole.x1 - x0) / CELL) + 1
   const ny = Math.ceil((whole.y1 - y0) / CELL) + 1
@@ -149,12 +147,12 @@ export function createField(district: District, whole: Bounds): Field {
   ]
 
   return {
-    lay(net, pieces, earlier) {
+    lay(net, spec, pieces, earlier) {
       const on = (rects: Bounds[], x: number, y: number) => rects.some((p) => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1)
       const area = extent(pieces)
       const [ri0, ri1] = span(area.x0, area.x1, x0, nx)
       const [rj0, rj1] = span(area.y0, area.y1, y0, ny)
-      // The samples this Level owns: on its pieces and on no earlier one. They start clear of the road.
+      // The samples this call owns: on its pieces and on no earlier one. They start clear of the road.
       const own = new Uint8Array(nx * ny)
       for (let j = rj0; j <= rj1; j++) {
         const y = y0 + j * CELL
@@ -163,7 +161,7 @@ export function createField(district: District, whole: Bounds): Field {
           if (on(pieces, x, y) && !on(earlier, x, y)) [own[j * nx + i], f[j * nx + i]] = [1, REACH]
         }
       }
-      for (const [ax, ay, bx, by, half] of [...roadStrips(net, district), ...edgeStrips(pieces)]) {
+      for (const [ax, ay, bx, by, half] of [...roadStrips(net, spec), ...edgeStrips(pieces)]) {
         const r = half + REACH
         const [i0, i1] = span(Math.max(area.x0, Math.min(ax, bx) - r), Math.min(area.x1, Math.max(ax, bx) + r), x0, nx)
         const [j0, j1] = span(Math.max(area.y0, Math.min(ay, by) - r), Math.min(area.y1, Math.max(ay, by) + r), y0, ny)
@@ -202,7 +200,7 @@ export function createField(district: District, whole: Bounds): Field {
 
     // ponytail: an outline is a plain loop with no holes, which holds while every stretch of road reaches the slab's
     // edge (a Block then never surrounds road). A road loop cut off from the edge would come out as a second, solid
-    // outline inside its Block; pair inner loops with outer ones if a District ever has one.
+    // outline inside its Block; pair inner loops with outer ones if a City ever has one.
     outlines(level, on) {
       const at = (i: number, j: number) => f[j * nx + i] - level
       const area = extent(on)

@@ -1,23 +1,51 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
-import { revealed, type District } from '../sim/district'
-import { extent, middle, type Bounds, type Vec } from '../sim/geometry'
-import { buildNetwork } from '../sim/network'
+import { middle, type Bounds, type Vec } from '../sim/geometry'
+import type { Sim } from '../sim/sim'
+import type { Point } from '../sim/spec'
 import { block, pavement, wide } from './blocks'
 import type { Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part } from './kit'
 import { laySlab } from './slab'
 
+/** Authored scenery standing at a point. `name` is its label on the map. */
+export interface Landmark {
+  type: 'tower'
+  name: string
+  at: Point
+}
+
+/** A Block that is not split into lots: the one around `at`. A park has its pond at `at`. */
+export interface SpecialBlock {
+  type: 'plaza' | 'park'
+  name?: string
+  at: Point
+}
+
+/** What stands on the Blocks. */
+export interface Scenery {
+  /** The first theme is a city; countryside and harbor join the type when their fills exist. */
+  theme: 'city'
+  /** Seed of the Block fill: the same seed gives the same town. */
+  seed: number
+  landmarks: Landmark[]
+  blocks: SpecialBlock[]
+  /** Street names by Road id. Roads that share a name are one street. */
+  streets: Record<string, string>
+  /** Roads lined with street trees. */
+  avenues: string[]
+}
+
 /** A brick of a build, with the Block it stands on: its index in the build's `blocks`, or -1 for the slab itself. */
 export interface BuiltBrick extends Brick {
   block: number
 }
 
-/** What one Level adds to the static scenery: its pieces of slab and the Blocks on them. */
+/** What one placement adds to the static scenery: its pieces of slab and the Blocks on them. */
 export interface Build {
-  /** One mesh per material. In a build for the Reveal animation, each vertex carries its brick's index as attribute `brick`. */
+  /** One mesh per material. In a build for the Rebuild animation, each vertex carries its brick's index as attribute `brick`. */
   meshes: THREE.Mesh[]
   bricks: BuiltBrick[]
   /** The middle of each Block built. */
@@ -37,23 +65,21 @@ export function finish(building: Building): Build {
 }
 
 /**
- * The static scenery, one Level at a time: each Level's pieces of slab and the Blocks on them, merged into one mesh per
- * material. A Reveal only ever adds: a Level's Blocks are cut within its own pieces from the network as that Level has
- * it, and each Block is filled from its own seed, so no later Level changes an earlier one's, and a Level comes out the
- * same whether it is Revealed in place or opened directly.
- * ponytail: each Level adds about six meshes, which is nothing for a handful of Levels; past a dozen or so, merge the
- * Levels' meshes of each material.
+ * The static scenery, a few pieces of slab at a time: the pieces and the Blocks on them, merged into one mesh per
+ * material. It only ever adds: the Blocks of a piece are cut within it from the network as it stands when the piece is
+ * laid, and each Block is filled from its own seed, so nothing laid later changes them. A Tile's Roads all end at its
+ * cell's edge, so its cell comes out the same whenever it is laid. `whole` is the ground the slab may grow to cover.
+ * ponytail: each build adds about six meshes, which is nothing for a handful of them; past a dozen or so, merge the
+ * builds' meshes of each material.
  */
-export function createScenery(district: District, field: Field, materials: Materials) {
-  const nets = district.levels.map((_, n) => buildNetwork(district, revealed(district, n)))
-  const whole = extent(district.levels.flatMap((level) => level.pieces))
+export function createScenery(scenery: Scenery, field: Field, materials: Materials, whole: Bounds) {
+  const laid: Bounds[] = []
 
-  /** Build Level `level`'s part, a step at a time: the field, the slab, each Block, then each material's mesh. */
-  function* build(level: number, tagged: boolean): Building {
-    const { pieces } = district.levels[level]
-    const earlier = district.levels.slice(0, level).flatMap((l) => l.pieces)
-    const net = nets[level]
-    field.lay(net, pieces, earlier)
+  /** Build the pieces of slab `pieces` under `sim`'s network, a step at a time: the field, the slab, each Block, then each material's mesh. */
+  function* build({ net, spec }: Sim, pieces: Bounds[], tagged: boolean): Building {
+    const earlier = [...laid]
+    laid.push(...pieces)
+    field.lay(net, spec, pieces, earlier)
     yield
 
     const parts: Part[] = []
@@ -70,9 +96,9 @@ export function createScenery(district: District, field: Field, materials: Mater
     const blocks = field.outlines(0, pieces).map(block).filter(wide)
     yield
 
-    const surroundings = { net, district, field, extent: whole }
+    const surroundings = { net, spec, scenery, field, extent: whole }
     for (const [i, b] of blocks.entries()) {
-      const kit = createKit(mulberry32(blockSeed(district, b)), materials)
+      const kit = createKit(mulberry32(blockSeed(scenery, b)), materials)
       pavement(kit, b)
       fillBlock(kit, b, surroundings)
       take(kit, i)
@@ -101,17 +127,17 @@ export function createScenery(district: District, field: Field, materials: Mater
   }
 
   return {
-    /** Lay the slab Revealed up to Level `level` from scratch, all at once. Returns its meshes. */
-    lay(level: number): THREE.Mesh[] {
-      return district.levels.slice(0, level + 1).flatMap((_, n) => finish(build(n, false)).meshes)
+    /** Lay `pieces` under `sim`'s network, all at once. Returns their meshes. */
+    lay(sim: Sim, pieces: Bounds[]): THREE.Mesh[] {
+      return finish(build(sim, pieces, false)).meshes
     },
 
     /**
-     * Build what the Reveal of Level `level` adds, for the Reveal animation, a step at a time, so that it can be made
-     * ahead while the earlier Level plays. It lays the Level's part of the field as it goes.
+     * Build what the pieces a Rebuild adds bring, for its animation, a step at a time. It lays their part of the field
+     * as it goes.
      */
-    reveal(level: number): Building {
-      return build(level, true)
+    add(sim: Sim, pieces: Bounds[]): Building {
+      return build(sim, pieces, true)
     },
   }
 }

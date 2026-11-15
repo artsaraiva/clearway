@@ -54,7 +54,7 @@ function planeModel(color: string): THREE.BufferGeometry {
 /**
  * The sky over the slab: clouds that drift east and cast shadows, and propeller planes that cross on near-straight
  * lines. Decoration: nothing in the sim reads it.
- * ponytail: three clouds and two planes whatever the slab's size, so the sky thins out over a District much larger
+ * ponytail: three clouds and two planes whatever the slab's size, so the sky thins out over a City much larger
  * than today's; scale the counts with the slab's area then.
  */
 export function createSky(slab: Bounds) {
@@ -93,7 +93,7 @@ export function createSky(slab: Bounds) {
   return {
     group,
 
-    /** Fly over a new slab, as after a Reveal. Clouds and planes carry on from where they are. */
+    /** Fly over a new slab, as after a Rebuild. Clouds and planes carry on from where they are. */
     fit(next: Bounds) {
       const [x, z] = centre(next)
       for (const p of planes) [p.east, p.south] = [p.east + cx - x, p.south + cz - z]

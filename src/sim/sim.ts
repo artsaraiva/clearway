@@ -1,9 +1,11 @@
+import { City } from '../city/city'
 import { Demand, type VehicleType } from './demand'
-import { validateDistrict, revealed, type Change, type District, type Level, type Priority } from './district'
 import { accel } from './driving'
-import { measure, PREWARM } from './metric'
+import { measure, PREWARM, WIN_TIME } from './metric'
 import { applyChange, buildNetwork, type Arm, type Connection, type Lane, type Network } from './network'
 import { replan, route } from './routing'
+import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
+import { gatewayDemand, networkSpec } from './tiles'
 
 export { VEHICLE_TYPES, type VehicleType } from './demand'
 export { PREWARM, WIN_FLOW, WIN_TIME } from './metric'
@@ -30,48 +32,52 @@ export interface Vehicle {
 export const DT = 1 / 30
 
 export class Sim {
+  /** The Junctions and Roads the network was built from. */
+  readonly spec: NetworkSpec
   readonly net: Network
-  readonly level: Level
+  /** Trips per minute from each Gateway, fixed until the next Rebuild. */
+  readonly rates: DemandSpec
   time = 0
   flow = 1
-  won = false
   completed = 0
   vehicles: Vehicle[] = []
   /** Sim-seconds the flow has stayed at or above WIN_FLOW. */
   sustained = 0
   private demand: Demand
-  /** The configuration at the Reveal, which Reset returns to. */
-  private atReveal: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
+  /** Every Junction's default configuration, which Reset returns to. */
+  private defaults: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
 
   /**
-   * Reveal Level `levelIndex` of a District and Pre-warm it. `carried` is the configuration brought over from earlier
-   * Levels, as Changes on top of their initial configurations: the earlier Sim's `configuration()`, or reference
-   * solutions. With `prewarm: false` the caller runs the Pre-warm, stepping until `prewarmed`, so it can be spread
-   * over the frames of the Reveal animation.
+   * Build the simulation of a City and Pre-warm it (ADR 0002). `carried` is the configuration brought over from the
+   * Sim before, as Changes on top of every Junction's default: that Sim's `configuration()`. Demand comes from the
+   * City's Gateways, and `seed` picks the random stream. With `prewarm: false` the caller runs the Pre-warm, stepping
+   * until `prewarmed`, so it can be spread over frames. A Scenario in place of the City brings its own Demand.
    */
-  constructor(
-    readonly district: District,
-    levelIndex = 0,
-    carried: Change[] = [],
-    { prewarm = true } = {},
-  ) {
-    validateDistrict(district)
-    const levels = district.levels.slice(0, levelIndex + 1)
-    this.level = levels[levelIndex]
-    this.net = buildNetwork(district, revealed(district, levelIndex))
-    const initial = (level: Level) => Object.entries(level.initial).map(([at, initial]) => ({ at, ...initial }))
-    // Earlier Levels' Junctions as the player left them, then this Level's initial configuration on top.
-    for (const change of [...levels.slice(0, -1).flatMap(initial), ...carried, ...initial(this.level)]) applyChange(this.net, change)
+  constructor(source: City | Scenario, carried: Change[] = [], seed = 1, { prewarm = true } = {}) {
+    this.spec = source instanceof City ? networkSpec(source) : source.network
+    this.net = buildNetwork(this.spec)
     const arms = this.arms()
-    this.atReveal = {
+    this.defaults = {
       enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),
       priority: new Map(arms.map((a) => [a, a.priority])),
     }
-    this.demand = new Demand(this.level.demand, this.level.seed)
+    for (const change of carried) applyChange(this.net, change)
+    // After the Changes: a Gateway only sends trips to the Gateways it can reach as the Connections stand.
+    this.rates = source instanceof City ? gatewayDemand(source, this.net) : source.demand
+    for (const id of [...Object.keys(this.rates), ...Object.values(this.rates).flatMap((d) => Object.keys(d.to))]) {
+      if (!this.net.gateways[id])
+        throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${Object.keys(this.net.gateways).join(', ')})`)
+    }
+    this.demand = new Demand(this.rates, seed)
     if (prewarm) while (!this.prewarmed) this.step()
   }
 
-  /** Whether the Pre-warm is done, so the Level can be shown. */
+  /** Whether Flow has stayed at or above its bar for long enough: the City is carrying its Demand. */
+  get holding() {
+    return this.sustained >= WIN_TIME
+  }
+
+  /** Whether the Pre-warm is done, so the traffic can be shown. */
   get prewarmed() {
     return this.time >= PREWARM
   }
@@ -81,19 +87,19 @@ export class Sim {
     return this.demand.queues
   }
 
-  /** Every Junction back to its configuration at the Reveal; traffic keeps running. */
+  /** Every Junction back to its default configuration; traffic keeps running. */
   reset() {
-    this.sustained = 0 // ponytail: Flow's moving average lags ~20 s, so a long-held hold could still finish; fine while Win latches
+    this.sustained = 0
     for (const arm of this.arms()) {
-      arm.priority = this.atReveal.priority.get(arm)!
-      for (const c of arm.connections) c.enabled = this.atReveal.enabled.has(c)
+      arm.priority = this.defaults.priority.get(arm)!
+      for (const c of arm.connections) c.enabled = this.defaults.enabled.has(c)
     }
     replan(this.net, this.vehicles)
   }
 
   /**
-   * The configuration of every Junction as it stands, as Changes: what the next Reveal carries over. Connection refs
-   * and Road ids are stable across Reveals.
+   * The configuration of every Junction as it stands, as Changes: what the next Rebuild carries over. Connection refs
+   * and Road ids are stable across Rebuilds.
    */
   configuration(): Change[] {
     return this.net.junctions.map((j) => {

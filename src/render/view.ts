@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { extent, type Vec } from '../sim/geometry'
+import { extent, type Bounds, type Vec } from '../sim/geometry'
 import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
 import { createCamera } from './camera'
@@ -13,52 +13,62 @@ import { createMaterials } from './kit'
 import { createLabels } from './labels'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
-import { createScenery, finish, type Build, type Building } from './scenery'
+import { createScenery, finish, type Scenery } from './scenery'
 import { createSky } from './sky'
 import { createUnderShadow, slabBounds } from './slab'
 import { createWalkers } from './walkers'
 
-const SHRINK = 0.3 // s for the cars to shrink out as a Reveal starts
-const GROW = 1.5 // per second: how fast the new Level's cars grow in once its pieces have landed
-const AHEAD = 2 // ms of each frame spent building the next Level's Reveal while this one plays
+const SHRINK = 0.3 // s for the cars to shrink out as a Rebuild starts
+const GROW = 1.5 // per second: how fast the cars grow back in once the new pieces have landed
 
 export type View = ReturnType<typeof createView>
 
-/** Draws a Sim's District as a slab in open sky, and each Reveal as the next Level's pieces of slab assembling. */
-export function createView(canvas: HTMLCanvasElement, sim: Sim) {
+/** The ground a view draws a Sim on. */
+export interface Ground {
+  /** The slab so far, each piece laid separately: the cell of every Tile placed. */
+  pieces: Bounds[][]
+  /**
+   * Everything the slab may grow to cover.
+   * ponytail: fixed when the view is made, since the field and the lighting are sized to it. That holds for a City
+   * whose Tiles are known up front; the game page (#88) has to grow them, since the board has no bounds.
+   */
+  whole: Bounds
+  scenery: Scenery
+}
+
+/** Draws a Sim's City as a slab in open sky, and each Rebuild as the new pieces of slab assembling. */
+export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
   renderer.toneMapping = THREE.NeutralToneMapping
   renderer.setClearColor(0x000000, 0)
 
-  const { district } = sim
-  const levelOf = (s: Sim) => district.levels.indexOf(s.level)
-  /** Every piece of slab out of the Fog once Level `level` is Revealed. */
-  const piecesAt = (level: number) => district.levels.slice(0, level + 1).flatMap((l) => l.pieces)
-  /** The slab once Level `level` is Revealed, as a rectangle: its road plate and grass rim. */
-  const slabAt = (level: number) => slabBounds(extent(piecesAt(level)))
-  const whole = extent(piecesAt(district.levels.length - 1))
-  const field = createField(district, whole)
+  const { whole } = ground
+  /** Every piece of slab laid so far. */
+  const pieces = ground.pieces.flat()
+  /** The slab so far as a rectangle: its road plate and grass rim. */
+  const slabNow = () => slabBounds(extent(pieces))
+  const field = createField(whole)
   const materials = createMaterials()
-  const scenery = createScenery(district, field, materials)
-  const laid = scenery.lay(levelOf(sim))
-  const slab = slabAt(levelOf(sim))
+  const scenery = createScenery(ground.scenery, field, materials, whole)
+  const laid = ground.pieces.flatMap((piece) => scenery.lay(sim, piece))
+  const slab = slabNow()
   const { camera, resize, update: updateCamera, fit } = createCamera(canvas, slab)
-  // Lit for the whole District from the start, so that no Reveal moves the shadows of the slab already there.
+  // Lit for the whole ground from the start, so that no Rebuild moves the shadows of the slab already there.
   const day = createDay(canvas, slabBounds(whole))
   const sky = createSky(slab)
   const under = createUnderShadow()
   under.fit(slab)
-  let roads = createRoads(sim.net, district)
+  let roads = createRoads(sim.net, sim.spec)
   const cars = createCars(sim.net)
   const walkers = createWalkers()
-  walkers.add(sim.net, field, piecesAt(levelOf(sim)))
+  walkers.add(sim.net, field, pieces)
   const emotion = createJamEmotion()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
-  const labels = createLabels(canvas, camera, district)
-  labels.show(sim.net, field, piecesAt(levelOf(sim)))
+  const labels = createLabels(canvas, camera, ground.scenery)
+  labels.show(sim.net, field, pieces)
   const reveal = createReveal(materials)
   const scene = new THREE.Scene().add(
     ...day.lights,
@@ -84,22 +94,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
   window.addEventListener('resize', fitCanvas)
   fitCanvas()
 
-  // The next Level's Reveal, built ahead so that pressing Next starts it at once. The first is built now and its
-  // shaders compiled; any later one a few milliseconds a frame while the Level before it plays.
-  const prepare = (level: number): { level: number; building: Building; build?: Build } | null =>
-    district.levels[level] ? { level, building: scenery.reveal(level) } : null
-  let ahead = prepare(levelOf(sim) + 1)
-  if (ahead) {
-    ahead.build = finish(ahead.building)
-    reveal.warm(renderer, scene, camera, ahead.build)
-  }
-
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
   let inspected: Vehicle | null = null
   let shown = sim // the Sim whose cars are drawn
-  let next: Sim | null = null // the Sim a Reveal is building toward, until its cars are shown
-  let grow = 1 // the cars' size: they shrink out as a Reveal starts and grow back in once it has landed
+  let next: Sim | null = null // the Sim a Rebuild is building toward, until its cars are shown
+  let grow = 1 // the cars' size: they shrink out as a Rebuild starts and grow back in once it has landed
 
   return {
     /** Stop the day at a time of day, 0–1. A dev aid: the player has no control over it. */
@@ -129,28 +129,29 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
     carCentre,
 
     /**
-     * Whether a Reveal is under way: from `reveal` until the new Level's cars have grown in. The Level is not shown
-     * yet, so its Sim should not run, and the build plays even while the world is paused.
+     * Whether a Rebuild is under way: from `rebuild` until the new Sim's cars have grown in. Its traffic is not shown
+     * yet, so the Sim should not run past its Pre-warm, and the build plays even while the world is paused.
      */
-    get revealing() {
+    get rebuilding() {
       return next !== null || grow < 1
     },
 
     /**
-     * Play the Reveal of `level`'s Level, the Sim that the Reveal rebuilt: its pieces of slab assemble next to the slab
-     * already there, then its cars grow in. The cars wait for the Sim's Pre-warm, which the caller runs meanwhile. A
-     * Level won before its Reveal was built ahead is built now, at once.
+     * Play a Rebuild that placed a Tile: `rebuilt` is the Sim it made and `added` the pieces of slab it adds, which
+     * must lie on the ground's `whole`. They assemble next to the slab already there, then the cars grow in. The cars
+     * wait for the Sim's Pre-warm, which the caller runs meanwhile.
+     * ponytail: the pieces are built in one go when the Rebuild starts, a hitch of a few ms for one cell. Spread the
+     * build over frames (`scenery.add` is a generator) if a placement ever adds enough to drop one.
      */
-    reveal(level: Sim) {
-      const k = levelOf(level)
-      const build = ahead?.level === k ? (ahead.build ?? finish(ahead.building)) : finish(scenery.reveal(k))
-      ahead = null
+    rebuild(rebuilt: Sim, added: Bounds[]) {
+      const build = finish(scenery.add(rebuilt, added))
+      pieces.push(...added)
       scene.add(...build.meshes)
-      const paint = createRoads(level.net, district)
-      const grown = slabAt(k)
+      const paint = createRoads(rebuilt.net, rebuilt.spec)
+      const grown = slabNow()
       fit(grown)
       under.fit(grown, true)
-      ;[next, inspected] = [level, null]
+      ;[next, inspected] = [rebuilt, null]
       armConnections.show(null, null)
       reveal.play(build, {
         plate() {
@@ -164,26 +165,18 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim) {
           scene.add(roads.group)
         },
         done() {
-          walkers.add(level.net, field, build.pieces)
-          labels.show(level.net, field, piecesAt(k))
+          walkers.add(rebuilt.net, field, build.pieces)
+          labels.show(rebuilt.net, field, pieces)
           sky.fit(grown)
-          ahead = prepare(k + 1)
         },
       })
     },
 
     /**
      * Draw a frame. `dt` is the real seconds since the last one, 0 while the sim is paused: it drives everything that
-     * moves on its own (the day, the sky, the walkers, the Jam emotion and a Reveal), so a pause stops the whole world.
+     * moves on its own (the day, the sky, the walkers, the Jam emotion and a Rebuild), so a pause stops the whole world.
      */
     render(dt: number) {
-      if (ahead && !ahead.build && !this.revealing) {
-        const end = performance.now() + AHEAD
-        while (!ahead.build && performance.now() < end) {
-          const step = ahead.building.next()
-          if (step.done) ahead.build = step.value
-        }
-      }
       reveal.update(dt)
       if (next && !reveal.playing && next.prewarmed) {
         shown = next

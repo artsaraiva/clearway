@@ -1,9 +1,9 @@
 import * as THREE from 'three'
-import type { District } from '../sim/district'
 import { pointAt, type Bounds } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Field } from './field'
 import { v3 } from './ribbons'
+import type { Scenery } from './scenery'
 
 // Per kind of landmark: its label's colour, and how high above the road the label floats (m).
 const LANDMARKS = {
@@ -14,12 +14,12 @@ const LANDMARKS = {
 const AHEAD = 20 // m along a Road to the second point its on-screen direction is read from
 
 /**
- * Names from the District file as DOM labels over the canvas: each street's name lying along its longest Road, and
- * each named landmark's with a coloured dot. A District with no scenery gets none. Styled by `.labels` in the page.
+ * Names from the scenery as DOM labels over the canvas: each street's name lying along its longest Road, and
+ * each named landmark's with a coloured dot. Scenery that names nothing gets none. Styled by `.labels` in the page.
  * ponytail: labels never make room for each other, so two names can overlap at some camera angles. That is rare with
- * the handful a District has today; hide the lesser of an overlapping pair when Districts carry more names.
+ * the handful a City has today; hide the lesser of an overlapping pair when Cities carry more names.
  */
-export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, district: District) {
+export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, scenery: Scenery) {
   const layer = document.createElement('div')
   layer.className = 'labels'
   canvas.after(layer)
@@ -32,19 +32,17 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, di
   }
 
   /**
-   * Label what is out of the Fog: the streets of `net`, and the landmarks on a Block of `field` on the Revealed pieces
-   * of slab `pieces` (the field may already hold a later Level, made ahead of its Reveal).
+   * Label what is on the slab: the streets of `net`, and the landmarks on a Block of `field` on the pieces of slab
+   * `pieces`.
    */
   const show = (net: Network, field: Field, pieces: Bounds[]) => {
     layer.replaceChildren()
     labels = []
-    const { scenery } = district
-    if (!scenery) return
     const roads = new Map<string, Lane[]>()
     for (const lane of net.lanes) {
       if ('road' in lane.owner) roads.set(lane.owner.road, [...(roads.get(lane.owner.road) ?? []), lane])
     }
-    // Roads that share a name are one street: it is named once, on its longest Road out of the Fog.
+    // Roads that share a name are one street: it is named once, on its longest Road.
     const streets = new Map<string, Lane[]>()
     for (const [road, lanes] of roads) {
       const name = scenery.streets[road]
@@ -57,7 +55,7 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, di
       const { heading } = mids[0]
       add(name, v3({ x, y }), v3({ x: x + Math.cos(heading) * AHEAD, y: y + Math.sin(heading) * AHEAD }))
     }
-    // A landmark off every Block is still in the Fog, and stays unnamed.
+    // A landmark off every Block is not on the slab yet, and stays unnamed.
     for (const { type, name, at } of [...scenery.landmarks, ...scenery.blocks]) {
       const [x, y] = at
       if (name && field.sample(x, y) > 0 && pieces.some((p) => x >= p.x0 && x <= p.x1 && y >= p.y0 && y <= p.y1))

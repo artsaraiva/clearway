@@ -18,7 +18,7 @@ function timesTo(net: Network, dest: string): Map<Lane, number> {
   if (times) return times
   byDest.set(dest, (times = new Map()))
   const open = new Map(net.gateways[dest].exit.map((l) => [l, travelTime(l)]))
-  // ponytail: the open set is scanned for its minimum, O(lanes²) per destination and Change; fine for a District of
+  // ponytail: the open set is scanned for its minimum, O(lanes²) per destination and Change; fine for a City of
   // a few hundred lanes, swap in a heap if re-planning shows up in `npm run bench`
   while (open.size) {
     let lane!: Lane
