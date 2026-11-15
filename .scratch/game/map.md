@@ -181,12 +181,24 @@ Look (since [#16](https://github.com/artsaraiva/clearway/issues/16)): an anime-f
   - `GLOSSARY.md` rewritten: City, Layout, Swap, Undo, Rebuild, Price, Holding and Record added; Tile, Gateway, Demand and Reset redefined; District, Level, Fog, Reveal and Win retired.
   - Dorfromantik was compared. Taken from it: Undo and the loop rebate. Left for later: contracts [#90](https://github.com/artsaraiva/clearway/issues/90), landmarks [#91](https://github.com/artsaraiva/clearway/issues/91), a free-money mode [#96](https://github.com/artsaraiva/clearway/issues/96). Ruled out: hex cells and a random tile stack.
   - Also deferred: Gateways with character [#92](https://github.com/artsaraiva/clearway/issues/92), one-lane Layouts [#93](https://github.com/artsaraiva/clearway/issues/93), a second town [#94](https://github.com/artsaraiva/clearway/issues/94), Blocks that drive Demand [#95](https://github.com/artsaraiva/clearway/issues/95). Milestones go to [#48](https://github.com/artsaraiva/clearway/issues/48), unlocks to [#55](https://github.com/artsaraiva/clearway/issues/55).
+- UI/UX ([#15](https://github.com/artsaraiva/clearway/issues/15), grilling, 2026-11-15). Answer in the issue; spec in `.scratch/ui-ux/spec.md`; issues [#104](https://github.com/artsaraiva/clearway/issues/104)–[#113](https://github.com/artsaraiva/clearway/issues/113).
+  - Desktop only. Touch is [#114](https://github.com/artsaraiva/clearway/issues/114), sound [#115](https://github.com/artsaraiva/clearway/issues/115).
+  - Look: cozy Japanese and oversaturated, for the world and the UI. Saturation goes into the palette colour by colour, with no filter; the road plate and pavement stay pale. Blue is reserved for Tools and Inspectors, hot red-orange for Jams and refusals. The UI is neutral frosted glass with saturated accents and one rounded typeface. The user picks the strength from a mock ([#104](https://github.com/artsaraiva/clearway/issues/104)); the world is recoloured in [#105](https://github.com/artsaraiva/clearway/issues/105), which amends the visual style spec.
+  - Tools: no toolbar. A click selects a whole Junction; clicking an Arm's give-way paint flips its Priority rule; a Connection is dragged between lane ends. Reset acts on one Junction, and the city-wide button goes. Undo of a Change is [#116](https://github.com/artsaraiva/clearway/issues/116).
+  - Placing: click-to-pick as well as drag, with the Layout staying in the hand. The bar's pictures turn with the camera. The ghost shows the Gateways a Tile closes and opens and the change in Demand, with no forecast.
+  - Readings: yen with a fill toward the Price, Flow with the Holding state, trips a minute with the Record. Jammed Junctions carry a clickable marker. No history charts, heatmap or queue bars.
+  - Demand view: a new Inspector that draws trips a minute as line width, per direction on Roads and per turn in Junctions. This takes the desire lines out of the backlog.
+  - Camera: left drag pans and right drag rotates, the reverse of [#16](https://github.com/artsaraiva/clearway/issues/16). No refit after a placement.
+  - Save: one autosave in `localStorage` per kind of run, no menu screen, no migration before release.
+  - Teaching is three one-time hints. Every state reads without colour, and reduced motion is followed.
+  - `GLOSSARY.md`: Demand view added; Reset now acts on one Junction.
 
 ## Fog
 
 - Do the starting numbers meet the bars, and does building around a Jam work past 10 Tiles? [#89](https://github.com/artsaraiva/clearway/issues/89).
 - Which Tools and which layouts give a Jam more than one kind of fix? [#55](https://github.com/artsaraiva/clearway/issues/55).
-- What are the screens, the placing interaction and save? [#15](https://github.com/artsaraiva/clearway/issues/15).
+- How strong is the saturation, and which typeface? [#104](https://github.com/artsaraiva/clearway/issues/104).
+- Does a loaded save join the Economy test seam? [#111](https://github.com/artsaraiva/clearway/issues/111).
 - How does a large City stay fast, and does it get milestones? [#48](https://github.com/artsaraiva/clearway/issues/48).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 
@@ -195,7 +207,8 @@ Look (since [#16](https://github.com/artsaraiva/clearway/issues/16)): an anime-f
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
 - Tile sandbox build (spec in `.scratch/tile-sandbox/spec.md`): [#85](https://github.com/artsaraiva/clearway/issues/85) the City → [#86](https://github.com/artsaraiva/clearway/issues/86) the Sim from a City → [#87](https://github.com/artsaraiva/clearway/issues/87) yen, Swap and Undo → [#88](https://github.com/artsaraiva/clearway/issues/88) the game page and [#89](https://github.com/artsaraiva/clearway/issues/89) tuning.
-- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#55](https://github.com/artsaraiva/clearway/issues/55) Tool roster, [#48](https://github.com/artsaraiva/clearway/issues/48) the endless city, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#90](https://github.com/artsaraiva/clearway/issues/90) contracts, [#91](https://github.com/artsaraiva/clearway/issues/91) landmarks, [#92](https://github.com/artsaraiva/clearway/issues/92) Gateways with character, [#93](https://github.com/artsaraiva/clearway/issues/93) one-lane Layouts, [#94](https://github.com/artsaraiva/clearway/issues/94) a second town, [#95](https://github.com/artsaraiva/clearway/issues/95) Blocks that drive Demand.
+- UI/UX build (spec in `.scratch/ui-ux/spec.md`): [#104](https://github.com/artsaraiva/clearway/issues/104) the mock → [#105](https://github.com/artsaraiva/clearway/issues/105) the world's recolour and [#106](https://github.com/artsaraiva/clearway/issues/106) layout and readings → [#107](https://github.com/artsaraiva/clearway/issues/107) Tools, [#108](https://github.com/artsaraiva/clearway/issues/108) the bar, [#109](https://github.com/artsaraiva/clearway/issues/109) the camera and [#111](https://github.com/artsaraiva/clearway/issues/111) save → [#110](https://github.com/artsaraiva/clearway/issues/110) Jam markers → [#112](https://github.com/artsaraiva/clearway/issues/112) hints and accessibility and [#113](https://github.com/artsaraiva/clearway/issues/113) the Demand view.
+- Grillings: [#55](https://github.com/artsaraiva/clearway/issues/55) Tool roster, [#48](https://github.com/artsaraiva/clearway/issues/48) the endless city, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians, [#90](https://github.com/artsaraiva/clearway/issues/90) contracts, [#91](https://github.com/artsaraiva/clearway/issues/91) landmarks, [#92](https://github.com/artsaraiva/clearway/issues/92) Gateways with character, [#93](https://github.com/artsaraiva/clearway/issues/93) one-lane Layouts, [#94](https://github.com/artsaraiva/clearway/issues/94) a second town, [#95](https://github.com/artsaraiva/clearway/issues/95) Blocks that drive Demand, [#114](https://github.com/artsaraiva/clearway/issues/114) touch controls, [#115](https://github.com/artsaraiva/clearway/issues/115) sound, [#116](https://github.com/artsaraiva/clearway/issues/116) undo for Changes.
 - Later: [#96](https://github.com/artsaraiva/clearway/issues/96) a free-money mode.
 - Roundabouts: [#71](https://github.com/artsaraiva/clearway/issues/71) a small roundabout that can stand still. The Roundabout is a tile in the prototype.
 - Closed by the tile sandbox verdict: [#77](https://github.com/artsaraiva/clearway/issues/77)–[#80](https://github.com/artsaraiva/clearway/issues/80) the land game build, [#46](https://github.com/artsaraiva/clearway/issues/46) the District generator and [#49](https://github.com/artsaraiva/clearway/issues/49) roundabouts in generated grids.
@@ -203,6 +216,7 @@ Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issu
 
 ## Resolved tickets
 
+- [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX (answer in the issue; spec in `../ui-ux/spec.md`)
 - [#83](https://github.com/artsaraiva/clearway/issues/83) The tile sandbox's rules (answer in the issue; spec in `../tile-sandbox/spec.md`; ADR 0004)
 - [#82](https://github.com/artsaraiva/clearway/issues/82) Tile placing prototype (report and verdict in the issue; rules grilled in [#83](https://github.com/artsaraiva/clearway/issues/83))
 - [#74](https://github.com/artsaraiva/clearway/issues/74) Land and economy prototype (report and verdict in the issue; spec in `../land-game/spec.md`)

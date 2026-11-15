@@ -62,8 +62,12 @@ _Avoid_: Tool, overlay, debug view
 One use of a Tool by the player.
 _Avoid_: Move, edit, action
 
+**Demand view**:
+An Inspector that draws Demand along its routes: the wider a line, the more trips a minute want that stretch of road. It shows how much traffic wants a road, not how well it moves.
+_Avoid_: Traffic flow view, flow map, heatmap
+
 **Reset**:
-Returning every Junction to its default configuration.
+Returning one Junction to its default configuration.
 _Avoid_: Undo, restart
 
 ### Network
