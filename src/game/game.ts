@@ -27,6 +27,8 @@ const UNDO_STEPS = Math.round(ECONOMY.undoWindow / DT)
 export class Game {
   /** Picks the starting Tile and seeds every Sim of the run. */
   readonly seed: number
+  /** A Free run: the Price is ¥0, so every Tile and Swap costs nothing. Its Record is kept apart from a normal run's. */
+  readonly free: boolean
   yen: number
   /** The most trips per minute the City has carried while Holding. */
   record = 0
@@ -43,13 +45,15 @@ export class Game {
   private sincePlacing = 0
 
   /**
-   * A new run: a new `seed` draws the starting Tile, and the Price of the next Tile is in hand. A test passes a fixed
-   * seed, and may start from its own `city` and `yen`. The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
+   * A new run: a new `seed` draws the starting Tile, and the Price of the next Tile is in hand. `free` makes it a Free
+   * run. A test passes a fixed seed, and may start from its own `city` and `yen`. The Sim starts at its Pre-warm: `step`
+   * until `sim.prewarmed`.
    */
-  constructor(seed = Math.floor(Math.random() * 2 ** 32), start: { city?: City; yen?: number } = {}) {
+  constructor(seed = Math.floor(Math.random() * 2 ** 32), start: { city?: City; yen?: number; free?: boolean } = {}) {
     this.seed = seed
+    this.free = start.free ?? false
     this._city = start.city ?? City.start(seed)
-    this.yen = start.yen ?? this._city.price
+    this.yen = start.yen ?? this.price
     this._sim = this.rebuild([])
   }
 
@@ -62,9 +66,12 @@ export class Game {
     return this._sim
   }
 
-  /** What the next Tile costs. */
+  /**
+   * What the next Tile costs: nothing in a Free run. The loop rebate, the Undo refund and the Income floor all follow it,
+   * so a Free run has no floor: it never needs to afford a fix.
+   */
   get price() {
-    return this._city.price
+    return this.free ? 0 : this._city.price
   }
 
   /** Trips that arrived over the last minute of earning. */

@@ -83,6 +83,18 @@ it('charges a Swap the Price with no rebate, and does not raise the Price', () =
   expect(game.price).toBe(750)
 })
 
+it('charges nothing for a Tile, a Swap or an Undo in a Free run', () => {
+  const city = new City([{ cell: { x: 0, y: 0 }, layout: layout('straight'), rotation: 0 }])
+  const game = new Game(1, { city, free: true })
+  expect(game.yen).toBe(0)
+  for (let x = 1; x <= 3; x++) expect(place(game, ['straight', 0, x, 0])).toMatchObject({ legal: true, price: 0, affordable: true })
+  expect(place(game, ['crossroads', 0, 3, 0])).toMatchObject({ legal: true, swap: true, price: 0, affordable: true })
+  expect(game.undo()).toBe(true)
+  expect(game.city.tiles).toHaveLength(4)
+  expect(game.yen).toBe(0)
+  expect(game.price).toBe(0)
+})
+
 it('pays for every trip that arrives', () => {
   const game = earn(gameOf(0, ['crossroads', 0, 0, 0]), 120)
   expect(game.yen).toBeGreaterThan(game.price / 25)
