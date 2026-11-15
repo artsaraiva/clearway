@@ -2,7 +2,6 @@ import * as THREE from 'three'
 import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
-import { CELL } from '../sim/tiles'
 import { createCamera } from './camera'
 import { carCentre, createCars } from './cars'
 import { createArmConnections } from './connections'
@@ -41,7 +40,7 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
 
 /**
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
- * the Blocks' field, the lighting and the camera follow the City as it grows.
+ * the Blocks' field and the lighting follow the City as it grows, and the camera goes wherever the player takes it.
  */
 export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
@@ -59,9 +58,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const scenery = createScenery(ground.scenery, field, materials, FILL_EXTENT)
   const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
   let slab = slabNow()
-  /** What the camera frames: the slab and the cells around it, where the next Tile can go. */
-  const framed = (b: Bounds): Bounds => ({ x0: b.x0 - CELL, y0: b.y0 - CELL, x1: b.x1 + CELL, y1: b.y1 + CELL })
-  const { camera, resize, update: updateCamera, fit } = createCamera(canvas, framed(slab))
+  const rig = createCamera(canvas, slab) // the camera, and what moves it
   const day = createDay(canvas, slab)
   const sky = createSky(slab)
   const under = createUnderShadow()
@@ -73,7 +70,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const emotion = createJamEmotion()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
-  const labels = createLabels(canvas, camera, ground.scenery)
+  const labels = createLabels(canvas, rig.camera, ground.scenery)
   labels.show(sim.net, sim.rates, field, pieces)
   const reveal = createReveal(materials)
   const hand = createHand()
@@ -97,14 +94,13 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const fitCanvas = () => {
     ;[width, height] = [canvas.clientWidth, canvas.clientHeight]
     renderer.setSize(width, height, false)
-    resize(width, height)
+    rig.resize(width, height)
   }
   window.addEventListener('resize', fitCanvas)
   fitCanvas()
 
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-  const screenUp = new THREE.Vector3()
   let inspected: Vehicle | null = null
   let shown = sim // the Sim whose cars are drawn
   let next: Sim | null = null // the Sim a Rebuild is building toward, until its cars are shown
@@ -114,12 +110,20 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     /** Stop the day at a time of day, 0–1. A dev aid: the player has no control over it. */
     holdDay: day.hold,
 
+    /**
+     * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
+     * `frameCity` and `toggleTilt` fly it. `heading` is how far the world is turned on screen, in radians clockwise
+     * (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether the
+     * camera looks down from its steepest tilt.
+     */
+    camera: rig.controls,
+
     /** Sim coordinates under a pointer event, on the road plane. */
     pick(e: PointerEvent): Vec | null {
       const r = canvas.getBoundingClientRect()
       raycaster.setFromCamera(
         new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1),
-        camera,
+        rig.camera,
       )
       const hit = raycaster.ray.intersectPlane(roadPlane, new THREE.Vector3())
       return hit ? { x: hit.x, y: -hit.z } : null
@@ -153,16 +157,6 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     },
 
     /**
-     * How far the camera is turned from north up, in radians: north on the screen points this far clockwise of
-     * straight up. A top-down picture turned by it faces the way the board does.
-     */
-    get heading() {
-      // The way the top of the screen points, laid flat on the ground: x east and z south.
-      const up = screenUp.set(0, 1, 0).applyQuaternion(camera.quaternion)
-      return Math.atan2(-up.x, -up.z)
-    },
-
-    /**
      * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
      * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
      * at once. Then the cars grow in. They wait for the Sim's Pre-warm, which the caller runs meanwhile.
@@ -192,13 +186,15 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       if (build) scene.add(...build.meshes)
       const paint = createRoads(rebuilt.net, rebuilt.spec)
       const grown = slabNow()
-      // The camera and the light move only when the slab's outline has, so a Tile placed inside it leaves the player's view alone.
       if (!sameBounds(grown, slab)) {
         slab = grown
-        fit(framed(grown))
+        rig.setCity(grown)
         day.fit(grown)
         under.fit(grown, true)
       }
+      // The camera stays where it is, unless the Tile laid is off screen: then it moves just far enough to show it.
+      if ('placed' in relaid) rig.bringIn(relaid.placed)
+      if ('swapped' in relaid) rig.bringIn(relaid.swapped)
       ;[next, inspected] = [rebuilt, null]
       armConnections.show(null, null)
       labels.show(rebuilt.net, rebuilt.rates, field, pieces)
@@ -227,8 +223,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     /**
      * Draw a frame. `dt` is the real seconds since the last one, 0 while the sim is paused: it drives everything that
      * moves on its own (the day, the sky, the walkers, the Jam emotion and a Rebuild), so a pause stops the whole world.
+     * `real` is the real seconds paused or not: the camera keeps moving while the world is paused.
      */
-    render(dt: number) {
+    render(dt: number, real = dt) {
       reveal.update(dt)
       if (next && !reveal.playing && next.prewarmed) {
         shown = next
@@ -245,10 +242,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       walkers.update(dt)
       hand.update()
       roads.update()
-      updateCamera(dt)
+      rig.update(real)
       under.update(dt)
-      sky.update(dt, camera.zoom)
-      renderer.render(scene, camera)
+      sky.update(dt, rig.camera.zoom)
+      renderer.render(scene, rig.camera)
       labels.update(width, height)
     },
   }

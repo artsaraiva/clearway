@@ -7,11 +7,12 @@ import type { Arm, Lane } from '../sim/network'
 import { WIN_FLOW, WIN_TIME, type Vehicle } from '../sim/sim'
 import type { Priority } from '../sim/spec'
 import { cellAt, cellBounds } from '../sim/tiles'
+import { createCameraButtons } from './camera-buttons'
+import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 
 const ARM_PICK = 25 // m from where an Arm meets the Ring
 const MARKER_PICK = 3 // m from a lane-end marker
 const CAR_PICK = 3 // m from a car's centre
-const CLICK_SLOP = 4 // px the pointer may move between press and release
 /**
  * The most of its length yen's fill takes while the next Tile is out of reach. The last step to full comes only when
  * the Tile is affordable, so a fill a pixel short of the Price never passes for full.
@@ -66,10 +67,10 @@ function icon(layout: Layout) {
 
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
- * Record top-centre, the clock top-right, the bar of Layouts with the Price and Undo bottom-centre, and the menu
- * bottom-left. Bottom-right is kept for the camera buttons. While a Layout is in the hand, every click on the board
- * drops it. Otherwise, until the Tools move into the world (#107), a click near an Arm selects it and shows its Tools
- * under the clock, and a click on a car shows its route.
+ * Record top-centre, the clock top-right, the bar of Layouts with the Price and Undo bottom-centre, the camera's
+ * buttons bottom-right and the menu bottom-left. While a Layout is in the hand, every click on the board drops it.
+ * Otherwise, until the Tools move into the world (#107), a click near an Arm selects it and shows its Tools under the
+ * clock, and a click on a car shows its route. Drags on the board move the camera.
  */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -130,6 +131,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
           <dt>Turn it back</dt><dd><kbd>Shift</kbd> <kbd>R</kbd></dd>
           <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
           <dt>Deselect</dt><dd><kbd>Esc</kbd></dd>
+          <dt>Frame the whole City</dt><dd><kbd>F</kbd></dd>
         </dl>
       </div>
     </div>`
@@ -356,11 +358,46 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     }
   })
 
-  // A click is a press and release in one spot: a drag moves the camera instead. Nothing is picked during a Rebuild.
-  let down = { x: 0, y: 0 }
-  canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY }))
-  canvas.addEventListener('pointerup', (e) => {
-    if (e.button !== 0 || moved(e, down) || view.rebuilding) return
+  /** A press whose drag moves the camera, with a grabbing hand while it does. */
+  const moving = (move: NonNullable<Gesture['drag']>, end?: Gesture['end']): Gesture => ({
+    drag(e, from) {
+      canvas.style.cursor = 'grabbing'
+      move(e, from)
+    },
+    end(e, click) {
+      canvas.style.cursor = ''
+      end?.(e, click)
+    },
+  })
+  // A press on the board is a click until it moves past the slop, then a drag that moves the camera: a left drag pans,
+  // and a right drag rotates, as does a left drag with Shift, Ctrl or ⌘ for a trackpad. The wheel zooms toward the
+  // pointer, unless a Tile in the hand takes it to turn. A right click without movement puts the Layout in the hand
+  // back (above), and a right drag rotates whatever the hand holds.
+  watchPresses(canvas, (e) => {
+    const rotating = e.button === 2 || (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey))
+    if (rotating) return moving((e, from) => view.camera.rotate(e.clientX - from.clientX, e.clientY - from.clientY))
+    if (e.button !== 0) return null
+    return moving(
+      (e, from) => view.camera.pan(from, e),
+      (e, click) => click && clickBoard(e),
+    )
+  })
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault()
+      // In pixels, whatever the wheel counts in; a pinch on a trackpad comes as small turns with Ctrl held.
+      view.camera.zoomAt(e, e.deltaY * [1, 16, 100][e.deltaMode] * (e.ctrlKey ? 10 : 1))
+    },
+    { passive: false },
+  )
+
+  /**
+   * A click on the board: a drop while a Layout is in the hand, and otherwise a lane end of the selected Arm, a car, an
+   * Arm, or nothing. Nothing is picked during a Rebuild.
+   */
+  function clickBoard(e: PointerEvent) {
+    if (view.rebuilding) return
     const p = view.pick(e)
     if (!p) return
     // While a Layout is in the hand, every click is a drop, and the Layout stays in the hand.
@@ -391,7 +428,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     if (car) return view.inspectCar(car)
     const near = sim.net.junctions.flatMap((j) => j.arms).find((a) => dist(a.center) < ARM_PICK)
     select(near ?? null)
-  })
+  }
+
+  const cameraButtons = createCameraButtons(root, view)
 
   return {
     /** Sim seconds per real second: 0 while paused. */
@@ -412,6 +451,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
+      cameraButtons.update()
 
       // Yen counts whole yen down, so it never shows the Price before the Tile is affordable. Its fill is full exactly
       // when the next Tile is affordable, which in a Free run, at a Price of ¥0, is always.
@@ -422,7 +462,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
         el.classList.toggle('on', hand?.layout === layout)
         el.classList.toggle('short', hand?.layout === layout && !affordable)
       }
-      turnPictures((((view.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
+      turnPictures((((view.camera.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
       show.yen(Math.floor(game.yen).toLocaleString('en'))
       show.yenFill(`${affordable ? 100 : ((100 * SHORT_OF_PRICE * game.yen) / game.price).toFixed(1)}%`)
       show.income(`${yen(game.income)} a minute`)
