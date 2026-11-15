@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { fogReach, type District } from '../sim/district'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
+import type { NetworkSpec } from '../sim/spec'
 import { dashes, mid, ribbons } from './ribbons'
 
 const PAINT_Y = 0.04
@@ -48,8 +48,8 @@ function giveWayTriangles(arms: Arm[], laneWidth: (road: string) => number): THR
  * Ring), zebra stripes at every Junction mouth, and give-way triangles on every yielding Arm. The Approaches of a
  * roundabout always yield, since its Ring is always main.
  */
-export function createRoads(net: Network, district: District) {
-  const laneWidth = (road: string) => district.roads[road].laneWidth ?? district.roadDefaults.laneWidth
+export function createRoads(net: Network, spec: NetworkSpec) {
+  const laneWidth = (road: string) => spec.roads[road].laneWidth ?? spec.roadDefaults.laneWidth
   const arms = net.junctions.flatMap((j) => j.arms)
   const [centres, dividers, stripes]: Vec[][][] = [[], [], []]
   const between = (lanes: Lane[], gap: number) => {
@@ -63,16 +63,7 @@ export function createRoads(net: Network, district: District) {
     const road = roads.get(lane.owner.road) ?? roads.set(lane.owner.road, { forward: [], backward: [] }).get(lane.owner.road)!
     road[lane.owner.forward ? 'forward' : 'backward'].push(lane)
   }
-  // A Road into the Fog is painted on to where its plate ends, past its Gateway.
-  const reach = new Map(fogReach(district, net).map((r) => [r.lane, r.to]))
-  const carried = (lane: Lane): Lane => {
-    const to = reach.get(lane)
-    if (!to) return lane
-    const { pts } = lane.line
-    return { ...lane, line: { ...lane.line, pts: lane.toGateway ? [...pts, to] : [to, ...pts] } }
-  }
-  for (const road of roads.values()) {
-    const [forward, backward] = [road.forward.map(carried), road.backward.map(carried)]
+  for (const { forward, backward } of roads.values()) {
     between(forward, 6)
     between(backward, 6)
     // The highest index is the innermost lane of its direction.

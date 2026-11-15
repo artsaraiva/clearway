@@ -5,7 +5,7 @@ import { canvasTexture, roundedBox } from './shapes'
 
 const RIM = 4 // m of grass showing around the road plate
 const TILE = 44 // the layers are laid as tiles about this size, whose rounded corners give the slab its seams
-const PLATE_TILE = 64 // the road plate is laid in tiles too, so that a Reveal can drop it in brick by brick
+const PLATE_TILE = 64 // the road plate is laid in tiles too, so that a Rebuild can drop it in brick by brick
 const ROAD = '#c3c7ce'
 const PLATE = 0.6 // m thick, its surface at height 0
 // Top of each layer (m, road surface = 0), thickness and colour: soil, sand, grass.
@@ -54,7 +54,7 @@ function tiles(r: Bounds, size: number): [x: number, y: number, w: number, d: nu
 }
 
 /**
- * Lay a Level's piece of slab with `kit`, a tile per brick: soil, sand and grass layers under the road plate and its
+ * Lay a piece of slab with `kit`, a tile per brick: soil, sand and grass layers under the road plate and its
  * grass rim, then the plate, its surface at height 0. `earlier` are the pieces already laid: the layers fill in around
  * them, and the plate covers their rim where the new piece meets them.
  */

@@ -3,7 +3,7 @@
 
 /** A side of a cell: 0 east, 1 north, 2 west, 3 south. Counterclockwise, like a rotation. */
 export type Direction = 0 | 1 | 2 | 3
-const DIRECTIONS: Direction[] = [0, 1, 2, 3]
+export const DIRECTIONS: Direction[] = [0, 1, 2, 3]
 const STEP = [
   [1, 0],
   [0, 1],
@@ -51,7 +51,8 @@ export type Refusal = 'cell taken' | 'no Tile to swap' | 'edge mismatch' | 'no r
 export type Verdict = { legal: true; joins: number } | { legal: false; reason: Refusal }
 
 const key = (cell: Cell) => `${cell.x},${cell.y}`
-const beyond = (cell: Cell, d: Direction): Cell => ({ x: cell.x + STEP[d][0], y: cell.y + STEP[d][1] })
+/** The cell on side `d` of `cell`. */
+export const beyond = (cell: Cell, d: Direction): Cell => ({ x: cell.x + STEP[d][0], y: cell.y + STEP[d][1] })
 const opposite = (d: Direction) => ((d + 2) % 4) as Direction
 
 /** Whether a Road leaves `tile` by side `d`. */

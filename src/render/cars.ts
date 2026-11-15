@@ -6,7 +6,7 @@ import type { Vehicle } from '../sim/sim'
 import type { Glow } from './day'
 import { roundedBox, tint } from './shapes'
 
-// ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a District holds more.
+// ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
 const CAP = 1500
 const LENGTH = 4.3 // m: the model is drawn one unit long and scaled to this
 const COLORS = ['#ffffff', '#f26d5b', '#4f8fe8', '#f6c85f', '#7cc6a4', '#b9a3e3', '#e9eef2', '#ff9db5'].map((c) => new THREE.Color(c))
@@ -69,7 +69,7 @@ export function createCars(net: Network) {
 
   let entries = new Set<Lane>()
   let stuck = new Map<number, number>() // real seconds each car has been stuck, by id
-  /** Follow the cars of a network, as after a Reveal: none has been stuck yet. */
+  /** Follow the cars of a network, as after a Rebuild: none has been stuck yet. */
   const reset = (on: Network) => {
     entries = new Set(Object.values(on.gateways).flatMap((arm) => arm.approach))
     stuck = new Map()
@@ -89,7 +89,7 @@ export function createCars(net: Network) {
     reset,
 
     /**
-     * Place the cars, every one scaled by `grow` (0–1) as a Reveal shrinks the old ones out and grows the new ones in.
+     * Place the cars, every one scaled by `grow` (0–1) as a Rebuild shrinks the old ones out and grows the new ones in.
      * `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones, none until fully grown.
      */
     update(vehicles: Vehicle[], dt: number, grow = 1): StuckCar[] {

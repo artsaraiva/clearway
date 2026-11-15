@@ -1,17 +1,18 @@
-import type { District } from '../sim/district'
 import { middle, overlaps, pointAt, type Bounds } from '../sim/geometry'
 import type { Network } from '../sim/network'
+import type { NetworkSpec } from '../sim/spec'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { BuildingKind, Kit } from './kit'
 import { bikeLane, island, park, plaza, tower, towerGround } from './landmarks'
+import type { Scenery } from './scenery'
 
 const MARGIN = 3.2 // m of open pavement between a Block's bounding box and its lots
 const GAP = 1 // m of each lot left open on every side of its building
 const MIN_FOOTPRINT = 4 // m: a lot narrower than this stays empty
 const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
 const CLEAR = 1.5 // m a building keeps from the Block's edge; a lot that cannot is dropped
-// As fractions of the distance from the District's centre to its far edge: where lots are large, and where the
+// As fractions of the distance from the ground's centre to its far edge: where lots are large, and where the
 // towers and then the mid-rises give way.
 const [LARGE_LOTS, TOWERS, MID_RISES] = [0.55, 0.42, 0.73]
 const LOT = { large: 20, small: 15.2 } // m: a lot is split until it is no longer than this
@@ -20,9 +21,11 @@ const STREET_TREES = { spacing: 13.6, inset: 3.4 } // m along an avenue, and in 
 /** What a Block's fill reads besides the Block itself. */
 export interface Surroundings {
   net: Network
-  district: District
+  /** What `net` was built from. */
+  spec: NetworkSpec
+  scenery: Scenery
   field: Field
-  /** Every Level's piece of slab together: the District's centre and far edge are measured on it. */
+  /** Everything the slab may grow to cover: the centre and far edge are measured on it. */
   extent: Bounds
 }
 
@@ -41,22 +44,20 @@ function split(lot: Bounds, max: number, range: (a: number, b: number) => number
   }
 }
 
-/** The seed of one Block's fill: the District's, mixed with where the Block lies, so that no other Block changes it. */
-export function blockSeed(district: District, { x0, y0, x1, y1 }: Bounds): number {
-  let seed = district.scenery?.seed ?? 0
+/** The seed of one Block's fill: the scenery's, mixed with where the Block lies, so that no other Block changes it. */
+export function blockSeed(scenery: Scenery, { x0, y0, x1, y1 }: Bounds): number {
+  let seed = scenery.seed
   for (const v of [x0, y0, x1, y1]) seed = Math.imul(seed ^ Math.round(v * 100), 0x9e3779b1)
   return seed >>> 0
 }
 
 /**
- * What stands on one Block, added to `kit` brick by brick: a landmark or special Block from the District file, or lots
+ * What stands on one Block, added to `kit` brick by brick: a landmark or special Block from the scenery, or lots
  * split from the kit's seed, with lamps at its corners and trees along the avenues. It reads only the Block, its
- * surroundings and the District file, so a Block that a Reveal leaves alone comes out the same. A District with no
+ * surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. A District with no
  * scenery leaves its Blocks bare.
  */
-export function fillBlock(kit: Kit, block: Block, { net, district, field, extent }: Surroundings) {
-  const { scenery } = district
-  if (!scenery) return
+export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, extent }: Surroundings) {
   const at = (p: [number, number]) => inside(block.loop, ...p)
   const roundabout = net.junctions.find((j) => j.type === 'roundabout' && inside(block.loop, j.at.x, j.at.y))
   if (roundabout) return island(kit, field, block, roundabout.at)
@@ -75,9 +76,9 @@ export function fillBlock(kit: Kit, block: Block, { net, district, field, extent
 
   const centre = middle(extent)
   const reach = Math.max(extent.x1 - extent.x0, extent.y1 - extent.y0) / 2
-  /** How far out a point is: 0 at the District's centre, 1 at its far edge. */
+  /** How far out a point is: 0 at the ground's centre, 1 at its far edge. */
   const out = (x: number, y: number) => Math.hypot(x - centre.x, y - centre.y) / reach
-  // Every landmark's ground, Revealed or not, so that no Reveal changes which lots are left.
+  // Every landmark's ground, on the slab yet or not, so that no Rebuild changes which lots are left.
   const reserved = scenery.landmarks.map((l) => towerGround(...l.at))
   const lots: Bounds[] = []
   const mid = middle(block)
@@ -124,7 +125,7 @@ export function fillBlock(kit: Kit, block: Block, { net, district, field, extent
   // Street trees along the avenues: on the pavement, just in from the kerb.
   for (const lane of net.lanes) {
     if (!('road' in lane.owner) || lane.index !== 0 || !scenery.avenues.includes(lane.owner.road)) continue
-    const side = (district.roads[lane.owner.road].laneWidth ?? district.roadDefaults.laneWidth) / 2 + STREET_TREES.inset
+    const side = (spec.roads[lane.owner.road].laneWidth ?? spec.roadDefaults.laneWidth) / 2 + STREET_TREES.inset
     for (let s = STREET_TREES.spacing / 2; s < lane.length; s += STREET_TREES.spacing) {
       const p = pointAt(lane.line, s)
       const [x, y] = [p.x + Math.sin(p.heading) * side, p.y - Math.cos(p.heading) * side] // lane 0 is the rightmost

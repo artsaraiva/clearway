@@ -17,7 +17,7 @@ export const block = (loop: Vec[]): Block => ({ loop, ...around(loop) })
 
 /**
  * Whether an outline is wide enough to be a Block rather than a sliver: twice its area over its perimeter is its width,
- * on average. A seam between two Levels' pieces of slab can leave a sliver between a Road and the seam.
+ * on average. A seam between two pieces of slab can leave a sliver between a Road and the seam.
  */
 export function wide({ loop }: Block): boolean {
   let [twice, perimeter] = [0, 0]
