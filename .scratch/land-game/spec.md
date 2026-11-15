@@ -1,6 +1,6 @@
 # Land game
 
-Status: open. Grilled in [#72](https://github.com/artsaraiva/clearway/issues/72), prototyped in [#74](https://github.com/artsaraiva/clearway/issues/74), verdict 2026-11-14: this is the game.
+Status: superseded 2026-11-15 by the tile sandbox ([#82](https://github.com/artsaraiva/clearway/issues/82), rules grilled in [#83](https://github.com/artsaraiva/clearway/issues/83)); its build issues [#77](https://github.com/artsaraiva/clearway/issues/77)–[#80](https://github.com/artsaraiva/clearway/issues/80) are closed. Kept as a record. Was: open. Grilled in [#72](https://github.com/artsaraiva/clearway/issues/72), prototyped in [#74](https://github.com/artsaraiva/clearway/issues/74), verdict 2026-11-14: this is the game.
 
 ## Goal
 
