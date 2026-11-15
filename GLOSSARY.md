@@ -1,37 +1,57 @@
 # Clearway
 
-A browser game about a city that grows by buying land. Traffic earns the money, growth causes traffic jams, and the player clears them by changing how junctions work. One context: the game and its simulation share this vocabulary.
+A browser sandbox about a small city the player builds from road tiles. Traffic earns the money, growth causes traffic jams, and the player clears them by changing how junctions work or by building around them. One context: the game and its simulation share this vocabulary.
 
 ## Language
 
 ### Play
 
-**District**:
-One whole map of Tiles, with its road network fixed before play. The player starts on one Tile and grows the District by buying the rest.
-_Avoid_: Map, world, campaign, chapter, level
+**City**:
+Every Tile the player has placed, joined into one road network. It grows on a square grid with no bounds and cannot be finished or lost.
+_Avoid_: District, map, world, town, level
 
 **Tile**:
-One cell of a District's grid: a Junction and the Blocks around it. The unit the player buys. A Tile can be bought when it touches a Tile already owned.
-_Avoid_: Plot, parcel, lot, cell, land
+One Layout placed in one cell of the grid, at one rotation. A Tile holds exactly one Junction and the Blocks around it. A Tile cannot be removed or moved.
+_Avoid_: Piece, cell, plot, parcel, land
 
-**Fog**:
-The Tiles of a District not yet bought. Their Junctions do not exist in the simulation yet.
-_Avoid_: Locked area, hidden area
+**Layout**:
+A kind of Tile the player can place: Straight, Curve, T-junction, Crossroads or Roundabout. Every Layout is always in the bar and can be placed any number of times.
+_Avoid_: Tile type, shape, piece, card
 
-**Reveal**:
-Lifting Fog from a Tile the player has just bought. A Reveal adds the Tile's Junction to the simulation and changes the District's Demand.
-_Avoid_: Unlock, expand
+**Swap**:
+Replacing a placed Tile with another Layout by dropping it on top. A Swap costs the Price, and the swapped Tile's Changes return to defaults.
+_Avoid_: Replace, upgrade, rebuild
+
+**Undo**:
+Taking back the last placement or Swap for a full refund, allowed only for a short stretch after it.
+_Avoid_: Remove, sell, Reset
+
+**Rebuild**:
+The simulation starting again from the City after a Tile is placed, a Swap or an Undo. Changes carry over; no vehicle does.
+_Avoid_: Reveal, reload, restart
 
 **Pre-warm**:
-Simulating the District hidden from the player for a fixed stretch after a Reveal, so traffic has settled when the new Tile becomes visible. Nothing is earned during it.
+Simulating the City hidden from the player for a fixed stretch after a Rebuild, so traffic has settled when it becomes visible. Nothing is earned during it.
 _Avoid_: Warm-up
 
+**Price**:
+What the next Tile costs, in yen. It is the same for every Layout and rises with the number of Tiles placed.
+_Avoid_: Cost, fee
+
 **Income**:
-Yen earned per minute. Every trip that arrives at its Gateway pays the same amount, so Income falls when a Jam keeps trips from arriving. The game's measure of doing well.
+Yen earned per minute. Every trip that arrives at its Gateway pays the same amount, so Income falls when a Jam keeps trips from arriving. It never falls below a small floor.
 _Avoid_: Revenue, profit, score, earnings
 
+**Holding**:
+Flow staying at or above its bar for a sustained stretch. A City that is Holding is carrying its Demand.
+_Avoid_: Winning, stable, clear
+
+**Record**:
+The most trips per minute the City has carried while Holding. The game's measure of doing well.
+_Avoid_: Score, high score, Win
+
 **Tool**:
-Something the player can change about a Junction: a lane Connection or a Priority rule. Every Tool works on every Junction the player owns.
+Something the player can change about a Junction: a lane Connection or a Priority rule. Every Tool works on every Junction, free and without limit.
 _Avoid_: Action, power-up, upgrade
 
 **Inspector**:
@@ -43,21 +63,17 @@ One use of a Tool by the player.
 _Avoid_: Move, edit, action
 
 **Reset**:
-Returning every Junction to its configuration at the last Reveal.
+Returning every Junction to its default configuration.
 _Avoid_: Undo, restart
-
-**Win**:
-Owning every Tile of a District. A District cannot be lost: a jammed one earns slowly.
-_Avoid_: Pass, clear, complete
 
 ### Network
 
 **Junction**:
-A place where Roads meet and vehicles cross, merge or turn: a roundabout or a Priority junction.
+A place where Roads meet and vehicles cross, merge or turn: a roundabout or a Priority junction. Every Tile has exactly one.
 _Avoid_: Node, intersection
 
 **Priority junction**:
-A Junction without a ring, where Arms meet directly and Priority rules decide who goes. A T-junction has 3 Arms, a crossroads 4.
+A Junction without a ring, where Arms meet directly and Priority rules decide who goes. A Straight and a Curve have 2 Arms, a T-junction 3, a Crossroads 4.
 _Avoid_: Intersection, plain junction
 
 **Ring**:
@@ -65,15 +81,15 @@ The circulating Lanes of a roundabout. The Ring belongs to its Junction: it is n
 _Avoid_: Circle, loop, ring road
 
 **Road**:
-A straight stretch of Lanes in both directions between two Junctions, or between a Junction and the District edge. Each end of a Road is an Arm of the Junction there.
+A straight stretch of Lanes in both directions between the Junctions of two neighbouring Tiles, or between a Junction and an open edge of its Tile. Each end of a Road is an Arm of the Junction there.
 _Avoid_: Segment, edge, link, street
 
 **Gateway**:
-Where a Road leaves the simulated part of the District: at the District edge, or at the edge of a Tile still in Fog. Vehicles enter and leave the map only through Gateways.
-_Avoid_: Spawn point, entrance, map edge
+An open road end of the City: where a Road reaches an edge of its Tile with no Tile beyond. Vehicles enter and leave only through Gateways. Placing a Tile there closes the Gateway.
+_Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area enclosed by Roads (and the District edge), filled with buildings, grass or a plaza. Blocks are scenery: traffic never enters them. A lot is one building's plot inside a Block.
+An area beside Roads filled with buildings, grass or a plaza. Blocks are scenery: traffic never enters them and they do not change Demand. A lot is one building's plot inside a Block.
 _Avoid_: Plot, parcel
 
 **Arm**:
@@ -106,13 +122,17 @@ _Avoid_: Backup, gridlock
 ### Traffic
 
 **Demand**:
-How many vehicles want to travel between which Gateways of a District, over time. Each Tile brings its own Demand when it is bought, so Demand changes only on a Reveal.
+How many vehicles want to travel between which Gateways, per minute. Each Gateway sends its own trips, split between the other Gateways a car can drive to. Demand changes only on a Rebuild.
 _Avoid_: Traffic load, spawn rate, volume
 
 **Flow**:
-The measure of how well traffic is moving: the average of each vehicle's speed relative to the speed it could travel there unobstructed, including vehicles waiting to enter the map at zero. Shown to the player as a gauge.
+The measure of how well traffic is moving: the average of each vehicle's speed relative to the speed it could travel there unobstructed, including vehicles waiting to enter at zero. Shown to the player as a gauge.
 _Avoid_: Score, efficiency, speed ratio, throughput
 
 **Jam**:
-Sustained low Flow caused by queues at a Junction. It lowers Income, and the player clears it with Changes.
+Sustained low Flow caused by queues at a Junction. It lowers Income, and the player clears it with Changes or by building around it.
 _Avoid_: Congestion, traffic, gridlock
+
+## Retired
+
+District, Level, Fog, Reveal and Win belonged to the authored game and the land game. They name nothing in the sandbox.
