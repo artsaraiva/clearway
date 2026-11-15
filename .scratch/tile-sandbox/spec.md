@@ -80,22 +80,20 @@ Placing, Swap and Undo each rebuild the simulation (ADR 0002): a new network fro
 - **Income floor:** the player never earns less than a small share of the next price per minute, so a jammed City can always afford a fix.
 - Yen is spent only on placing and Swap. No upkeep.
 
-### Starting numbers
+### Numbers
 
-All tuning, replaced by the tuning issue.
+Tuned in [#89](https://github.com/artsaraiva/clearway/issues/89) against the Bars below, with `npm run tune`. They live in `src/tuning.ts`.
 
-| Number | Start | From |
+| Number | Value | Start, before tuning |
 | --- | --- | --- |
-| Pay per trip | ¥10 | prototype |
-| Price base, growth | ¥300, 1.25, rounded to ¥50 | prototype |
-| Gateway base rate | 3 trips a minute | new |
-| Gateway weight | 1, 1, 2 or 3 by position | prototype |
-| Gateway growth | 0.03 per Tile | new |
-| Loop rebate | 25% off | new |
-| Income floor | next price ÷ 30 per minute | new |
-| Undo window | 10 sim-seconds | new |
-
-The prototype's measurements (first Jam at 5–7 Tiles, Changes run out at about 10) were taken with 6 trips a minute per Tile shared between ends. They do not carry over to this Demand rule.
+| Pay per trip | ¥10 | ¥10 |
+| Price base, growth | ¥350, 1.3, rounded to ¥50 | ¥300, 1.25 |
+| Gateway base rate | 1.75 trips a minute | 3 |
+| Gateway weight | 1, 1, 2 or 3 by position | the same |
+| Gateway growth | 0.12 per Tile | 0.03 |
+| Loop rebate | 25% off | 25% |
+| Income floor | next price ÷ 25 per minute | ÷ 30 |
+| Undo window | 10 sim-seconds | 10 |
 
 ## Build
 
@@ -134,7 +132,7 @@ Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/clearway/issue
 
 ## Bars
 
-The tuning issue sets the numbers so that scripted Cities meet these in a headless run. The prototype's `scripts/proto-tiles-report.ts` is the starting point for the script.
+`npm run tune` (`scripts/tune.ts`) grows scripted Cities headless and reports them against these. Results for the numbers above are in [#89](https://github.com/artsaraiva/clearway/issues/89).
 
 | Bar | Target |
 | --- | --- |
@@ -143,8 +141,6 @@ The tuning issue sets the numbers so that scripted Cities meet these in a headle
 | Building works late | past that, a placement or Swap restores Holding where no Change does |
 | Pace | the first 12 Tiles take 10–20 minutes at 4× |
 | Recovery | from a fully jammed City, the Income floor affords a Tile within 30 sim-minutes |
-
-The search must try placements and Swaps, which the prototype's search never did.
 
 ## Verification
 
