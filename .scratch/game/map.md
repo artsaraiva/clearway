@@ -6,7 +6,7 @@ The parent for everything after the prototype. Open tickets are [GitHub issues](
 
 ## Vision
 
-A browser game about a small city that grows by buying land (since [#72](https://github.com/artsaraiva/clearway/issues/72); the prototype in [#74](https://github.com/artsaraiva/clearway/issues/74) passed). The player starts on one Tile of a District and buys neighbouring Tiles; each purchase is a Reveal that drops the Tile in brick by brick. Traffic is the engine of the economy: every trip that arrives pays, and a car stuck in a Jam pays nothing. Each Tile adds Demand, so Jams emerge from growth, and the player clears them by changing how Junctions work (lane Connections, right of way). The District is finite for now and is Won by owning every Tile; an endless map is the later aim.
+A browser sandbox about a small city the player builds from road tiles (since [#82](https://github.com/artsaraiva/clearway/issues/82), whose prototype passed; before it came the land game of [#72](https://github.com/artsaraiva/clearway/issues/72) and [#74](https://github.com/artsaraiva/clearway/issues/74)). The player drags a road tile from a bar and attaches it to the city; each placement is a Reveal that drops the tile in brick by brick. Traffic is the engine of the economy: every trip that arrives pays, and a car stuck in a Jam pays nothing. Every road end that leads off the city is a Gateway, and each tile adds Demand, so Jams emerge from growth. The player clears them by changing how Junctions work (lane Connections, right of way) or by building around them. What the city grows toward is open ([#83](https://github.com/artsaraiva/clearway/issues/83), [#48](https://github.com/artsaraiva/clearway/issues/48)).
 
 Look (since [#16](https://github.com/artsaraiva/clearway/issues/16)): an anime-flavoured miniature diorama, built on the Apple Maps 3D look that came first. The original Apple Maps brief was a white/off-white ground, gray roads with curbs and sidewalks, rounded corners, lane markings, crosswalks, grass, blobby low-poly trees, light-gray extruded buildings, and in-world signs. See `reference/apple-maps-roundabout.png` (local only: third-party imagery is gitignored and never published).
 
@@ -158,25 +158,38 @@ Look (since [#16](https://github.com/artsaraiva/clearway/issues/16)): an anime-f
   - Production differs from the prototype in one sim rule: a Road stops at the edge of an unowned Tile.
   - `GLOSSARY.md` rewritten for it: Tile and Income added, Level retired, District, Fog, Reveal, Win and Demand redefined.
   - Tickets: [#47](https://github.com/artsaraiva/clearway/issues/47) and [#53](https://github.com/artsaraiva/clearway/issues/53) closed as not planned; [#46](https://github.com/artsaraiva/clearway/issues/46) retargeted at a 24-Junction District of Tiles; [#48](https://github.com/artsaraiva/clearway/issues/48) rewritten as the endless map; [#15](https://github.com/artsaraiva/clearway/issues/15) and [#55](https://github.com/artsaraiva/clearway/issues/55) updated.
+- Tile sandbox verdict ([#82](https://github.com/artsaraiva/clearway/issues/82), prototype, 2026-11-15). Report and verdict in the issue; the prototype is on the local branch `82-tile-placing-prototype` (`src/proto-tiles/`, `npm run tiles`). No spec yet: the rules are grilled in [#83](https://github.com/artsaraiva/clearway/issues/83).
+  - Verdict: **go.** The user played it and chose this direction: a sandbox in place of predetermined Levels or a fixed grid. This overturns the land game's "the whole road graph is fixed before play" and "no Road-laying" ([#72](https://github.com/artsaraiva/clearway/issues/72)).
+  - Decided: a fixed bar of layouts, each placeable any number of times, with a curve among them; a drop is legal only when the tile touches the city and every shared edge matches, road to road and blank to blank; the tile can be rotated; no dead ends. The tile in the hand is a 3D piece of unbuilt slab seated at the city's level.
+  - Kept from the land game: yen from arrived trips, a price that rises with each tile, free and unlimited Changes on every Junction, no lose state, ADR 0001–0003, the browser, the per-car sim and the diorama renderer.
+  - Demand comes from open road ends, which are Gateways. Hand-set streams are gone.
+  - The prototype's numbers, a starting point only: a 5 × 5 board of 100 m cells; Straight, Curve, T-junction, Crossroads and Roundabout, all two lanes each way; ¥10 a trip; tile n+1 costs `300 × 1.25^(n−1)`; 6 trips a minute per tile, shared between the open ends by fixed weights.
+  - Measured: an untouched city first jams at 5–7 tiles (30–42 trips a minute). Changes clear or ease Jams to about 10 tiles (60 trips a minute); past that no single Change helped, and building around a Jam was not measured.
+  - Sim: every tile is one Junction, and a Straight and a Curve are two-Arm Priority junctions, since a Road cannot bend. The prototype let `buildPriority` take two Arms; whether that stays is [#83](https://github.com/artsaraiva/clearway/issues/83)'s, with an ADR if it does.
+  - `.scratch/land-game/spec.md` is superseded and its build stops. `GLOSSARY.md` and the test seams in `CLAUDE.md` still describe the land game; both are rewritten with the sandbox's spec.
+  - Tickets: [#77](https://github.com/artsaraiva/clearway/issues/77)–[#80](https://github.com/artsaraiva/clearway/issues/80) (the land game build), [#46](https://github.com/artsaraiva/clearway/issues/46) and [#49](https://github.com/artsaraiva/clearway/issues/49) (generated road graphs) closed as not planned; [#48](https://github.com/artsaraiva/clearway/issues/48) rewritten as the endless city; [#15](https://github.com/artsaraiva/clearway/issues/15), [#55](https://github.com/artsaraiva/clearway/issues/55) and [#35](https://github.com/artsaraiva/clearway/issues/35) updated. Work started on [#77](https://github.com/artsaraiva/clearway/issues/77) is uncommitted in the worktree `.claude/worktrees/77-tiles-in-district`.
 
 ## Fog
 
-- Which Tools give a Jam more than one kind of fix? [#55](https://github.com/artsaraiva/clearway/issues/55).
-- What are the screens, the buying interaction and save? [#15](https://github.com/artsaraiva/clearway/issues/15).
-- How does an endless map work: Tiles generated in chunks, and a coarser sim away from the camera? [#48](https://github.com/artsaraiva/clearway/issues/48).
+- What are the sandbox's rules: Demand growth, the goal, removing a tile, the layouts, prices, the board, and what replaces the District file? [#83](https://github.com/artsaraiva/clearway/issues/83).
+- Which Tools and which layouts give a Jam more than one kind of fix? [#55](https://github.com/artsaraiva/clearway/issues/55).
+- What are the screens, the placing interaction and save? [#15](https://github.com/artsaraiva/clearway/issues/15).
+- How does the city keep growing: the board's bounds, sim scale and the goal? [#48](https://github.com/artsaraiva/clearway/issues/48).
 - Pedestrians as a mechanic (crossings, crosswalk Tool). [#35](https://github.com/artsaraiva/clearway/issues/35).
 
 ## Open work
 
 Every open ticket is a GitHub issue: https://github.com/artsaraiva/clearway/issues. Grillings carry `ready-for-human`, build work `ready-for-agent`, and blockers are GitHub "blocked by" links.
 
-- Land game (spec in `.scratch/land-game/spec.md`): [#77](https://github.com/artsaraiva/clearway/issues/77) Tiles in the District file and the Sim → [#78](https://github.com/artsaraiva/clearway/issues/78) Demand from streams → [#79](https://github.com/artsaraiva/clearway/issues/79) the game page and [#80](https://github.com/artsaraiva/clearway/issues/80) District 1 tuned to the bars.
-- Grillings: [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#55](https://github.com/artsaraiva/clearway/issues/55) Tool roster, [#48](https://github.com/artsaraiva/clearway/issues/48) the endless map, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians.
-- Larger Districts: [#46](https://github.com/artsaraiva/clearway/issues/46) generator for a 24-Junction District of Tiles, after [#77](https://github.com/artsaraiva/clearway/issues/77) and [#80](https://github.com/artsaraiva/clearway/issues/80). Roundabouts: [#49](https://github.com/artsaraiva/clearway/issues/49) in generated grids, [#71](https://github.com/artsaraiva/clearway/issues/71) a small roundabout that can stand still.
-- Closed by the verdict: [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates and [#53](https://github.com/artsaraiva/clearway/issues/53) other Level templates (authored Jams are retired); District 1 Levels [#58](https://github.com/artsaraiva/clearway/issues/58)–[#62](https://github.com/artsaraiva/clearway/issues/62) ([#72](https://github.com/artsaraiva/clearway/issues/72)).
+- Tile sandbox: [#83](https://github.com/artsaraiva/clearway/issues/83) grills the rules, then a spec in `.scratch/tile-sandbox/spec.md` and build issues. No build issue is open until then.
+- Grillings: [#83](https://github.com/artsaraiva/clearway/issues/83) the tile sandbox, [#15](https://github.com/artsaraiva/clearway/issues/15) UI/UX, [#55](https://github.com/artsaraiva/clearway/issues/55) Tool roster, [#48](https://github.com/artsaraiva/clearway/issues/48) the endless city, [#35](https://github.com/artsaraiva/clearway/issues/35) pedestrians.
+- Roundabouts: [#71](https://github.com/artsaraiva/clearway/issues/71) a small roundabout that can stand still. The Roundabout is a tile in the prototype.
+- Closed by the tile sandbox verdict: [#77](https://github.com/artsaraiva/clearway/issues/77)–[#80](https://github.com/artsaraiva/clearway/issues/80) the land game build, [#46](https://github.com/artsaraiva/clearway/issues/46) the District generator and [#49](https://github.com/artsaraiva/clearway/issues/49) roundabouts in generated grids.
+- Closed by the land game verdict: [#47](https://github.com/artsaraiva/clearway/issues/47) Level templates and [#53](https://github.com/artsaraiva/clearway/issues/53) other Level templates (authored Jams are retired); District 1 Levels [#58](https://github.com/artsaraiva/clearway/issues/58)–[#62](https://github.com/artsaraiva/clearway/issues/62) ([#72](https://github.com/artsaraiva/clearway/issues/72)).
 
 ## Resolved tickets
 
+- [#82](https://github.com/artsaraiva/clearway/issues/82) Tile placing prototype (report and verdict in the issue; rules grilled in [#83](https://github.com/artsaraiva/clearway/issues/83))
 - [#74](https://github.com/artsaraiva/clearway/issues/74) Land and economy prototype (report and verdict in the issue; spec in `../land-game/spec.md`)
 - [#72](https://github.com/artsaraiva/clearway/issues/72) A city that grows by buying land, with an economy (answer in the issue; prototype in [#74](https://github.com/artsaraiva/clearway/issues/74))
 - [#33](https://github.com/artsaraiva/clearway/issues/33) District 1 on the diorama (answer in the issue; spec in `../district-01/spec.md`)
