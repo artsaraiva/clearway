@@ -50,6 +50,10 @@ _Avoid_: Winning, stable, clear
 The most trips per minute the City has carried while Holding. The game's measure of doing well.
 _Avoid_: Score, high score, Win
 
+**Free run**:
+A run in which the Price is ¥0, so every Tile and Swap costs nothing, for relaxed play and playtesting. Everything else plays as normal. Its Record is kept apart from a normal run's.
+_Avoid_: Creative mode, cheat mode, free-money mode
+
 **Tool**:
 Something the player can change about a Junction: a lane Connection or a Priority rule. Every Tool works on every Junction, free and without limit.
 _Avoid_: Action, power-up, upgrade

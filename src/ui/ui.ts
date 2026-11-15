@@ -135,6 +135,12 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     drawBar()
   }
 
+  // The switch to or from a Free run loads the page again with `?free` flipped, which starts a new run. Other
+  // parameters stay.
+  const switched = new URLSearchParams(location.search)
+  if (game.free) switched.delete('free')
+  else switched.set('free', '')
+
   root.innerHTML = `
     <div class="panel gauge">
       <div class="row"><span>Yen</span><b id="yen" class="yen"></b></div>
@@ -144,6 +150,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       <div class="row flow"><span>Flow</span><b id="flow-pct"></b></div>
       <div class="bar"><div id="flow-fill"></div><div class="mark" style="left:${WIN_FLOW * 100}%"></div></div>
       <div class="sub" id="flow-sub"></div>
+      <div class="sub mode">
+        ${game.free ? 'Free run: every Tile costs ¥0 · ' : ''}<a id="mode" href="?${switched}">${game.free ? 'Normal run' : 'Start a free run'}</a>
+      </div>
     </div>
     <div class="panel banner" id="banner" hidden>Holding</div>
     <div class="panel time">
@@ -175,6 +184,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     select(selected)
   }
   $('undo').onclick = undo
+  $('mode').onclick = (e) => {
+    // Nothing is saved yet, so a new run loses the City as it stands.
+    if (game.city.tiles.length > 1 && !confirm('Start a new run? This City is not saved.')) e.preventDefault()
+  }
   $('tray').onwheel = (e) => {
     if (drag) return
     e.preventDefault()
@@ -265,7 +278,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       $('yen').textContent = yen(game.yen)
       $('income').textContent = `${yen(game.income)}/min`
       $('trips').textContent = `${game.tripsPerMinute.toFixed(0)}/min`
-      $('record').textContent = `Record ${game.record.toFixed(0)}/min · ${game.city.tiles.length} Tiles`
+      $('record').textContent =
+        `${game.free ? 'Free-run Record' : 'Record'} ${game.record.toFixed(0)}/min · ${game.city.tiles.length} Tiles`
       $('price').textContent = yen(game.price)
       $('tray').classList.toggle('poor', game.yen < game.price)
       const undoButton = $('undo') as HTMLButtonElement

@@ -14,8 +14,8 @@ const PREWARM_BUDGET = 4
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)
-// A new run on every load: nothing is saved yet. Dev only: `?seed=7` plays that run again.
-const game = new Game(import.meta.env.DEV && params.has('seed') ? Number(params.get('seed')) : undefined)
+// A new run on every load: nothing is saved yet. `?free` makes it a Free run. Dev only: `?seed=7` plays that run again.
+const game = new Game(import.meta.env.DEV && params.has('seed') ? Number(params.get('seed')) : undefined, { free: params.has('free') })
 // The first Pre-warm runs before anything is drawn, so the page opens on settled traffic.
 while (!game.sim.prewarmed) game.step()
 const view = createView(canvas, game.sim, {
