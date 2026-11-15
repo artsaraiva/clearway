@@ -1,6 +1,8 @@
 // The City: the Tiles the player has placed and the rules for placing one more. Pure data and rules: nothing here
 // knows about the simulation or the renderer.
 
+import { PRICE } from '../tuning'
+
 /** A side of a cell: 0 east, 1 north, 2 west, 3 south. Counterclockwise, like a rotation. */
 export type Direction = 0 | 1 | 2 | 3
 export const DIRECTIONS: Direction[] = [0, 1, 2, 3]
@@ -73,6 +75,11 @@ export class City {
     const random = mulberry32(seed)
     const layout = LAYOUTS[Math.floor(random() * LAYOUTS.length)]
     return new City([{ cell: { x: 0, y: 0 }, layout, rotation: Math.floor(random() * 4) }])
+  }
+
+  /** The Price: what the next Tile costs, whatever its Layout. A Swap costs it too, and does not raise it. */
+  get price() {
+    return Math.round((PRICE.base * PRICE.growth ** (this.tiles.length - 1)) / PRICE.round) * PRICE.round
   }
 
   /** Whether `layout`, turned `rotation`, may be dropped on the empty `cell`. */

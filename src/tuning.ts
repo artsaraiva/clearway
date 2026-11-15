@@ -10,3 +10,19 @@ export const GATEWAY_DEMAND = {
   /** Added to every Gateway's rate per Tile placed after the first, as a share of its rate in a City of one Tile. */
   growth: 0.03,
 }
+
+/** The Price of the next Tile: `base × growth^(Tiles − 1)`, rounded to the nearest `round` yen. */
+export const PRICE = { base: 300, growth: 1.25, round: 50 }
+
+export const ECONOMY = {
+  /** Yen for each trip that leaves at the Gateway it set out for. */
+  pay: 10,
+  /** The share of the Price a placement that joins two or more placed Tiles by road does not pay. */
+  loopRebate: 0.25,
+  /** Sim-seconds of earning Income is measured over. */
+  incomeWindow: 60,
+  /** The Income floor, as a share of the Price per minute. */
+  incomeFloor: 1 / 30,
+  /** Sim-seconds of earning after a placement or a Swap in which it can be undone. */
+  undoWindow: 10,
+}
