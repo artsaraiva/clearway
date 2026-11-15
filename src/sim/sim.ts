@@ -1,8 +1,8 @@
 import { City } from '../city/city'
 import { Demand, type VehicleType } from './demand'
 import { accel } from './driving'
-import { measure, PREWARM, WIN_TIME } from './metric'
-import { applyChange, buildNetwork, type Arm, type Connection, type Lane, type Network } from './network'
+import { measure, measureJams, PREWARM, WIN_TIME, type Approaches } from './metric'
+import { applyChange, buildNetwork, type Arm, type Connection, type Junction, type Lane, type Network } from './network'
 import { replan, route } from './routing'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
@@ -46,6 +46,8 @@ export class Sim {
   private demand: Demand
   /** Every Junction's default configuration, which Reset returns to. */
   private defaults: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
+  /** How the traffic into each Junction moves, which says where the Jams are. */
+  private approaches: Approaches[]
 
   /**
    * Build the simulation of a City and Pre-warm it (ADR 0002). `carried` is the configuration brought over from the
@@ -71,7 +73,23 @@ export class Sim {
         throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${Object.keys(this.net.gateways).join(', ')})`)
     }
     this.demand = new Demand(this.rates, seed)
+    this.approaches = this.net.junctions.map((junction) => ({
+      junction,
+      lanes: junction.arms.flatMap((a) => a.approach),
+      flow: 1,
+      jammed: false,
+      hold: 0,
+    }))
     if (prewarm) while (!this.prewarmed) this.step()
+  }
+
+  /**
+   * The Junctions with a Jam: their Approaches have moved under half their free speed for a stretch of time, which a
+   * standing queue does and traffic that keeps moving does not. The reading is held, so a Junction does not flicker in
+   * and out of the list. It runs through the Pre-warm, so a City's Jams are known as soon as its traffic shows.
+   */
+  get jams(): Junction[] {
+    return this.approaches.filter((a) => a.jammed).map((a) => a.junction)
   }
 
   /** Whether Flow has stayed at or above its bar for long enough: the City is carrying its Demand. */
@@ -163,6 +181,7 @@ export class Sim {
       this.time,
       DT,
     )
+    measureJams(this.approaches, DT)
     this.time += DT
   }
 
