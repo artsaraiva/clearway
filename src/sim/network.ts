@@ -153,9 +153,10 @@ function footprint(network: NetworkSpec, id: string): number {
 
 /**
  * The network of a spec, every Junction in its type's default configuration. A Road with a point for an end is a
- * Gateway. Throws a readable error on a spec it can't build.
+ * Gateway. Throws a readable error on a spec it can't build. With `conflicts: false` it leaves out where Connections
+ * meet, which takes most of the time to build and only driving needs.
  */
-export function buildNetwork(network: NetworkSpec): Network {
+export function buildNetwork(network: NetworkSpec, { conflicts = true } = {}): Network {
   const w = network.roadDefaults.laneWidth
   const junctions: Junction[] = Object.entries(network.junctions).map(([id, spec]) => ({
     id,
@@ -239,8 +240,8 @@ export function buildNetwork(network: NetworkSpec): Network {
     junction.arms.sort((a, b) => a.angle - b.angle)
     lanes.push(
       ...(spec.type === 'roundabout'
-        ? buildRoundabout(junction, spec.radius, spec.ringLanes, w)
-        : buildPriority(junction, footprint(network, junction.id))),
+        ? buildRoundabout(junction, spec.radius, spec.ringLanes, w, conflicts)
+        : buildPriority(junction, footprint(network, junction.id), conflicts)),
     )
   }
   return { lanes, junctions, gateways }
@@ -283,9 +284,10 @@ function findConflicts(connections: Connection[]) {
 
 /**
  * Candidate Connections of a Priority junction whose Arms already carry their Road lanes, which end `reach` m from
- * its centre: every incoming lane to every outgoing lane of another Arm. Returns the new lanes.
+ * its centre: every incoming lane to every outgoing lane of another Arm. Returns the new lanes. `conflicts` says
+ * whether to find where they meet.
  */
-function buildPriority(junction: Junction, reach: number): Lane[] {
+function buildPriority(junction: Junction, reach: number, conflicts: boolean): Lane[] {
   const { arms } = junction
   if (arms.length < 2 || arms.length > 4)
     throw new Error(`Junction ${junction.id} is a Priority junction with ${arms.length} Arms (takes 2 to 4)`)
@@ -313,12 +315,15 @@ function buildPriority(junction: Junction, reach: number): Lane[] {
       }
     }
   }
-  findConflicts(arms.flatMap((a) => a.connections))
+  if (conflicts) findConflicts(arms.flatMap((a) => a.connections))
   return lanes
 }
 
-/** Ring lanes and candidate Connections of a roundabout whose Arms already carry their Road lanes. Returns the new lanes. */
-function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: number): Lane[] {
+/**
+ * Ring lanes and candidate Connections of a roundabout whose Arms already carry their Road lanes. Returns the new lanes.
+ * `conflicts` says whether to find where the Connections meet.
+ */
+function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: number, conflicts: boolean): Lane[] {
   const { arms } = junction
   if (arms.length < 3 || arms.length > 6) throw new Error(`Junction ${junction.id} is a roundabout with ${arms.length} Arms (takes 3 to 6)`)
   const halfMouth = (arm: Arm) => Math.max(Math.max(arm.approach.length, arm.exit.length) * w + MOUTH_MARGIN, MIN_MOUTH)
@@ -355,7 +360,7 @@ function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: nu
         lanes.push(connect(junction, arm, `${fromRef}>${toRef}`, from, to, RING_SPEED, from.index === to.index))
       }
     }
-    findConflicts(arm.connections)
+    if (conflicts) findConflicts(arm.connections)
   }
   return lanes
 }
@@ -365,10 +370,12 @@ export function applyChange(net: Network, { at, enable = [], disable = [], prior
   const junction = net.junctions.find((j) => j.id === at)
   if (!junction) throw new Error(`"${at}" is not a Junction of the network`)
   const all = junction.arms.flatMap((a) => a.connections)
+  const byRef = new Map(all.map((c) => [c.ref, c]))
   const set = (refs: string[], on: boolean) => {
     for (const ref of refs) {
+      const one = byRef.get(ref)
       // `*` names the same Connection at every Arm: match the ref with each Arm's own Road id starred out.
-      const named = all.filter((c) => c.ref === ref || c.ref.replaceAll(`${c.arm.road}.`, '*.') === ref)
+      const named = ref.includes('*') ? all.filter((c) => c.ref.replaceAll(`${c.arm.road}.`, '*.') === ref) : one ? [one] : []
       if (!named.length) throw new Error(`Junction ${at} has no Connection "${ref}" (refs look like "${all[0].ref}")`)
       for (const c of named) c.enabled = on
     }

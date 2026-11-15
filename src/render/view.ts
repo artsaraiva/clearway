@@ -8,7 +8,7 @@ import { createArmConnections } from './connections'
 import { createDay } from './day'
 import { createJamEmotion } from './emotion'
 import { createField } from './field'
-import { createHand, type Held } from './hand'
+import { createHand, SWAP_LIFT, type Held } from './hand'
 import { createRouteInspector } from './inspector'
 import { createMaterials } from './kit'
 import { createLabels } from './labels'
@@ -113,7 +113,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     /**
      * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
      * `frameCity` and `toggleTilt` fly it. `heading` is how far the world is turned on screen, in radians clockwise
-     * (0 with north up), and `steep` whether it looks down from its steepest tilt.
+     * (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether the
+     * camera looks down from its steepest tilt.
      */
     camera: rig.controls,
 
@@ -148,9 +149,11 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       return next !== null || grow < 1
     },
 
-    /** Show the Tile in the player's hand. `null` empties the hand. */
+    /** Show the Tile in the player's hand, and what its drop does to the Gateways. `null` empties the hand. */
     hold(held: Held | null) {
       hand.show(held)
+      // The Gateways a Swap would open float with the Tile in the hand, which floats over the Tile it would replace.
+      labels.preview(held?.after ?? null, held?.swap ? SWAP_LIFT : 0)
     },
 
     /**

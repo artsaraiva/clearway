@@ -1,13 +1,14 @@
 import * as THREE from 'three'
 import { DIRECTIONS, hasRoad, type Cell, type Layout } from '../city/city'
 import { middle } from '../sim/geometry'
+import type { Sim } from '../sim/sim'
 import { CELL, cellBounds } from '../sim/tiles'
 import { canvasTexture } from './shapes'
 
 const ROAD_WIDTH = 28 // m: two lanes each way
 const ISLAND = 15 // m: the radius of a Roundabout's island
 const HOVER = 0.3 // m the Tile in the hand sits above the road plane: level with the City, clear of the Road ends it covers
-const SWAP_LIFT = 46 // m it floats above a placed Tile it would swap, clear of most of what stands there
+export const SWAP_LIFT = 46 // m it floats above a placed Tile it would swap, clear of most of what stands there
 const FOLLOW = 14 // per second: how fast it glides to the cell under the pointer
 const MARK = { inset: 2, height: 0.3, open: 0.14, under: 0.35 } // m, m, and the opacity of an open cell and of the cell under a Swap
 // A refusal takes the hot red-orange reserved for Jams and refusals.
@@ -22,8 +23,16 @@ const LAYERS: [number, number, string][] = [
   [-0.6, 2.2, '#9ed67d'],
 ]
 const [RIM, PLATE, PAVEMENT, GRASS] = [4, '#c3c7ce', '#ece7db', '#9ed67d']
+// The caption over the Tile in the hand: its texture (px), which it fills to `fit` across at most, and per line its
+// weight, size (px) and baseline (px from the top). Drawn `scale` m across.
+const CAPTION = { width: 512, height: 320, fit: 480, scale: 60 }
+const LINES = [
+  [800, 92, 120],
+  [600, 54, 205],
+  [600, 46, 270],
+] as const
 
-/** The Tile the player is dragging from the bar, as the page wants it shown. */
+/** The Tile in the player's hand, as the page wants it shown. */
 export interface Held {
   layout: Layout
   /** Quarter turns counterclockwise. */
@@ -34,31 +43,36 @@ export interface Held {
   state: keyof typeof COLORS
   /** Whether the cell holds a Tile, so that the drop is a Swap. */
   swap: boolean
-  /** What to say over it: the Price or a cross, then a line beneath. */
-  lines: [string, string]
+  /** What to say over it: the Price or a cross, then a line or two beneath. */
+  lines: string[]
   /** Every empty cell where it could be dropped as it is turned. */
   open: Cell[]
+  /** The Sim the drop would rebuild the City into, when it is legal: the Gateway labels preview its Demand. */
+  after: Sim | null
 }
 
-/** Two lines of text that always face the camera, drawn over everything. */
-function caption([first, second]: [string, string], color: string) {
-  const texture = canvasTexture(512, 256, (g) => {
+/** Up to three lines of text that always face the camera, drawn over everything: a large one, then smaller ones. */
+function caption(lines: string[], color: string) {
+  const texture = canvasTexture(CAPTION.width, CAPTION.height, (g) => {
     g.textAlign = 'center'
     g.lineJoin = 'round'
     g.lineWidth = 14
     g.strokeStyle = 'rgba(255,255,255,0.95)'
     g.fillStyle = color
-    for (const [text, font, y] of [
-      [first, '800 92px', 120],
-      [second, '600 54px', 205],
-    ] as const) {
-      g.font = `${font} "M PLUS Rounded 1c", -apple-system, "Helvetica Neue", sans-serif`
-      g.strokeText(text, 256, y)
-      g.fillText(text, 256, y)
-    }
+    lines.forEach((text, i) => {
+      const [weight, size, y] = LINES[i]
+      const font = (px: number) => `${weight} ${px}px "M PLUS Rounded 1c", -apple-system, "Helvetica Neue", sans-serif`
+      g.font = font(size)
+      // A long line, such as a refusal's reason, is set smaller to fit.
+      g.font = font(Math.floor(size * Math.min(1, CAPTION.fit / g.measureText(text).width)))
+      g.strokeText(text, CAPTION.width / 2, y)
+      g.fillText(text, CAPTION.width / 2, y)
+    })
   })
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false }))
-  sprite.scale.set(60, 30, 1)
+  sprite.scale.set(CAPTION.scale, (CAPTION.scale * CAPTION.height) / CAPTION.width, 1)
+  // Anchored a little above its middle, where the first two lines sit, so that a third line hangs below them.
+  sprite.center.set(0.5, 1 - 128 / CAPTION.height)
   sprite.renderOrder = 20
   return sprite
 }
@@ -117,7 +131,7 @@ function tileModel(layout: Layout, rotation: number, tint: string | null) {
 }
 
 /**
- * The Tile in the hand while the player drags a Layout from the bar: a piece of unbuilt slab seated at the City's
+ * The Tile in the hand while the player holds a Layout from the bar: a piece of unbuilt slab seated at the City's
  * level in the cell under the pointer, with the Price over it, tinted grey when the player cannot afford it and red,
  * with the reason, when the drop is refused. Over a placed Tile it floats above what stands there, since the drop is a
  * Swap. Every empty cell that would take it is tinted green.
