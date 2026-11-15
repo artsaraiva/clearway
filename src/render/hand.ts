@@ -52,7 +52,7 @@ function caption([first, second]: [string, string], color: string) {
       [first, '800 92px', 120],
       [second, '600 54px', 205],
     ] as const) {
-      g.font = `${font} -apple-system, "Helvetica Neue", sans-serif`
+      g.font = `${font} "M PLUS Rounded 1c", -apple-system, "Helvetica Neue", sans-serif`
       g.strokeText(text, 256, y)
       g.fillText(text, 256, y)
     }
