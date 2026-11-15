@@ -51,11 +51,13 @@ export class Sim {
    * Build the simulation of a City and Pre-warm it (ADR 0002). `carried` is the configuration brought over from the
    * Sim before, as Changes on top of every Junction's default: that Sim's `configuration()`. Demand comes from the
    * City's Gateways, and `seed` picks the random stream. With `prewarm: false` the caller runs the Pre-warm, stepping
-   * until `prewarmed`, so it can be spread over frames. A Scenario in place of the City brings its own Demand.
+   * until `prewarmed`, so it can be spread over frames. A Scenario in place of the City brings its own Demand. With
+   * `conflicts: false` the network leaves out where Connections meet, which only driving needs: such a Sim is built
+   * quickly, to read its network and Demand, and must not be stepped.
    */
-  constructor(source: City | Scenario, carried: Change[] = [], seed = 1, { prewarm = true } = {}) {
+  constructor(source: City | Scenario, carried: Change[] = [], seed = 1, { prewarm = true, conflicts = true } = {}) {
     this.spec = source instanceof City ? networkSpec(source) : source.network
-    this.net = buildNetwork(this.spec)
+    this.net = buildNetwork(this.spec, { conflicts })
     const arms = this.arms()
     this.defaults = {
       enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),

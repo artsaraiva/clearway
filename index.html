@@ -83,6 +83,15 @@
           0 0 6px #fff,
           0 0 10px rgba(255, 255, 255, 0.8);
       }
+      /* While the Tile in the hand is over a legal cell: a Gateway its drop would close is struck through, and one it
+         would open shows its trips a minute in the green of a legal drop. */
+      .labels .closed {
+        text-decoration: line-through 2px;
+      }
+      .labels .opened {
+        color: #1f9d63;
+        font-weight: 800;
+      }
 
       /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the menu
              bottom-left. Bottom-right is kept for the camera buttons, and nothing covers the middle of the board. --- */
@@ -324,6 +333,11 @@
         display: block;
         margin: 0 auto 3px;
         filter: drop-shadow(0 1px 1px rgba(16, 24, 48, 0.12));
+      }
+      /* The Layout in the hand while the Price is out of reach: the grey of a Tile the player cannot afford. */
+      #ui .layout.short {
+        background: #7b818c;
+        box-shadow: 0 3px 10px rgba(123, 129, 140, 0.4);
       }
       .bar .side {
         display: flex;

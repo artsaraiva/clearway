@@ -1,6 +1,7 @@
-import { beyond, DIRECTIONS, hasRoad, LAYOUTS, type Cell, type Layout } from '../city/city'
+import { beyond, DIRECTIONS, LAYOUTS, type Cell, type Layout } from '../city/city'
 import type { Game } from '../game/game'
 import type { Held } from '../render/hand'
+import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
 import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
@@ -16,6 +17,11 @@ const REFUSAL = '#ff4a1f' // the hot red-orange reserved for Jams and refusals
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
 const sameCell = (a: Cell, b: Cell) => a.x === b.x && a.y === b.y
+/** A change in trips a minute, to the tenth the Gateway labels read: "+4.7 trips/min". */
+const tripsChange = (change: number) => {
+  const tenths = Math.round(change * 10)
+  return `${tenths > 0 ? '+' : tenths < 0 ? '−' : '±'}${(Math.abs(tenths) / 10).toFixed(1)} trips/min`
+}
 
 /** A reading on the screen: `write` puts a value on the page, and runs only when the value changes. */
 function reading(write: (value: string) => void) {
@@ -35,9 +41,12 @@ const MENU = `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"
   <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
 </svg>`
 
-/** A Layout's top-down picture for the bar, turned as the next drop will be. */
-function icon(layout: Layout, rotation: number) {
-  const roads = DIRECTIONS.filter((d) => hasRoad({ layout, rotation }, d))
+/**
+ * A Layout's top-down picture for the bar, north up. Its `.turn` group is turned to show the Tile the way it will land
+ * on the screen.
+ */
+function icon(layout: Layout) {
+  const roads = DIRECTIONS.filter((d) => layout.roads[d])
     .map((d) => {
       const [dx, dy] = [Math.round(Math.cos((d * Math.PI) / 2)), -Math.round(Math.sin((d * Math.PI) / 2))]
       return `<line x1="28" y1="28" x2="${28 + dx * 30}" y2="${28 + dy * 30}" stroke="#3d4456" stroke-width="13" stroke-linecap="square"/>`
@@ -46,7 +55,7 @@ function icon(layout: Layout, rotation: number) {
   const ring = layout.id === 'roundabout' ? '<circle cx="28" cy="28" r="11.5" fill="#8fd16f" stroke="#3d4456" stroke-width="8"/>' : ''
   return `<svg width="50" height="50" viewBox="0 0 56 56" aria-hidden="true">
     <clipPath id="disc-${layout.id}"><circle cx="28" cy="28" r="27"/></clipPath>
-    <circle cx="28" cy="28" r="27" fill="#eceae4"/><g clip-path="url(#disc-${layout.id})">${roads}${ring}</g>
+    <circle cx="28" cy="28" r="27" fill="#eceae4"/><g clip-path="url(#disc-${layout.id})"><g class="turn">${roads}${ring}</g></g>
     <circle cx="28" cy="28" r="26.5" fill="none" stroke="rgba(27,32,48,0.12)"/>
   </svg>`
 }
@@ -54,8 +63,9 @@ function icon(layout: Layout, rotation: number) {
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
  * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts with the Price
- * and Undo bottom-centre, and the menu bottom-left. Bottom-right is kept for the camera buttons. The Tools and the route
- * Inspector are used in the world (`./tools`).
+ * and Undo bottom-centre, and the menu bottom-left. Bottom-right is kept for the camera buttons. While a Layout is in
+ * the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are used in the world
+ * (`./tools`).
  */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -63,8 +73,15 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   let scale = 4
   /** Quarter turns counterclockwise of the next drop, shared by every Layout in the bar. */
   let rotation = 0
-  /** The Layout being dragged from the bar, and the cell under the pointer if it is over the board. */
-  let drag: { layout: Layout; cell: Cell | null } | null = null
+  /**
+   * The Layout in the hand, and the cell under the pointer when it is over the board. A press on a Layout in the bar
+   * puts it in the hand. Released without moving, it is `picked`: it stays in the hand, every click on the board drops
+   * it, and `Esc` or a right click without movement puts it back. Moved first, it is `dragged`: the release drops it
+   * once and lets go. While the hand holds a Layout, nothing on the board can be selected.
+   */
+  let hand: { layout: Layout; how: 'pressed' | 'picked' | 'dragged'; cell: Cell | null } | null = null
+  /** Where the press on the bar was, and whether it was on the Layout already picked, which a click puts back. */
+  let press = { x: 0, y: 0, again: false }
   /** What the hand last showed, so that it is only rebuilt when that changes. */
   let shown = ''
 
@@ -100,7 +117,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
         <dl class="keys">
           <dt>Turn the tile</dt><dd><kbd>R</kbd> or wheel</dd>
           <dt>Turn it back</dt><dd><kbd>Shift</kbd> <kbd>R</kbd></dd>
-          <dt>Put it back, deselect</dt><dd><kbd>Esc</kbd></dd>
+          <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
+          <dt>Deselect</dt><dd><kbd>Esc</kbd></dd>
         </dl>
       </div>
     </div>`
@@ -157,10 +175,13 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     else if (changed) rebuilt({ swapped: cellBounds(changed.cell) })
   }
 
-  /** What the hand shows for the drag as it stands. */
+  /**
+   * What the hand shows as it stands. Over a legal cell that includes what the drop does to Demand: the Gateways it
+   * would close and open, and the change in the City's total, read the way the Gateway labels read.
+   */
   const held = (): Held | null => {
-    if (!drag || view.rebuilding) return null
-    const { layout, cell } = drag
+    if (!hand || view.rebuilding) return null
+    const { layout, cell } = hand
     const city = game.city
     const empty = new Map<string, Cell>()
     for (const tile of city.tiles) {
@@ -170,41 +191,45 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       }
     }
     const open = [...empty.values()].filter((c) => city.drop(layout, rotation, c).legal)
-    const base = { layout, rotation, cell, open }
-    if (!cell) return { ...base, state: 'legal', swap: false, lines: ['', ''] }
+    const base = { layout, rotation, cell, open, after: null }
+    if (!cell) return { ...base, state: 'legal', swap: false, lines: [] }
     const offer = game.offer(layout, rotation, cell)
     const swap = city.tiles.some((t) => sameCell(t.cell, cell))
     if (!offer.legal) return { ...base, state: 'refused', swap, lines: ['✕', offer.reason] }
-    const rebate = offer.price < game.price ? ' · loop rebate' : ''
-    return offer.affordable
-      ? { ...base, state: 'legal', swap, lines: [yen(offer.price), `drop to ${swap ? 'swap' : 'place'}${rebate}`] }
-      : { ...base, state: 'unaffordable', swap, lines: [yen(offer.price), 'not enough yen'] }
+    const after = game.preview(layout, rotation, cell)!
+    const notes = [swap && 'swap', offer.price < game.price && 'loop rebate', !offer.affordable && 'not enough yen'].filter(Boolean)
+    return {
+      ...base,
+      after,
+      state: offer.affordable ? 'legal' : 'unaffordable',
+      swap,
+      lines: [
+        yen(offer.price),
+        tripsChange(labelledDemand(after) - labelledDemand(game.sim)),
+        ...(notes.length ? [notes.join(' · ')] : []),
+      ],
+    }
   }
 
-  const drawBar = () => {
-    $('layouts').innerHTML = LAYOUTS.map(
-      (l) => `<div class="layout${drag?.layout === l ? ' on' : ''}" data-layout="${l.id}">${icon(l, rotation)}${l.name}</div>`,
-    ).join('')
-    $('layouts')
-      .querySelectorAll<HTMLElement>('[data-layout]')
-      .forEach((el) => {
-        el.onpointerdown = (e) => {
-          if (e.button !== 0) return
-          e.preventDefault()
-          el.releasePointerCapture?.(e.pointerId)
-          drag = { layout: LAYOUTS.find((l) => l.id === el.dataset.layout)!, cell: null }
-          el.classList.add('on')
-        }
-      })
+  // The bar: its Layouts, each with a picture that the frame turns.
+  $('layouts').innerHTML = LAYOUTS.map((l) => `<div class="layout" data-layout="${l.id}">${icon(l)}${l.name}</div>`).join('')
+  const bar = [...$('layouts').querySelectorAll<HTMLElement>('[data-layout]')].map((el) => ({
+    el,
+    layout: LAYOUTS.find((l) => l.id === el.dataset.layout)!,
+  }))
+  const pictures = [...$('layouts').querySelectorAll<SVGGElement>('.turn')]
+  /** Turn every picture in the bar by `degrees` clockwise. */
+  const turnPictures = reading((degrees) => pictures.forEach((g) => g.setAttribute('transform', `rotate(${degrees} 28 28)`)))
+  for (const { el, layout } of bar) {
+    el.onpointerdown = (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      el.releasePointerCapture?.(e.pointerId)
+      press = { x: e.clientX, y: e.clientY, again: hand?.how === 'picked' && hand.layout === layout }
+      hand = { layout, how: 'pressed', cell: null }
+    }
   }
-  const turn = (by: number) => {
-    rotation = (((rotation + by) % 4) + 4) % 4
-    drawBar()
-  }
-  const drop = () => {
-    drag = null
-    drawBar()
-  }
+  const turn = (by: number) => (rotation = (((rotation + by) % 4) + 4) % 4)
 
   const sheet = $('menu-sheet')
   const showMenu = (open: boolean) => {
@@ -237,40 +262,58 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     leave(params)
   }
   $('tray').onwheel = (e) => {
-    if (drag) return
+    if (hand) return
     e.preventDefault()
     turn(e.deltaY > 0 ? -1 : 1)
   }
-  drawBar()
 
   /** Whether a pointer event is over a piece of the screen rather than the board. */
   const overScreen = (e: Event) => e.target instanceof Node && root.contains(e.target)
+  /** Whether a pointer has moved from where it was pressed, so that its release is no click. */
+  const moved = (e: PointerEvent, from: { x: number; y: number }) => Math.hypot(e.clientX - from.x, e.clientY - from.y) > CLICK_SLOP
+  /**
+   * Where the right button was last pressed, and whether the hand held a Layout then. A right click without movement
+   * puts the Layout back.
+   */
+  let right = { x: 0, y: 0, held: false }
   // In the capture phase, ahead of the Tools, which keep a press on a lane end to themselves.
   window.addEventListener(
     'pointerdown',
     (e) => {
       if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
+      if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
     },
     { capture: true },
   )
-  const tools = createTools($('junction'), canvas, game, view, () => drag !== null || view.rebuilding)
+  const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
   window.addEventListener('pointermove', (e) => {
-    if (!drag) return
+    if (!hand) return
+    if (hand.how === 'pressed' && moved(e, press)) hand.how = 'dragged'
     const p = overScreen(e) ? null : view.pick(e)
-    drag.cell = p && cellAt(p)
+    hand.cell = p && cellAt(p)
   })
   window.addEventListener('pointerup', (e) => {
-    if (!drag) return
+    // A right drag moves the camera, whatever the hand holds.
+    if (e.button === 2 && !moved(e, right)) hand = null
+    if (e.button !== 0) return
+    if (hand?.how === 'pressed') hand = press.again ? null : { ...hand, how: 'picked' }
+    if (hand?.how !== 'dragged') return
     const p = overScreen(e) ? null : view.pick(e)
-    const { layout } = drag
-    drop()
+    const { layout } = hand
+    hand = null
     if (p) place(layout, rotation, cellAt(p))
+  })
+  // No browser menu for a right click on a Layout in the hand. On Windows the menu opens as the button comes up, after
+  // that release has put the Layout back, so the press decides.
+  window.addEventListener('contextmenu', (e) => {
+    if (hand || right.held) e.preventDefault()
+    right.held = false
   })
   // While a Tile is in the hand the wheel turns it, and the camera does not zoom.
   window.addEventListener(
     'wheel',
     (e) => {
-      if (!drag) return
+      if (!hand) return
       e.preventDefault()
       e.stopPropagation()
       turn(e.deltaY > 0 ? -1 : 1)
@@ -282,44 +325,46 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     // Esc puts back the Tile in the hand first, and only then lets go of what is selected.
     if (e.key === 'Escape') {
       showMenu(false)
-      if (drag) drop()
+      if (hand) hand = null
       else tools.back()
     }
   })
 
   // A click is a press and release in one spot, and a drag moves the camera, unless the Tools take the press to draw a
-  // Connection. These listen in the capture phase, so a press the Tools take never reaches the camera. Nothing is
-  // picked while a Tile is in the hand or a Rebuild plays.
-  let press: { x: number; y: number; gesture: Gesture | null; dragging: boolean } | null = null
-  const travelled = (e: PointerEvent) => press !== null && Math.hypot(e.clientX - press.x, e.clientY - press.y) > CLICK_SLOP
+  // Connection. These listen in the capture phase, so a press the Tools take never reaches the camera. While a Layout
+  // is in the hand, every click on the board drops it, and the Layout stays in the hand.
+  let onBoard: { x: number; y: number; gesture: Gesture | null; dragging: boolean } | null = null
   window.addEventListener(
     'pointerdown',
     (e) => {
-      press = null
+      onBoard = null
       if (e.button !== 0 || e.target !== canvas) return
       const gesture = tools.press(e)
       if (gesture) {
         e.stopPropagation()
         canvas.setPointerCapture(e.pointerId)
       }
-      press = { x: e.clientX, y: e.clientY, gesture, dragging: false }
+      onBoard = { x: e.clientX, y: e.clientY, gesture, dragging: false }
     },
     { capture: true },
   )
   window.addEventListener('pointermove', (e) => {
-    if (!press?.gesture) return
-    press.dragging ||= travelled(e)
-    if (press.dragging) press.gesture.drag?.(e)
+    if (!onBoard?.gesture) return
+    onBoard.dragging ||= moved(e, onBoard)
+    if (onBoard.dragging) onBoard.gesture.drag?.(e)
   })
   window.addEventListener(
     'pointerup',
     (e) => {
-      if (e.button !== 0 || !press) return
-      const { gesture } = press
-      const click = !press.dragging && !travelled(e)
-      press = null
-      if (gesture) gesture.end?.(e, click)
-      else if (click && e.target === canvas) tools.click(e)
+      if (e.button !== 0 || !onBoard) return
+      const { gesture } = onBoard
+      const click = !onBoard.dragging && !moved(e, onBoard)
+      onBoard = null
+      if (gesture) return gesture.end?.(e, click)
+      if (!click || e.target !== canvas) return
+      const p = hand && view.pick(e)
+      if (hand?.how === 'picked' && p) place(hand.layout, rotation, cellAt(p))
+      else if (!hand) tools.click(e)
     },
     { capture: true },
   )
@@ -336,13 +381,24 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     /** Show the game as it stands. Call it every frame. */
     update() {
       const sim = game.sim
-      const key = drag ? `${drag.layout.id}:${rotation}:${drag.cell?.x},${drag.cell?.y}:${game.yen >= game.price}:${game.city.tiles.length}:${view.rebuilding}` : '' // prettier-ignore
+      // The hand is shown again only when what it shows changes. Yen can reach a drop's price, which a loop rebate makes
+      // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
+      // board with the hand empty, and the hand over the screen holds no cell.
+      const offer = hand?.cell && !view.rebuilding ? game.offer(hand.layout, rotation, hand.cell) : null
+      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
 
       // Yen counts whole yen down, so it never shows the Price before the Tile is affordable. Its fill is full exactly
       // when the next Tile is affordable, which in a Free run, at a Price of ¥0, is always.
       const affordable = game.yen >= game.price
+      // The bar: the Layout in the hand stands out, grey while the Price is out of reach, and every picture shows its
+      // Tile the way it will land on the screen.
+      for (const { el, layout } of bar) {
+        el.classList.toggle('on', hand?.layout === layout)
+        el.classList.toggle('short', hand?.layout === layout && !affordable)
+      }
+      turnPictures((((view.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
       show.yen(Math.floor(game.yen).toLocaleString('en'))
       show.yenFill(`${affordable ? 100 : ((100 * SHORT_OF_PRICE * game.yen) / game.price).toFixed(1)}%`)
       show.income(`${yen(game.income)} a minute`)
