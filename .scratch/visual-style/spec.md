@@ -2,6 +2,10 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#15](https://github.com/artsaraiva/clearway/issues/15) (2026-11-15)
+
+The direction is now cozy Japanese and oversaturated. The palette below is recoloured in [#105](https://github.com/artsaraiva/clearway/issues/105), after the user picks a strength from the mock in [#104](https://github.com/artsaraiva/clearway/issues/104); the road plate and the pavement stay pale. Blue is reserved for Tools and Inspectors and hot red-orange for Jams and refusals. The camera's drag buttons are swapped. Details in `.scratch/ui-ux/spec.md`.
+
 ## Goal
 
 Replace the throwaway `src/render/scene.ts` with a renderer that draws a District as an anime-flavoured miniature diorama: a small Japanese-style town on a floating slab, readable as a traffic puzzle first. Vocabulary in root `GLOSSARY.md`.
@@ -25,12 +29,12 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 The style comes from shape, palette and proportion:
 
 - **Shape:** every box is rounded and bevelled; buildings are a wall box with a glass band per floor; houses have gable roofs; trees are clusters of spheres (round, sakura) or stacked cones (pine).
-- **Palette:** pastel walls, terracotta / slate / teal roofs, pale grey road, off-white pavement, fresh greens, pink sakura. The prototype's constants are the starting point.
+- **Palette** (to be recoloured, [#105](https://github.com/artsaraiva/clearway/issues/105)): pastel walls, terracotta / slate / teal roofs, pale grey road, off-white pavement, fresh greens, pink sakura. The prototype's constants are the starting point.
 - **Proportion:** lanes about 7 m wide and Blocks roughly 40–60 m across, so a car reads as a toy and each building as an object. This was the single biggest difference between the first port (a 360 m roundabout District, rejected as "not the same") and the accepted one.
 
 ## Camera
 
-Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans; tilt is clamped between roughly 24° and 72° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
+Orthographic. Grab (left drag) rotates, the wheel zooms, right drag pans (swapped by [#15](https://github.com/artsaraiva/clearway/issues/15): left drag pans, right drag rotates); tilt is clamped between roughly 24° and 72° above the horizon. Default view looks from the south-east at about 41° tilt with the whole slab in frame.
 
 ## The slab
 
