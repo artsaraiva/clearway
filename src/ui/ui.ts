@@ -1,5 +1,6 @@
 import { beyond, DIRECTIONS, LAYOUTS, type Cell, type Layout } from '../city/city'
 import type { Game } from '../game/game'
+import type { Run } from '../game/save'
 import type { Held } from '../render/hand'
 import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
@@ -64,11 +65,12 @@ function icon(layout: Layout) {
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
  * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts with the Price
- * and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left. While a Layout is in the hand,
- * every click on the board drops it. Otherwise the Tools and the route Inspector are used in the world (`./tools`).
- * Drags on the board move the camera, except a drag from a lane end of the selected Junction, which draws a Connection.
+ * and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left, which leaves the run through
+ * `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector
+ * are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
+ * Junction, which draws a Connection.
  */
-export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View) {
+export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, menu: Pick<Run, 'newRun' | 'switchRun'>) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
@@ -238,31 +240,15 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     sheet.hidden = !open
     $('menu-button').setAttribute('aria-expanded', String(open))
   }
-  /**
-   * Leave this run for the page loaded with `params`. Nothing is saved yet, so that loses the City as it stands: once it
-   * has grown, ask first.
-   */
-  const leave = (params: URLSearchParams) => {
-    if (game.city.tiles.length > 1 && !confirm('Start a new run? This City is not saved.')) return
-    const query = params.toString()
-    location.assign(query ? `?${query}` : location.pathname)
-  }
-
   root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
   $('undo').onclick = undo
   $('menu-button').onclick = () => showMenu(sheet.hidden)
-  // A new run takes a new seed. The switch to or from a Free run flips `?free`, and other parameters stay.
+  // A new run takes the place of this one, so it asks first. The Free run switch moves between the two saved runs and
+  // loses nothing.
   $('new-run').onclick = () => {
-    const params = new URLSearchParams(location.search)
-    params.delete('seed')
-    leave(params)
+    if (confirm(`Start a new ${game.free ? 'Free run' : 'run'}? This City will be lost.`)) menu.newRun()
   }
-  $('free-run').onclick = () => {
-    const params = new URLSearchParams(location.search)
-    if (game.free) params.delete('free')
-    else params.set('free', '')
-    leave(params)
-  }
+  $('free-run').onclick = menu.switchRun
   $('tray').onwheel = (e) => {
     if (hand) return
     e.preventDefault()

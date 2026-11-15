@@ -134,7 +134,7 @@ Three one-line hints, each shown once when it becomes relevant and remembered in
 
 By playing, per `CLAUDE.md`. Issues that add geometry (the recolour, Jam markers, the Demand view) record the frame time with 1,000 cars.
 
-Whether a loaded save joins the Economy test seam is the user's call, asked in [#111](https://github.com/artsaraiva/clearway/issues/111).
+A loaded save joins the Economy test seam: the user agreed in [#111](https://github.com/artsaraiva/clearway/issues/111).
 
 ## Issues
 

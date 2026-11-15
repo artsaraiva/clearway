@@ -1,8 +1,9 @@
 import { LAYOUTS, type Layout } from './city/city'
-import { Game } from './game/game'
+import { openRun } from './game/save'
 import { createView } from './render/view'
 import { DT } from './sim/sim'
 import { cellBounds } from './sim/tiles'
+import { showNotice } from './ui/notice'
 import { createUI } from './ui/ui'
 
 // ms of each frame spent on a Rebuild's Pre-warm while its piece of slab assembles: small enough to leave a 120 Hz frame
@@ -14,9 +15,14 @@ const PREWARM_BUDGET = 4
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)
-// A new run on every load: nothing is saved yet. `?free` makes it a Free run. Dev only: `?seed=7` plays that run again.
-const game = new Game(import.meta.env.DEV && params.has('seed') ? Number(params.get('seed')) : undefined, { free: params.has('free') })
-// The first Pre-warm runs before anything is drawn, so the page opens on settled traffic.
+// The saved run last played, which keeps itself saved (`./game/save`). Dev only: `?seed=7` plays that run again.
+const run = openRun(params)
+const game = run.game
+// The first Pre-warm runs before anything is drawn, so the page opens on settled traffic. For a saved run, it is the
+// Pre-warm of the Rebuild that loading is.
+// ponytail: the page stays blank while it runs, which grows with the saved City: with loading, about 60 ms for 10
+// Tiles and 480 ms for 40 on an M4 Pro. Draw the slab first and spread the Pre-warm over frames, as a Rebuild does, if
+// large Cities keep the page blank too long.
 while (!game.sim.prewarmed) game.step()
 const view = createView(canvas, game.sim, {
   pieces: game.city.tiles.map((t) => cellBounds(t.cell)),
@@ -24,7 +30,8 @@ const view = createView(canvas, game.sim, {
 })
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
-const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, game, view)
+const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, game, view, run)
+if (run.notice) showNotice(document.querySelector<HTMLElement>('#ui')!, run.notice)
 
 let acc = 0
 /** One frame: `dt` real seconds of the game, drawn. */
