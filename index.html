@@ -4,19 +4,59 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Clearway</title>
+    <!-- M PLUS Rounded 1c ships with the game (public/fonts, with its licence): its Latin letters, at the two weights
+         the screen uses. Its digits are fixed-width, so yen does not jitter as it counts.
+         ponytail: only the Latin subset ships, 22 KB a weight. Any other script on the screen falls back to the system's
+         fonts; Japanese stays in the speech bubbles, which the renderer draws in its own. Add the font's Japanese
+         subsets beside these, each with its unicode-range, if the screen ever sets Japanese. -->
+    <link rel="preload" href="/fonts/m-plus-rounded-1c-latin-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/m-plus-rounded-1c-latin-800.woff2" as="font" type="font/woff2" crossorigin />
     <style>
+      @font-face {
+        font-family: 'M PLUS Rounded 1c';
+        font-weight: 700;
+        font-display: block;
+        src: url('/fonts/m-plus-rounded-1c-latin-700.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'M PLUS Rounded 1c';
+        font-weight: 800;
+        font-display: block;
+        src: url('/fonts/m-plus-rounded-1c-latin-800.woff2') format('woff2');
+        unicode-range:
+          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      :root {
+        --ink: #1b2030;
+        --ink-soft: #545c6e;
+        --line: rgba(27, 32, 48, 0.1);
+        --press: rgba(27, 32, 48, 0.08);
+        --hover: rgba(255, 255, 255, 0.55);
+        /* Neutral frosted glass with no tint of its own, so it takes on the sky behind it. */
+        --glass: rgba(255, 255, 255, 0.58);
+        --glass-edge: rgba(255, 255, 255, 0.78);
+        --shade: 0 8px 28px rgba(16, 24, 48, 0.16), 0 1px 3px rgba(16, 24, 48, 0.1);
+        --edge: 18px;
+        /* The accents, the only saturated colour on the screen: the yen fill, the Flow fill and the selected button. */
+        --yen: #ffb000;
+        --yen-deep: #ff9500;
+        --flow: #16c172;
+        --accent: #ff3d8b;
+        --font: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', sans-serif;
+      }
       html,
       body {
         margin: 0;
         height: 100%;
         overflow: hidden;
         background: #f6f6f3;
-        font:
-          14px/1.4 -apple-system,
-          BlinkMacSystemFont,
-          'Helvetica Neue',
-          sans-serif;
-        color: #222;
+        font: 700 14px var(--font);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
       }
       #scene {
         width: 100%;
@@ -34,174 +74,380 @@
         left: 0;
         top: 0;
         white-space: nowrap;
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        color: #686c74;
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        color: var(--ink-soft);
         text-shadow:
           0 0 2px #fff,
           0 0 3px #fff,
-          0 0 6px #fff;
+          0 0 6px #fff,
+          0 0 10px rgba(255, 255, 255, 0.8);
       }
+
+      /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the menu
+             bottom-left. Bottom-right is kept for the camera buttons, and nothing covers the middle of the board. --- */
       #ui {
         position: fixed;
         inset: 0;
         pointer-events: none;
-      }
-      .panel {
-        position: absolute;
-        pointer-events: auto;
-        background: rgba(255, 255, 255, 0.92);
-        border-radius: 12px;
-        padding: 12px 14px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-      }
-      .gauge {
-        top: 16px;
-        left: 16px;
-        width: 240px;
-      }
-      .time {
-        top: 16px;
-        right: 16px;
-        display: flex;
-        gap: 6px;
-        padding: 8px;
-      }
-      .banner {
-        top: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-weight: 600;
-        color: #30a46c;
-      }
-      .node {
-        bottom: 16px;
-        right: 16px;
-        width: 300px;
-      }
-      .tray {
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 12px;
-        align-items: stretch;
         user-select: none;
       }
-      .tray .layouts {
-        display: flex;
-        gap: 8px;
-      }
-      .tray .tile {
-        width: 76px;
-        text-align: center;
-        font-size: 11px;
-        color: #555;
-        cursor: grab;
-        border-radius: 8px;
-        padding: 4px;
-        touch-action: none;
-      }
-      .tray .tile:hover {
-        background: #eef3ee;
-      }
-      .tray .tile.held {
-        background: #dcebdc;
-      }
-      .tray svg {
-        display: block;
-        margin: 0 auto 2px;
-      }
-      .tray .side {
-        width: 140px;
-        font-size: 12px;
-        color: #777;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 2px;
-      }
-      .tray .side b {
-        font-size: 16px;
-        color: #222;
-      }
-      .tray .side button {
-        flex: none;
-        margin-top: 4px;
-      }
-      .tray.poor .tile {
-        opacity: 0.45;
-      }
-      .gauge .row + .row,
-      .gauge .row.flow {
-        margin-top: 6px;
-      }
-      .yen {
-        font-size: 22px;
-      }
-      .row {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-      }
-      .bar {
-        position: relative;
-        height: 10px;
-        border-radius: 5px;
-        background: #ececec;
-        margin: 8px 0 6px;
-        overflow: hidden;
-      }
-      #flow-fill {
-        height: 100%;
-        background: #f59e0b;
-        transition: width 0.2s;
-      }
-      #flow-fill.good {
-        background: #30a46c;
-      }
-      .mark {
+      #ui > * {
         position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 2px;
-        background: #222;
+        pointer-events: auto;
       }
-      .sub,
-      .hint {
-        color: #777;
-        font-size: 12px;
+      #ui [hidden] {
+        display: none;
       }
-      .gauge .mode {
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid #ececec;
-      }
-      .gauge .mode a {
-        color: inherit;
-      }
-      .prio {
-        display: flex;
-        gap: 6px;
-        margin: 10px 0 8px;
+      .glass {
+        background: var(--glass);
+        -webkit-backdrop-filter: blur(18px);
+        backdrop-filter: blur(18px);
+        border: 1px solid var(--glass-edge);
+        box-shadow: var(--shade);
       }
       button {
-        flex: 1;
-        border: 0;
-        border-radius: 8px;
-        padding: 6px 12px;
-        background: #f0f0f0;
         font: inherit;
+        color: inherit;
+        border: 0;
+        background: none;
+        padding: 0;
         cursor: pointer;
       }
       button:disabled {
         opacity: 0.5;
         cursor: default;
       }
-      button.on {
-        background: #222;
+      button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+      #ui .on {
+        background: var(--accent);
         color: #fff;
+        box-shadow: 0 3px 10px rgba(255, 61, 139, 0.4);
+      }
+      .soft {
+        font-size: 13px;
+        color: var(--ink-soft);
+      }
+
+      .money {
+        top: var(--edge);
+        left: var(--edge);
+        min-width: 232px;
+        padding: 12px 18px 13px;
+        border-radius: 22px;
+      }
+      .money .yen {
+        font-size: 34px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+      .money .yen small {
+        font-size: 22px;
+        margin-right: 2px;
+      }
+      .fill {
+        position: relative;
+        height: 8px;
+        margin: 10px 0 7px;
+        border-radius: 4px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .fill i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 4px;
+        background: linear-gradient(90deg, var(--yen), var(--yen-deep));
+      }
+      .money .income {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .flow {
+        top: var(--edge);
+        left: 50%;
+        transform: translateX(-50%);
+        width: 380px;
+        /* Clear of the money on the left and the clock on the right in a narrow window. */
+        max-width: calc(100vw - 638px);
+        padding: 11px 18px 12px;
+        border-radius: 22px;
+      }
+      .flow .row {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .flow .label {
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .flow .pct {
+        margin-left: auto;
+        font-size: 22px;
+        font-weight: 800;
+      }
+      .flow .state {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .flow.holding .state {
+        font-weight: 800;
+        color: #08834a;
+      }
+      .flow.holding .state::before {
+        content: '';
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--flow)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.2 8.4l2.4 2.4 5-5.2' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center/100% no-repeat;
+      }
+      .gauge {
+        position: relative;
+        height: 12px;
+        margin: 8px 0 7px;
+        border-radius: 6px;
+        background: var(--line);
+      }
+      .gauge i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #2bd98a, var(--flow));
+        transition: width 0.2s;
+      }
+      /* The bar Flow must hold at or above. */
+      .gauge b {
+        position: absolute;
+        top: -3px;
+        bottom: -3px;
+        width: 3px;
+        margin-left: -1.5px;
+        border-radius: 2px;
+        background: var(--ink);
+      }
+      .flow .sub {
+        justify-content: space-between;
+      }
+
+      .speed {
+        top: var(--edge);
+        right: var(--edge);
+        display: flex;
+        gap: 4px;
+        padding: 5px;
+        border-radius: 999px;
+      }
+      .speed button {
+        min-width: 46px;
+        height: 38px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 15px;
+        font-weight: 800;
+        display: grid;
+        place-items: center;
+      }
+      .speed button:not(.on):hover,
+      .layout:not(.on):hover,
+      .menu .item:hover {
+        background: var(--hover);
+      }
+
+      /* The selected Junction's Tools, under the clock until they move into the world (#107). */
+      .junction {
+        top: calc(var(--edge) + 60px);
+        right: var(--edge);
+        width: 236px;
+        padding: 12px 14px;
+        border-radius: 22px;
+        display: grid;
+        gap: 8px;
+      }
+      .junction .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .junction .name {
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .junction .pair {
+        display: flex;
+        gap: 6px;
+      }
+      .junction button {
+        flex: 1;
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: var(--press);
+        font-weight: 800;
+      }
+
+      .bar {
+        left: 50%;
+        bottom: var(--edge);
+        transform: translateX(-50%);
+        display: flex;
+        align-items: stretch;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 26px;
+      }
+      .layouts {
+        display: flex;
+        gap: 4px;
+      }
+      .layout {
+        width: 84px;
+        padding: 6px 0 5px;
+        border-radius: 18px;
+        text-align: center;
+        font-size: 13px;
+        white-space: nowrap;
+        cursor: grab;
+        touch-action: none;
+      }
+      .layout svg {
+        display: block;
+        margin: 0 auto 3px;
+        filter: drop-shadow(0 1px 1px rgba(16, 24, 48, 0.12));
+      }
+      .bar .side {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+        min-width: 112px;
+        padding: 0 10px 0 14px;
+        border-left: 1px solid var(--line);
+      }
+      .bar .price span {
+        display: block;
+      }
+      .bar .price b {
+        font-size: 22px;
+        font-weight: 800;
+      }
+      .undo {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        align-self: flex-start;
+        height: 30px;
+        padding: 0 12px 0 10px;
+        border-radius: 999px;
+        background: var(--press);
+        font-size: 13px;
+        font-weight: 800;
+      }
+      /* Out of its window Undo keeps its place, so the Price beside it does not move. */
+      .undo.gone {
+        visibility: hidden;
+      }
+
+      .round {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+      }
+      .menu {
+        left: var(--edge);
+        bottom: var(--edge);
+      }
+      .menu .sheet {
+        position: absolute;
+        left: 0;
+        bottom: 60px;
+        width: 268px;
+        padding: 8px;
+        border-radius: 22px;
+      }
+      .menu .item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        min-height: 42px;
+        padding: 4px 12px;
+        border-radius: 14px;
+        font-size: 15px;
+        font-weight: 800;
+        text-align: left;
+      }
+      .menu .item small {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-soft);
+      }
+      .switch {
+        position: relative;
+        flex: none;
+        width: 40px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(27, 32, 48, 0.18);
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(16, 24, 48, 0.25);
+      }
+      [aria-checked='true'] .switch {
+        background: var(--accent);
+      }
+      [aria-checked='true'] .switch::after {
+        left: 19px;
+      }
+      .keys {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 7px 12px;
+        margin: 6px 0 0;
+        padding: 12px 12px 6px;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .keys dd {
+        margin: 0;
+        white-space: nowrap;
+        color: var(--ink-soft);
+      }
+      kbd {
+        display: inline-grid;
+        place-items: center;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 6px;
+        box-sizing: border-box;
+        border-radius: 7px;
+        background: var(--press);
+        font: inherit;
+        font-weight: 800;
       }
     </style>
   </head>
