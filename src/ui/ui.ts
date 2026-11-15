@@ -3,16 +3,12 @@ import type { Game } from '../game/game'
 import type { Held } from '../render/hand'
 import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
-import type { Arm, Lane } from '../sim/network'
-import { WIN_FLOW, WIN_TIME, type Vehicle } from '../sim/sim'
-import type { Priority } from '../sim/spec'
+import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
+import { createTools } from './tools'
 
-const ARM_PICK = 25 // m from where an Arm meets the Ring
-const MARKER_PICK = 3 // m from a lane-end marker
-const CAR_PICK = 3 // m from a car's centre
 /**
  * The most of its length yen's fill takes while the next Tile is out of reach. The last step to full comes only when
  * the Tile is affordable, so a fill a pixel short of the Price never passes for full.
@@ -67,17 +63,15 @@ function icon(layout: Layout) {
 
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
- * Record top-centre, the clock top-right, the bar of Layouts with the Price and Undo bottom-centre, the camera's
- * buttons bottom-right and the menu bottom-left. While a Layout is in the hand, every click on the board drops it.
- * Otherwise, until the Tools move into the world (#107), a click near an Arm selects it and shows its Tools under the
- * clock, and a click on a car shows its route. Drags on the board move the camera.
+ * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts with the Price
+ * and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left. While a Layout is in the hand,
+ * every click on the board drops it. Otherwise the Tools and the route Inspector are used in the world (`./tools`).
+ * Drags on the board move the camera, except a drag from a lane end of the selected Junction, which draws a Connection.
  */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
-  let selected: Arm | null = null
-  let armed: Lane | null = null
   /** Quarter turns counterclockwise of the next drop, shared by every Layout in the bar. */
   let rotation = 0
   /**
@@ -106,12 +100,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     <div class="glass speed">
       <button data-scale="0" aria-label="Pause">${PAUSE}</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
     </div>
-    <div class="glass junction" id="junction" hidden>
-      <div class="row"><span class="name" id="junction-name"></span><span class="soft">Esc to close</span></div>
-      <div class="pair" id="priority"><button data-prio="main">Main</button><button data-prio="yield">Yield</button></div>
-      <div class="soft">Click a blue lane end, then an orange one, to toggle that connection.</div>
-      <button id="reset">Reset all junctions</button>
-    </div>
+    <div class="glass junction" id="junction" hidden></div>
     <div class="glass bar" id="tray">
       <div class="layouts" id="layouts"></div>
       <div class="side">
@@ -157,20 +146,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     record: text('record'),
   }
 
-  const select = (arm: Arm | null) => {
-    selected = arm
-    armed = null
-    view.inspectCar(null)
-    $('junction').hidden = !arm
-    if (arm) $('junction-name').textContent = `${arm.junction}: ${arm.road} arm`
-    // On a roundabout the Ring is always main, so the Priority rule isn't offered there.
-    $('priority').hidden = !arm || game.sim.spec.junctions[arm.junction].type !== 'priority'
-    view.showArm(arm, null)
-  }
-
   /** Play the Rebuild the game just made. */
   const rebuilt = (relaid: Relaid) => {
-    select(null)
+    tools.clear()
     view.rebuild(game.sim, relaid)
   }
 
@@ -271,16 +249,6 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   }
 
   root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
-  root
-    .querySelectorAll<HTMLButtonElement>('[data-prio]')
-    .forEach(
-      (b) =>
-        (b.onclick = () => selected && game.apply({ at: selected.junction, priority: { [selected.road]: b.dataset.prio as Priority } })),
-    )
-  $('reset').onclick = () => {
-    game.reset()
-    select(selected)
-  }
   $('undo').onclick = undo
   $('menu-button').onclick = () => showMenu(sheet.hidden)
   // A new run takes a new seed. The switch to or from a Free run flips `?free`, and other parameters stay.
@@ -314,6 +282,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
     if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
   })
+  const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
   window.addEventListener('pointermove', (e) => {
     if (!hand) return
     if (hand.how === 'pressed' && moved(e, press)) hand.how = 'dragged'
@@ -350,11 +319,11 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   )
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') turn(e.shiftKey ? -1 : 1)
+    // Esc puts back the Tile in the hand first, and only then lets go of what is selected.
     if (e.key === 'Escape') {
       showMenu(false)
-      // The Layout in the hand goes back first. Only an empty hand deselects.
       if (hand) hand = null
-      else select(null)
+      else tools.back()
     }
   })
 
@@ -370,16 +339,20 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     },
   })
   // A press on the board is a click until it moves past the slop, then a drag that moves the camera: a left drag pans,
-  // and a right drag rotates, as does a left drag with Shift, Ctrl or ⌘ for a trackpad. The wheel zooms toward the
-  // pointer, unless a Tile in the hand takes it to turn. A right click without movement puts the Layout in the hand
-  // back (above), and a right drag rotates whatever the hand holds.
+  // and a right drag rotates, as does a left drag with Shift, Ctrl or ⌘ for a trackpad. A left press on a lane end of
+  // the selected Junction is the Tools': its drag draws a Connection, and the camera never sees it. The wheel zooms
+  // toward the pointer, unless a Tile in the hand takes it to turn. A right click without movement puts the Layout in
+  // the hand back (above), and a right drag rotates whatever the hand holds.
   watchPresses(canvas, (e) => {
     const rotating = e.button === 2 || (e.button === 0 && (e.shiftKey || e.ctrlKey || e.metaKey))
     if (rotating) return moving((e, from) => view.camera.rotate(e.clientX - from.clientX, e.clientY - from.clientY))
     if (e.button !== 0) return null
-    return moving(
-      (e, from) => view.camera.pan(from, e),
-      (e, click) => click && clickBoard(e),
+    return (
+      tools.press(e) ??
+      moving(
+        (e, from) => view.camera.pan(from, e),
+        (e, click) => click && clickBoard(e),
+      )
     )
   })
   canvas.addEventListener(
@@ -393,41 +366,18 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   )
 
   /**
-   * A click on the board: a drop while a Layout is in the hand, and otherwise a lane end of the selected Arm, a car, an
-   * Arm, or nothing. Nothing is picked during a Rebuild.
+   * A click on the board: a drop while a Layout is in the hand, and otherwise the Tools' (a Junction, an Arm's Priority
+   * rule, a car, or empty board). Nothing is picked during a Rebuild.
    */
   function clickBoard(e: PointerEvent) {
     if (view.rebuilding) return
-    const p = view.pick(e)
-    if (!p) return
     // While a Layout is in the hand, every click is a drop, and the Layout stays in the hand.
     if (hand) {
-      if (hand.how === 'picked') place(hand.layout, rotation, cellAt(p))
+      const p = view.pick(e)
+      if (hand.how === 'picked' && p) place(hand.layout, rotation, cellAt(p))
       return
     }
-    const sim = game.sim
-    const dist = (q: { x: number; y: number }) => Math.hypot(q.x - p.x, q.y - p.y)
-    if (selected) {
-      const ends = [
-        ...[...selected.approach, ...selected.ringIn].map((lane) => ({ lane, dir: 'in', at: lane.line.pts[lane.line.pts.length - 1] })),
-        ...[...new Set(selected.connections.map((c) => c.to))].map((lane) => ({ lane, dir: 'out', at: lane.line.pts[0] })),
-      ]
-      const hit = ends.filter((m) => dist(m.at) < MARKER_PICK).sort((a, b) => dist(a.at) - dist(b.at))[0]
-      if (hit?.dir === 'in') armed = hit.lane
-      else if (hit && armed) {
-        const c = selected.connections.find((c) => c.from === armed && c.to === hit.lane)
-        if (c) game.apply({ at: selected.junction, [c.enabled ? 'disable' : 'enable']: [c.ref] })
-        armed = null
-      }
-      if (hit) return view.showArm(selected, armed)
-    }
-    const car = sim.vehicles.reduce<Vehicle | null>(
-      (best, v) => (dist(view.carCentre(v)) < (best ? dist(view.carCentre(best)) : CAR_PICK) ? v : best),
-      null,
-    )
-    if (car) return view.inspectCar(car)
-    const near = sim.net.junctions.flatMap((j) => j.arms).find((a) => dist(a.center) < ARM_PICK)
-    select(near ?? null)
+    tools.click(e)
   }
 
   const cameraButtons = createCameraButtons(root, view)
@@ -482,9 +432,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
         show.holding(sim.holding ? 'Holding' : sim.sustained > 0 ? `Holding in ${Math.ceil(WIN_TIME - sim.sustained)} s` : '')
       }
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
-      root
-        .querySelectorAll<HTMLButtonElement>('[data-prio]')
-        .forEach((b) => b.classList.toggle('on', selected?.priority === b.dataset.prio))
+      tools.update()
     },
   }
 }

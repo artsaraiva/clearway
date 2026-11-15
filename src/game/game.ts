@@ -154,9 +154,9 @@ export class Game {
     this._sim.apply(change)
   }
 
-  /** Every Junction back to its default configuration. */
-  reset() {
-    this._sim.reset()
+  /** The Junction `at` back to its default configuration. */
+  reset(at: string) {
+    this._sim.reset(at)
   }
 
   /** One step of the Sim, and the yen it earns. Nothing is earned during the Pre-warm. */

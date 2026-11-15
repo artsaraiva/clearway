@@ -149,7 +149,7 @@ it('jams a crossroads with every Connection from one Arm disabled', () => {
 
 it('clears that crossroads on a Reset, which returns it to its default configuration', () => {
   const sim = start(crossroads([NORTH_CLOSED]))
-  sim.reset()
+  sim.reset('X')
   expect(holds(sim)).toBe(true)
 })
 
