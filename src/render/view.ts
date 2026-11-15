@@ -9,7 +9,7 @@ import { createArmConnections } from './connections'
 import { createDay } from './day'
 import { createJamEmotion } from './emotion'
 import { createField } from './field'
-import { createHand, type Held } from './hand'
+import { createHand, SWAP_LIFT, type Held } from './hand'
 import { createRouteInspector } from './inspector'
 import { createMaterials } from './kit'
 import { createLabels } from './labels'
@@ -104,6 +104,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
 
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+  const screenUp = new THREE.Vector3()
   let inspected: Vehicle | null = null
   let shown = sim // the Sim whose cars are drawn
   let next: Sim | null = null // the Sim a Rebuild is building toward, until its cars are shown
@@ -144,9 +145,21 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       return next !== null || grow < 1
     },
 
-    /** Show the Tile in the player's hand. `null` empties the hand. */
+    /** Show the Tile in the player's hand, and what its drop does to the Gateways. `null` empties the hand. */
     hold(held: Held | null) {
       hand.show(held)
+      // The Gateways a Swap would open float with the Tile in the hand, which floats over the Tile it would replace.
+      labels.preview(held?.after ?? null, held?.swap ? SWAP_LIFT : 0)
+    },
+
+    /**
+     * How far the camera is turned from north up, in radians: north on the screen points this far clockwise of
+     * straight up. A top-down picture turned by it faces the way the board does.
+     */
+    get heading() {
+      // The way the top of the screen points, laid flat on the ground: x east and z south.
+      const up = screenUp.set(0, 1, 0).applyQuaternion(camera.quaternion)
+      return Math.atan2(-up.x, -up.z)
     },
 
     /**
