@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Traffic Prototype</title>
+    <title>Clearway</title>
     <style>
       html,
       body {
@@ -77,9 +77,68 @@
       }
       .node {
         bottom: 16px;
+        right: 16px;
+        width: 300px;
+      }
+      .tray {
+        bottom: 16px;
         left: 50%;
         transform: translateX(-50%);
-        width: 320px;
+        display: flex;
+        gap: 12px;
+        align-items: stretch;
+        user-select: none;
+      }
+      .tray .layouts {
+        display: flex;
+        gap: 8px;
+      }
+      .tray .tile {
+        width: 76px;
+        text-align: center;
+        font-size: 11px;
+        color: #555;
+        cursor: grab;
+        border-radius: 8px;
+        padding: 4px;
+        touch-action: none;
+      }
+      .tray .tile:hover {
+        background: #eef3ee;
+      }
+      .tray .tile.held {
+        background: #dcebdc;
+      }
+      .tray svg {
+        display: block;
+        margin: 0 auto 2px;
+      }
+      .tray .side {
+        width: 140px;
+        font-size: 12px;
+        color: #777;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 2px;
+      }
+      .tray .side b {
+        font-size: 16px;
+        color: #222;
+      }
+      .tray .side button {
+        flex: none;
+        margin-top: 4px;
+      }
+      .tray.poor .tile {
+        opacity: 0.45;
+      }
+      .gauge .row + .row,
+      .gauge .row.flow {
+        margin-top: 6px;
+      }
+      .yen {
+        font-size: 22px;
       }
       .row {
         display: flex;
@@ -127,6 +186,10 @@
         background: #f0f0f0;
         font: inherit;
         cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
       }
       button.on {
         background: #222;

@@ -25,6 +25,9 @@ export function cellBounds(cell: Cell): Bounds {
   return { x0: x - CELL / 2, y0: y - CELL / 2, x1: x + CELL / 2, y1: y + CELL / 2 }
 }
 
+/** The cell a point lies on. */
+export const cellAt = (p: { x: number; y: number }): Cell => ({ x: Math.round(p.x / CELL), y: Math.round(p.y / CELL) })
+
 /** The id of the Junction of the Tile on `cell`. It never changes, whatever is placed around the Tile. */
 export const junctionId = (cell: Cell) => `c${cell.x}_${cell.y}`
 

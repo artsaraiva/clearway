@@ -4,7 +4,9 @@ import { centre } from './slab'
 
 const DAY = 180 // real seconds per day
 const START = 0 // the day opens in the morning
-const LIGHT_DISTANCE = 500 // m from the slab's centre to the light
+const LIGHT_DISTANCE = 500 // m from the slab's centre to the light, at least
+const MIN_REACH = 250 // m: the shadow map never covers less than this either side of the slab's centre
+const SHADOW = { bias: 0.5, normalBias: 0.16, radius: 3 } // m, m and texels, for a shadow map `MIN_REACH` either side
 const LIGHTS_ON = 3 // lamp glow at which car lights are fully lit
 
 // The look is authored at these times of day (0–1 around the loop) and interpolated between them. One column per time:
@@ -53,20 +55,36 @@ export interface Glow {
  * The day cycle: morning, noon, dusk and night on a looping clock of its own. It moves one directional light (with a
  * soft shadow map covering the slab), a hemisphere light and the sky gradient behind the transparent canvas, and says
  * what glows. It is cosmetic: nothing in the sim reads it.
+ * ponytail: one shadow map covers the whole slab, so its shadows soften as the City grows: a texel is 12 cm up to 3
+ * cells across and half a metre at 12. Cascade the shadow map on the camera's view if a large City's shadows look
+ * too soft.
  */
 export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
   const fill = new THREE.HemisphereLight()
   const light = new THREE.DirectionalLight()
-  const [cx, cz] = centre(slab)
-  const reach = 0.8 * Math.max(slab.x1 - slab.x0, slab.y1 - slab.y0) // the slab's diagonal, with room for tall buildings
-  light.target.position.set(cx, 0, cz)
   light.castShadow = true
   // If shadows break the frame budget, this shrinks before any look decision changes.
   light.shadow.mapSize.set(4096, 4096)
-  Object.assign(light.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: 2 * LIGHT_DISTANCE })
-  light.shadow.bias = -0.0005
-  light.shadow.normalBias = 0.16
-  light.shadow.radius = 3
+  let distance = LIGHT_DISTANCE
+
+  /** Light the slab `next` (plate and rim): the shadow map covers all of it. */
+  const fit = (next: Bounds) => {
+    const [cx, cz] = centre(next)
+    // The slab's diagonal, with room for tall buildings.
+    const reach = Math.max(MIN_REACH, 0.8 * Math.max(next.x1 - next.x0, next.y1 - next.y0))
+    // Far enough out that the whole slab lies in front of the light however low it stands.
+    distance = Math.max(LIGHT_DISTANCE, 1.25 * reach)
+    light.target.position.set(cx, 0, cz)
+    Object.assign(light.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: 2 * distance })
+    light.shadow.camera.updateProjectionMatrix()
+    // Kept the same on the ground as the map's texels grow: the depth bias in metres, the offset along the normal in
+    // texels, and the blur in metres down to one texel.
+    const texels = reach / MIN_REACH
+    light.shadow.bias = -SHADOW.bias / (2 * distance)
+    light.shadow.normalBias = SHADOW.normalBias * texels
+    light.shadow.radius = Math.max(1, SHADOW.radius / texels)
+  }
+  fit(slab)
 
   let clock = START
   let held = false // stopped by `hold`
@@ -87,7 +105,7 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
     const [az, el] = [num(LIGHT.azimuth), num(LIGHT.elevation)]
     light.position
       .set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el))
-      .multiplyScalar(LIGHT_DISTANCE)
+      .multiplyScalar(distance)
       .add(light.target.position)
     fill.color.copy(mix(FILL.sky))
     fill.groundColor.copy(mix(FILL.ground))
@@ -102,6 +120,8 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
 
   return {
     lights: [fill, light, light.target],
+
+    fit,
 
     /** Move the clock on by `dt` real seconds and show the time it reaches. */
     update(dt: number): Glow {

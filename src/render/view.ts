@@ -1,19 +1,21 @@
 import * as THREE from 'three'
-import { extent, type Bounds, type Vec } from '../sim/geometry'
+import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Arm, Lane } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
+import { CELL } from '../sim/tiles'
 import { createCamera } from './camera'
 import { carCentre, createCars } from './cars'
 import { createArmConnections } from './connections'
 import { createDay } from './day'
 import { createJamEmotion } from './emotion'
 import { createField } from './field'
+import { createHand, type Held } from './hand'
 import { createRouteInspector } from './inspector'
 import { createMaterials } from './kit'
 import { createLabels } from './labels'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
-import { createScenery, finish, type Scenery } from './scenery'
+import { createScenery, finish, type Build, type Scenery } from './scenery'
 import { createSky } from './sky'
 import { createUnderShadow, slabBounds } from './slab'
 import { createWalkers } from './walkers'
@@ -21,22 +23,26 @@ import { createWalkers } from './walkers'
 const SHRINK = 0.3 // s for the cars to shrink out as a Rebuild starts
 const GROW = 1.5 // per second: how fast the cars grow back in once the new pieces have landed
 
+// The Blocks are filled as if the City were this far across, around the cell a run starts on: towers by the start,
+// houses far out. It is fixed, since the board has no bounds, so a Block comes out the same whenever its Tile is laid.
+const FILL_EXTENT: Bounds = { x0: -300, y0: -300, x1: 300, y1: 300 }
+
 export type View = ReturnType<typeof createView>
 
 /** The ground a view draws a Sim on. */
 export interface Ground {
-  /** The slab so far, each piece laid separately: the cell of every Tile placed. */
-  pieces: Bounds[][]
-  /**
-   * Everything the slab may grow to cover.
-   * ponytail: fixed when the view is made, since the field and the lighting are sized to it. That holds for a City
-   * whose Tiles are known up front; the game page (#88) has to grow them, since the board has no bounds.
-   */
-  whole: Bounds
+  /** The slab so far: the cell of every Tile placed, in order. */
+  pieces: Bounds[]
   scenery: Scenery
 }
 
-/** Draws a Sim's City as a slab in open sky, and each Rebuild as the new pieces of slab assembling. */
+/** What a Rebuild did to the slab: the cell of the Tile it placed, of the Tile it swapped (or swapped back), or of the Tile an Undo took off. */
+export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bounds }
+
+/**
+ * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
+ * the Blocks' field, the lighting and the camera follow the City as it grows.
+ */
 export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
@@ -44,19 +50,19 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   renderer.toneMapping = THREE.NeutralToneMapping
   renderer.setClearColor(0x000000, 0)
 
-  const { whole } = ground
   /** Every piece of slab laid so far. */
-  const pieces = ground.pieces.flat()
+  const pieces = [...ground.pieces]
   /** The slab so far as a rectangle: its road plate and grass rim. */
   const slabNow = () => slabBounds(extent(pieces))
-  const field = createField(whole)
+  const field = createField()
   const materials = createMaterials()
-  const scenery = createScenery(ground.scenery, field, materials, whole)
-  const laid = ground.pieces.flatMap((piece) => scenery.lay(sim, piece))
-  const slab = slabNow()
-  const { camera, resize, update: updateCamera, fit } = createCamera(canvas, slab)
-  // Lit for the whole ground from the start, so that no Rebuild moves the shadows of the slab already there.
-  const day = createDay(canvas, slabBounds(whole))
+  const scenery = createScenery(ground.scenery, field, materials, FILL_EXTENT)
+  const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
+  let slab = slabNow()
+  /** What the camera frames: the slab and the cells around it, where the next Tile can go. */
+  const framed = (b: Bounds): Bounds => ({ x0: b.x0 - CELL, y0: b.y0 - CELL, x1: b.x1 + CELL, y1: b.y1 + CELL })
+  const { camera, resize, update: updateCamera, fit } = createCamera(canvas, framed(slab))
+  const day = createDay(canvas, slab)
   const sky = createSky(slab)
   const under = createUnderShadow()
   under.fit(slab)
@@ -68,8 +74,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const armConnections = createArmConnections()
   const route = createRouteInspector()
   const labels = createLabels(canvas, camera, ground.scenery)
-  labels.show(sim.net, field, pieces)
+  labels.show(sim.net, sim.rates, field, pieces)
   const reveal = createReveal(materials)
+  const hand = createHand()
   const scene = new THREE.Scene().add(
     ...day.lights,
     ...laid,
@@ -82,6 +89,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     armConnections.group,
     route.group,
     reveal.group,
+    hand.group,
   )
 
   // The canvas's size in CSS pixels, read only when it changes: reading it every frame would force a layout.
@@ -136,25 +144,54 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       return next !== null || grow < 1
     },
 
+    /** Show the Tile in the player's hand. `null` empties the hand. */
+    hold(held: Held | null) {
+      hand.show(held)
+    },
+
     /**
-     * Play a Rebuild that placed a Tile: `rebuilt` is the Sim it made and `added` the pieces of slab it adds, which
-     * must lie on the ground's `whole`. They assemble next to the slab already there, then the cars grow in. The cars
-     * wait for the Sim's Pre-warm, which the caller runs meanwhile.
-     * ponytail: the pieces are built in one go when the Rebuild starts, a hitch of a few ms for one cell. Spread the
+     * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
+     * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
+     * at once. Then the cars grow in. They wait for the Sim's Pre-warm, which the caller runs meanwhile.
+     * ponytail: the piece is built in one go when the Rebuild starts, a hitch of a few ms for one cell. Spread the
      * build over frames (`scenery.add` is a generator) if a placement ever adds enough to drop one.
      */
-    rebuild(rebuilt: Sim, added: Bounds[]) {
-      const build = finish(scenery.add(rebuilt, added))
-      pieces.push(...added)
-      scene.add(...build.meshes)
+    rebuild(rebuilt: Sim, relaid: Relaid) {
+      const drop = (meshes: THREE.Mesh[]) => {
+        scene.remove(...meshes)
+        scenery.discard(meshes)
+      }
+      let build: Build | null = null
+      /** The Tile a Swap replaced, which stands until the new road plate lands on it. */
+      let old: THREE.Mesh[] = []
+      if ('removed' in relaid) {
+        pieces.splice(pieces.findIndex((p) => sameBounds(p, relaid.removed)), 1) // prettier-ignore
+        walkers.remove([relaid.removed])
+        drop(scenery.remove(relaid.removed))
+      } else if ('swapped' in relaid) {
+        walkers.remove([relaid.swapped])
+        const swap = scenery.swap(rebuilt, relaid.swapped)
+        ;[old, build] = [swap.old, finish(swap.building)]
+      } else {
+        pieces.push(relaid.placed)
+        build = finish(scenery.add(rebuilt, [relaid.placed]))
+      }
+      if (build) scene.add(...build.meshes)
       const paint = createRoads(rebuilt.net, rebuilt.spec)
       const grown = slabNow()
-      fit(grown)
-      under.fit(grown, true)
+      // The camera and the light move only when the slab's outline has, so a Tile placed inside it leaves the player's view alone.
+      if (!sameBounds(grown, slab)) {
+        slab = grown
+        fit(framed(grown))
+        day.fit(grown)
+        under.fit(grown, true)
+      }
       ;[next, inspected] = [rebuilt, null]
       armConnections.show(null, null)
-      reveal.play(build, {
+      labels.show(rebuilt.net, rebuilt.rates, field, pieces)
+      const moments = {
         plate() {
+          drop(old)
           scene.remove(roads.group)
           roads.group.traverse((o) => {
             if (!(o instanceof THREE.Mesh)) return
@@ -165,11 +202,13 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
           scene.add(roads.group)
         },
         done() {
-          walkers.add(rebuilt.net, field, build.pieces)
-          labels.show(rebuilt.net, field, pieces)
+          if (build) walkers.add(rebuilt.net, field, build.pieces)
           sky.fit(grown)
         },
-      })
+      }
+      if (build) return reveal.play(build, moments)
+      moments.plate()
+      moments.done()
     },
 
     /**
@@ -191,6 +230,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       cars.setGlow(glow)
       emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
       walkers.update(dt)
+      hand.update()
       roads.update()
       updateCamera(dt)
       under.update(dt)
