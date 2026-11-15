@@ -303,11 +303,14 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   const overScreen = (e: Event) => e.target instanceof Node && root.contains(e.target)
   /** Whether a pointer has moved from where it was pressed, so that its release is no click. */
   const moved = (e: PointerEvent, from: { x: number; y: number }) => Math.hypot(e.clientX - from.x, e.clientY - from.y) > CLICK_SLOP
-  /** Where the right button was last pressed: a right click without movement puts the Layout in the hand back. */
-  let right = { x: 0, y: 0 }
+  /**
+   * Where the right button was last pressed, and whether the hand held a Layout then. A right click without movement
+   * puts the Layout back.
+   */
+  let right = { x: 0, y: 0, held: false }
   window.addEventListener('pointerdown', (e) => {
     if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
-    if (e.button === 2) right = { x: e.clientX, y: e.clientY }
+    if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
   })
   window.addEventListener('pointermove', (e) => {
     if (!hand) return
@@ -326,8 +329,11 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     hand = null
     if (p) place(layout, rotation, cellAt(p))
   })
+  // No browser menu for a right click on a Layout in the hand. On Windows the menu opens as the button comes up, after
+  // that release has put the Layout back, so the press decides.
   window.addEventListener('contextmenu', (e) => {
-    if (hand) e.preventDefault()
+    if (hand || right.held) e.preventDefault()
+    right.held = false
   })
   // While a Tile is in the hand the wheel turns it, and the camera does not zoom.
   window.addEventListener(
