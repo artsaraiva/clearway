@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "bench": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/bench.ts'))\"",
+    "tune": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/tune.ts'))\"",
     "prepare": "husky"
   },
   "dependencies": {

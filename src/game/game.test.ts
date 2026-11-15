@@ -36,8 +36,8 @@ const OPEN_RING: Placing[] = [
 it('starts a run with one Tile and the Price of the next in hand', () => {
   const game = new Game(7)
   expect(game.city.tiles).toHaveLength(1)
-  expect(game.yen).toBe(300)
-  expect(game.price).toBe(300)
+  expect(game.yen).toBe(350)
+  expect(game.price).toBe(350)
 })
 
 it('starts the same run from the same seed', () => {
@@ -51,41 +51,41 @@ it('raises the Price with every Tile placed, rounded to ¥50', () => {
     expect(place(game, ['straight', 0, x, 0])).toMatchObject({ legal: true, price: prices.at(-1) })
     prices.push(game.price)
   }
-  expect(prices).toEqual([300, 400, 450, 600, 750])
-  expect(game.yen).toBe(10_000 - 300 - 400 - 450 - 600)
+  expect(prices).toEqual([350, 450, 600, 750, 1000])
+  expect(game.yen).toBe(10_000 - 350 - 450 - 600 - 750)
 })
 
 it('charges the same Price for every Layout', () => {
-  const game = gameOf(300, ['crossroads', 0, 0, 0])
-  for (const l of LAYOUTS) expect(game.offer(l, 2, { x: 1, y: 0 })).toMatchObject({ legal: true, price: 300 })
+  const game = gameOf(350, ['crossroads', 0, 0, 0])
+  for (const l of LAYOUTS) expect(game.offer(l, 2, { x: 1, y: 0 })).toMatchObject({ legal: true, price: 350 })
 })
 
 it('refuses a placement the player cannot afford', () => {
-  const game = gameOf(299, ['straight', 0, 0, 0])
+  const game = gameOf(349, ['straight', 0, 0, 0])
   expect(place(game, ['straight', 0, 1, 0])).toMatchObject({ legal: true, affordable: false })
   expect(game.city.tiles).toHaveLength(1)
-  expect(game.yen).toBe(299)
+  expect(game.yen).toBe(349)
 })
 
 it('takes 25% off a placement that joins two placed Tiles', () => {
   const game = gameOf(1000, ...OPEN_RING)
-  expect(game.price).toBe(450)
-  expect(place(game, ['crossroads', 0, 0, 1])).toMatchObject({ legal: true, price: 337.5 })
-  expect(game.yen).toBe(1000 - 337.5)
+  expect(game.price).toBe(600)
+  expect(place(game, ['crossroads', 0, 0, 1])).toMatchObject({ legal: true, price: 450 })
+  expect(game.yen).toBe(1000 - 450)
 })
 
 it('charges a Swap the Price with no rebate, and does not raise the Price', () => {
   const game = gameOf(2000, ...OPEN_RING, ['crossroads', 0, 0, 1])
-  expect(game.price).toBe(600)
+  expect(game.price).toBe(750)
   // The Crossroads joins two Tiles, which would earn a placement the rebate.
-  expect(place(game, ['roundabout', 0, 0, 1])).toMatchObject({ legal: true, swap: true, price: 600 })
-  expect(game.yen).toBe(1400)
-  expect(game.price).toBe(600)
+  expect(place(game, ['roundabout', 0, 0, 1])).toMatchObject({ legal: true, swap: true, price: 750 })
+  expect(game.yen).toBe(1250)
+  expect(game.price).toBe(750)
 })
 
 it('pays for every trip that arrives', () => {
   const game = earn(gameOf(0, ['crossroads', 0, 0, 0]), 120)
-  expect(game.yen).toBeGreaterThan(game.price / 30)
+  expect(game.yen).toBeGreaterThan(game.price / 25)
   expect(game.income).toBe(game.tripsPerMinute * 10)
 })
 
@@ -97,15 +97,15 @@ it('earns nothing during the Pre-warm', () => {
 })
 
 it('pays the Income floor when no trip arrives', () => {
-  const game = gameOf(300, ['crossroads', 0, 0, 0])
+  const game = gameOf(350, ['crossroads', 0, 0, 0])
   // Every Connection of the Crossroads closed: after the Rebuild no Gateway reaches another, so nothing is sent.
   game.apply({ at: 'c0_0', disable: open(game, 'c0_0') })
   expect(place(game, ['straight', 0, 1, 0])).toMatchObject({ legal: true, affordable: true })
   earn(game, 60)
   expect(game.sim.completed).toBe(0)
-  expect(game.price).toBe(400)
-  expect(game.income).toBeCloseTo(400 / 30)
-  expect(game.yen).toBeCloseTo(400 / 30)
+  expect(game.price).toBe(450)
+  expect(game.income).toBeCloseTo(450 / 25)
+  expect(game.yen).toBeCloseTo(450 / 25)
 })
 
 // Undo
@@ -116,11 +116,11 @@ it('undoes a placement for a full refund, with the City and every Change as they
   place(game, ['crossroads', 0, 0, 1])
   game.apply({ at: 'c0_0', priority: { h0_0: 'main' } })
   earn(game, 9)
-  const earned = game.yen - (1000 - 337.5)
+  const earned = game.yen - (1000 - 450)
   expect(game.undoable).toBe(true)
   expect(game.undo()).toBe(true)
   expect(game.yen).toBe(1000 + earned) // yen earned in between is kept
-  expect(game.price).toBe(450)
+  expect(game.price).toBe(600)
   expect(game.city.tiles).toEqual(tiles)
   expect(game.sim.configuration()).toEqual(changes)
 })
@@ -130,7 +130,7 @@ it('undoes a Swap, with the swapped Tile and its Changes back', () => {
   game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
   const changes = game.sim.configuration()
   place(game, ['roundabout', 0, 0, 0])
-  expect(game.yen).toBe(600)
+  expect(game.yen).toBe(550)
   expect(game.undo()).toBe(true)
   expect(game.yen).toBe(1000)
   expect(game.city.tiles[0].layout).toBe(layout('crossroads'))
