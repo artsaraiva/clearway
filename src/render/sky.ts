@@ -14,9 +14,10 @@ const CLOUDS = [
 const DRIFT = 3 // m/s, eastward
 const WRAP = 1.8 // half-widths east of the centre where a cloud leaves, to come back as far to the west
 const CLEAR_ZOOM = 1.9 // camera zoom from which no cloud is visible; they are solid at 1 less
+// Their wings take two of the cars' colours.
 const PLANES = [
-  { height: 60, color: '#f26d5b' },
-  { height: 76, color: '#4f8fe8' },
+  { height: 60, color: '#db6982' },
+  { height: 76, color: '#009dcb' },
 ]
 // A plane's line starts `far` half-widths from the slab's centre, aimed within `aim` half-widths of it, and bends by
 // up to `turn` rad/s. The plane grows in and shrinks out over `fade` m at each end of the line.

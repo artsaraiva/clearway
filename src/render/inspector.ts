@@ -6,7 +6,7 @@ import { ribbons } from './ribbons'
 
 /** The route Inspector: one car's remaining route as a glowing blue line above the road, redrawn each frame as the car moves. */
 export function createRouteInspector() {
-  const core = new THREE.Mesh(new THREE.BufferGeometry(), glow('#2f86ff'))
+  const core = new THREE.Mesh(new THREE.BufferGeometry(), glow('#1f7aff')) // the Tools' blue
   const halo = new THREE.Mesh(new THREE.BufferGeometry(), glow('#62b0ff', 0.3))
   const group = new THREE.Group().add(halo, core)
   return {

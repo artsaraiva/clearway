@@ -3,13 +3,16 @@ import type { Glow } from './day'
 import { canvasTexture, gable, roundedBox, tint } from './shapes'
 
 const TAU = Math.PI * 2
-const WALLS = ['#f6efe4', '#f3dac6', '#e5efdf', '#dae7f2', '#f4e4b9', '#efd8dd', '#e3ddef', '#fbf7f0', '#cfe4df']
-const ROOFS = ['#d9735b', '#5d7a96', '#6ba39a', '#c79f6a', '#8a80b3', '#e08a6b']
-const TOWERS = ['#eef2f5', '#dfe9f1', '#f5f0e7', '#e3ecea', '#f3e8e1']
+// The palette is the oversaturated one picked in #104 at its gentlest strength. Within 30° of hue of the Tool blue or
+// the Jam red-orange, a colour keeps under 65% of that colour's chroma, which is why the terracotta roof is a darker
+// brick, the salmon one persimmon and the slate one a teal slate.
+const WALLS = ['#fdeed6', '#ffd7b6', '#e0f2d4', '#cbebfc', '#fbe3a2', '#fbd2dd', '#e5dafb', '#fff7e8', '#c0e9e0']
+const ROOFS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548']
+const TOWERS = ['#e5f4fc', '#d4ecf8', '#faefdc', '#d9efeb', '#fbe6d8']
 const LEAVES = {
-  round: ['#86c96f', '#6db862', '#9bd47e', '#78bf68', '#8fcc73'],
-  sakura: ['#f8bfd0', '#f4a8c0', '#fbd3df', '#f6b3c8'],
-  pine: ['#4f9a6a', '#5aa874', '#468f60'],
+  round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
+  sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
+  pine: ['#379e62', '#43ac6b', '#2e9358'],
 }
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
@@ -50,14 +53,14 @@ export interface Part {
 export function createMaterials() {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
   const glass = new THREE.MeshStandardMaterial({
-    color: '#a9c4db',
+    color: '#9cc7df',
     roughness: 0.22,
     metalness: 0.1,
     emissive: '#ffc78a',
     emissiveIntensity: 0,
   })
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
-  const water = new THREE.MeshStandardMaterial({ color: '#86cbef', roughness: 0.12, metalness: 0.05 })
+  const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree.
   const decal = (map: THREE.Texture, opacity: number) =>
     new THREE.MeshBasicMaterial({
@@ -160,7 +163,7 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /** A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
-      add(CYLINDER, '#9a7457', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
+      add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
         for (let i = 0; i < 3; i++) {
           const r = s * (2.48 - i * 0.6)
@@ -226,12 +229,12 @@ export function createKit(rand: () => number, materials: Materials) {
         // Rooftop clutter: a plant box, then a water tank or a few shrubs.
         if (rand() < 0.5) add(box(w * 0.32, 1.28, d * 0.3, 0.24, 0.12), '#d4d8dd', x - w * 0.2, y - d * 0.15, top)
         if (rand() < 0.35) {
-          add(CYLINDER, '#c8a88a', x + w * 0.22, y + d * 0.2, top, 0, 1.12, 2.2, 1.12)
-          add(CONE, '#b08d6e', x + w * 0.22, y + d * 0.2, top + 2.2, 0, 1.2, 0.8, 1.2)
+          add(CYLINDER, '#cea680', x + w * 0.22, y + d * 0.2, top, 0, 1.12, 2.2, 1.12)
+          add(CONE, '#b68b63', x + w * 0.22, y + d * 0.2, top + 2.2, 0, 1.2, 0.8, 1.2)
         } else if (rand() < 0.4) {
           for (let i = 0; i < 3; i++) {
             const k = range(0.88, 1.28)
-            add(SPHERE, pick(['#86c96f', '#9bd47e']), x + range(-w, w) * 0.3, y + range(-d, d) * 0.3, top + 0.4, 0, k, k * 0.8, k)
+            add(SPHERE, pick(['#7bcd5d', '#92d76e']), x + range(-w, w) * 0.3, y + range(-d, d) * 0.3, top + 0.4, 0, k, k * 0.8, k)
           }
         }
       }

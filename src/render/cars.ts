@@ -9,7 +9,9 @@ import { roundedBox, tint } from './shapes'
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
 const CAP = 1500
 const LENGTH = 4.3 // m: the model is drawn one unit long and scaled to this
-const COLORS = ['#ffffff', '#f26d5b', '#4f8fe8', '#f6c85f', '#7cc6a4', '#b9a3e3', '#e9eef2', '#ff9db5'].map((c) => new THREE.Color(c))
+// Walkers' shirts, the planes' wings and the confetti share these. Blue is the Tools' colour and red-orange the Jams',
+// so there is a turquoise car where a blue one would be and a raspberry one where a coral one would be.
+const COLORS = ['#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#e9eef2', '#ff9cbb'].map((c) => new THREE.Color(c))
 const GROW = 8 // m of lane over which a car grows in, or shrinks out, at a Gateway
 const STUCK_BELOW = 0.4 // m/s
 const COOL = 1.5 // seconds of being stuck forgotten per second of moving
