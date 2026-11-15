@@ -8,6 +8,23 @@ export const travelTime = (lane: Lane) => lane.length / lane.speedLimit
 const cache = new WeakMap<Network, Map<string, Map<Lane, number>>>()
 
 /**
+ * The lanes a car can drive onto `lane` from. A vehicle already on a disabled Connection's lane still finishes it;
+ * nothing new enters it.
+ */
+const entries = (lane: Lane) => (lane.conn ? (lane.conn.enabled ? [lane.conn.from] : []) : lane.feeders)
+
+/**
+ * Every lane from which a car can drive to an Exit lane of the Gateway `dest` over enabled Connections: the lanes
+ * `timesTo` times, found without timing them.
+ */
+export function lanesTo(net: Network, dest: string): Set<Lane> {
+  const reached = new Set(net.gateways[dest].exit)
+  // A Set's iterator visits what is added while it runs, so this walks back from the Exit lanes to every lane in reach.
+  for (const lane of reached) for (const l of entries(lane)) reached.add(l)
+  return reached
+}
+
+/**
  * Free-flow seconds from the start of each lane to the end of the nearest Exit lane of the Gateway `dest`, over
  * enabled Connections (Dijkstra backwards from the Exit lanes). A lane that can't reach `dest` has no entry.
  */
@@ -31,9 +48,7 @@ function timesTo(net: Network, dest: string): Map<Lane, number> {
     }
     open.delete(lane)
     times.set(lane, best)
-    // A vehicle already on a disabled Connection's lane still finishes it; nothing new enters it.
-    const before = lane.conn ? (lane.conn.enabled ? [lane.conn.from] : []) : lane.feeders
-    for (const l of before) {
+    for (const l of entries(lane)) {
       const t = best + travelTime(l)
       if (!times.has(l) && t < (open.get(l) ?? Infinity)) open.set(l, t)
     }

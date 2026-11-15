@@ -2,7 +2,7 @@ import { beyond, DIRECTIONS, hasRoad, type Cell, type City, type Direction } fro
 import { GATEWAY_DEMAND } from '../tuning'
 import type { Bounds } from './geometry'
 import type { Network } from './network'
-import { route } from './routing'
+import { lanesTo } from './routing'
 import type { DemandSpec, NetworkSpec, Point, RoadAttributes } from './spec'
 
 // How a City becomes a network (ADR 0004): every Tile is one Junction at its cell's centre, every road edge two Tiles
@@ -75,9 +75,10 @@ function weight(road: string, weights: number[]) {
 export function gatewayDemand(city: City, net: Network, tuning = GATEWAY_DEMAND): DemandSpec {
   const gateways = Object.keys(net.gateways)
   const growth = 1 + tuning.growth * (city.tiles.length - 1)
+  const toward = new Map(gateways.map((to) => [to, lanesTo(net, to)]))
   const demand: DemandSpec = {}
   for (const from of gateways) {
-    const reached = gateways.filter((to) => to !== from && net.gateways[from].approach.some((lane) => route(net, lane, to)))
+    const reached = gateways.filter((to) => to !== from && net.gateways[from].approach.some((lane) => toward.get(to)!.has(lane)))
     if (!reached.length) continue
     demand[from] = { rate: tuning.base * weight(from, tuning.weights) * growth, to: Object.fromEntries(reached.map((to) => [to, 1])) }
   }
