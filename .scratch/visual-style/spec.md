@@ -4,13 +4,15 @@ Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway
 
 ## Amended by [#15](https://github.com/artsaraiva/clearway/issues/15) (2026-11-15)
 
-The direction is now cozy Japanese and oversaturated. The palette below is recoloured in [#105](https://github.com/artsaraiva/clearway/issues/105), after the user picks a strength from the mock in [#104](https://github.com/artsaraiva/clearway/issues/104); the road plate and the pavement stay pale. Blue is reserved for Tools and Inspectors and hot red-orange for Jams and refusals. The camera's drag buttons are swapped. Details in `.scratch/ui-ux/spec.md`.
+The direction is now cozy Japanese and oversaturated. The palette below was recoloured in [#105](https://github.com/artsaraiva/clearway/issues/105) at the strength the user picked from the mock in [#104](https://github.com/artsaraiva/clearway/issues/104), "a little"; the road plate and the pavement stay pale. Blue is reserved for Tools and Inspectors and hot red-orange for Jams and refusals. The camera's drag buttons are swapped. Details in `.scratch/ui-ux/spec.md`.
 
 ## Goal
 
 Replace the throwaway `src/render/scene.ts` with a renderer that draws a District as an anime-flavoured miniature diorama: a small Japanese-style town on a floating slab, readable as a traffic puzzle first. Vocabulary in root `GLOSSARY.md`.
 
-The target is the user's "Anime Map Diorama" design. Its proof on the real sim was the prototype at `/diorama.html` (`src/lookdev/diorama.ts`, deleted from `main` in #32), kept with the three rejected looks on the local branch `16-visual-style-prototype`. Reference screenshots: `.scratch/game/reference/diorama-grid-golden.png`, `diorama-grid-noon.png`, `diorama-night.png`, `diorama-close.png`, `diorama-reveal.png`.
+The target is the user's "Anime Map Diorama" design. Its proof on the real sim was the prototype at `/diorama.html` (`src/lookdev/diorama.ts`, deleted from `main` in #32), kept with the three rejected looks on the local branch `16-visual-style-prototype`. Its screenshots, `.scratch/game/reference/diorama-*.png`, show the original design, whose tone the palette keeps.
+
+Reference screenshots of the game in its palette ([#105](https://github.com/artsaraiva/clearway/issues/105)): `.scratch/visual-style/reference/morning.png`, `noon.png`, `dusk.png`, `night.png`, a Jam up close in `close-noon.png` and `close-night.png`, and a Rebuild half-way, a new Tile's piece of slab assembling, in `rebuild.png`. They show the #104 mock's twelve Tiles, laid one cell south-west of where the mock lays them, in a Free run (`?free&seed=3`), with its two Changes to Priority rules and its west Crossroads jammed.
 
 This overturns three look-dev (03) decisions: the perspective camera, static AO in place of shadows, and the baked distance-field ground.
 
@@ -29,8 +31,49 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 The style comes from shape, palette and proportion:
 
 - **Shape:** every box is rounded and bevelled; buildings are a wall box with a glass band per floor; houses have gable roofs; trees are clusters of spheres (round, sakura) or stacked cones (pine).
-- **Palette** (to be recoloured, [#105](https://github.com/artsaraiva/clearway/issues/105)): pastel walls, terracotta / slate / teal roofs, pale grey road, off-white pavement, fresh greens, pink sakura. The prototype's constants are the starting point.
+- **Palette:** gently oversaturated, with pastel walls and towers, brick / teal slate / teal / tan / violet / persimmon roofs, fresh greens, pink sakura, a pale grey road and an off-white pavement. Every colour is under Palette below.
 - **Proportion:** lanes about 7 m wide and Blocks roughly 40–60 m across, so a car reads as a toy and each building as an object. This was the single biggest difference between the first port (a 360 m roundabout District, rejected as "not the same") and the accepted one.
+
+## Palette
+
+Set in [#105](https://github.com/artsaraiva/clearway/issues/105) at the strength the user picked in [#104](https://github.com/artsaraiva/clearway/issues/104), "a little", the gentlest of three. The user's reference for the tone is the original Anime Map Diorama design, which is the earlier palette under the morning light. Saturation goes into each colour: there is no filter and no post-processing. The road plate (`#c3c7ce`), the pavement (`#f1ede5`) and the white road paint stay pale and near-neutral, so cars, paint and Tool aids read against them.
+
+**Reserved colours.** Two colours belong to the game's signals:
+
+- Tool blue `#1f7aff`: the Connection Tool's lines and the markers where they start, and the route Inspector. The markers where Connections end are still orange (`#f97316`), near the red-orange, until [#107](https://github.com/artsaraiva/clearway/issues/107) redraws the lane ends as circles and rings.
+- Hot red-orange `#ff4a1f`: the anger marks, the speech bubbles' text, and the Tile in the hand when its drop is refused. That Tile takes 60% of the colour, and the tint glows (emissive 0.4) so it keeps its colour at dusk and at night.
+
+Within 30° of hue (OKLCH) of either colour, no scenery or car goes over 65% of that colour's chroma. That rule is why the park's deck is wood rather than shrine vermilion, why the cars are turquoise and raspberry rather than blue and coral, and why the roofs are brick, teal slate and persimmon rather than terracotta, slate and salmon.
+
+**The world** (`src/render`):
+
+| What | Colours |
+| --- | --- |
+| Walls of houses and mid-rises | `#fdeed6` `#ffd7b6` `#e0f2d4` `#cbebfc` `#fbe3a2` `#fbd2dd` `#e5dafb` `#fff7e8` `#c0e9e0` |
+| Towers | `#e5f4fc` `#d4ecf8` `#faefdc` `#d9efeb` `#fbe6d8` |
+| Roofs | brick `#d56454`, teal slate `#4d7d9c`, teal `#5aa69b`, tan `#d09c53`, violet `#8b7dbf`, persimmon `#ea8548` |
+| Leaves | `#7bcd5d` `#5fbc51` `#92d76e` `#6bc357` `#85cf61` |
+| Sakura | `#ffbbd1` `#ffa1c1` `#ffd1df` `#ffadc8` |
+| Pines | `#379e62` `#43ac6b` `#2e9358` |
+| The slab's layers | grass `#9ed67d`, sand `#e3bf8c`, soil `#d2a069` |
+| Lawns | `#b0df88` |
+| Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
+| Bike lanes | `#57c6b5` |
+| Water | `#63d1f4` |
+| Window glass | `#9cc7df` |
+| Cars | white `#ffffff`, raspberry `#db6982`, turquoise `#009dcb`, yellow `#ffc52d`, mint `#64cb9f`, lavender `#bc9ef2`, pale grey `#e9eef2`, pink `#ff9cbb` |
+
+Walkers' shirts, the planes' wings and the confetti take the cars' colours. The Tile in the hand takes the slab's. Greys, creams and stone (lamp posts, masts, rooftop boxes, the plaza, the tower landmark's cream) keep their earlier values, as does the tower landmark's coral `#f08a6e`, already under the cap at 59% of the red-orange's chroma. Head and tail lights, lit windows and lamps are lights that come on toward dusk, not paint, and stay as they were.
+
+**Sky and light** (`src/render/day.ts`):
+
+| Time | Sky, top to bottom | Sun or moon | Fill, sky / ground |
+| --- | --- | --- | --- |
+| Noon | `#68ccf5` `#beeaf9` `#e5f8f9` | `#fffaf0` | `#d1edfb` / `#f2ead9` at 1.25 |
+| Dusk | `#8d6cc2` `#d887ae` `#fcb17e` | `#fe9f6f` | `#bd98c9` / `#eaa48c` at 1.1 |
+| Night | `#191c5b` `#31398e` `#5c61b5` | `#bfd0ff` | `#adbbf2` / `#7780c2` at 1.75 |
+
+A clear cyan noon, an orange and pink dusk, and a deep blue night that stays bright. Dusk's low sun leaves most of the road plate in shadow, so its fill is pink and raised from 0.85 to 1.1. Morning, late afternoon and the handovers between sun and moon keep their earlier values, and the day blends between them.
 
 ## Camera
 
