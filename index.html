@@ -264,37 +264,36 @@
         background: var(--hover);
       }
 
-      /* The selected Junction's Tools, under the clock until they move into the world (#107). */
+      /* The selected Junction's panel under the clock: its name, Reset and a hint. Its Tools are in the world. */
       .junction {
         top: calc(var(--edge) + 60px);
         right: var(--edge);
         width: 236px;
-        padding: 12px 14px;
+        padding: 10px 12px 12px 16px;
         border-radius: 22px;
         display: grid;
-        gap: 8px;
+        gap: 6px;
       }
       .junction .row {
         display: flex;
         justify-content: space-between;
-        align-items: baseline;
+        align-items: center;
         gap: 8px;
       }
       .junction .name {
         font-size: 15px;
         font-weight: 800;
       }
-      .junction .pair {
-        display: flex;
-        gap: 6px;
-      }
-      .junction button {
-        flex: 1;
-        height: 34px;
+      .junction .reset {
+        height: 30px;
         padding: 0 12px;
         border-radius: 999px;
         background: var(--press);
+        font-size: 13px;
         font-weight: 800;
+      }
+      .junction .reset:hover {
+        background: var(--hover);
       }
 
       .bar {

@@ -40,7 +40,7 @@ Set in [#105](https://github.com/artsaraiva/clearway/issues/105) at the strength
 
 **Reserved colours.** Two colours belong to the game's signals:
 
-- Tool blue `#1f7aff`: the Connection Tool's lines and the markers where they start, and the route Inspector. The markers where Connections end are still orange (`#f97316`), near the red-orange, until [#107](https://github.com/artsaraiva/clearway/issues/107) redraws the lane ends as circles and rings.
+- Tool blue `#1f7aff`: the Tools in the world and the route Inspector. Since [#107](https://github.com/artsaraiva/clearway/issues/107) that covers the halo around a hovered or selected Junction, the Connections and the tube being drawn, the round markers at each Arm's line, and every lane end. The lane ends are circles where Connections start and rings where they end, both on white rims, which lift the blue off the moonlit road plate at night.
 - Hot red-orange `#ff4a1f`: the anger marks, the speech bubbles' text, and the Tile in the hand when its drop is refused. That Tile takes 60% of the colour, and the tint glows (emissive 0.4) so it keeps its colour at dusk and at night.
 
 Within 30° of hue (OKLCH) of either colour, no scenery or car goes over 65% of that colour's chroma. That rule is why the park's deck is wood rather than shrine vermilion, why the cars are turquoise and raspberry rather than blue and coral, and why the roofs are brick, teal slate and persimmon rather than terracotta, slate and salmon.

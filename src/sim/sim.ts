@@ -87,10 +87,11 @@ export class Sim {
     return this.demand.queues
   }
 
-  /** Every Junction back to its default configuration; traffic keeps running. */
-  reset() {
-    this.sustained = 0
-    for (const arm of this.arms()) {
+  /** The Junction `at` back to its default configuration. Every other Junction keeps its Changes, and traffic keeps running. */
+  reset(at: string) {
+    const junction = this.net.junctions.find((j) => j.id === at)
+    if (!junction) throw new Error(`"${at}" is not a Junction of the network`)
+    for (const arm of junction.arms) {
       arm.priority = this.defaults.priority.get(arm)!
       for (const c of arm.connections) c.enabled = this.defaults.enabled.has(c)
     }
