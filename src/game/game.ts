@@ -27,6 +27,9 @@ const UNDO_STEPS = Math.round(ECONOMY.undoWindow / DT)
 /** Of the Changes `changes`, the ones a Rebuild after a drop on `cell` carries over: a Swap's Tile's go back to defaults. */
 const carried = (changes: Change[], cell: Cell, swap: boolean) => (swap ? changes.filter((c) => c.at !== junctionId(cell)) : changes)
 
+/** The seed of a new run. */
+export const newSeed = () => Math.floor(Math.random() * 2 ** 32)
+
 export class Game {
   /** Picks the starting Tile and seeds every Sim of the run. */
   readonly seed: number
@@ -34,7 +37,12 @@ export class Game {
   readonly free: boolean
   yen: number
   /** The most trips per minute the City has carried while Holding. */
-  record = 0
+  record: number
+  /**
+   * Called after every Rebuild, Change and Reset, the moments a save of the run must not miss. Yen and the Record move
+   * with every step, so a save keeps up with them on its own.
+   */
+  onUnsaved?: () => void
   private _city: City
   private _sim: Sim
   /** The Sim's completed trips already paid for. */
@@ -49,15 +57,16 @@ export class Game {
 
   /**
    * A new run: a new `seed` draws the starting Tile, and the Price of the next Tile is in hand. `free` makes it a Free
-   * run. A test passes a fixed seed, and may start from its own `city` and `yen`. The Sim starts at its Pre-warm: `step`
-   * until `sim.prewarmed`.
+   * run. A test passes a fixed seed, and may start from its own `city` and `yen`. A saved run comes back with its seed,
+   * `city`, `changes`, `yen` and `record`. The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
    */
-  constructor(seed = Math.floor(Math.random() * 2 ** 32), start: { city?: City; yen?: number; free?: boolean } = {}) {
+  constructor(seed = newSeed(), start: { city?: City; changes?: Change[]; yen?: number; record?: number; free?: boolean } = {}) {
     this.seed = seed
     this.free = start.free ?? false
     this._city = start.city ?? City.start(seed)
     this.yen = start.yen ?? this.price
-    this._sim = this.rebuild([])
+    this.record = start.record ?? 0
+    this._sim = this.rebuild(start.changes ?? [])
   }
 
   get city() {
@@ -152,11 +161,13 @@ export class Game {
   /** Make a Change. */
   apply(change: Change) {
     this._sim.apply(change)
+    this.onUnsaved?.()
   }
 
   /** The Junction `at` back to its default configuration. */
   reset(at: string) {
     this._sim.reset(at)
+    this.onUnsaved?.()
   }
 
   /** One step of the Sim, and the yen it earns. Nothing is earned during the Pre-warm. */
@@ -180,6 +191,8 @@ export class Game {
   /** A new Sim of the City, with `carried` as its configuration. No vehicle survives, and it starts at its Pre-warm. */
   private rebuild(carried: Change[]) {
     this.paid = 0
-    return (this._sim = new Sim(this._city, carried, this.seed, { prewarm: false }))
+    this._sim = new Sim(this._city, carried, this.seed, { prewarm: false })
+    this.onUnsaved?.()
+    return this._sim
   }
 }

@@ -22,7 +22,7 @@ These test seams are pre-agreed with the user and form the complete list:
 
 - **Simulation outcomes** (`src/sim`): a City jams as configured, a known Change clears the Jam, and a seed gives the same result every run. Changes carry over a placement, and a Swap resets the swapped Tile's.
 - **Placement rules** (`src/city`): a drop or a Swap is legal or refused.
-- **Economy**: the Price of the n-th Tile, the loop rebate, the Income floor and the Undo refund.
+- **Economy**: the Price of the n-th Tile, the loop rebate, the Income floor and the Undo refund. A save loads back the same City, Changes, yen and Record, and a save that will not load starts a new run that keeps the Record.
 
 Assert outcomes only: jammed, cleared, legal, refused, a price, yen. Verify everything else (`src/render`, `src/ui`, visuals, feel, tuning) by running the game.
 
