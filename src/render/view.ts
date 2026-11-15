@@ -58,8 +58,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const scenery = createScenery(ground.scenery, field, materials, FILL_EXTENT)
   const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
   let slab = slabNow()
-  const eye = createCamera(canvas, slab)
-  const { camera } = eye
+  const rig = createCamera(canvas, slab) // the camera, and what moves it
   const day = createDay(canvas, slab)
   const sky = createSky(slab)
   const under = createUnderShadow()
@@ -71,7 +70,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const emotion = createJamEmotion()
   const armConnections = createArmConnections()
   const route = createRouteInspector()
-  const labels = createLabels(canvas, camera, ground.scenery)
+  const labels = createLabels(canvas, rig.camera, ground.scenery)
   labels.show(sim.net, sim.rates, field, pieces)
   const reveal = createReveal(materials)
   const hand = createHand()
@@ -95,7 +94,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const fitCanvas = () => {
     ;[width, height] = [canvas.clientWidth, canvas.clientHeight]
     renderer.setSize(width, height, false)
-    eye.resize(width, height)
+    rig.resize(width, height)
   }
   window.addEventListener('resize', fitCanvas)
   fitCanvas()
@@ -116,30 +115,14 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * `frameCity` and `toggleTilt` fly it. `heading` is how far the world is turned on screen, in radians clockwise
      * (0 with north up), and `steep` whether it looks down from its steepest tilt.
      */
-    camera: {
-      pan: eye.pan,
-      rotate: eye.rotate,
-      zoomAt: eye.zoomAt,
-      northUp: eye.northUp,
-      frameCity: eye.frameCity,
-      toggleTilt: eye.toggleTilt,
-      get heading() {
-        return eye.heading
-      },
-      get tilt() {
-        return eye.tilt
-      },
-      get steep() {
-        return eye.steep
-      },
-    },
+    camera: rig.controls,
 
     /** Sim coordinates under a pointer event, on the road plane. */
     pick(e: PointerEvent): Vec | null {
       const r = canvas.getBoundingClientRect()
       raycaster.setFromCamera(
         new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1),
-        camera,
+        rig.camera,
       )
       const hit = raycaster.ray.intersectPlane(roadPlane, new THREE.Vector3())
       return hit ? { x: hit.x, y: -hit.z } : null
@@ -202,13 +185,13 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       const grown = slabNow()
       if (!sameBounds(grown, slab)) {
         slab = grown
-        eye.setCity(grown)
+        rig.setCity(grown)
         day.fit(grown)
         under.fit(grown, true)
       }
       // The camera stays where it is, unless the Tile laid is off screen: then it moves just far enough to show it.
-      if ('placed' in relaid) eye.bringIn(relaid.placed)
-      if ('swapped' in relaid) eye.bringIn(relaid.swapped)
+      if ('placed' in relaid) rig.bringIn(relaid.placed)
+      if ('swapped' in relaid) rig.bringIn(relaid.swapped)
       ;[next, inspected] = [rebuilt, null]
       armConnections.show(null, null)
       labels.show(rebuilt.net, rebuilt.rates, field, pieces)
@@ -256,10 +239,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       walkers.update(dt)
       hand.update()
       roads.update()
-      eye.update(real)
+      rig.update(real)
       under.update(dt)
-      sky.update(dt, camera.zoom)
-      renderer.render(scene, camera)
+      sky.update(dt, rig.camera.zoom)
+      renderer.render(scene, rig.camera)
       labels.update(width, height)
     },
   }

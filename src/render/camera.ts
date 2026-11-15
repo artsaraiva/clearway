@@ -48,10 +48,10 @@ const corners = (b: Bounds, heights: number[]): [number, number, number][] =>
   heights.flatMap((y) => [b.x0, b.x1].flatMap((x) => [b.y0, b.y1].map((sy): [number, number, number] => [x, y, -sy])))
 
 /**
- * The orthographic camera, for a City with no bounds. The screen moves it: `pan` and `rotate` follow drags and
- * `zoomAt` the wheel, and `northUp`, `frameCity` and `toggleTilt` fly it to a new view. It opens from the south-east
- * with the whole City in frame, and after a Rebuild it stays where it is unless `bringIn` is asked to show a Tile off
- * screen.
+ * The orthographic camera, for a City with no bounds. The screen moves it through `controls`: `pan` and `rotate`
+ * follow drags and `zoomAt` the wheel, and `northUp`, `frameCity` and `toggleTilt` fly it to a new view. It opens from
+ * the south-east with the whole City in frame, and after a Rebuild it stays where it is unless `bringIn` is asked to
+ * show a Tile off screen.
  */
 export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 3000)
@@ -82,7 +82,7 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   const road = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
   const [ndc, v] = [new THREE.Vector2(), new THREE.Vector3()]
   /** The point of the road plane under canvas pixel (`px`, `py`), as `cam` sees it. */
-  const ground = (cam: THREE.OrthographicCamera, px: number, py: number) => {
+  const roadUnder = (cam: THREE.OrthographicCamera, px: number, py: number) => {
     raycaster.setFromCamera(ndc.set((px / width) * 2 - 1, 1 - (py / height) * 2), cam)
     return raycaster.ray.intersectPlane(road, new THREE.Vector3())
   }
@@ -126,28 +126,13 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   }
 
   /** The view the camera is at, or flying to. */
-  const goal = () => (flight ? flight.to : pose)
+  const destination = () => (flight ? flight.to : pose)
   const fly = (to: Pose) => {
     flight = { from: { ...pose }, to, t: 0 }
   }
 
   return {
     camera,
-
-    /** How far the world is turned on screen, in radians clockwise: 0 with north up. */
-    get heading() {
-      return pose.heading
-    },
-
-    /** The angle above the horizon the camera looks down from, in radians. */
-    get tilt() {
-      return pose.tilt
-    },
-
-    /** Whether the camera looks down from the steepest tilt it allows. */
-    get steep() {
-      return Math.abs(pose.tilt - TILT.steep) < 0.01
-    },
 
     /** The canvas is now `w` by `h` CSS pixels. The start view waits for this to frame the City. */
     resize(w: number, h: number) {
@@ -161,68 +146,13 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
       city = next
     },
 
-    /** Move the world on screen as a drag from `from` to `to` does: the ground under the pointer stays under it. */
-    pan(from: ScreenPoint, to: ScreenPoint) {
-      flight = null
-      const [a, b] = [ground(camera, ...local(from)), ground(camera, ...local(to))]
-      if (!a || !b) return
-      pose.x += a.x - b.x
-      pose.z += a.z - b.z
-      place(camera, pose)
-    },
-
-    /** Turn the camera about the middle of the canvas for a drag of `dx` by `dy` pixels: across turns, up and down tilts. */
-    rotate(dx: number, dy: number) {
-      flight = null
-      pose.heading = wrap(pose.heading - (TURN * dx) / height)
-      pose.tilt = THREE.MathUtils.clamp(pose.tilt + (TURN * dy) / height, TILT.low, TILT.steep)
-      place(camera, pose)
-    },
-
-    /**
-     * Zoom for `deltaY` pixels of wheel (positive turns away from the player and zooms out), keeping the ground under
-     * `at` where it is. The closest zoom is fixed; the farthest leaves the whole City well inside the canvas.
-     */
-    zoomAt(at: ScreenPoint, deltaY: number) {
-      flight = null
-      const [px, py] = local(at)
-      const before = ground(camera, px, py)
-      const next = pose.zoom * Math.pow(WHEEL, deltaY / 100)
-      // A limit stops the wheel but never moves the camera back inside it, as when an Undo shrinks the City.
-      pose.zoom =
-        deltaY > 0 ? Math.max(next, Math.min(pose.zoom, ZOOM_OUT * framing(pose).zoom)) : Math.min(next, Math.max(pose.zoom, ZOOM_IN))
-      place(camera, pose)
-      const after = ground(camera, px, py)
-      if (!before || !after) return
-      pose.x += before.x - after.x
-      pose.z += before.z - after.z
-      place(camera, pose)
-    },
-
-    /** Turn north up. */
-    northUp() {
-      fly({ ...goal(), heading: 0 })
-    },
-
-    /** Frame the whole City, from the heading and tilt the camera has. */
-    frameCity() {
-      fly(framing(goal()))
-    },
-
-    /** Flip between the steepest tilt and the start's, whichever is farther from the tilt the camera has. */
-    toggleTilt() {
-      const to = goal()
-      const steep = Math.abs(to.tilt - TILT.steep) > Math.abs(to.tilt - TILT.start)
-      fly({ ...to, tilt: steep ? TILT.steep : TILT.start })
-    },
-
     /**
      * Show `b` on the road plane, as after a Rebuild. Nothing moves if all of it is on screen, even under a pill.
      * Otherwise the camera flies the least distance that brings it all into the part of the canvas the screen's pills
      * leave clear, or, if it is too big for that part, that fills the part with it.
      */
     bringIn(b: Bounds) {
-      const to = goal()
+      const to = destination()
       place(probe, to)
       const seen = corners(b, [0]).map((p) => onCanvas(probe, p))
       const [xs, ys] = [seen.map(([x]) => x), seen.map(([, y]) => y)]
@@ -236,7 +166,7 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
       const dy = shift(top, bottom, PILLS.top, height - PILLS.bottom)
       if (!dx && !dy) return
       // The world moves by (dx, dy) on screen when the camera centres on what lies that far the other way.
-      const middle = ground(probe, width / 2 - dx, height / 2 - dy)
+      const middle = roadUnder(probe, width / 2 - dx, height / 2 - dy)
       if (middle) fly({ ...to, x: middle.x, z: middle.z })
     },
 
@@ -256,6 +186,79 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
       }
       place(camera, pose)
       if (flight.t === 1) flight = null
+    },
+
+    /** What the screen moves the camera with, and reads it by. */
+    controls: {
+      /** How far the world is turned on screen, in radians clockwise: 0 with north up. */
+      get heading() {
+        return pose.heading
+      },
+
+      /** The angle above the horizon the camera looks down from, in radians. */
+      get tilt() {
+        return pose.tilt
+      },
+
+      /** Whether the camera looks down from the steepest tilt it allows. */
+      get steep() {
+        return Math.abs(pose.tilt - TILT.steep) < 0.01
+      },
+
+      /** Move the world on screen as a drag from `from` to `to` does: the ground under the pointer stays under it. */
+      pan(from: ScreenPoint, to: ScreenPoint) {
+        flight = null
+        const [a, b] = [roadUnder(camera, ...local(from)), roadUnder(camera, ...local(to))]
+        if (!a || !b) return
+        pose.x += a.x - b.x
+        pose.z += a.z - b.z
+        place(camera, pose)
+      },
+
+      /** Turn the camera about the middle of the canvas for a drag of `dx` by `dy` pixels: across turns, up and down tilts. */
+      rotate(dx: number, dy: number) {
+        flight = null
+        pose.heading = wrap(pose.heading - (TURN * dx) / height)
+        pose.tilt = THREE.MathUtils.clamp(pose.tilt + (TURN * dy) / height, TILT.low, TILT.steep)
+        place(camera, pose)
+      },
+
+      /**
+       * Zoom for `deltaY` pixels of wheel (positive turns away from the player and zooms out), keeping the ground
+       * under `at` where it is. The closest zoom is fixed; the farthest leaves the whole City well inside the canvas.
+       */
+      zoomAt(at: ScreenPoint, deltaY: number) {
+        flight = null
+        const [px, py] = local(at)
+        const before = roadUnder(camera, px, py)
+        const next = pose.zoom * Math.pow(WHEEL, deltaY / 100)
+        // A limit stops the wheel but never moves the camera back inside it, as when an Undo shrinks the City.
+        pose.zoom =
+          deltaY > 0 ? Math.max(next, Math.min(pose.zoom, ZOOM_OUT * framing(pose).zoom)) : Math.min(next, Math.max(pose.zoom, ZOOM_IN))
+        place(camera, pose)
+        const after = roadUnder(camera, px, py)
+        if (!before || !after) return
+        pose.x += before.x - after.x
+        pose.z += before.z - after.z
+        place(camera, pose)
+      },
+
+      /** Turn north up. */
+      northUp() {
+        fly({ ...destination(), heading: 0 })
+      },
+
+      /** Frame the whole City, from the heading and tilt the camera has. */
+      frameCity() {
+        fly(framing(destination()))
+      },
+
+      /** Flip between the steepest tilt and the start's, whichever is farther from the tilt the camera has. */
+      toggleTilt() {
+        const to = destination()
+        const steep = Math.abs(to.tilt - TILT.steep) > Math.abs(to.tilt - TILT.start)
+        fly({ ...to, tilt: steep ? TILT.steep : TILT.start })
+      },
     },
   }
 }
