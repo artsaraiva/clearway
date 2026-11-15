@@ -6,6 +6,7 @@ import type { Relaid, View } from '../render/view'
 import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
+import { createJamMarkers } from './jams'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 import { createTools } from './tools'
 
@@ -283,6 +284,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
   })
   const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
+  const jams = createJamMarkers(root, canvas, game, view, tools, () => hand !== null)
   window.addEventListener('pointermove', (e) => {
     if (!hand) return
     if (hand.how === 'pressed' && moved(e, press)) hand.how = 'dragged'
@@ -433,6 +435,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       }
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
       tools.update()
+      jams.update()
     },
   }
 }

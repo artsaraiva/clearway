@@ -131,9 +131,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
 
     /**
      * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
-     * `frameCity` and `toggleTilt` fly it. `heading` is how far the world is turned on screen, in radians clockwise
-     * (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether the
-     * camera looks down from its steepest tilt.
+     * `frameCity`, `toggleTilt` and `centreOn` fly it. `heading` is how far the world is turned on screen, in radians
+     * clockwise (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether
+     * the camera looks down from its steepest tilt, and `onScreen` where a point of the road plane is on the canvas.
      */
     camera: rig.controls,
 

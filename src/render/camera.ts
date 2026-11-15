@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { Bounds } from '../sim/geometry'
+import type { Bounds, Vec } from '../sim/geometry'
 import { CELL } from '../sim/tiles'
 import { centre } from './slab'
 
@@ -23,9 +23,9 @@ const FLIGHT = 0.7 // s for a move the player asks for, or that brings a new Til
 const SLAB_DEPTH = 19 // m from the road plate down to the slab's underside, whose sides frame the City
 // The margins of the canvas the screen's pills cover (index.html), in CSS pixels, with a little room: the readings
 // along the top reach 123 px down, and the bar as far up.
-// ponytail: fixed numbers, so they go stale if the pills change size, and a Tile brought into view could then stop
-// under one. Have the screen hand the camera its pills' rectangles if that starts to happen.
-const PILLS = { top: 136, right: 24, bottom: 136, left: 24 }
+// ponytail: fixed numbers, so they go stale if the pills change size, and a Tile brought into view (or a Jam marker at
+// the edge) could then stop under one. Have the screen hand the camera its pills' rectangles if that starts to happen.
+export const PILLS = { top: 136, right: 24, bottom: 136, left: 24 }
 const NO_MARGIN = { top: 0, right: 0, bottom: 0, left: 0 }
 
 /** Where the camera is. */
@@ -49,9 +49,9 @@ const corners = (b: Bounds, heights: number[]): [number, number, number][] =>
 
 /**
  * The orthographic camera, for a City with no bounds. The screen moves it through `controls`: `pan` and `rotate`
- * follow drags and `zoomAt` the wheel, and `northUp`, `frameCity` and `toggleTilt` fly it to a new view. It opens from
- * the south-east with the whole City in frame, and after a Rebuild it stays where it is unless `bringIn` is asked to
- * show a Tile off screen.
+ * follow drags and `zoomAt` the wheel, and `northUp`, `frameCity`, `toggleTilt` and `centreOn` fly it to a new view.
+ * It opens from the south-east with the whole City in frame, and after a Rebuild it stays where it is unless `bringIn`
+ * is asked to show a Tile off screen.
  */
 export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 3000)
@@ -203,6 +203,16 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
       /** Whether the camera looks down from the steepest tilt it allows. */
       get steep() {
         return Math.abs(pose.tilt - TILT.steep) < 0.01
+      },
+
+      /** Where the point `at` of the road plane is on the canvas, in CSS pixels from its top-left corner. */
+      onScreen(at: Vec): [number, number] {
+        return onCanvas(camera, [at.x, 0, -at.y])
+      },
+
+      /** Fly to put the point `at` of the road plane at the middle of the canvas, keeping the heading, tilt and zoom. */
+      centreOn(at: Vec) {
+        fly({ ...destination(), x: at.x, z: -at.y })
       },
 
       /** Move the world on screen as a drag from `from` to `to` does: the ground under the pointer stays under it. */

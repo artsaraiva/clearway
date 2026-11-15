@@ -171,6 +171,13 @@ export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game:
     press,
     click,
     clear,
+    /** Select `junction`, as a click on it does. */
+    select,
+
+    /** The selected Junction. */
+    get selected() {
+      return selected
+    },
 
     /** `Esc`: let go of the Connection being drawn, then of the selection and the route. */
     back() {

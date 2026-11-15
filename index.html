@@ -96,6 +96,70 @@
         font-weight: 800;
       }
 
+      /* Jam markers: a hot red-orange disc with the anger mark over each Junction with a Jam, its tail pointing down at
+         it, or at the edge of the screen pointing toward one off screen. They pop in, fade out as the Jam clears, and
+         fade back while a Layout is in the hand, when every click is a drop. */
+      .jams {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .jam {
+        position: absolute;
+        left: -16px;
+        top: -16px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        pointer-events: auto;
+        will-change: transform;
+        transition: opacity 0.2s;
+      }
+      .jams.holding .jam,
+      .jam.gone {
+        pointer-events: none;
+      }
+      .jams.holding .jam {
+        opacity: 0.45;
+      }
+      .jam .pop {
+        position: absolute;
+        inset: 0;
+        filter: drop-shadow(0 2px 3px rgba(16, 24, 48, 0.35));
+        animation: jam-in 0.36s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+      }
+      .jam.gone .pop {
+        animation: jam-out 0.25s ease-in both;
+      }
+      .jam svg {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      .jam .tail {
+        left: -12px;
+        top: -12px;
+      }
+      @keyframes jam-in {
+        from {
+          transform: scale(0.2);
+          opacity: 0;
+        }
+      }
+      @keyframes jam-out {
+        to {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .jam .pop,
+        .jam.gone .pop {
+          animation-duration: 1ms;
+        }
+      }
+
       /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the camera's
              buttons bottom-right and the menu bottom-left. Nothing covers the middle of the board. --- */
       #ui {
