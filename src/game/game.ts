@@ -24,6 +24,9 @@ interface Undo {
 const WINDOW_STEPS = Math.round(ECONOMY.incomeWindow / DT)
 const UNDO_STEPS = Math.round(ECONOMY.undoWindow / DT)
 
+/** Of the Changes `changes`, the ones a Rebuild after a drop on `cell` carries over: a Swap's Tile's go back to defaults. */
+const carried = (changes: Change[], cell: Cell, swap: boolean) => (swap ? changes.filter((c) => c.at !== junctionId(cell)) : changes)
+
 export class Game {
   /** Picks the starting Tile and seeds every Sim of the run. */
   readonly seed: number
@@ -111,9 +114,25 @@ export class Game {
     this.sincePlacing = 0
     this._city.place(layout, rotation, cell)
     this.yen -= offer.price
-    // The swapped Tile's Changes are the one part of the configuration a Rebuild does not carry over.
-    this.rebuild(offer.swap ? changes.filter((c) => c.at !== junctionId(cell)) : changes)
+    this.rebuild(carried(changes, cell, offer.swap))
     return offer
+  }
+
+  /**
+   * The Sim that dropping `layout`, turned `rotation`, on `cell` would rebuild the City into, changing nothing in this
+   * run: its network and Demand are the ones the drop would make. It is built for reading them, without the Pre-warm
+   * or where Connections meet, and must not be stepped. `null` if the drop is refused. Whether it is affordable does
+   * not matter.
+   * ponytail: it builds the whole network, about 2 ms for a City of 20 Tiles and 6 ms for 40 on an M4 Pro, once for
+   * each cell the Tile in the hand moves onto. Build only the dropped Tile's Junction against the network as it stands
+   * if larger Cities make the hand stutter.
+   */
+  preview(layout: Layout, rotation: number, cell: Cell): Sim | null {
+    const offer = this.offer(layout, rotation, cell)
+    if (!offer.legal) return null
+    const city = new City(this._city.tiles)
+    city.place(layout, rotation, cell)
+    return new Sim(city, carried(this._sim.configuration(), cell, offer.swap), this.seed, { prewarm: false, conflicts: false })
   }
 
   /**
