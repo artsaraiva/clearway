@@ -39,8 +39,8 @@ const frame = (dt: number) => {
       acc -= DT
     }
   }
-  // A Rebuild plays on even while the world is paused.
-  view.render(view.rebuilding || ui.scale ? dt : 0)
+  // A Rebuild plays on even while the world is paused, and so does the camera.
+  view.render(view.rebuilding || ui.scale ? dt : 0, dt)
   ui.update()
 }
 
