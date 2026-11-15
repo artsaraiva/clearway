@@ -10,15 +10,18 @@ const HOVER = 0.3 // m the Tile in the hand sits above the road plane: level wit
 const SWAP_LIFT = 46 // m it floats above a placed Tile it would swap, clear of most of what stands there
 const FOLLOW = 14 // per second: how fast it glides to the cell under the pointer
 const MARK = { inset: 2, height: 0.3, open: 0.14, under: 0.35 } // m, m, and the opacity of an open cell and of the cell under a Swap
-const COLORS = { legal: '#1f9d63', unaffordable: '#7b818c', refused: '#d6453d' }
-const TINT = 0.45 // how far a Tile that cannot be dropped takes its state's colour
+// A refusal takes the hot red-orange reserved for Jams and refusals.
+const COLORS = { legal: '#1f9d63', unaffordable: '#7b818c', refused: '#ff4a1f' }
+// How far a Tile that cannot be dropped takes its state's colour, and how strongly that colour glows from within, so
+// that it keeps its colour at dusk and at night.
+const TINT = { mix: 0.6, glow: 0.4 }
 // The slab's layers, as src/render/slab.ts lays them: top (m, road surface = 0), thickness and colour.
 const LAYERS: [number, number, string][] = [
-  [-10, 8.8, '#c9a37a'],
-  [-2.8, 7.2, '#dcc19a'],
-  [-0.6, 2.2, '#a5d38a'],
+  [-10, 8.8, '#d2a069'],
+  [-2.8, 7.2, '#e3bf8c'],
+  [-0.6, 2.2, '#9ed67d'],
 ]
-const [RIM, PLATE, PAVEMENT, GRASS] = [4, '#c3c7ce', '#ece7db', '#a5d38a']
+const [RIM, PLATE, PAVEMENT, GRASS] = [4, '#c3c7ce', '#ece7db', '#9ed67d']
 
 /** The Tile the player is dragging from the bar, as the page wants it shown. */
 export interface Held {
@@ -80,7 +83,11 @@ function tileModel(layout: Layout, rotation: number, tint: string | null) {
   const group = new THREE.Group()
   const look = (color: string) => {
     const material = new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
-    if (tint) material.color.lerp(new THREE.Color(tint), TINT)
+    if (tint) {
+      material.color.lerp(new THREE.Color(tint), TINT.mix)
+      material.emissive.set(tint)
+      material.emissiveIntensity = TINT.glow
+    }
     return material
   }
   const add = (geometry: THREE.BufferGeometry, color: string, x: number, top: number, y: number, h: number) => {

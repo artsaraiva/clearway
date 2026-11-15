@@ -6,6 +6,7 @@ const MARKS = 60 // anger marks on screen at once; they go to the longest-stuck 
 const [STEAM_AFTER, SHOUT_AFTER] = [10, 9] // real seconds stuck
 const STEAM = { life: 1, rise: 5, from: 1.2, to: 4.4, opacity: 0.75 } // s, m/s, then its size in m as it fades
 const BUBBLE = { life: 1.8, width: 10.4, height: 5.2 }
+const JAM = '#ff4a1f' // the hot red-orange reserved for Jams and refusals: no scenery or car is painted near it
 // Flavour only: a bubble never carries information.
 const SHOUTS = ['もう!', 'はやく!', 'HONK!', 'ちょっと!', 'ぐぬぬ…']
 
@@ -25,12 +26,12 @@ export function createJamEmotion() {
     return s
   }
 
-  // The manga anger mark: four red arcs, back to back.
+  // The manga anger mark: four red-orange arcs, back to back.
   const anger = canvasTexture(128, 128, (g) => {
     g.lineCap = 'round'
     for (const [width, color] of [
       [20, '#fff'],
-      [11, '#ff3b46'],
+      [11, JAM],
     ] as const) {
       g.lineWidth = width
       g.strokeStyle = color
@@ -65,7 +66,7 @@ export function createJamEmotion() {
       g.fill()
       g.stroke()
       g.fillRect(100, 88, 32, 8)
-      g.fillStyle = '#e0323c'
+      g.fillStyle = JAM
       g.font = "900 42px system-ui,-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif"
       g.textAlign = 'center'
       g.textBaseline = 'middle'

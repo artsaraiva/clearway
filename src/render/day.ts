@@ -13,27 +13,30 @@ const LIGHTS_ON = 3 // lamp glow at which car lights are fully lit
 // morning, noon, late afternoon, dusk, sun out, moon in, night, moon out, sun in.
 const AT = [0, 0.25, 0.4, 0.5, 0.58, 0.62, 0.75, 0.9, 0.94]
 const colors = (...hex: string[]) => hex.map((c) => new THREE.Color(c))
+// Noon, dusk and night carry the oversaturated palette picked in #104: a clear cyan noon, an orange and pink dusk, and
+// a deep blue night that stays bright. The lights move less than the sky, since they tint the road plate too.
 // The one directional light is the sun by day and the moon by night. Its strength is zero either side of each handover,
 // so the jump across the sky is never seen.
 const LIGHT = {
-  color: colors('#fff3e0', '#fffaf0', '#ffe0b3', '#ff9c6e', '#ff9c6e', '#a9c0ff', '#c4d4ff', '#a9c0ff', '#fff3e0'),
+  color: colors('#fff3e0', '#fffaf0', '#ffe0b3', '#fe9f6f', '#ff9c6e', '#a9c0ff', '#bfd0ff', '#a9c0ff', '#fff3e0'),
   intensity: [2.6, 3, 2.9, 1.8, 0, 0, 1.7, 0, 0],
   azimuth: [-0.82, 0.1, 1.05, 1.76, 1.9, -1.2, 0.3, 1.2, -1],
   elevation: [0.9, 1.2, 0.66, 0.34, 0.15, 0.5, 1, 0.5, 0.3],
 }
 // The hemisphere light's fill from the sky and from the ground. Night is a bright moonlit blue, not dark. The fill is
 // strongest through each handover, where it lights the scene alone, so roads are no darker there than at dusk. (The
-// prototype's fill left them nearly black.)
+// prototype's fill left them nearly black.) Dusk's low sun leaves most of the road plate in shadow, so its fill is
+// pink and raised, which keeps its roads legible.
 const FILL = {
-  sky: colors('#d6ebff', '#dcebff', '#cfe2ff', '#8e9fe0', '#7686d6', '#7686d6', '#b4c2f6', '#9aa8e0', '#b8c8ee'),
-  ground: colors('#efe6d2', '#f2ead9', '#f4dcc0', '#e8a98c', '#7a6f9c', '#5a5f9c', '#7a84c0', '#8a84a8', '#c8b8b8'),
-  intensity: [1.25, 1.25, 1.1, 0.85, 2.2, 2.2, 1.75, 1.7, 1.45],
+  sky: colors('#d6ebff', '#d1edfb', '#cfe2ff', '#bd98c9', '#7686d6', '#7686d6', '#adbbf2', '#9aa8e0', '#b8c8ee'),
+  ground: colors('#efe6d2', '#f2ead9', '#f4dcc0', '#eaa48c', '#7a6f9c', '#5a5f9c', '#7780c2', '#8a84a8', '#c8b8b8'),
+  intensity: [1.25, 1.25, 1.1, 1.1, 2.2, 2.2, 1.75, 1.7, 1.45],
 }
 // The sky gradient's stops: top, middle, bottom.
 const SKY = [
-  colors('#bfe2fb', '#8fcaf6', '#9ccff3', '#6876c4', '#2a3270', '#222a62', '#161d48', '#3a4a90', '#6a8ad0'),
-  colors('#e6f2f6', '#cfe7f6', '#d9ecf3', '#b493c4', '#5a5aa0', '#444c92', '#2c3876', '#8a8cc0', '#b8c4e0'),
-  colors('#f6efe2', '#f3f1e6', '#ffe4c4', '#f7b48c', '#a07aa8', '#7a6aa0', '#525a9a', '#e0b0a8', '#f4d0b8'),
+  colors('#bfe2fb', '#68ccf5', '#9ccff3', '#8d6cc2', '#2a3270', '#222a62', '#191c5b', '#3a4a90', '#6a8ad0'),
+  colors('#e6f2f6', '#beeaf9', '#d9ecf3', '#d887ae', '#5a5aa0', '#444c92', '#31398e', '#8a8cc0', '#b8c4e0'),
+  colors('#f6efe2', '#e5f8f9', '#ffe4c4', '#fcb17e', '#a07aa8', '#7a6aa0', '#5c61b5', '#e0b0a8', '#f4d0b8'),
 ]
 // Emissive strength of windows and lamps.
 const GLOW = {

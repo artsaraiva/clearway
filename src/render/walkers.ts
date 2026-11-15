@@ -6,7 +6,7 @@ import { inside, type Field } from './field'
 
 const INSET = 1.6 // m in from the kerb: the pavement's centre line
 const SPACING = 85 // m of pavement per walker
-const SHIRTS = ['#f26d5b', '#4f8fe8', '#f6c85f', '#ffffff', '#7cc6a4', '#b9a3e3', '#2f3440', '#ff9db5'].map((c) => new THREE.Color(c))
+const SHIRTS = ['#db6982', '#009dcb', '#ffc52d', '#ffffff', '#64cb9f', '#bc9ef2', '#2f3440', '#ff9cbb'].map((c) => new THREE.Color(c)) // the cars' colours
 
 interface Walker {
   line: Polyline

@@ -5,7 +5,8 @@ import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { raised } from './shapes'
 
-const [GRASS, STONE, CREAM, CORAL, VERMILION, PLAZA, TEAL] = ['#b5dc95', '#ddd6c9', '#fbf6ef', '#f08a6e', '#e5583f', '#ece3d1', '#6cc3b4']
+// The park's deck was shrine vermilion, which is nearly the Jam red-orange: it is wood.
+const [GRASS, STONE, CREAM, CORAL, DECK, PLAZA, TEAL] = ['#b0df88', '#ddd6c9', '#fbf6ef', '#f08a6e', '#bb5d0d', '#ece3d1', '#57c6b5']
 const TAU = Math.PI * 2
 
 /** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. Not closed into a brick. */
@@ -101,7 +102,7 @@ export function bikeLane(kit: Kit, field: Field, block: Block) {
   kit.brick('ground', mid.x, mid.y, KERB)
 }
 
-/** A park Block: a lawn, a pond at `(x, y)` with a little red deck, and trees over the rest. Pond and tree count grow with the Block. */
+/** A park Block: a lawn, a pond at `(x, y)` with a little wooden deck, and trees over the rest. Pond and tree count grow with the Block. */
 export function park(kit: Kit, field: Field, block: Block, x: number, y: number) {
   overlay(kit, field, block, 2, 0.24, GRASS)
   const ground = KERB + 0.24
@@ -109,7 +110,7 @@ export function park(kit: Kit, field: Field, block: Block, x: number, y: number)
   const s = Math.min(1.7, Math.max(1, Math.sqrt(size / 1760)))
   kit.drum(STONE, x, y, ground, 13.6 * s, 9.6 * s, 0.32)
   kit.drum(kit.water, x, y, ground + 0.08, 12.6 * s, 8.8 * s, 0.32)
-  kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), VERMILION, x - 10.8 * s, y, ground + 0.32)
+  kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), DECK, x - 10.8 * s, y, ground + 0.32)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
   const trees = Math.min(70, Math.max(12, Math.round(size / 60)))

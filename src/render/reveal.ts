@@ -24,7 +24,7 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
 const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
-const CONFETTI = ['#f26d5b', '#4f8fe8', '#f6c85f', '#7cc6a4', '#b9a3e3', '#ff9db5']
+const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
 const [ON_ITS_WAY, SETTLING, LANDED] = [0, 1, 2]

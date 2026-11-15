@@ -4,7 +4,7 @@ import type { Arm, Lane } from '../sim/network'
 import { glow } from './glow'
 import { ribbons, v3 } from './ribbons'
 
-const [BLUE, HALO, ARMED, ORANGE] = ['#2f86ff', '#62b0ff', '#1e3a8a', '#f97316']
+const [BLUE, HALO, ARMED, ORANGE] = ['#1f7aff', '#62b0ff', '#1e3a8a', '#f97316'] // BLUE is the Tools' and Inspectors' own
 const SPHERE = new THREE.SphereGeometry(1, 20, 12)
 
 /**
