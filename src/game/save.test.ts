@@ -13,23 +13,24 @@ type Placing = [id: Layout['id'], rotation: number, x: number, y: number, zone: 
 const open = (game: Game, at: string) => game.sim.configuration().find((c) => c.at === at)!.enable!
 
 /**
- * Ten Tiles of both Zones and unzoned: a row east through two Crossroads and a Roundabout, with Straights north and
- * south off the Crossroads.
+ * Ten Tiles: a row east through two Crossroads and a Roundabout, with Straights north and south off the Crossroads.
+ * Low-density residential is on two of them, and once the Straight at (1, 0) is rezoned to farms, every Zone is on one
+ * and the last Tile is unzoned.
  */
 const TEN: Placing[] = [
   ['crossroads', 0, 0, 0, 'offices'],
-  ['straight', 0, 1, 0, 'offices'],
+  ['straight', 0, 1, 0, 'low-density'],
   ['straight', 0, 2, 0, null],
   ['crossroads', 0, 3, 0, 'low-density'],
-  ['straight', 0, 4, 0, 'low-density'],
-  ['roundabout', 0, 5, 0, null],
-  ['straight', 0, 6, 0, 'low-density'],
-  ['straight', 1, 0, 1, 'offices'],
-  ['straight', 1, 0, 2, null],
-  ['straight', 1, 3, -1, 'low-density'],
+  ['straight', 0, 4, 0, 'medium-density'],
+  ['roundabout', 0, 5, 0, 'high-density'],
+  ['straight', 0, 6, 0, 'shops'],
+  ['straight', 1, 0, 1, 'industrial'],
+  ['straight', 1, 0, 2, 'parks'],
+  ['straight', 1, 3, -1, 'green'],
 ]
-/** Each Tile's Zone once `played` has rezoned the Straight at (1, 0) to low-density residential. */
-const ZONED = ['offices', 'low-density', null, 'low-density', 'low-density', null, 'low-density', 'offices', null, 'low-density']
+/** Each Tile's Zone once `played` has rezoned the Straight at (1, 0) to farms. */
+const ZONED = ['offices', 'farms', null, 'low-density', 'medium-density', 'high-density', 'shops', 'industrial', 'parks', 'green']
 
 /** A run on the ten Tiles, the last just placed and then one rezoned, with Changes at three Junctions, yen and a Record. */
 function played(free: boolean) {
@@ -39,7 +40,7 @@ function played(free: boolean) {
   const game = new Game(7, { city, yen: 10_000, free })
   const [last, turns, lx, ly, lz] = TEN.at(-1)!
   expect(game.place(layout(last), turns, { x: lx, y: ly }, zone(lz))).toMatchObject({ legal: true, affordable: true })
-  expect(game.rezone({ x: 1, y: 0 }, zone('low-density'))).toBe(true)
+  expect(game.rezone({ x: 1, y: 0 }, zone('farms'))).toBe(true)
   game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
   for (const at of ['c3_0', 'c5_0']) game.apply({ at, disable: open(game, at).slice(0, 2) })
   game.yen = 1234.56
@@ -50,6 +51,7 @@ function played(free: boolean) {
 // Economy: a save
 
 it('loads a save back as the same run, each Tile with its Zone, with nothing to undo', () => {
+  expect(new Set(ZONED)).toEqual(new Set([...ZONES.map((z) => z.id), null]))
   for (const free of [false, true]) {
     const game = played(free)
     expect(game.undoable).toBe(true)

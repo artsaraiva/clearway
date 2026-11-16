@@ -1,4 +1,4 @@
-import type { Zone } from '../city/city'
+import type { Cell, Zone } from '../city/city'
 import { mulberry32 } from '../sim/demand'
 import { middle, pointAt, type Bounds, type Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
@@ -52,6 +52,11 @@ function seededAvenue(seed: number, pts: Vec[], chance: number): boolean {
   const across = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
   const line = Math.round((across ? a.y + b.y : a.x + b.x) / 2 / CELL)
   return mulberry32(Math.imul(seed ^ (across ? 0x5bd1e995 : 0x1b873593), 0x9e3779b1) ^ Math.imul(line, 0x85ebca6b))() < chance
+}
+
+/** A number in [0, 1) the seed draws for the Tile on `cell`: the same for each of its Blocks, whenever they are built. */
+function tileDraw(seed: number, cell: Cell): number {
+  return mulberry32(Math.imul(seed ^ 0x27d4eb2f ^ Math.imul(cell.x, 0x85ebca6b), 0x9e3779b1) ^ Math.imul(cell.y, 0xc2b2ae35))()
 }
 
 /** The seed of one Block's fill: the scenery's, mixed with where the Block lies, so that no other Block changes it. */
@@ -113,7 +118,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     }
   }
 
-  if (look) look.fill({ kit, block, field, reserved, street })
+  if (look) look.fill({ kit, block, field, reserved, street, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
   else verge(kit, field, block, street)
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
 }

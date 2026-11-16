@@ -202,9 +202,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * Show a Rezoning of the Tile on `piece`: what stands on its Blocks is built again as its Zone now has it, under
      * `sim`, the Sim that runs on, and drops in where the old buildings stood. It is no Rebuild: the traffic carries on,
      * and it plays on the real clock, paused or not.
-     * ponytail: the piece is built in one go while the cars move: about 14 ms for an offices Tile and 21 ms for a
-     * low-density one on an M4 Pro (27 ms at worst), a dropped frame or two. Step `scenery.rezone`'s build over frames,
-     * and swap the meshes once it is done, if Zones with more to build make the hitch show.
+     * ponytail: the piece is built in one go while the cars move, from about 7 ms for an industrial Tile to 26 ms for a
+     * parks one on an M4 Pro (32 ms at worst), a dropped frame or two. Step `scenery.rezone`'s build over frames, and
+     * swap the meshes once it is done, if the hitch shows on slower machines.
      */
     rezone(sim: Sim, piece: Bounds) {
       const { old, building } = scenery.rezone(sim, piece)
@@ -219,8 +219,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
      * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
      * at once. Then the cars grow in. They wait for the Sim's Pre-warm, which the caller runs meanwhile.
-     * ponytail: the piece is built in one go when the Rebuild starts, a hitch of a few ms for one cell. Spread the
-     * build over frames (`scenery.add` is a generator) if a placement ever adds enough to drop one.
+     * ponytail: the piece is built in one go when the Rebuild starts, a hitch of 9 to 31 ms for one cell on an M4 Pro,
+     * from industrial to parks. Spread the build over frames (`scenery.add` is a generator) if the hitch shows on slower
+     * machines.
      */
     rebuild(rebuilt: Sim, relaid: Relaid) {
       // A Rezoning still playing lands at once, since its piece may be the one rebuilt.

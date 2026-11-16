@@ -1,6 +1,7 @@
 import * as THREE from 'three'
+import type { Bounds } from '../sim/geometry'
 import type { Glow } from './day'
-import { canvasTexture, gable, roundedBox, tint } from './shapes'
+import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
 // The palette is the oversaturated one picked in #104 at its gentlest strength. Within 30° of hue of the Tool blue or
@@ -13,6 +14,42 @@ const LAWN = '#a9db7f' // a house's garden
 // fins and crown one of these trims.
 const OFFICE_GLASS = ['#8fadc0', '#7b9db0', '#8cb5ae', '#5f778c', '#a6bfcb', '#c2b498']
 const OFFICE_TRIM = ['#f2f4f6', '#dde3e8', '#e6cfa6', '#c4ccd4', '#68727f']
+// Each Zone's own part of the palette, under the rule above (#136). The brick roof and the persimmon sit right at the
+// cap, so the reds here keep below them.
+// Medium-density residential: a terraced row's walls, roof tiles and doors, and an apartment building's walls and cap.
+const TERRACE = {
+  walls: ['#fff4e2', '#f6dfb4', '#f3d2c4', '#ead9c2', '#dcc6a6', '#d6e4d3', '#f9e7c8'],
+  roofs: ['#4d6575', '#5b6b7a', '#3f5866', '#7a5a46', '#b85a4c', '#5aa69b', '#8b7dbf', '#a8765a'],
+  door: '#8a5a3c',
+}
+const COURTYARD = { walls: ['#e0f2d4', '#cbebfc', '#e5dafb', '#fbe3a2', '#c0e9e0', '#fbd2dd', '#fdeed6'], cap: '#fbfaf6' }
+// High-density residential: pale walls, so the towers read as homes beside the offices' glass, and white or stone trim.
+const FLATS = { walls: ['#fbf3e6', '#eef5f0', '#f4eefb', '#fdf0e2', '#eaf3f8', '#f8eef0'], trims: ['#ffffff', '#e9e4da', '#d9e3ea'] }
+// Shops: a ground floor in a bold colour, which the awning and the signs take too, under pale storeys, so that it leads.
+const SHOP = {
+  fronts: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
+  uppers: ['#fff7e8', '#ffe9d2', '#fde2e4', '#e3f4dc', '#fff1c7', '#e6f0fb'],
+  stripe: '#fbf8f2',
+}
+// Industrial: a shed's walls, its roof sheets and its roller doors, and a chimney's brick under a white band.
+const SHED = {
+  walls: ['#c9d1d6', '#b9c8b4', '#dccbaa', '#aebdcb', '#cfb39b', '#d9dcd2'],
+  roofs: ['#8f9aa5', '#7f8c7c', '#9c8f80', '#6f7f8c'],
+  doors: ['#f0c75e', '#e9eef2', '#79a7c3', '#7fbf9d'],
+  chimney: '#a8604f',
+  band: '#f4f1ea',
+}
+// Farms: a barn's walls, roof and door, the silo and its dome, and bales of straw.
+const BARN = {
+  walls: ['#7e9aab', '#b85a4c', '#8aa58b'],
+  roof: '#5b6b7a',
+  door: '#f4f1ea',
+  silo: '#e9eef2',
+  dome: '#9aa7b2',
+  straw: '#e8cf7f',
+}
+const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
+const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
   round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
   sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
@@ -25,6 +62,15 @@ const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // sm
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+// One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
+const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
+/** The faces of a box, as the way each looks: north, south, east and west. */
+const FACES = [
+  [0, 1],
+  [0, -1],
+  [1, 0],
+  [-1, 0],
+] as const
 
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
@@ -128,6 +174,8 @@ export function createMaterials() {
     glass,
     /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
     windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
+    /** The tint of a window left dark at night: by day, a darker glass. */
+    unlit: shade('#56738a'),
     /** The tint that makes `glass` the colour `color`, as an office tower's curtain wall is. */
     glassOf: shade,
     bulb,
@@ -150,7 +198,7 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, glassOf, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -187,8 +235,9 @@ export function createKit(rand: () => number, materials: Materials) {
     if (!boxes.has(key)) boxes.set(key, roundedBox(w, h, d, r, b))
     return boxes.get(key)!
   }
-  const shadow = (x: number, y: number, h: number, w: number, d: number, round = false) =>
-    add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, 0, w, 1, d)
+  /** A contact shadow under a footprint `w` by `d`, round or square, turned `ry`. */
+  const shadow = (x: number, y: number, h: number, w: number, d: number, round = false, ry = 0) =>
+    add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d)
   // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion), each cut once per size.
   const cuboids = new Map<string, THREE.BufferGeometry>()
   const cuboid = (w: number, h: number, d: number) => {
@@ -196,12 +245,30 @@ export function createKit(rand: () => number, materials: Materials) {
     if (!cuboids.has(key)) cuboids.set(key, new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0))
     return cuboids.get(key)!
   }
+  // Gable roofs repeat along a terraced row, so each is cut once per size too.
+  const gables = new Map<string, THREE.BufferGeometry>()
+  const gableRoof = (len: number, wid: number, h: number) => {
+    const key = [len, wid, h].map((v) => v.toFixed(2)).join()
+    if (!gables.has(key)) gables.set(key, gable(len, wid, h))
+    return gables.get(key)!
+  }
+  /** Where `(lx, ly)` in the frame of a building at `(x, y)` lies: `lx` to its right, `ly` out of its front, which faces `ry` (0 north, π/2 west). */
+  const to = (x: number, y: number, ry: number, lx: number, ly: number): [number, number] => [
+    x + lx * Math.cos(ry) - ly * Math.sin(ry),
+    y + lx * Math.sin(ry) + ly * Math.cos(ry),
+  ]
+  /** Add a shape at `(lx, ly)` in the frame of a building at `(x, y)` whose front faces `ry`, turned with it, `h` above the road. */
+  const local = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, ry: number, lx: number, ly: number, h: number, sx = 1) =>
+    add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
+  /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
+  const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
 
   return {
     add,
     push,
     brick,
     box,
+    cuboid,
     shadow,
     glass,
     bulb,
@@ -255,9 +322,204 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('building', x, y, h)
     },
 
-    /** A lawn over a footprint `w` by `d`, centred on `(x, y)`: a house's garden. It joins the next brick. */
+    /** A lawn over a footprint `w` by `d`, centred on `(x, y)`: a house's garden or a courtyard. It joins the next brick. */
     lawn(x: number, y: number, h: number, w: number, d: number) {
       add(box(w, 0.16, d, 0.8, 0.06), LAWN, x, y, h)
+    },
+
+    /**
+     * A house of a terraced row, as one brick: `w` along the row and `d` deep, its front facing `ry` (0 north, π/2
+     * west), `storeys` high. It shares its side walls with the houses beside it, under a gable roof whose ridge runs
+     * along the row, with a window or two a storey on its front, a wooden door, and on some an eave over the ground floor.
+     */
+    townhouse(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number) {
+      const wall = storeys * 3 + 0.6
+      const tile = pick(TERRACE.roofs)
+      add(box(w, wall, d, 0.16, 0.08), pick(TERRACE.walls), x, y, h, ry)
+      add(gableRoof(w + 0.2, d + 1, Math.min(4.2, d * 0.34)), tile, x, y, h + wall, ry + Math.PI / 2)
+      const across = w >= 5.6 ? 2 : 1 // windows a storey
+      for (let s = 0; s < storeys; s++) {
+        for (let k = 0; k < across; k++) {
+          const lx = across === 1 ? 0 : (k ? 1 : -1) * w * 0.23
+          if (s === 0 && k === across - 1) local(cuboid(1.2, 2.2, 0.3), TERRACE.door, x, y, ry, lx, d / 2, h)
+          else local(cuboid(1.1, 1.3, 0.3), pane(0.7), x, y, ry, lx, d / 2, h + 1 + s * 3)
+        }
+      }
+      if (storeys > 1 && rand() < 0.55) local(cuboid(w + 0.1, 0.22, 1.1), tile, x, y, ry, 0, d / 2 + 0.5, h + 3.1)
+      shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * An apartment building of `floors` storeys over the wings `wings`, rectangles that meet at their edges in an O, a
+     * U, an L or a bar, as one brick: one wall colour, with a row of windows a storey, lit or dark one by one, on every
+     * face not against another wing, a cap on each wing and a water tank on the first.
+     */
+    apartment(wings: Bounds[], h: number, floors: number) {
+      const colour = pick(COURTYARD.walls)
+      const height = floors * 3.2 + 0.8
+      /** Whether `(px, py)` lies on a wing other than wing `self`. */
+      const against = (px: number, py: number, self: number) =>
+        wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
+      wings.forEach((wing, k) => {
+        const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
+        add(box(w, height, d, 0.6, 0.2), colour, cx, cy, h)
+        add(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), COURTYARD.cap, cx, cy, h + height)
+        for (const [nx, ny] of FACES) {
+          const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
+          const ry = Math.atan2(-nx, ny)
+          for (let i = 0; i < n; i++) {
+            const t = -(n - 1) * 1.6 + i * 3.2
+            const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+            // Just out of the face, across the window's width: a window there would look into the next wing.
+            if ([-0.9, 0, 0.9].some((a) => against(fx + nx * 0.4 + ny * a, fy + ny * 0.4 + nx * a, k))) continue
+            for (let f = 0; f < floors; f++) add(cuboid(1.5, 1.6, 0.3), pane(0.65), fx, fy, h + 1.1 + f * 3.2, ry)
+          }
+        }
+        shadow(cx, cy, h, w * 1.2 + 2, d * 1.2 + 2)
+      })
+      const [first] = wings
+      const [tx, ty] = [first.x0 + (first.x1 - first.x0) * 0.3, (first.y0 + first.y1) / 2]
+      add(CYLINDER, TANK.body, tx, ty, h + height + 0.6, 0, 1.12, 2.2, 1.12)
+      add(CONE, TANK.lid, tx, ty, h + height + 2.8, 0, 1.2, 0.8, 1.2)
+      const [x0, x1] = [Math.min(...wings.map((r) => r.x0)), Math.max(...wings.map((r) => r.x1))]
+      const [y0, y1] = [Math.min(...wings.map((r) => r.y0)), Math.max(...wings.map((r) => r.y1))]
+      brick('building', (x0 + x1) / 2, (y0 + y1) / 2, h)
+    },
+
+    /**
+     * A residential tower of `floors` storeys on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick:
+     * a podium with a lit lobby, a pale wall with windows lit or dark one by one, a stack of balconies up the middle of
+     * its two long faces, and on its roof a water tank and a little garden.
+     */
+    residentialTower(x: number, y: number, h: number, w: number, d: number, floors: number) {
+      const [colour, trim] = [pick(FLATS.walls), pick(FLATS.trims)]
+      const STOREY = 3.1
+      const base = h + 4.2
+      const top = base + floors * STOREY
+      add(box(w + 2.4, 4.2, d + 2.4, 1, 0.2), trim, x, y, h)
+      for (const side of [-1, 1])
+        add(cuboid(w * 0.55, 2.6, 0.3), { material: glass, tint: windows[0] }, x, y + side * (d / 2 + 1.2), h + 0.5)
+      add(box(w, floors * STOREY, d, 0.9, 0.2), colour, x, y, base)
+      const long = w >= d // the balconies go up the middle of the long faces
+      for (const [nx, ny] of FACES) {
+        const balconied = (nx === 0) === long
+        const n = Math.floor(((nx === 0 ? w : d) - 2) / 3)
+        const ry = Math.atan2(-nx, ny)
+        for (let i = 0; i < n; i++) {
+          const t = -(n - 1) * 1.5 + i * 3
+          if (balconied && Math.abs(t) < 2.6) continue
+          const [fx, fy] = nx === 0 ? [x + t, y + (ny * d) / 2] : [x + (nx * w) / 2, y + t]
+          for (let f = 0; f < floors; f++) add(cuboid(1.3, 1.6, 0.3), pane(0.6), fx, fy, base + 0.8 + f * STOREY, ry)
+        }
+        if (!balconied) continue
+        // On every floor, from the middle of the face: a balcony's floor, the railing at its edge, and a glass door.
+        const [mx, my] = [x + (nx * w) / 2, y + (ny * d) / 2]
+        for (let f = 0; f < floors; f++) {
+          const at = base + f * STOREY + 0.1
+          local(cuboid(4.6, 0.24, 1.5), trim, mx, my, ry, 0, 0.75, at)
+          local(cuboid(4.6, 1, 0.14), trim, mx, my, ry, 0, 1.45, at + 0.24)
+          local(cuboid(3.6, 2.2, 0.3), pane(0.55), mx, my, ry, 0, 0, at + 0.3)
+        }
+      }
+      // A cap over the roof, and on it a water tank and a little garden.
+      add(box(w + 0.3, 1.2, d + 0.3, 1, 0.12), trim, x, y, top)
+      add(CYLINDER, TANK.body, x - w * 0.22, y + d * 0.2, top + 0.9, 0, 1.3, 2.4, 1.3)
+      add(CONE, TANK.lid, x - w * 0.22, y + d * 0.2, top + 3.3, 0, 1.4, 0.9, 1.4)
+      add(box(w * 0.36, 0.5, d * 0.3, 0.3, 0.1), LAWN, x + w * 0.18, y - d * 0.16, top + 0.9)
+      for (const k of [-1, 1]) add(SPHERE, LEAVES.round[1], x + w * (0.18 + 0.08 * k), y - d * 0.16, top + 1.5, 0, 0.9, 0.8, 0.9)
+      shadow(x, y, h, w * 1.4 + 3, d * 1.4 + 3)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A shop, as one brick: `w` along its street and `d` deep, its front facing `ry`, `storeys` high. A ground floor in
+     * a bold colour with a lit shop window, under pale storeys with windows or none. Facing a Road (`onRoad`) rather
+     * than a seam between Tiles, it has a striped awning, and on some a sign on the roof or one hung by the door.
+     */
+    shop(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, onRoad: boolean) {
+      const [front, upper] = [pick(SHOP.fronts), pick(SHOP.uppers)]
+      add(box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry)
+      local(cuboid(w * 0.8, 2.4, 0.3), { material: glass, tint: windows[0] }, x, y, ry, 0, d / 2, h + 0.3)
+      let top = h + 3.8
+      if (storeys > 1) {
+        const tall = (storeys - 1) * 3.1
+        add(box(w - 0.3, tall, d - 0.6, 0.24, 0.1), upper, x, y, top, ry)
+        const across = Math.max(1, Math.floor(w / 3))
+        for (let s = 0; s < storeys - 1; s++) {
+          for (let k = 0; k < across; k++)
+            local(cuboid(1.3, 1.4, 0.3), pane(0.7), x, y, ry, (k - (across - 1) / 2) * (w / across), (d - 0.6) / 2, top + 0.9 + s * 3.1)
+        }
+        top += tall
+      }
+      add(box(w + 0.1, 0.5, d + 0.1, 0.26, 0.08), storeys > 1 ? upper : front, x, y, top, ry)
+      if (onRoad) {
+        if (rand() < 0.45) local(cuboid(w * 0.6, 1.8, 0.3), pick(SHOP.fronts), x, y, ry, 0, d / 2 - 1.2, top + 0.5)
+        const [span, colour] = [w * 0.86, pick(SHOP.fronts)]
+        const stripes = Math.max(3, Math.round(span / 1.2))
+        for (let i = 0; i < stripes; i++)
+          local(
+            AWNING,
+            i % 2 ? SHOP.stripe : colour,
+            x,
+            y,
+            ry,
+            -span / 2 + (i + 0.5) * (span / stripes),
+            d / 2 + 0.85,
+            h + 3,
+            span / stripes,
+          )
+        if (rand() < 0.45) local(cuboid(0.24, 2.4, 1.1), pick(SHOP.fronts), x, y, ry, w / 2 - 0.5, d / 2 + 0.55, h + 4.2)
+      }
+      shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A shed on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under a sawtooth roof
+     * whose teeth follow one another along its long side, glazed up each tooth, roller doors along one long side, and a
+     * brick chimney if `chimney`.
+     */
+    warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean) {
+      const wall = range(5.4, 7.4)
+      add(box(w, wall, d, 0.4, 0.14), pick(SHED.walls), x, y, h)
+      const along = w >= d
+      const [len, wid, ry] = along ? [w - 0.4, d - 0.4, 0] : [d - 0.4, w - 0.4, Math.PI / 2]
+      const n = Math.max(2, Math.round(len / 6))
+      const rise = Math.min(3.4, (len / n) * 0.55)
+      const teeth = sawtooth(len, wid, rise, n)
+      add(teeth, pick(SHED.roofs), x, y, h + wall, ry)
+      teeth.dispose()
+      const glaze: Look = { material: glass, tint: rand() < 0.5 ? windows[2] : unlit }
+      for (let i = 1; i < n; i++) local(cuboid(0.2, rise * 0.8, wid - 1.2), glaze, x, y, ry, -len / 2 + (i * len) / n - 0.12, 0, h + wall)
+      const side = rand() < 0.5 ? 1 : -1
+      const doors = Math.max(1, Math.floor(len / 9))
+      for (let k = 0; k < doors; k++)
+        local(cuboid(3.6, 4, 0.3), pick(SHED.doors), x, y, ry, -len / 2 + (k + 0.5) * (len / doors), (side * (wid + 0.4)) / 2, h)
+      if (chimney) {
+        const [cx, cy] = to(x, y, ry, len / 2 - 2.6, -side * (wid / 2 - 2.6))
+        const tall = range(15, 21)
+        add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, tall, 1)
+        add(CYLINDER, SHED.band, cx, cy, h + tall - 2.4, 0, 1.06, 0.9, 1.06)
+      }
+      shadow(x, y, h, w * 1.3 + 2, d * 1.3 + 2)
+      brick('building', x, y, h)
+    },
+
+    /** A barn facing `ry`, with a silo beside it and a few bales of straw before it, as one brick. */
+    barn(x: number, y: number, h: number, ry: number) {
+      add(box(9, 5.2, 7, 0.3, 0.1), pick(BARN.walls), x, y, h, ry)
+      add(gableRoof(9.6, 8, 3.2), BARN.roof, x, y, h + 5.2, ry + Math.PI / 2)
+      local(cuboid(3.2, 3.8, 0.3), BARN.door, x, y, ry, 0, 3.5, h)
+      const [sx, sy] = to(x, y, ry, 6.6, -1)
+      add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.9, 9.5, 1.9)
+      add(SPHERE, BARN.dome, sx, sy, h + 9.5, 0, 1.95, 1.4, 1.95)
+      for (const k of [0, 1, 2]) {
+        const [bx, by] = to(x, y, ry, -3 + k * 2.2, 5.6)
+        add(CYLINDER, BARN.straw, bx, by, h, 0, 0.85, 1.1, 0.85)
+      }
+      shadow(x, y, h, 12, 9, false, ry)
+      brick('building', x, y, h)
     },
 
     /**
@@ -272,7 +534,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     officeTower(x: number, y: number, h: number, w: number, d: number, floors: number, style: OfficeStyle) {
       const STOREY = 3.2
-      const [ROOF, PLANT, SKY] = ['#dfe3e7', '#cfd5dc', new THREE.Color('#e9f4fb')]
+      const SKY = new THREE.Color('#e9f4fb')
       const [foot, trim, lit] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), range(0.3, 0.75)]
       /** Floor `f`'s glass: up to 30% of the way to the sky's colour at the top, and lit at night for `lit` of the floors. */
       const storey = (f: number): Look => ({
@@ -307,7 +569,7 @@ export function createKit(rand: () => number, materials: Materials) {
       }
       /** A flat roof `rw` by `rd` at `at`, with a parapet round its edge if `parapet`. */
       const roof = (rw: number, rd: number, at: number, parapet: boolean) => {
-        add(cuboid(rw - 0.2, 0.3, rd - 0.2), ROOF, x, y, at)
+        add(cuboid(rw - 0.2, 0.3, rd - 0.2), DECK, x, y, at)
         if (!parapet) return
         for (const side of [-1, 1]) {
           add(cuboid(rw, 1.3, 0.45), trim, x, y + side * (rd / 2 - 0.22), at)
@@ -318,7 +580,7 @@ export function createKit(rand: () => number, materials: Materials) {
       const penthouse = (rw: number, rd: number, at: number) => {
         const [pw, pd] = [rw * 0.5, rd * 0.44]
         add(box(pw, 3.4, pd, 0.4, 0.12), trim, x - rw * 0.08, y + rd * 0.08, at)
-        add(box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), ROOF, x - rw * 0.08, y + rd * 0.08, at + 3.4)
+        add(box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, x - rw * 0.08, y + rd * 0.08, at + 3.4)
         add(box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), PLANT, x + rw * 0.28, y - rd * 0.27, at)
         add(box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), PLANT, x - rw * 0.3, y - rd * 0.24, at)
         return at + 3.8
@@ -409,9 +671,10 @@ export function createKit(rand: () => number, materials: Materials) {
     /** Everything built, as parts tagged with their bricks. Every shape must be in a brick by now. The kit is spent after this. */
     done(): { parts: Part[]; bricks: Brick[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
-      for (const g of [...boxes.values(), ...cuboids.values()]) g.dispose()
+      for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
+      gables.clear()
       return { parts, bricks }
     },
   }
