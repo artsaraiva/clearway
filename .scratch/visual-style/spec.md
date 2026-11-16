@@ -53,15 +53,22 @@ Within 30° of hue (OKLCH) of either colour, no scenery or car goes over 65% of 
 | Office towers' glass, paling toward `#e9f4fb` up each tower ([#130](https://github.com/artsaraiva/clearway/issues/130)) | `#8fadc0` `#7b9db0` `#8cb5ae` `#5f778c` `#a6bfcb` `#c2b498` |
 | Office towers' frames, fins and crowns | `#f2f4f6` `#dde3e8` `#e6cfa6` `#c4ccd4` `#68727f` |
 | Roofs | brick `#d56454`, teal slate `#4d7d9c`, teal `#5aa69b`, tan `#d09c53`, violet `#8b7dbf`, persimmon `#ea8548` |
+| Terraced houses ([#136](https://github.com/artsaraiva/clearway/issues/136)) | walls `#fff4e2` `#f6dfb4` `#f3d2c4` `#ead9c2` `#dcc6a6` `#d6e4d3` `#f9e7c8`, roofs `#4d6575` `#5b6b7a` `#3f5866` `#7a5a46` `#b85a4c` `#5aa69b` `#8b7dbf` `#a8765a`, doors `#8a5a3c` |
+| Apartment buildings round a court | walls `#e0f2d4` `#cbebfc` `#e5dafb` `#fbe3a2` `#c0e9e0` `#fbd2dd` `#fdeed6`, caps `#fbfaf6` |
+| Residential towers | walls `#fbf3e6` `#eef5f0` `#f4eefb` `#fdf0e2` `#eaf3f8` `#f8eef0`, trim `#ffffff` `#e9e4da` `#d9e3ea` |
+| Shops | ground floors, awnings and signs `#2fb39a` `#f0b43c` `#ff9ab8` `#79c86a` `#a58ad8` `#e8925e` `#5cc0d6`, storeys above `#fff7e8` `#ffe9d2` `#fde2e4` `#e3f4dc` `#fff1c7` `#e6f0fb`, the awnings' other stripe `#fbf8f2` |
+| Sheds | walls `#c9d1d6` `#b9c8b4` `#dccbaa` `#aebdcb` `#cfb39b` `#d9dcd2`, roofs `#8f9aa5` `#7f8c7c` `#9c8f80` `#6f7f8c`, roller doors `#f0c75e` `#e9eef2` `#79a7c3` `#7fbf9d`, chimneys `#a8604f` with a band of `#f4f1ea` |
+| Farms | ploughed ground `#cdb08a`, crops `#7bc35e` `#e3c76a` `#a6d36b` `#5aae58` `#d9b45c`, barns `#7e9aab` `#b85a4c` `#8aa58b` under `#5b6b7a`, silos `#e9eef2` with domes `#9aa7b2`, straw `#e8cf7f` |
+| Green | the meadow `#b9e293`, flower beds `#ffd1df` `#f6d36a` `#ffadc8` `#fff7e8` `#c7b8f0`; allotments' gravel `#e6dccb`, soil `#a77f5a`, crops `#6fc35a` `#8fd46c` `#5aae58` `#b9dd6a`, flowers `#ffd1df` `#f6d36a` `#ffadc8` `#fff7e8`, sheds `#c49a6c` roofed `#5aa69b` |
 | Leaves | `#7bcd5d` `#5fbc51` `#92d76e` `#6bc357` `#85cf61` |
 | Sakura | `#ffbbd1` `#ffa1c1` `#ffd1df` `#ffadc8` |
 | Pines | `#379e62` `#43ac6b` `#2e9358` |
 | The slab's layers | grass `#9ed67d`, sand `#e3bf8c`, soil `#d2a069` |
-| Lawns | the park's and islands' `#b0df88`, houses' gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
+| Lawns | the park's and islands' `#b0df88`, houses' gardens, courts and roof gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
 | Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
 | Bike lanes | `#57c6b5` |
 | Water | `#63d1f4` |
-| Window glass | `#9cc7df` |
+| Window glass | `#9cc7df`, and a window left dark at night `#56738a` |
 | Cars | white `#ffffff`, raspberry `#db6982`, turquoise `#009dcb`, yellow `#ffc52d`, mint `#64cb9f`, lavender `#bc9ef2`, pale grey `#e9eef2`, pink `#ff9cbb` |
 
 Walkers' shirts, the planes' wings and the confetti take the cars' colours. The Tile in the hand takes the slab's. Greys, creams and stone (lamp posts, masts, rooftop boxes, the plaza, the tower landmark's cream) keep their earlier values, as does the tower landmark's coral `#f08a6e`, already under the cap at 59% of the red-orange's chroma. Head and tail lights, lit windows and lamps are lights that come on toward dusk, not paint, and stay as they were.
@@ -100,8 +107,20 @@ Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the 
 ## Block fill
 
 - **Authored:** landmarks and special Blocks (a tower plaza, a park with a pond, a shrine on a hill, a river with a bridge). They live in the District file.
-- **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), `src/render/zones.ts`), split into lots from the seed: low-density residential is houses on lawns with garden trees, offices are glass towers lit floor by floor at night, and an unzoned Tile is grass with a few bushes. Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere. The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped. A coral tower landmark stands on an offices Tile where the seed puts one.
-- Lamps stand at Block corners. Street trees line the avenues the seed picks, whatever the Zone.
+- **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136), `src/render/zones.ts`), from the seed:
+  - Low-density residential: houses on lawns with garden trees.
+  - Medium-density residential: terraced rows of narrow houses that share walls, or apartment buildings round a court (an O, a U, an L or a bar). The seed picks one of the two for each Tile.
+  - High-density residential: pale towers with windows lit one by one, a stack of balconies, a water tank and a roof garden.
+  - Offices: glass towers lit floor by floor at night.
+  - Shops: rows of low shops with coloured ground floors, and striped awnings and signs where they face a Road.
+  - Industrial: wide, low sheds with sawtooth roofs and roller doors, a chimney now and then.
+  - Parks: a park with a pond, or on a small Block, one time in three, a plaza with a fountain.
+  - Green: a meadow with groves and flower beds, or allotments.
+  - Farms: fields of crop rows, and on some Blocks a farmhouse and a barn with a silo.
+  - An unzoned Tile: grass with a few bushes.
+
+  Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere. The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped. A coral tower landmark stands on an offices or a high-density residential Tile where the seed puts one.
+- Lamps stand at Block corners. Street trees line the avenues the seed picks, whatever the Zone, and what a Zone builds keeps clear of them: buildings, ponds, crop rows and allotment plots alike.
 - Districts are themed (city, countryside, harbor). The first is a city.
 
 ## Vehicles and jam feedback
