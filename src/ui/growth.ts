@@ -21,7 +21,7 @@ function changes(write: (value: string) => void) {
 
 /**
  * What the screen shows of Stages (.scratch/ui-ux/spec.md, "Readings"): the City's Growth under the yen, with how many
- * Tiles are at each Stage; a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
+ * Tiles are at each Stage and the Record beneath; a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
  * or why it is not growing; and a badge that rises over a Tile as its Stage-up ends. The bar hides while `busy`, as
  * when a Layout or a Zone is in the player's hand, and during a Rebuild.
  */
@@ -30,9 +30,10 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   pill.className = 'glass growth'
   pill.innerHTML = `
     <div class="row"><span class="label">Growth</span><b class="total"></b><span class="soft stages"></span></div>
+    <div class="soft record"></div>
     <div class="soft pace" hidden></div>`
   root.append(pill)
-  const [total, stages, pace] = ['.total', '.stages', '.pace'].map((s) => pill.querySelector<HTMLElement>(s)!)
+  const [total, stages, record, pace] = ['.total', '.stages', '.record', '.pace'].map((s) => pill.querySelector<HTMLElement>(s)!)
 
   // Over the board and its labels, under the screen's pills, like the Jam markers.
   const layer = document.createElement('div')
@@ -47,6 +48,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   const show = {
     total: changes((v) => (total.textContent = v)),
     stages: changes((v) => (stages.innerHTML = v)),
+    record: changes((v) => (record.textContent = v)),
     pace: changes((v) => {
       pace.hidden = v === ''
       pace.textContent = v
@@ -95,6 +97,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
       }
       show.total(String(game.growth))
       show.stages(counts.map((n, i) => `<i>${'★'.repeat(i + 1)}</i> ${n}`).join(' · '))
+      show.record(`${game.free ? 'Free-run Record' : 'Record'} ${game.record}`)
       show.pace(game.pace === 1 ? '' : `Pace ×${game.pace}`)
 
       const cell = hovered()
