@@ -1,4 +1,4 @@
-import { City, LAYOUTS, type Cell, type Layout } from '../city/city'
+import { City, LAYOUTS, ZONES, type Cell, type Layout, type Zone } from '../city/city'
 import type { Change } from '../sim/spec'
 import { Game, newSeed } from './game'
 
@@ -9,7 +9,7 @@ import { Game, newSeed } from './game'
 // save's Record if that can be read.
 
 /** Raise it whenever a save written before would load wrong: when its shape changes, or what its ids name. */
-const VERSION = 1
+const VERSION = 2
 /** Where each kind of run is saved, and which of the two the page opens on. */
 const KEY = { run: 'clearway.run', freeRun: 'clearway.free-run', playing: 'clearway.playing' }
 /** Seconds between saves for yen and the Record, which move with every step. */
@@ -23,8 +23,8 @@ const NOTICE = {
 interface Save {
   version: number
   seed: number
-  /** The Tiles in the order they were placed, each Layout by its id. */
-  tiles: { cell: Cell; layout: Layout['id']; rotation: number }[]
+  /** The Tiles in the order they were placed, each Layout and Zone by its id. An unzoned Tile's Zone is null. */
+  tiles: { cell: Cell; layout: Layout['id']; rotation: number; zone: Zone['id'] | null }[]
   /** Every Junction's configuration, as a Rebuild carries it over. */
   changes: Change[]
   yen: number
@@ -39,7 +39,7 @@ export function saveOf(game: Game): string {
   const save: Save = {
     version: VERSION,
     seed: game.seed,
-    tiles: game.city.tiles.map(({ cell, layout, rotation }) => ({ cell, layout: layout.id, rotation })),
+    tiles: game.city.tiles.map(({ cell, layout, rotation, zone }) => ({ cell, layout: layout.id, rotation, zone: zone?.id ?? null })),
     changes: game.sim.configuration(),
     yen: game.yen,
     record: game.record,
@@ -74,10 +74,12 @@ export function load(text: string | null, free: boolean): { game: Game; notice: 
 function restore(save: Save, free: boolean): Game {
   if (save.version !== VERSION) throw new Error(`a save of version ${save.version}, not ${VERSION}`)
   if (!isInteger(save.seed) || !isAmount(save.yen) || !isAmount(save.record)) throw new Error('no seed, yen or Record')
-  const tiles = save.tiles.map(({ cell, layout, rotation }) => ({
+  if (save.tiles.some(({ zone }) => zone !== null && !ZONES.some((z) => z.id === zone))) throw new Error('a Tile the game has no Zone for')
+  const tiles = save.tiles.map(({ cell, layout, rotation, zone }) => ({
     cell: { x: cell.x, y: cell.y },
     layout: LAYOUTS.find((l) => l.id === layout)!,
     rotation,
+    zone: ZONES.find((z) => z.id === zone),
   }))
   if (tiles.some(({ cell, layout, rotation }) => !layout || ![0, 1, 2, 3].includes(rotation) || !isInteger(cell.x) || !isInteger(cell.y)))
     throw new Error('a Tile the game has no Layout or place for')

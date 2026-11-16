@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { Cell, Zone } from '../city/city'
 import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Junction } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
@@ -7,7 +8,7 @@ import { carCentre, createCars } from './cars'
 import { createDay } from './day'
 import { createJamEmotion } from './emotion'
 import { createField } from './field'
-import { createHand, SWAP_LIFT, type Held } from './hand'
+import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from './hand'
 import { createRouteInspector } from './inspector'
 import { createMaterials } from './kit'
 import { createLabels } from './labels'
@@ -23,10 +24,6 @@ const SHRINK = 0.3 // s for the cars to shrink out as a Rebuild starts
 const GROW = 1.5 // per second: how fast the cars grow back in once the new pieces have landed
 const CAR_PICK = 3 // m from a car's centre
 
-// The Blocks are filled as if the City were this far across, around the cell a run starts on: towers by the start,
-// houses far out. It is fixed, since the board has no bounds, so a Block comes out the same whenever its Tile is laid.
-const FILL_EXTENT: Bounds = { x0: -300, y0: -300, x1: 300, y1: 300 }
-
 export type View = ReturnType<typeof createView>
 
 /** The ground a view draws a Sim on. */
@@ -34,6 +31,8 @@ export interface Ground {
   /** The slab so far: the cell of every Tile placed, in order. */
   pieces: Bounds[]
   scenery: Scenery
+  /** The Zone of the Tile on `cell`, as the City has it when its piece is built. None: unzoned. */
+  zoneOf(cell: Cell): Zone | undefined
 }
 
 /** What a Rebuild did to the slab: the cell of the Tile it placed, of the Tile it swapped (or swapped back), or of the Tile an Undo took off. */
@@ -56,7 +55,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const slabNow = () => slabBounds(extent(pieces))
   const field = createField()
   const materials = createMaterials()
-  const scenery = createScenery(ground.scenery, field, materials, FILL_EXTENT)
+  const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf)
   const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
   let slab = slabNow()
   const rig = createCamera(canvas, slab) // the camera, and what moves it
@@ -74,7 +73,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const labels = createLabels(canvas, rig.camera, ground.scenery)
   labels.show(sim.net, sim.rates, field, pieces)
   const reveal = createReveal(materials)
+  const regrow = createReveal(materials) // a Rezoning's, which plays beside a Rebuild's
   const hand = createHand()
+  const rezoning = createRezoning()
   const scene = new THREE.Scene().add(
     ...day.lights,
     ...laid,
@@ -87,7 +88,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     tools.group,
     route.group,
     reveal.group,
+    regrow.group,
     hand.group,
+    rezoning.group,
   )
 
   // The canvas's size in CSS pixels, read only when it changes: reading it every frame would force a layout.
@@ -190,6 +193,28 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       labels.preview(held?.after ?? null, held?.swap ? SWAP_LIFT : 0)
     },
 
+    /** Show what letting go of a Zone dragged over a placed Tile does to it. `null` shows nothing. */
+    showRezoning(r: Rezoning | null) {
+      rezoning.show(r)
+    },
+
+    /**
+     * Show a Rezoning of the Tile on `piece`: what stands on its Blocks is built again as its Zone now has it, under
+     * `sim`, the Sim that runs on, and drops in where the old buildings stood. It is no Rebuild: the traffic carries on,
+     * and it plays on the real clock, paused or not.
+     * ponytail: the piece is built in one go while the cars move: about 14 ms for an offices Tile and 21 ms for a
+     * low-density one on an M4 Pro (27 ms at worst), a dropped frame or two. Step `scenery.rezone`'s build over frames,
+     * and swap the meshes once it is done, if Zones with more to build make the hitch show.
+     */
+    rezone(sim: Sim, piece: Bounds) {
+      const { old, building } = scenery.rezone(sim, piece)
+      const build = finish(building)
+      scene.remove(...old)
+      scenery.discard(old)
+      scene.add(...build.meshes)
+      regrow.play(build, { plate() {}, done() {} }, true)
+    },
+
     /**
      * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
      * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
@@ -198,6 +223,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * build over frames (`scenery.add` is a generator) if a placement ever adds enough to drop one.
      */
     rebuild(rebuilt: Sim, relaid: Relaid) {
+      // A Rezoning still playing lands at once, since its piece may be the one rebuilt.
+      regrow.settle()
       const drop = (meshes: THREE.Mesh[]) => {
         scene.remove(...meshes)
         scenery.discard(meshes)
@@ -261,6 +288,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      */
     render(dt: number, real = dt) {
       reveal.update(dt)
+      regrow.update(real)
       if (next && !reveal.playing && next.prewarmed) {
         shown = next
         next = null

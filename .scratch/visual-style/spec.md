@@ -30,7 +30,7 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 
 The style comes from shape, palette and proportion:
 
-- **Shape:** every box is rounded and bevelled; buildings are a wall box with a glass band per floor; houses have gable roofs; trees are clusters of spheres (round, sakura) or stacked cones (pine).
+- **Shape:** every box is rounded and bevelled; houses are a wall box with a glass band under a gable roof; office towers are curtain walls of glass with no band per floor; trees are clusters of spheres (round, sakura) or stacked cones (pine).
 - **Palette:** gently oversaturated, with pastel walls and towers, brick / teal slate / teal / tan / violet / persimmon roofs, fresh greens, pink sakura, a pale grey road and an off-white pavement. Every colour is under Palette below.
 - **Proportion:** lanes about 7 m wide and Blocks roughly 40–60 m across, so a car reads as a toy and each building as an object. This was the single biggest difference between the first port (a 360 m roundabout District, rejected as "not the same") and the accepted one.
 
@@ -49,14 +49,15 @@ Within 30° of hue (OKLCH) of either colour, no scenery or car goes over 65% of 
 
 | What | Colours |
 | --- | --- |
-| Walls of houses and mid-rises | `#fdeed6` `#ffd7b6` `#e0f2d4` `#cbebfc` `#fbe3a2` `#fbd2dd` `#e5dafb` `#fff7e8` `#c0e9e0` |
-| Towers | `#e5f4fc` `#d4ecf8` `#faefdc` `#d9efeb` `#fbe6d8` |
+| Walls of houses | `#fdeed6` `#ffd7b6` `#e0f2d4` `#cbebfc` `#fbe3a2` `#fbd2dd` `#e5dafb` `#fff7e8` `#c0e9e0` |
+| Office towers' glass, paling toward `#e9f4fb` up each tower ([#130](https://github.com/artsaraiva/clearway/issues/130)) | `#8fadc0` `#7b9db0` `#8cb5ae` `#5f778c` `#a6bfcb` `#c2b498` |
+| Office towers' frames, fins and crowns | `#f2f4f6` `#dde3e8` `#e6cfa6` `#c4ccd4` `#68727f` |
 | Roofs | brick `#d56454`, teal slate `#4d7d9c`, teal `#5aa69b`, tan `#d09c53`, violet `#8b7dbf`, persimmon `#ea8548` |
 | Leaves | `#7bcd5d` `#5fbc51` `#92d76e` `#6bc357` `#85cf61` |
 | Sakura | `#ffbbd1` `#ffa1c1` `#ffd1df` `#ffadc8` |
 | Pines | `#379e62` `#43ac6b` `#2e9358` |
 | The slab's layers | grass `#9ed67d`, sand `#e3bf8c`, soil `#d2a069` |
-| Lawns | `#b0df88` |
+| Lawns | the park's and islands' `#b0df88`, houses' gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
 | Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
 | Bike lanes | `#57c6b5` |
 | Water | `#63d1f4` |
@@ -99,8 +100,8 @@ Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the 
 ## Block fill
 
 - **Authored:** landmarks and special Blocks (a tower plaza, a park with a pond, a shrine on a hill, a river with a bridge). They live in the District file.
-- **Seeded:** every other Block is split into lots from the District's seed. A lot becomes a tower, a mid-rise or a house by its distance from the District's centre, with the odd lot left as a tree. Lots that would overhang a rounded corner are dropped.
-- Lamps stand at Block corners. Street trees line the main avenue.
+- **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), `src/render/zones.ts`), split into lots from the seed: low-density residential is houses on lawns with garden trees, offices are glass towers lit floor by floor at night, and an unzoned Tile is grass with a few bushes. Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere. The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped. A coral tower landmark stands on an offices Tile where the seed puts one.
+- Lamps stand at Block corners. Street trees line the avenues the seed picks, whatever the Zone.
 - Districts are themed (city, countryside, harbor). The first is a city.
 
 ## Vehicles and jam feedback

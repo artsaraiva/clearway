@@ -40,7 +40,7 @@ Sound is out of this spec: [#115](https://github.com/artsaraiva/clearway/issues/
 | Top-left | Yen with its fill toward the Price, Income small beneath |
 | Top-centre | The Flow gauge with the Holding state, trips a minute and the Record |
 | Top-right | Pause, 1×, 4×, 8× |
-| Bottom-centre | The bar of Layouts, the Price and Undo |
+| Bottom-centre | The bar of Layouts, with the Zones in a second row, the Price and Undo |
 | Bottom-right | Compass, recenter, tilt toggle, Demand view toggle |
 | Bottom-left | A menu button: New run, the Free run switch, the list of keys |
 
@@ -57,6 +57,7 @@ Money sits apart from traffic, and nothing covers the middle of the board.
 
 - **Click-to-pick:** clicking a Layout picks it up and clicking a cell drops it. The Layout stays in the hand after the drop, until `Esc` or a right click without movement. A drag still places one Tile and lets go.
 - **The bar's pictures** turn with the camera: each is the top-down icon rotated by the camera's heading plus the Tile's rotation, so it shows the Tile as it will land on screen.
+- **Zones** ([#130](https://github.com/artsaraiva/clearway/issues/130)): the bar's second row offers each Zone, then Roads only, as small pictures, and names the one under the pointer or the one picked. A click picks the Zone of the Tiles laid next; it never goes in the hand, stays until changed and is not saved, and every run opens on low-density residential. The ghost's caption names the Zone, or over a placed Tile that Tile's own. Dragging a Zone onto a placed Tile rezones it, and the caption says what the Tile will become.
 - **Demand before a drop:** over a legal cell, a Gateway the Tile would close has its label struck through, a Gateway it would open shows its trips a minute, and the ghost's line gives the change in total Demand. There is no forecast of traffic.
 - While a Layout is in the hand, Junctions and cars cannot be clicked: every click is a drop.
 

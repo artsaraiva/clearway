@@ -162,6 +162,37 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec) {
   }
 }
 
+const VERGE = '#c8e8a6' // the grass of a Tile with roads only
+
+/**
+ * Up to `count` points on the Block between `clear` and `most` m in from its edge, at least `apart` m from each other
+ * and from every point of `avoid`.
+ */
+function scatter(kit: Kit, field: Field, block: Block, count: number, clear: number, most: number, apart: number, avoid: Vec[]): Vec[] {
+  const points: Vec[] = []
+  for (let tries = 0; tries < count * 14 && points.length < count; tries++) {
+    const [x, y] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
+    const room = field.sample(x, y)
+    if (room < clear || room > most || !inside(block.loop, x, y)) continue
+    if ([...points, ...avoid].some((p) => Math.hypot(p.x - x, p.y - y) < apart)) continue
+    points.push({ x, y })
+  }
+  return points
+}
+
+/**
+ * A Block of an unzoned Tile, roads only: grass with a few bushes along its edge, one to about every 500 m², clear of
+ * the street trees `street`, and nothing built.
+ */
+export function verge(kit: Kit, field: Field, block: Block, street: Vec[]) {
+  overlay(kit, field, block, 2.4, 0.16, VERGE)
+  const mid = middle(block)
+  kit.brick('ground', mid.x, mid.y, KERB)
+  for (const p of scatter(kit, field, block, Math.max(2, Math.round(area(block.loop) / 500)), 3.4, 7, 9, street)) {
+    kit.tree(p.x, p.y, KERB + 0.16, kit.range(0.3, 0.45), 'round')
+  }
+}
+
 /** A roundabout's island: a lawn with one big sakura, ringed by small trees when there is room. */
 export function island(kit: Kit, field: Field, block: Block, centre: Vec) {
   overlay(kit, field, block, 1.2, 0.5, GRASS)

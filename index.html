@@ -356,6 +356,7 @@
       }
       .speed button:not(.on):hover,
       .layout:not(.on):hover,
+      .zone:not(.on):hover,
       .menu .item:hover {
         background: var(--hover);
       }
@@ -402,9 +403,44 @@
         padding: 8px;
         border-radius: 26px;
       }
-      .layouts {
+      /* The bar's two rows: the Layouts, then the Zones with the name of the one picked or under the pointer. */
+      .picks {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .layouts,
+      .zone-picks {
         display: flex;
         gap: 4px;
+      }
+      .zones {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 5px;
+        border-top: 1px solid var(--line);
+        white-space: nowrap;
+      }
+      .zone {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 40px;
+        border-radius: 14px;
+        cursor: grab;
+        touch-action: none;
+      }
+      .zone svg {
+        display: block;
+        filter: drop-shadow(0 1px 1px rgba(16, 24, 48, 0.12));
+      }
+      /* A Zone dragged toward a placed Tile: its picture follows the pointer. */
+      #ui .zone-ghost {
+        left: 0;
+        top: 0;
+        pointer-events: none;
+        filter: drop-shadow(0 4px 8px rgba(16, 24, 48, 0.25));
       }
       .layout {
         width: 84px;

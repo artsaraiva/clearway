@@ -24,6 +24,11 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
 const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
+// What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement and the lamps. The rest of what
+// stands on its Blocks comes in again at once, its stages starting in this share of a Rebuild's time, since no slab
+// lands first.
+const STANDING = new Set<Stage>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
+const REZONED_PACE = 0.4
 const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
@@ -47,17 +52,26 @@ export interface Moments {
   done(): void
 }
 
-/** When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces. */
-function schedule({ bricks, blocks, pieces }: Build): Float32Array {
+/**
+ * When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces.
+ * For a Rezoning (`rezoned`), what it leaves standing starts landed, and the rest starts at once and sooner.
+ */
+function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32Array {
   const area = extent(pieces)
   const centre = middle(area)
   const slab = slabBounds(area)
   const reach = Math.hypot(slab.x1 - slab.x0, slab.y1 - slab.y0) / 2
   const far = (x: number, y: number) => Math.min(1, Math.hypot(x - centre.x, y - centre.y) / reach)
-  const starts = blocks.map((b) => BLOCKS[0] + far(b.middle.x, b.middle.y) * BLOCKS[1])
+  const [at, spread] = rezoned ? [0, 0] : BLOCKS
+  const pace = rezoned ? REZONED_PACE : 1
+  const starts = blocks.map((b) => at + far(b.middle.x, b.middle.y) * spread)
   return new Float32Array(
-    bricks.map(
-      (b) => (b.block < 0 ? 0 : starts[b.block]) + STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1] + Math.random() * JITTER,
+    bricks.map((b) =>
+      rezoned && STANDING.has(b.stage)
+        ? -Infinity
+        : (b.block < 0 ? 0 : starts[b.block]) +
+          (STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1]) * pace +
+          Math.random() * JITTER,
     ),
   )
 }
@@ -68,8 +82,9 @@ const PUFF = { vx: 0, vy: 2.4, vz: 0, gravity: 0, from: 1.4, to: 5, lasts: 0.6, 
 /**
  * The Reveal animation: a Level's pieces of slab assembling brick by brick next to the slab already there. Slab
  * layers, road plate, Blocks and buildings drop with a squash, trees and lamps pop in, dust flies where large bricks
- * land, and confetti fires when it is done. The build's meshes are drawn through copies of their materials that move
- * each brick by its own transform, read from a texture, so a build costs no more draw calls than the finished scenery.
+ * land, and confetti fires when it is done. A Rezoning's build plays the same way over the slab already standing. The
+ * build's meshes are drawn through copies of their materials that move each brick by its own transform, read from a
+ * texture, so a build costs no more draw calls than the finished scenery. One build plays at a time.
  * ponytail: 140 puffs fly at once, and a landing past that throws no dust (the slab layers' dust lands inside the slab
  * anyway); grow the pool, or draw puffs as points, if a large Reveal's dust looks thin. And the whole transforms
  * texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that changed if a
@@ -149,12 +164,15 @@ export function createReveal(materials: Materials) {
     }
   }
 
-  /** Turn the build back into static scenery, and celebrate over its pieces. A build that lands early still shows its paint. */
-  const finish = (done: Build) => {
+  /**
+   * Turn the build back into static scenery, and celebrate over its pieces unless `quietly`. A build that lands early
+   * still shows its paint.
+   */
+  const finish = (done: Build, quietly = false) => {
     if (!plated) moments.plate()
     show(done)
     build = null
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < (quietly ? 0 : 50); i++) {
       const piece = done.pieces[i % done.pieces.length]
       spawn(
         THREE.MathUtils.lerp(piece.x0, piece.x1, Math.random()),
@@ -197,13 +215,22 @@ export function createReveal(materials: Materials) {
       show(ahead)
     },
 
-    /** Start assembling a Reveal's build, whose meshes are already in the scene. `on` hears of the moments along the way. */
-    play(next: Build, on: Moments) {
+    /**
+     * Start assembling a Reveal's build, whose meshes are already in the scene, or a Rezoning's if `rezoned`. `on` hears
+     * of the moments along the way. A build still assembling lands at once.
+     */
+    play(next: Build, on: Moments, rezoned = false) {
+      if (build) finish(build, true)
       ;[build, moments, t, plated, landed] = [next, on, 0, false, 0]
       hide(next)
-      delays = schedule(next)
+      delays = schedule(next, rezoned)
       state = new Uint8Array(next.bricks.length)
       plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.stage === 'plate' ? [delays[i] + DURATION / 2] : [])))
+    },
+
+    /** Land the build still assembling at once, without celebrating, as when its piece is about to be built again. */
+    settle() {
+      if (build) finish(build, true)
     },
 
     /** `dt` is the real seconds since the last frame. */
