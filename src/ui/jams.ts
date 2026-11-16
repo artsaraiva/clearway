@@ -65,7 +65,8 @@ interface Selection {
  * centres the camera on the Junction and selects it.
  *
  * The markers find the Jam from far out; the stuck cars' emotion stays the main signal in the world. None shows while
- * a Rebuild plays. While a Layout is in the hand they fade back and let clicks through, since every click is a drop.
+ * a Rebuild plays. While `busy`, as when a Layout is in the hand, they fade back and let clicks through, since every
+ * click is a drop.
  */
 export function createJamMarkers(
   root: HTMLElement,
@@ -73,7 +74,7 @@ export function createJamMarkers(
   game: Game,
   view: View,
   tools: Selection,
-  holding: () => boolean,
+  busy: () => boolean,
 ) {
   const layer = document.createElement('div')
   layer.className = 'jams'
@@ -104,7 +105,7 @@ export function createJamMarkers(
     el.setAttribute('aria-label', `Traffic is stuck at this ${name}. Go to it`)
     const marker: Marker = { el, tail: el.querySelector('.tail')!, junction, gone: false, risen: 0, move: '', rotate: '' }
     el.onclick = () => {
-      if (marker.gone || holding() || view.rebuilding) return
+      if (marker.gone || busy() || view.rebuilding) return
       view.camera.centreOn(marker.junction.at)
       tools.select(marker.junction)
     }
@@ -181,7 +182,7 @@ export function createJamMarkers(
           fade(marker, false)
         }
       }
-      layer.classList.toggle('holding', holding())
+      layer.classList.toggle('busy', busy())
       const now = performance.now()
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { City, LAYOUTS, type Layout } from '../city/city'
-import { Sim } from './sim'
+import { DT, Sim } from './sim'
 import type { Change, DemandSpec, NetworkSpec, RoadAttributes } from './spec'
 
 function run(sim: Sim, seconds: number, until = () => false) {
@@ -8,7 +8,12 @@ function run(sim: Sim, seconds: number, until = () => false) {
   return sim
 }
 const jams = (sim: Sim) => run(sim, 180).flow < 0.5
-const holds = (sim: Sim) => run(sim, 300, () => sim.holding).holding
+/** Whether, within five minutes, Flow stays at 80% or more for a whole minute: the traffic has cleared. */
+const clears = (sim: Sim) => {
+  let clear = 0
+  run(sim, 300, () => (clear = sim.flow >= 0.8 ? clear + DT : 0) >= 60)
+  return clear >= 60
+}
 const state = (sim: Sim) => sim.vehicles.map((v) => [v.id, v.lane.id, v.s])
 
 /** A hand-built network with its Demand: `initial` is the configuration it starts in, `solution` the Changes that clear its Jam. */
@@ -96,7 +101,7 @@ it('jams District 1 Level 1 when left untouched', () => {
 })
 
 it('clears District 1 Level 1 with its reference solution', () => {
-  expect(holds(solved(level1()))).toBe(true)
+  expect(clears(solved(level1()))).toBe(true)
 })
 
 it('jams District 1 Level 2 when left untouched', () => {
@@ -104,7 +109,7 @@ it('jams District 1 Level 2 when left untouched', () => {
 })
 
 it('clears District 1 Level 2 with its reference solution', () => {
-  expect(holds(solved(level2(), level1Solved()))).toBe(true)
+  expect(clears(solved(level2(), level1Solved()))).toBe(true)
 })
 
 it('is deterministic for a seed', () => {
@@ -139,8 +144,8 @@ const NORTH_CLOSED: Change = {
   disable: ['N.in0', 'N.in1'].flatMap((lane) => ['E.out0', 'S.out0', 'S.out1', 'W.out0'].map((out) => `${lane}>${out}`)),
 }
 
-it('holds a crossroads with default Connections and moderate Demand', () => {
-  expect(holds(start(crossroads()))).toBe(true)
+it('keeps a crossroads with default Connections and moderate Demand clear', () => {
+  expect(clears(start(crossroads()))).toBe(true)
 })
 
 it('jams a crossroads with every Connection from one Arm disabled', () => {
@@ -150,7 +155,7 @@ it('jams a crossroads with every Connection from one Arm disabled', () => {
 it('clears that crossroads on a Reset, which returns it to its default configuration', () => {
   const sim = start(crossroads([NORTH_CLOSED]))
   sim.reset('X')
-  expect(holds(sim)).toBe(true)
+  expect(clears(sim)).toBe(true)
 })
 
 /** A T-junction: a road heavy from W to E and a nearly empty side road S, with the side road as the main road. */
@@ -178,7 +183,7 @@ it('jams a T-junction whose heavy road yields, even to a light road that is near
 })
 
 it('clears the T-junction once the heavy road is main and the light road yields', () => {
-  expect(holds(solved(tJunction()))).toBe(true)
+  expect(clears(solved(tJunction()))).toBe(true)
 })
 
 it('gives the T-junction the same result every run', () => {
@@ -256,9 +261,9 @@ it('gives a Sim Pre-warmed a few steps at a time the same result as one Pre-warm
 
 it('carries a cleared roundabout over a Rebuild, which jams until its own Changes', () => {
   const first = solved(ring())
-  expect(holds(first)).toBe(true)
+  expect(clears(first)).toBe(true)
   expect(jams(start(ringAndCrossroads(), first.configuration()))).toBe(true)
-  expect(holds(solved(ringAndCrossroads(), first.configuration()))).toBe(true)
+  expect(clears(solved(ringAndCrossroads(), first.configuration()))).toBe(true)
 })
 
 /**
@@ -290,7 +295,7 @@ function roundabout(): Fixture {
 
 it('jams a one-Block roundabout squeezed onto its outer Ring lane, and clears it once the inner lane opens', () => {
   expect(jams(start(roundabout()))).toBe(true)
-  expect(holds(solved(roundabout()))).toBe(true)
+  expect(clears(solved(roundabout()))).toBe(true)
 })
 
 /** The one-Block roundabout in its default configuration, with most trips from every Gateway turning left, three quarters of the way round the Ring. */
@@ -317,10 +322,10 @@ function cityOf(...tiles: [id: Layout['id'], rotation: number, x: number, y: num
   return city
 }
 
-it('holds a City of a Curve and a Straight, with trips driving through both', () => {
+it('keeps a City of a Curve and a Straight clear, with trips driving through both', () => {
   // The Curve's north end and the Straight's east end are the only Gateways, so every trip crosses both Tiles.
   const sim = new Sim(cityOf(['curve', 0, 0, 0], ['straight', 0, 1, 0]), [], 1)
-  expect(holds(sim)).toBe(true)
+  expect(clears(sim)).toBe(true)
   expect(sim.completed).toBeGreaterThan(0)
 })
 

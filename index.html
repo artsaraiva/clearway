@@ -118,11 +118,11 @@
         will-change: transform;
         transition: opacity 0.2s;
       }
-      .jams.holding .jam,
+      .jams.busy .jam,
       .jam.gone {
         pointer-events: none;
       }
-      .jams.holding .jam {
+      .jams.busy .jam {
         opacity: 0.45;
       }
       .jam .pop {
@@ -376,7 +376,7 @@
         justify-content: space-between;
         gap: 12px;
       }
-      /* Growth, the sum of every Tile's Stage, under the yen, with how many Tiles are at each Stage. */
+      /* Growth, the sum of every Tile's Stage, under the yen, with how many Tiles are at each Stage and the Record. */
       .growth {
         top: calc(var(--edge) + 114px);
         left: var(--edge);
@@ -404,6 +404,9 @@
       .growth .stages i {
         font-style: normal;
         color: var(--star);
+      }
+      .growth .record {
+        margin-top: 3px;
       }
       /* Dev only: the pace of growth, when it is sped up. */
       .growth .pace {
@@ -436,24 +439,6 @@
         font-size: 22px;
         font-weight: 800;
       }
-      .flow .state {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-      }
-      .flow.holding .state {
-        font-weight: 800;
-        color: #08834a;
-      }
-      .flow.holding .state::before {
-        content: '';
-        width: 15px;
-        height: 15px;
-        border-radius: 50%;
-        background: var(--flow)
-          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.2 8.4l2.4 2.4 5-5.2' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-          center/100% no-repeat;
-      }
       .gauge {
         position: relative;
         height: 12px;
@@ -467,19 +452,6 @@
         border-radius: 6px;
         background: linear-gradient(90deg, #2bd98a, var(--flow));
         transition: width 0.2s;
-      }
-      /* The bar Flow must hold at or above. */
-      .gauge b {
-        position: absolute;
-        top: -3px;
-        bottom: -3px;
-        width: 3px;
-        margin-left: -1.5px;
-        border-radius: 2px;
-        background: var(--ink);
-      }
-      .flow .sub {
-        justify-content: space-between;
       }
       /* A notice under the readings, as when a saved City would not load: one line, gone after a while or a click. */
       .notice {
