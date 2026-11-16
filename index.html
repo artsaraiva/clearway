@@ -403,11 +403,12 @@
         padding: 8px;
         border-radius: 26px;
       }
-      /* The bar's two rows: the Layouts, then the Zones with the name of the one picked or under the pointer. */
+      /* The bar's two rows: the Layouts, then the Zones, as wide as the Layouts, under a divider that names the one picked
+         or under the pointer. The name sits in the divider, so a long one never widens the bar. */
       .picks {
         display: flex;
         flex-direction: column;
-        gap: 5px;
+        gap: 2px;
       }
       .layouts,
       .zone-picks {
@@ -416,16 +417,27 @@
       }
       .zones {
         display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .zone-name {
+        display: flex;
         align-items: center;
-        gap: 10px;
-        padding-top: 5px;
-        border-top: 1px solid var(--line);
+        gap: 8px;
+        font-size: 12px;
+        color: var(--ink-soft);
         white-space: nowrap;
+      }
+      .zone-name::before,
+      .zone-name::after {
+        content: '';
+        flex: 1;
+        border-top: 1px solid var(--line);
       }
       .zone {
         display: grid;
         place-items: center;
-        width: 46px;
+        width: 40px;
         height: 40px;
         border-radius: 14px;
         cursor: grab;

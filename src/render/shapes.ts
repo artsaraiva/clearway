@@ -44,6 +44,19 @@ export function gable(len: number, wid: number, h: number): THREE.BufferGeometry
   }).translate(0, 0, -len / 2)
 }
 
+/**
+ * A sawtooth roof standing on y = 0: `n` teeth `h` high along x over `len`, each an upright face and a slope down to
+ * the next, `wid` deep along z.
+ */
+export function sawtooth(len: number, wid: number, h: number, n: number): THREE.BufferGeometry {
+  const s = new THREE.Shape()
+  const tooth = len / n
+  s.moveTo(-len / 2, 0)
+  for (let i = 0; i < n; i++) s.lineTo(-len / 2 + i * tooth, h).lineTo(-len / 2 + (i + 1) * tooth, 0)
+  s.lineTo(-len / 2, 0)
+  return new THREE.ExtrudeGeometry(s, { depth: wid, bevelEnabled: false }).translate(0, 0, -wid / 2)
+}
+
 /** A sim outline raised from y = 0 to `h`, bevelled at its top edge. Lies at Three's (x, -y). */
 export function raised(loop: Vec[], h: number, bevel: number): THREE.BufferGeometry {
   return new THREE.ExtrudeGeometry(new THREE.Shape(loop.map((p) => new THREE.Vector2(p.x, p.y))), {

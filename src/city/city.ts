@@ -36,14 +36,21 @@ export const LAYOUTS: readonly Layout[] = [
 
 /** What every Block of a Tile is built as, which the player picks. */
 export interface Zone {
-  id: 'low-density' | 'offices'
+  id: 'low-density' | 'medium-density' | 'high-density' | 'offices' | 'shops' | 'industrial' | 'parks' | 'green' | 'farms'
   name: string
 }
 
 /** The Zones in the order the bar offers them. A Tile can also be unzoned: its Blocks are left as grass. */
 export const ZONES: readonly Zone[] = [
   { id: 'low-density', name: 'Low-density residential' },
+  { id: 'medium-density', name: 'Medium-density residential' },
+  { id: 'high-density', name: 'High-density residential' },
   { id: 'offices', name: 'Offices' },
+  { id: 'shops', name: 'Shops' },
+  { id: 'industrial', name: 'Industrial' },
+  { id: 'parks', name: 'Parks' },
+  { id: 'green', name: 'Green' },
+  { id: 'farms', name: 'Farms' },
 ]
 
 /** The Zone a new run's first Tile is built as, and the one picked when a run opens. */

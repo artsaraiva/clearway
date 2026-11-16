@@ -1,13 +1,15 @@
 import type { Zone } from '../city/city'
-import { overlaps, type Bounds, type Vec } from '../sim/geometry'
+import { middle, overlaps, type Bounds, type Vec } from '../sim/geometry'
+import { cellAt, cellBounds } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { Kit, OfficeStyle } from './kit'
+import { allotments, farm, meadow, park, plaza, site } from './landmarks'
 
-// What each Zone builds on a Block (#130, ported from the neighbourhoods prototype of #127): its building shapes, its
-// palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look reads
-// the Block, the ground it must leave free and the kit's random stream, and nothing of where the Block lies in the
-// City, so a Zone builds alike at the City's middle and at its edge.
+// What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
+// shapes, its palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look
+// reads the Block, the ground it must leave free, the kit's random stream and one draw for its Tile, and nothing of
+// where the Block lies in the City, so a Zone builds alike at the City's middle and at its edge.
 
 /** m a building keeps clear of a street tree, beyond its trunk. */
 const TREE_ROOM = 2.4
@@ -16,12 +18,35 @@ const TREE_ROOM = 2.4
 // lot but for 0.4 m on every side, at least 7 m across and 0.6 m in from the Block's edge, and a house of at most
 // 10.5 m stands on it 1.2 m in from the lawn's edge.
 const HOUSES = { lot: 15.2, margin: 2.8, gap: 0.4, least: 7, clear: 0.6, yard: 1.2, most: 10.5 }
+// Medium-density residential is terraces on half its Tiles and courtyards on the other half, the same on every Block
+// of a Tile. Terraces: rows of houses 4.4 to 6.8 m wide and 8 to 10 m deep along every edge, their fronts 2.2 m in from
+// it, and up to four trees in the yards behind.
+const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4 } as const
+// Courtyards: lots at most 42 m on a side, 3.2 m in from the Block's bounding box, built over all but 1.6 m of the lot
+// on every side and 1.5 m in from the Block's edge, at least 9 m across, in wings 7.5 to 9 m deep and 4 to 7 storeys
+// tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L.
+const COURTYARDS = { lot: 42, margin: 3.2, gap: 1.6, clear: 1.5, least: 9, wing: [7.5, 9], floors: [4, 7.4], court: 5 } as const
+// High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
+// of at most 17 m east–west by 15 north–south and at least 9, 11 to 17 storeys tall, leaving 4.5 m of the lot open on
+// every side. Its podium is 1.2 m wider all round and stands 1.5 m in from the Block's edge.
+const TOWERS = { lot: 30, margin: 3.4, gap: 4.5, most: [17, 15], least: 9, podium: 1.2, clear: 1.5, floors: [11, 17] } as const
 // Offices: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower of at most 20 m on
 // a side and at least 8, leaving 3.6 m of the lot open on every side, 1.5 m in from the Block's edge.
 const OFFICES = { lot: 30, margin: 3.4, gap: 3.6, least: 8, most: 20, clear: 1.5 }
 // Most towers stand 7 to 11 storeys, and one in five stands 16 to 21 above them.
 const SKYLINE = { tall: 0.2, low: [7, 11], high: [16, 21] } as const
 const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
+// Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
+// to three trees in the yards behind.
+const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
+// Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
+// a shed over all but 2.5 m of the lot on every side, 1.5 m in from the Block's edge and at least 9 m across. On some
+// Blocks the first shed has a chimney.
+const SHEDS = { lot: 34, margin: 3.2, gap: 2.5, clear: 1.5, least: 9, chimney: 0.45 }
+// Parks: a park with a pond, or on a Block under 1,600 m² by its bounding box, one time in three, a plaza with a fountain.
+const PARKS = { small: 1600, plaza: 0.35 }
+// Green: a meadow, or one Block in three allotments.
+const GREEN = { allotments: 0.35 }
 
 /** What a Zone's look builds on: one Block, and the ground on it that must stay free. */
 export interface ZoneGround {
@@ -32,6 +57,8 @@ export interface ZoneGround {
   reserved: Bounds[]
   /** The Block's street trees, which buildings keep clear of. */
   street: Vec[]
+  /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
+  tileDraw: number
 }
 
 /** How a Zone builds on its Blocks. */
@@ -44,7 +71,17 @@ export interface Look {
 /** Each Zone's look. An unzoned Tile has none: its Blocks are left as grass (`verge`). */
 export const LOOKS: Record<Zone['id'], Look> = {
   'low-density': { landmarks: false, fill: houses },
+  'medium-density': { landmarks: false, fill: (g) => (g.tileDraw < 0.5 ? terraces(g) : courtyards(g)) },
+  'high-density': { landmarks: true, fill: towers },
   offices: { landmarks: true, fill: offices },
+  shops: { landmarks: false, fill: shops },
+  industrial: { landmarks: false, fill: industrial },
+  parks: { landmarks: false, fill: parks },
+  green: {
+    landmarks: false,
+    fill: ({ kit, field, block, street }) => (kit.chance(GREEN.allotments) ? allotments : meadow)(kit, field, block, street),
+  },
+  farms: { landmarks: false, fill: ({ kit, field, block, street }) => farm(kit, field, block, street) },
 }
 
 /** Split a rectangle into lots no longer than `max` on either side, cutting the long side near its middle. */
@@ -85,20 +122,31 @@ function lotsOf({ kit, block, street }: ZoneGround, margin: number, max: number)
 }
 
 /**
- * Whether a footprint `w` (east–west) by `d` centred on `(x, y)` stands on the Block at least `clear` m in from its
- * edge, off any landmark's ground and clear of the street trees. Its outline is sampled about every 3 m, closer than a
- * Road is wide, so no Road crosses it unseen.
+ * Whether a footprint `w` by `d` centred on `(x, y)` and turned `ry` (unturned, `w` runs east–west) stands on the Block
+ * at least `clear` m in from its edge, off any landmark's ground and clear of the street trees. Its outline is sampled
+ * about every 3 m, closer than a Road is wide, so no Road crosses it unseen.
  */
-function stands({ block, field, reserved, street }: ZoneGround, x: number, y: number, w: number, d: number, clear: number): boolean {
+function stands(
+  { block, field, reserved, street }: ZoneGround,
+  x: number,
+  y: number,
+  w: number,
+  d: number,
+  clear: number,
+  ry = 0,
+): boolean {
+  const [c, s] = [Math.cos(ry), Math.sin(ry)]
   const [nu, nv] = [Math.max(1, Math.ceil(w / 3)), Math.max(1, Math.ceil(d / 3))]
   for (let i = 0; i <= nu; i++) {
     for (let j = 0; j <= nv; j++) {
-      const edge = i === 0 || i === nu || j === 0 || j === nv
-      if (edge && field.sample(x - w / 2 + (i * w) / nu, y - d / 2 + (j * d) / nv) < clear) return false
+      if (i !== 0 && i !== nu && j !== 0 && j !== nv) continue
+      const [u, v] = [-w / 2 + (i * w) / nu, -d / 2 + (j * d) / nv]
+      if (field.sample(x + u * c - v * s, y + u * s + v * c) < clear) return false
     }
   }
   if (!inside(block.loop, x, y)) return false
-  const box = { x0: x - w / 2, y0: y - d / 2, x1: x + w / 2, y1: y + d / 2 }
+  const [hw, hd] = [(Math.abs(c) * w + Math.abs(s) * d) / 2, (Math.abs(s) * w + Math.abs(c) * d) / 2]
+  const box = { x0: x - hw, y0: y - hd, x1: x + hw, y1: y + hd }
   if (reserved.some((r) => overlaps(box, r))) return false
   return !street.some((t) => t.x > box.x0 - TREE_ROOM && t.x < box.x1 + TREE_ROOM && t.y > box.y0 - TREE_ROOM && t.y < box.y1 + TREE_ROOM)
 }
@@ -110,6 +158,143 @@ function stands({ block, field, reserved, street }: ZoneGround, x: number, y: nu
 function fit(g: ZoneGround, x: number, y: number, w: number, d: number, clear: number, least: number, step: number, tries: number) {
   for (let k = 0; k < tries && Math.min(w, d) >= least && !stands(g, x, y, w, d, clear); k++) [w, d] = [w - step, d - step]
   return Math.min(w, d) >= least && stands(g, x, y, w, d, clear) ? { w, d } : null
+}
+
+/** A lot in a row along a Block's edge: `w` along the edge and `d` deep, centred on `(x, y)`, its front facing `ry` (0 north, π/2 west). */
+interface RowLot {
+  x: number
+  y: number
+  w: number
+  d: number
+  ry: number
+  /** Whether its front faces a Road, rather than the seam with the next Tile. */
+  onRoad: boolean
+}
+
+/** A row lot's corners, `shrink` m in from its outline. */
+function corners(lot: RowLot, shrink: number): Vec[] {
+  const [c, s] = [Math.cos(lot.ry), Math.sin(lot.ry)]
+  const [hw, hd] = [lot.w / 2 - shrink, lot.d / 2 - shrink]
+  return [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ].map(([u, v]) => ({ x: lot.x + u * c - v * s, y: lot.y + u * s + v * c }))
+}
+
+/** Whether two row lots overlap by more than a sliver, by their separating axes. */
+function overlap(a: RowLot, b: RowLot): boolean {
+  const [pa, pb] = [corners(a, 0.15), corners(b, 0.15)]
+  for (const ry of [a.ry, b.ry]) {
+    for (const [ax, ay] of [
+      [Math.cos(ry), Math.sin(ry)],
+      [-Math.sin(ry), Math.cos(ry)],
+    ]) {
+      const [ra, rb] = [pa.map((p) => p.x * ax + p.y * ay), pb.map((p) => p.x * ax + p.y * ay)]
+      if (Math.max(...ra) <= Math.min(...rb) || Math.max(...rb) <= Math.min(...ra)) return false
+    }
+  }
+  return true
+}
+
+/** Whether `(x, y)` lies within `pad` m of a row lot. */
+function near(lot: RowLot, x: number, y: number, pad: number): boolean {
+  const [c, s] = [Math.cos(lot.ry), Math.sin(lot.ry)]
+  const [dx, dy] = [x - lot.x, y - lot.y]
+  return Math.abs(dx * c + dy * s) < lot.w / 2 + pad && Math.abs(-dx * s + dy * c) < lot.d / 2 + pad
+}
+
+/** How far `p` lies from the segment from `a` to `b`. */
+function distance(p: Vec, a: Vec, b: Vec): number {
+  const [dx, dy] = [b.x - a.x, b.y - a.y]
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+  return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy)
+}
+
+/** An open polyline without the points that stray less than `tolerance` from it (Douglas–Peucker). */
+function simplified(pts: Vec[], tolerance: number): Vec[] {
+  if (pts.length < 3) return pts
+  const [a, b] = [pts[0], pts[pts.length - 1]]
+  let [index, worst] = [0, 0]
+  for (let i = 1; i < pts.length - 1; i++) {
+    const d = distance(pts[i], a, b)
+    if (d > worst) [index, worst] = [i, d]
+  }
+  if (worst <= tolerance) return [a, b]
+  return [...simplified(pts.slice(0, index + 1), tolerance).slice(0, -1), ...simplified(pts.slice(index), tolerance)]
+}
+
+/** A closed outline as a few straight sides, its corners in order: the field's outlines step every 1.25 m. */
+function sides(loop: Vec[], tolerance: number): Vec[] {
+  let far = 0
+  loop.forEach((p, i) => {
+    if (Math.hypot(p.x - loop[0].x, p.y - loop[0].y) > Math.hypot(loop[far].x - loop[0].x, loop[far].y - loop[0].y)) far = i
+  })
+  const there = simplified(loop.slice(0, far + 1), tolerance)
+  const back = simplified([...loop.slice(far), loop[0]], tolerance)
+  return [...there.slice(0, -1), ...back.slice(0, -1)]
+}
+
+/**
+ * Rows of lots along the Block's edge, whatever its shape: their fronts `margin` m in from the edge and facing out,
+ * each `width()` wide, and a whole side of a row `depth()` deep. A lot that would overlap one placed already, or not
+ * stand on the Block, is left out, so corners stay open.
+ */
+function rows(g: ZoneGround, margin: number, depth: () => number, width: () => number): RowLot[] {
+  const lots: RowLot[] = []
+  const cell = cellBounds(cellAt(middle(g.block)))
+  for (const loop of g.field.outlines(margin, [g.block])) {
+    if (loop.length < 4 || !inside(g.block.loop, loop[0].x, loop[0].y)) continue
+    const line = sides(loop, 0.7)
+    let twice = 0
+    line.forEach((p, i) => {
+      const q = line[(i + 1) % line.length]
+      twice += p.x * q.y - q.x * p.y
+    })
+    const turn = twice > 0 ? 1 : -1 // counterclockwise, the outside is to the right of the way round
+    for (let i = 0; i < line.length; i++) {
+      const [a, b] = [line[i], line[(i + 1) % line.length]]
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      if (len < 5) continue
+      const [ux, uy] = [(b.x - a.x) / len, (b.y - a.y) / len]
+      const [nx, ny] = [turn * uy, -turn * ux] // out of the Block
+      const ry = Math.atan2(-nx, ny)
+      const d = depth()
+      for (let s = 0.3; s < len - 0.3;) {
+        const w = Math.min(width(), len - 0.3 - s)
+        if (w < 3.6) break
+        const [fx, fy] = [a.x + ux * (s + w / 2), a.y + uy * (s + w / 2)]
+        // Across the pavement from the front: on a Road, or on the seam at the cell's edge.
+        const [px, py] = [fx + nx * (margin + 3), fy + ny * (margin + 3)]
+        const lot = {
+          x: fx - (nx * d) / 2,
+          y: fy - (ny * d) / 2,
+          w,
+          d,
+          ry,
+          onRoad: px > cell.x0 + 1 && px < cell.x1 - 1 && py > cell.y0 + 1 && py < cell.y1 - 1,
+        }
+        if (stands(g, lot.x, lot.y, w - 0.3, d - 0.3, 0.4, ry) && !lots.some((o) => overlap(o, lot))) lots.push(lot)
+        s += w
+      }
+    }
+  }
+  return lots
+}
+
+/** Up to `count` trees in the yards behind the rows `lots`, where there is room. */
+function yards(g: ZoneGround, lots: RowLot[], count: number) {
+  const { kit, block, field } = g
+  const planted: Vec[] = []
+  for (let tries = 0; tries < count * 12 && planted.length < count; tries++) {
+    const [x, y] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
+    if (field.sample(x, y) < 4 || !inside(block.loop, x, y)) continue
+    if (lots.some((l) => near(l, x, y, 2.6)) || planted.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue
+    if (!stands(g, x, y, 3, 3, 2)) continue
+    kit.tree(x, y, KERB, kit.range(0.55, 0.85), kit.chance(0.25) ? 'sakura' : 'round')
+    planted.push({ x, y })
+  }
 }
 
 /** Low-density residential: a house on a lawn on each lot, most with a garden tree, and the odd lot left to a tree. */
@@ -134,6 +319,69 @@ function houses(g: ZoneGround) {
   }
 }
 
+/**
+ * Medium-density residential, terraces: rows of narrow houses that share their walls, one to three storeys, along
+ * every edge, with yards behind.
+ */
+function terraces(g: ZoneGround) {
+  const { kit } = g
+  const lots = rows(
+    g,
+    TERRACES.margin,
+    () => kit.range(...TERRACES.deep),
+    () => kit.range(...TERRACES.wide),
+  )
+  for (const l of lots) kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3)
+  yards(g, lots, TERRACES.trees)
+}
+
+/**
+ * Medium-density residential, courtyards: on each lot an apartment building round a court with a tree, an O or a U,
+ * where the lot is large enough; an L where it is not, and a bar on a narrow lot.
+ */
+function courtyards(g: ZoneGround) {
+  const { kit } = g
+  for (const lot of lotsOf(g, COURTYARDS.margin, COURTYARDS.lot)) {
+    const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
+    const [w0, d0] = [lot.x1 - lot.x0 - 2 * COURTYARDS.gap, lot.y1 - lot.y0 - 2 * COURTYARDS.gap]
+    const room = fit(g, x, y, w0, d0, COURTYARDS.clear, COURTYARDS.least, 5, 2)
+    if (!room) continue
+    const { w, d } = room
+    const [x0, y0, x1, y1] = [x - w / 2, y - d / 2, x + w / 2, y + d / 2]
+    const deep = kit.range(...COURTYARDS.wing)
+    const floors = Math.round(kit.range(...COURTYARDS.floors))
+    const [north, south] = [
+      { x0, y0: y1 - deep, x1, y1 },
+      { x0, y0, x1, y1: y0 + deep },
+    ]
+    let wings: Bounds[]
+    if (Math.min(w, d) >= 2 * deep + COURTYARDS.court) {
+      wings = [north, south, { x0, y0: y0 + deep, x1: x0 + deep, y1: y1 - deep }, { x0: x1 - deep, y0: y0 + deep, x1, y1: y1 - deep }]
+      if (kit.chance(0.4)) wings.splice(Math.floor(kit.range(0, 4)), 1)
+      kit.lawn(x, y, KERB, w - 2 * deep, d - 2 * deep)
+      kit.tree(x, y, KERB + 0.16, kit.range(0.7, 0.95), kit.chance(0.3) ? 'sakura' : 'round')
+    } else if (Math.min(w, d) >= deep + 6) {
+      const [top, left] = [kit.chance(0.5), kit.chance(0.5)]
+      const [from, to] = top ? [y0, y1 - deep] : [y0 + deep, y1]
+      wings = [top ? north : south, left ? { x0, y0: from, x1: x0 + deep, y1: to } : { x0: x1 - deep, y0: from, x1, y1: to }]
+    } else wings = [{ x0, y0, x1, y1 }]
+    kit.apartment(wings, KERB, floors)
+  }
+}
+
+/** High-density residential: a pale residential tower on each large lot, with room around it. */
+function towers(g: ZoneGround) {
+  const { kit } = g
+  const { podium, most, gap } = TOWERS
+  for (const lot of lotsOf(g, TOWERS.margin, TOWERS.lot)) {
+    const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
+    const [w, d] = [Math.min(most[0], lot.x1 - lot.x0 - 2 * gap), Math.min(most[1], lot.y1 - lot.y0 - 2 * gap)]
+    const base = fit(g, x, y, w + 2 * podium, d + 2 * podium, TOWERS.clear, TOWERS.least + 2 * podium, 2.5, 2)
+    if (!base) continue
+    kit.residentialTower(x, y, KERB, base.w - 2 * podium, base.d - 2 * podium, Math.round(kit.range(...TOWERS.floors)))
+  }
+}
+
 /** Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left to a tree. */
 function offices(g: ZoneGround) {
   const { kit } = g
@@ -149,4 +397,39 @@ function offices(g: ZoneGround) {
     const floors = Math.round(kit.chance(SKYLINE.tall) ? kit.range(...SKYLINE.high) : kit.range(...SKYLINE.low))
     kit.officeTower(x, y, KERB, footprint.w, footprint.d, floors, kit.pick(STYLES))
   }
+}
+
+/** Shops: low shops shoulder to shoulder along every edge, each with an awning where it faces a Road, and trees behind. */
+function shops(g: ZoneGround) {
+  const { kit } = g
+  const lots = rows(
+    g,
+    SHOPS.margin,
+    () => kit.range(...SHOPS.deep),
+    () => kit.range(...SHOPS.wide),
+  )
+  for (const l of lots) kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, kit.chance(0.45) ? 1 : 2, l.onRoad)
+  yards(g, lots, SHOPS.trees)
+}
+
+/** Industrial: wide, low sheds with sawtooth roofs on big lots with yards between them, and now and then a chimney. */
+function industrial(g: ZoneGround) {
+  const { kit } = g
+  let chimney = kit.chance(SHEDS.chimney)
+  const area = (l: Bounds) => (l.x1 - l.x0) * (l.y1 - l.y0)
+  for (const lot of lotsOf(g, SHEDS.margin, SHEDS.lot).sort((a, b) => area(b) - area(a))) {
+    const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
+    const shed = fit(g, x, y, lot.x1 - lot.x0 - 2 * SHEDS.gap, lot.y1 - lot.y0 - 2 * SHEDS.gap, SHEDS.clear, SHEDS.least, 3, 3)
+    if (!shed) continue
+    kit.warehouse(x, y, KERB, shed.w, shed.d, chimney)
+    chimney = false
+  }
+}
+
+/** Parks: a park with a pond and trees, or on a small Block now and then a plaza with a fountain. */
+function parks({ kit, field, block, street }: ZoneGround) {
+  const small = (block.x1 - block.x0) * (block.y1 - block.y0) < PARKS.small
+  const fountain = small && kit.chance(PARKS.plaza) ? site(field, block, 12, 12, middle(block), street, 1) : null
+  if (fountain) plaza(kit, field, block, fountain, street)
+  else park(kit, field, block, undefined, street)
 }
