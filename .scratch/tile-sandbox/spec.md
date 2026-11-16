@@ -21,9 +21,8 @@ Vocabulary in root `GLOSSARY.md`. Routing follows ADR 0001, the Rebuild ADR 0002
 ### Goal
 
 - A pure sandbox. The City cannot be finished or lost.
-- The measure of doing well is trips arriving per minute (Income divided by the pay per trip).
-- **Holding:** Flow at or above 80% for 60 sim-seconds, the bar the sim already has (`WIN_FLOW`, `WIN_TIME`).
-- **Record:** the most trips per minute the City has carried while Holding. The page shows it beside the current value, which can fall.
+- The measure of doing well is Growth, the sum of the Stages (ADR 0005). Until [#140](https://github.com/artsaraiva/clearway/issues/140) it was trips arriving per minute, carried while Holding: Flow at or above 80% for 60 sim-seconds. Holding is retired.
+- **Record:** the highest Growth reached in any run. It rises the moment Growth does and stays when Growth falls, as on an Undo or a Rezoning. A new run carries it over, and a Free run's is kept apart. The page shows it beside Growth.
 
 ### The board
 
@@ -62,7 +61,7 @@ A zoned Tile grows through Stages 1, 2 and 3 as its Junction serves trips ([#138
 - A Junction serves a trip each time one leaves a Road for the Junction's own lanes while it has no Jam. While the game is earning, never during a Pre-warm, those trips are its Tile's progress: 150 take it to Stage 2 and 450 more to Stage 3 (`STAGES` in `src/tuning.ts`). It stands in until [#95](https://github.com/artsaraiva/clearway/issues/95) gives Tiles trips of their own, so a Tile that no route passes through never grows.
 - Only up: a Jam stops growth and takes nothing away.
 - A Swap keeps the Stage and progress, and a Rezoning starts the Tile again at Stage 1. Undo takes a placed Tile's Stage with it, and undoing a Rezoning puts the old Stage back.
-- A Tile reaches a Stage in the middle of play, with no Rebuild. Growth, the sum of the Stages, shows under the yen; it becomes the Record in [#140](https://github.com/artsaraiva/clearway/issues/140).
+- A Tile reaches a Stage in the middle of play, with no Rebuild. Growth, the sum of the Stages, shows under the yen with the Record ([#140](https://github.com/artsaraiva/clearway/issues/140)).
 
 ### Undo
 
@@ -132,7 +131,7 @@ Beside the Sim, not inside it: the run's seed, yen, the City, each zoned Tile's 
 - The bar of five Layouts. Drag, rotate with `R` or the wheel, cancel with `Esc`, as in the prototype: a green ghost with the price when legal, grey when too expensive, red with the reason when not.
 - Dropping on a placed Tile is a Swap.
 - An Undo button while the window is open.
-- The yen counter, Income, trips per minute with the Record, and Flow.
+- The yen counter, Income, Growth with the Record, trips per minute and Flow.
 - Each Gateway labelled with its trips per minute.
 - Pause, 1×, 4× and 8×. Both Tools on every Junction, and the route Inspector.
 - The slab, lighting and distance field follow the City's extent, since the board has no bounds.
@@ -141,13 +140,13 @@ Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/clearway/issue
 
 ## Bars
 
-`npm run tune` (`scripts/tune.ts`) grows scripted Cities headless and reports them against these. Results for the numbers above are in [#89](https://github.com/artsaraiva/clearway/issues/89).
+`npm run tune` (`scripts/tune.ts`) grows scripted Cities headless and reports them against these. Results for the numbers above are in [#89](https://github.com/artsaraiva/clearway/issues/89), read against Holding. Since [#140](https://github.com/artsaraiva/clearway/issues/140) a City is clear when no Junction is jammed.
 
 | Bar | Target |
 | --- | --- |
-| A Jam emerges | untouched, a City stops Holding by about 6 Tiles |
-| Changes work early | up to about 10 Tiles, a Change restores Holding |
-| Building works late | past that, a placement or Swap restores Holding where no Change does |
+| A Jam emerges | untouched, a City has a Jam by about 6 Tiles |
+| Changes work early | up to about 10 Tiles, a Change clears the Jams |
+| Building works late | past that, a placement or Swap clears them where no Change does |
 | Pace | the first 12 Tiles take 10–20 minutes at 4× |
 | Recovery | from a fully jammed City, the Income floor affords a Tile within 30 sim-minutes |
 
