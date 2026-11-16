@@ -21,8 +21,11 @@ const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 
-/** A colour (painted onto the shared soft-lit material) or a material of the kit. */
-export type Look = string | THREE.Material
+/**
+ * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
+ * The kit's glass is tinted white unless a tint is given.
+ */
+export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color }
 export type TreeKind = keyof typeof LEAVES
 export type BuildingKind = 'house' | 'mid-rise' | 'tower'
 export type Kit = ReturnType<typeof createKit>
@@ -53,16 +56,28 @@ export interface Part {
  */
 export function createMaterials() {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
-  const pane = (color: string, emissive: string) =>
-    new THREE.MeshStandardMaterial({ color, roughness: 0.22, metalness: 0.1, emissive, emissiveIntensity: 0 })
-  const glass = pane('#9cc7df', '#ffc78a')
-  // The buildings' windows also come in a paler glass lit a whiter light, and a darker glass of which fewer are lit.
-  const [paler, darker] = [pane('#b4d6e3', '#ffe2b8'), pane('#7aa9c9', '#ffb878')]
-  const WINDOWS = [
-    [glass, 1],
-    [paler, 0.85],
-    [darker, 0.4],
-  ] as const
+  // One glass for every window, so that windows add no draw calls. Its vertex colour tints it: white for the glass
+  // itself, or the ratio to a paler or a darker glass. A darker tint lights its windows less (the glow goes with the
+  // square of the tint's green, up to full).
+  const GLASS = '#9cc7df'
+  const glass = new THREE.MeshStandardMaterial({
+    color: GLASS,
+    vertexColors: true,
+    roughness: 0.22,
+    metalness: 0.1,
+    emissive: '#ffc78a',
+    emissiveIntensity: 0,
+  })
+  glass.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= min(1.0, vColor.g * vColor.g);',
+    )
+  }
+  const shade = (hex: string) => {
+    const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
+    return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
+  }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree.
@@ -99,15 +114,15 @@ export function createMaterials() {
   return {
     solid,
     glass,
-    /** The glass a building's windows take, one picked per building. */
-    windows: WINDOWS.map(([material]) => material),
+    /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
+    windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
     bulb,
     water,
     roundShadow,
     squareShadow,
     /** Light the windows and lamps as the time of day has them. */
     setGlow({ windows, lamps }: Glow) {
-      for (const [material, strength] of WINDOWS) material.emissiveIntensity = windows * strength
+      glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
     },
   }
@@ -129,8 +144,9 @@ export function createKit(rand: () => number, materials: Materials) {
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    const geometry = typeof look === 'string' ? tint(geo, look) : geo
-    parts.push({ geometry, material: typeof look === 'string' ? solid : look, brick: -1 })
+    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
+    else if ('tint' in look) parts.push({ geometry: tint(geo, look.tint), material: look.material, brick: -1 })
+    else parts.push({ geometry: look === glass ? tint(geo, '#ffffff') : geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
@@ -198,10 +214,10 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A building on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with a glass band
-     * per floor, all of one of the windows' glasses. A house has one floor and a gable roof; `floors` is for the other two.
+     * per floor, all in one of the glass's tints. A house has one floor and a gable roof; `floors` is for the other two.
      */
     building(x: number, y: number, h: number, w: number, d: number, kind: BuildingKind, floors = 1) {
-      const panes = pick(windows)
+      const panes = { material: glass, tint: pick(windows) }
       if (kind === 'house') {
         ;[w, d] = [Math.min(w, 12), Math.min(d, 12)]
         const wall = range(4.4, 6.4)
