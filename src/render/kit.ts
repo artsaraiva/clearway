@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mulberry32 } from '../sim/demand'
 import type { Bounds } from '../sim/geometry'
 import type { Glow } from './day'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
@@ -10,6 +11,8 @@ const TAU = Math.PI * 2
 const WALLS = ['#fdeed6', '#ffd7b6', '#e0f2d4', '#cbebfc', '#fbe3a2', '#fbd2dd', '#e5dafb', '#fff7e8', '#c0e9e0']
 const ROOFS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548']
 const LAWN = '#a9db7f' // a house's garden
+const HEDGE = '#4e9f49' // round a Stage 3 house's garden
+const [LEDGE, CHIMNEY] = ['#fbf6ef', '#c9b8a6'] // a Stage 3 house's, between its storeys and through its roof
 // An office tower's curtain wall is one of these glasses, which the kit's one glass is tinted to, and its frame,
 // fins and crown one of these trims.
 const OFFICE_GLASS = ['#8fadc0', '#7b9db0', '#8cb5ae', '#5f778c', '#a6bfcb', '#c2b498']
@@ -87,6 +90,12 @@ export type Materials = ReturnType<typeof createMaterials>
 /** What a brick is, which decides when and how it comes in during a Rebuild. */
 export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
 
+/**
+ * What becomes of a brick as its Tile reaches another Stage: it stands throughout, it goes (the old Stage's), or it
+ * comes (the new Stage's). In any other build every brick stays.
+ */
+export type Fate = 'stays' | 'goes' | 'comes'
+
 /** One brick of the slab or of what stands on it: the unit that drops or pops in during a Rebuild. */
 export interface Brick {
   kind: BrickKind
@@ -94,6 +103,15 @@ export interface Brick {
   at: THREE.Vector3
   /** Puffs of dust thrown up where it lands. */
   dust: number
+  fate: Fate
+  /** The lot of its Block it stands on, in the order its Zone's look cut them; -1 for none. */
+  lot: number
+}
+
+/** The Stage a build is of, `to`, or, when `from` differs, the two Stages a Tile's Stage-up goes between. */
+export interface Stages {
+  from: number
+  to: number
 }
 
 /** A geometry in place, in Three coordinates, with its material and the index of the brick it belongs to. */
@@ -203,6 +221,20 @@ export function createKit(rand: () => number, materials: Materials) {
   const parts: Part[] = []
   const bricks: Brick[] = []
   let open = 0 // parts from here on belong to the next brick
+  // The Stages built, and the fate and the lot of the bricks closed from now on.
+  let stages: Stages = { from: 2, to: 2 }
+  let fate: Fate = 'stays'
+  let lot = -1
+  /**
+   * Run `fn` on a random stream of its own, seeded `seed`, its bricks taking the fate `as`. The kit's own stream gave
+   * the seed, one draw however much `fn` draws, so nothing built after it changes with what it built.
+   */
+  const own = (seed: number, as: Fate, fn: () => void) => {
+    const [outer, was] = [rand, fate]
+    ;[rand, fate] = [mulberry32(seed), as]
+    fn()
+    ;[rand, fate] = [outer, was]
+  }
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
   /** Give every vertex of a geometry of the glass the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
@@ -225,7 +257,7 @@ export function createKit(rand: () => number, materials: Materials) {
     if (open === parts.length) return
     for (let i = open; i < parts.length; i++) parts[i].brick = bricks.length
     open = parts.length
-    bricks.push({ kind, at: new THREE.Vector3(x, h, -y), dust })
+    bricks.push({ kind, at: new THREE.Vector3(x, h, -y), dust, fate, lot })
   }
 
   // Buildings repeat their boxes, so each is cut once per size.
@@ -277,6 +309,39 @@ export function createKit(rand: () => number, materials: Materials) {
     pick,
     chance: (p: number) => rand() < p,
 
+    /** Build at Stage `s.to`, or, when `s.from` differs, a Tile's Stage-up from one to the other. Stage 2 unless told. */
+    stages(s: Stages) {
+      stages = s
+    },
+
+    /** The bricks closed from now on stand on lot `n` of the Block (-1: on none). */
+    lot(n: number) {
+      lot = n
+    },
+
+    /**
+     * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own. In a
+     * Stage-up it stays if both Stages have it, and comes or goes if only one does.
+     */
+    from(first: number, fn: () => void) {
+      const seed = (rand() * 4294967296) >>> 0
+      const [low, high] = [Math.min(stages.from, stages.to), Math.max(stages.from, stages.to)]
+      if (first > high) return
+      own(seed, first <= low ? 'stays' : stages.to > stages.from ? 'comes' : 'goes', fn)
+    },
+
+    /**
+     * Something that changes with the Stage, built by `fn(stage)` on a random stream of its own, so that it draws alike
+     * at every Stage until it draws what only its Stage has: each Stage builds the same thing, better. In a Stage-up the
+     * old Stage's goes and the new Stage's comes.
+     */
+    staged(fn: (stage: number) => void) {
+      const seed = (rand() * 4294967296) >>> 0
+      if (stages.from === stages.to) return own(seed, 'stays', () => fn(stages.to))
+      own(seed, 'goes', () => fn(stages.from))
+      own(seed, 'comes', () => fn(stages.to))
+    },
+
     /** A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
@@ -307,17 +372,36 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A house on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with a glass band in
-     * one of the glass's tints, under a gable roof whose ridge runs the long way. It is at most 12 m on a side.
+     * A house at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with
+     * a glass band a storey in one of the glass's tints, under a gable roof whose ridge runs the long way. It is at most
+     * 12 m on a side. What it is, its colours, its glass and how tall it stands within its Stage, is drawn before
+     * anything a Stage changes, so each Stage builds the same house, better:
+     * - Stage 1: a cottage, one low storey on 70% of the footprint, with a narrow band.
+     * - Stage 2: the house on the whole footprint, one tall storey.
+     * - Stage 3: two storeys with a ledge between them, and a chimney through the roof near one gable end.
      */
-    house(x: number, y: number, h: number, w: number, d: number) {
+    house(x: number, y: number, h: number, w: number, d: number, stage = 2) {
       const panes = { material: glass, tint: pick(windows) }
-      ;[w, d] = [Math.min(w, 12), Math.min(d, 12)]
-      const wall = range(4.4, 6.4)
-      add(box(w, wall, d, 0.48, 0.2), pick(WALLS), x, y, h)
-      add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.42)
+      const [tall, walls, roofs, end] = [rand(), pick(WALLS), pick(ROOFS), rand() < 0.5 ? 1 : -1]
+      const k = stage === 1 ? 0.7 : 1
+      ;[w, d] = [Math.min(w, 12) * k, Math.min(d, 12) * k]
+      const wall = stage === 1 ? 3 + 0.5 * tall : stage === 2 ? 4.4 + 1.2 * tall : 6.6 + 0.8 * tall
+      add(box(w, wall, d, 0.48, 0.2), walls, x, y, h)
+      if (stage === 1) add(box(w + 0.16, 0.8, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.38)
+      else if (stage === 2) add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.42)
+      else {
+        add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.18)
+        add(cuboid(w + 0.3, 0.24, d + 0.3), LEDGE, x, y, h + wall * 0.5)
+        add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.66)
+      }
       const along = w >= d
-      add(gable((along ? w : d) + 0.8, (along ? d : w) + 1.12, Math.min(w, d) * 0.42), pick(ROOFS), x, y, h + wall, along ? Math.PI / 2 : 0)
+      const [ridge, span, pitch] = [along ? w : d, along ? d : w, Math.min(w, d) * 0.42]
+      add(gable(ridge + 0.8, span + 1.12, pitch), roofs, x, y, h + wall, along ? Math.PI / 2 : 0)
+      if (stage === 3) {
+        const at = end * (ridge / 2 - 1.1)
+        const [cx, cy] = along ? [x + at, y + span * 0.18] : [x + span * 0.18, y + at]
+        add(cuboid(0.9, pitch + 1.4, 0.9), CHIMNEY, cx, cy, h + wall + 0.3)
+      }
       shadow(x, y, h, w * 1.45 + 2, d * 1.45 + 2)
       brick('building', x, y, h)
     },
@@ -325,6 +409,32 @@ export function createKit(rand: () => number, materials: Materials) {
     /** A lawn over a footprint `w` by `d`, centred on `(x, y)`: a house's garden or a courtyard. It joins the next brick. */
     lawn(x: number, y: number, h: number, w: number, d: number) {
       add(box(w, 0.16, d, 0.8, 0.06), LAWN, x, y, h)
+    },
+
+    /**
+     * A hedge round the edge of a lawn `w` by `d` centred on `(x, y)`, with a gap for a gate in the middle of side `gate`
+     * (0 east, 1 north, 2 west, 3 south), as one brick. Plain boxes: a garden's hedge is laid by the hundred.
+     */
+    hedge(x: number, y: number, h: number, w: number, d: number, gate: number) {
+      const [thick, tall, gap] = [0.7, 1.1, 2.4]
+      const sides: [sx: number, sy: number, sw: number, sd: number][] = [
+        [x + w / 2 - thick / 2, y, thick, d],
+        [x, y + d / 2 - thick / 2, w - 2 * thick, thick],
+        [x - w / 2 + thick / 2, y, thick, d],
+        [x, y - d / 2 + thick / 2, w - 2 * thick, thick],
+      ]
+      sides.forEach(([sx, sy, sw, sd], side) => {
+        if (side !== gate) return add(cuboid(sw, tall, sd), HEDGE, sx, sy, h)
+        // Two lengths, either side of the gate.
+        const eastWest = side % 2 === 1
+        const len = ((eastWest ? sw : sd) - gap) / 2
+        for (const k of [-1, 1]) {
+          const off = k * (gap / 2 + len / 2)
+          if (eastWest) add(cuboid(len, tall, sd), HEDGE, sx + off, sy, h)
+          else add(cuboid(sw, tall, len), HEDGE, sx, sy + off, h)
+        }
+      })
+      brick('ground', x, y, h)
     },
 
     /**
@@ -531,11 +641,17 @@ export function createKit(rand: () => number, materials: Materials) {
      * - `fins`: fins up every face that rise past the roof as its crown, round a penthouse.
      * - `stepped`: tiers set back, each framed and topped by a ledge, under a pointed cap and a spire.
      * - `round`: a drum under a parapet ring, a dome and a spire.
+     *
+     * At Stage `stage`, whose floors the caller picks: Stage 1 builds the plain body, with no penthouse, spire or dome,
+     * one tier, and fewer floors lit at night. Stage 2 builds it as above. Stage 3 puts a spire on every style and a
+     * third tier on a stepped one, and lights more floors. Its glass, its trim and how busy it is are drawn before
+     * anything a Stage changes, so each Stage builds the same tower, better.
      */
-    officeTower(x: number, y: number, h: number, w: number, d: number, floors: number, style: OfficeStyle) {
+    officeTower(x: number, y: number, h: number, w: number, d: number, floors: number, style: OfficeStyle, stage = 2) {
       const STOREY = 3.2
       const SKY = new THREE.Color('#e9f4fb')
-      const [foot, trim, lit] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), range(0.3, 0.75)]
+      const [foot, trim, busy] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), rand()]
+      const lit = [0.2 + 0.25 * busy, 0.3 + 0.45 * busy, 0.45 + 0.4 * busy][stage - 1]
       /** Floor `f`'s glass: up to 30% of the way to the sky's colour at the top, and lit at night for `lit` of the floors. */
       const storey = (f: number): Look => ({
         material: glass,
@@ -602,11 +718,14 @@ export function createKit(rand: () => number, materials: Materials) {
         for (let i = 0; i < n; i++)
           add(cuboid(0.2, body, 0.2), trim, x + Math.cos((i * TAU) / n) * r, y + Math.sin((i * TAU) / n) * r, base)
         add(ROUND, trim, x, y, top, 0, r + 0.3, 1.4, r + 0.3)
-        add(SPHERE, trim, x, y, top + 1.4, 0, r * 0.78, r * 0.52, r * 0.78)
-        spire(top + 1.4 + r * 0.5, floors >= 14 ? range(8, 12) : range(4, 6), 0.3)
+        if (stage === 1) add(ROUND, DECK, x, y, top + 0.2, 0, r - 0.2, 1, r - 0.2)
+        else {
+          add(SPHERE, trim, x, y, top + 1.4, 0, r * 0.78, r * 0.52, r * 0.78)
+          spire(top + 1.4 + r * 0.5, stage === 3 ? range(9, 13) : range(4, 6), 0.3)
+        }
       } else if (style === 'stepped') {
         // Each tier takes its share of the floors and stands 70% the size of the one below.
-        const shares = floors >= 12 ? [0.5, 0.3, 0.2] : [0.6, 0.4]
+        const shares = stage === 1 ? [1] : stage === 2 ? [0.6, 0.4] : [0.5, 0.3, 0.2]
         let [tw, td, at, left] = [w, d, base, floors]
         shares.forEach((share, i) => {
           const n = i === shares.length - 1 ? left : Math.max(1, Math.round(floors * share))
@@ -619,9 +738,10 @@ export function createKit(rand: () => number, materials: Materials) {
           at += 0.7
           if (i < shares.length - 1) [tw, td] = [tw * 0.7, td * 0.7]
         })
-        const [r, cap] = [Math.min(tw, td) * 0.707, Math.min(7, Math.min(tw, td) * 0.78)]
+        const r = Math.min(tw, td) * 0.707
+        const cap = stage === 1 ? Math.min(3.5, Math.min(tw, td) * 0.4) : Math.min(7, Math.min(tw, td) * 0.78)
         add(PYRAMID, trim, x, y, at, Math.PI / 4, r, cap, r)
-        spire(at + cap - 0.4, range(5, 9), 0.24)
+        if (stage > 1) spire(at + cap - 0.4, stage === 3 ? range(8, 12) : range(5, 9), 0.24)
       } else if (style === 'fins') {
         for (let f = 0; f < floors; f++) add(cuboid(w - 0.7, STOREY, d - 0.7), storey(f), x, y, base + f * STOREY)
         for (const [len, across, eastWest] of [
@@ -638,15 +758,19 @@ export function createKit(rand: () => number, materials: Materials) {
           }
         }
         roof(w - 0.7, d - 0.7, top, false)
-        const crown = penthouse(w - 2, d - 2, top + 0.3)
-        if (floors >= 14) spire(crown, range(5, 8), 0.3)
+        if (stage > 1) {
+          const crown = penthouse(w - 2, d - 2, top + 0.3)
+          if (stage === 3 || floors >= 14) spire(crown, stage === 3 ? range(7, 11) : range(5, 8), 0.3)
+        }
       } else {
         for (let f = 0; f < floors; f++) add(cuboid(w - 0.2, STOREY, d - 0.2), storey(f), x, y, base + f * STOREY)
         posts(w, d, base, body)
         mullions(w - 0.2, d - 0.2, base, body)
         roof(w, d, top, true)
-        const crown = penthouse(w, d, top + 0.3)
-        if (floors >= 14 || rand() < 0.4) spire(crown, range(5, 9), 0.18)
+        if (stage > 1) {
+          const crown = penthouse(w, d, top + 0.3)
+          if (stage === 3 || floors >= 14 || rand() < 0.4) spire(crown, stage === 3 ? range(7, 11) : range(5, 9), 0.18)
+        }
       }
       shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4, style === 'round')
       brick('building', x, y, h)
