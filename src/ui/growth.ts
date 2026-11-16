@@ -5,8 +5,6 @@ import { middle, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds, junctionId } from '../sim/tiles'
 import { STAGES } from '../tuning'
 
-/** s a badge takes to rise and fade: its CSS animation's length. */
-const BADGE = 1.8
 /** px the bar sits below its Tile's middle, clear of a Jam marker, which floats above it. */
 const BELOW = 26
 
@@ -22,7 +20,7 @@ function changes(write: (value: string) => void) {
 }
 
 /**
- * What the screen shows of Stages (.scratch/ui-ux/spec.md, "Growth"): the City's Growth under the yen, with how many
+ * What the screen shows of Stages (.scratch/ui-ux/spec.md, "Readings"): the City's Growth under the yen, with how many
  * Tiles are at each Stage; a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
  * or why it is not growing; and a badge that rises over a Tile as its Stage-up ends. The bar hides while `busy`, as
  * when a Layout or a Zone is in the player's hand, and during a Rebuild.
@@ -74,23 +72,22 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
     return cell && game.city.tileAt(cell) ? cell : null
   }
 
-  /** Badges rising over Tiles whose Stage-up just ended, each where its Tile's middle is and how long it has risen. */
-  const badges: { el: HTMLElement; at: Vec; age: number }[] = []
+  /** Badges rising over Tiles whose Stage-up just ended, each over its Tile's middle until its animation ends. */
+  const badges = new Map<HTMLElement, Vec>()
   view.onStageUp = (piece, stage) => {
     const el = layer.appendChild(document.createElement('div'))
     el.className = 'stage-badge'
     el.innerHTML = `<span>${stars(stage)}<b>Stage ${stage}</b></span>`
-    badges.push({ el, at: middle(piece), age: 0 })
+    el.addEventListener('animationend', () => {
+      el.remove()
+      badges.delete(el)
+    })
+    badges.set(el, middle(piece))
   }
-  let last = performance.now()
 
   return {
     /** Show Growth as it stands. Call it every frame, after the frame is drawn. */
     update() {
-      const now = performance.now()
-      const dt = Math.min(0.1, (now - last) / 1000)
-      last = now
-
       const counts = [0, 0, 0]
       for (const t of game.city.tiles) {
         const grown = game.stageOf(t.cell)
@@ -104,7 +101,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
       show.hidden(cell ? '' : 'hidden')
       if (cell) {
         const [x, y] = view.camera.onScreen(middle(cellBounds(cell)))
-        show.at(`translate(${x.toFixed(1)}px, ${(y + BELOW).toFixed(1)}px)`)
+        show.at(`translate(${x.toFixed(1)}px, ${(y + BELOW).toFixed(1)}px) translateX(-50%)`)
         const grown = game.stageOf(cell)
         const full = grown?.stage === LAST_STAGE
         const jammed = !!grown && !full && game.sim.jams.some((j) => j.id === junctionId(cell))
@@ -124,16 +121,9 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
         }
       }
 
-      for (let i = badges.length - 1; i >= 0; i--) {
-        const b = badges[i]
-        b.age += dt
-        if (b.age >= BADGE) {
-          b.el.remove()
-          badges.splice(i, 1)
-          continue
-        }
-        const [x, y] = view.camera.onScreen(b.at)
-        b.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
+      for (const [el, at] of badges) {
+        const [x, y] = view.camera.onScreen(at)
+        el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`
       }
     },
   }

@@ -287,9 +287,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * clock, each new building dropping in as a Rebuild's do. Confetti ends it, and then `onStageUp` hears of it. Tiles
      * that reach a Stage together are built in turn, and at most `STAGE_UPS.most` play at once: the rest wait, and none
      * begins while a Rebuild plays. A Tile that reaches another Stage before its last one has begun goes straight there.
-     * ponytail: a Block's step of the build can't be split, so a frame takes at least one, 10 to 20 ms for the largest
-     * low-density Blocks on an M4 Pro, where #133 measured one frame over 16.7 ms per Stage-up. Split the fill of a
-     * Block into its lots if that shows.
+     * ponytail: a Block's step of the build can't be split, so a frame takes at least one. On an M4 Pro the longest
+     * step is 10 ms for a median low-density Tile and 22 ms at worst (offices 6 and 17), and with 1,000 cars about one
+     * Stage-up in two has a frame over 16.7 ms, up to 28 ms (#138). Split a Block's fill into its lots, a step each, if
+     * that hitch shows on slower machines.
      */
     stageUp(piece: Bounds, from: number, to: number) {
       const queued = waiting.find((j) => !j.begun && sameBounds(j.piece, piece))

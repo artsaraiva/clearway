@@ -170,11 +170,13 @@
         overflow: hidden;
         pointer-events: none;
       }
+      /* As wide as its note, and no narrower than 132 px: the screen centres it under its Tile. */
       .tile-bar {
         position: absolute;
-        left: -66px;
+        left: 0;
         top: 0;
-        width: 132px;
+        width: max-content;
+        min-width: 132px;
         padding: 6px 9px 7px;
         box-sizing: border-box;
         border-radius: 12px;
