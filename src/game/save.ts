@@ -5,9 +5,8 @@ import { Game, LAST_STAGE, newSeed, type Stage } from './game'
 // The autosave (.scratch/ui-ux/spec.md, "Save"): one save in localStorage for a normal run and one for a Free run, and
 // no menu screen, so the page opens straight into the run last played. A save holds what it takes to build the City
 // and its Junctions again, with each Tile's Stage, the yen and the Record. Vehicles and the Undo window are not saved,
-// so loading is a
-// Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run, which keeps the
-// save's Record if that can be read.
+// so loading is a Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run,
+// which keeps the save's Record if that can be read.
 
 /** Raise it whenever a save written before would load wrong: when its shape changes, or what its ids name. */
 const VERSION = 3
@@ -121,8 +120,7 @@ export interface Run {
 /**
  * The run the page opens on: the saved run last played, or the Free run with `?free`. From then on it saves itself
  * after every Rebuild, Change and Reset, every few seconds for yen, the Record and each Tile's progress, and as the
- * page is left. Dev only:
- * `?seed=7` plays that run again and leaves the saves alone, as a Free run with `?free`.
+ * page is left. Dev only: `?seed=7` plays that run again and leaves the saves alone, as a Free run with `?free`.
  * ponytail: two tabs on one run each save their own City over the other's, and the last to write wins. Listen for the
  * `storage` event and quiet the older tab if players ever keep two open.
  */

@@ -277,8 +277,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       scene.remove(...old)
       scenery.discard(old)
       scene.add(...build.meshes)
-      regrowing = piece
+      // After `play`, which lands a Rezoning still playing, and that one's `done` lets go of its piece.
       regrow.play(build, { plate() {}, done: () => (regrowing = null) }, 'rezone')
+      regrowing = piece
     },
 
     /**
