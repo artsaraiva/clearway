@@ -25,7 +25,8 @@ const GROW = 1.5 // per second: how fast the cars grow back in once the new piec
 const CAR_PICK = 3 // m from a car's centre
 // Stage-ups: ms of each frame spent building the pieces of Tiles that reached a Stage, though always one step of a
 // build, so that one is never stuck; how many may play at once; and the puffs of dust and confetti each has. Every puff
-// is a sprite whose matrix three updates each frame even while it is hidden, so idle pools cost frame time.
+// is a sprite whose matrix three updates each frame even while it is hidden, so a Stage-up's reveal leaves the scene
+// while it is idle: six idle ones cost 0.2 ms a frame on the 26-Tile City.
 const STAGE_UPS = { budget: 3, most: 6, puffs: 60 }
 
 export type View = ReturnType<typeof createView>
@@ -112,9 +113,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     if (!slot) {
       slot = { reveal: createReveal(materials, STAGE_UPS.puffs), piece: null }
       playing.push(slot)
-      scene.add(slot.reveal.group)
     }
     const used = slot
+    if (!used.reveal.group.parent) scene.add(used.reveal.group)
     used.piece = job.piece
     const done = () => {
       used.piece = null
@@ -406,7 +407,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
         }
         playStageUp(waiting.shift()!)
       }
-      for (const p of playing) p.reveal.update(real)
+      for (const p of playing) {
+        p.reveal.update(real)
+        if (!p.piece && !p.reveal.busy && p.reveal.group.parent) scene.remove(p.reveal.group)
+      }
       if (next && !reveal.playing && next.prewarmed) {
         shown = next
         next = null

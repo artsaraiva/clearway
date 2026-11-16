@@ -288,6 +288,11 @@ export function createReveal(materials: Materials, pool = 140) {
       return build !== null
     },
 
+    /** Whether anything of it still moves: a build assembling, or a puff in the air. */
+    get busy() {
+      return build !== null || puffs.some((p) => p.left > 0)
+    },
+
     /**
      * Compile what drawing `ahead`, a build made ahead of its Reveal, will need, by drawing one frame of `scene` with it
      * in and nothing of it showing. Without this the Reveal's first frame stalls on it.
