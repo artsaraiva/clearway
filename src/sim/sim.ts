@@ -43,11 +43,18 @@ export class Sim {
   vehicles: Vehicle[] = []
   /** Sim-seconds the flow has stayed at or above WIN_FLOW. */
   sustained = 0
+  /**
+   * The trips each Junction has served since the Sim was built, by its index in `net.junctions`: each trip that left a
+   * Road for the Junction's own lanes while it had no Jam. A Tile grows on its Junction's (ADR 0005).
+   */
+  readonly served: Uint32Array
   private demand: Demand
   /** Every Junction's default configuration, which Reset returns to. */
   private defaults: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
   /** How the traffic into each Junction moves, which says where the Jams are. */
   private approaches: Approaches[]
+  /** Each Junction's index in `net.junctions`, by its id. */
+  private junctionIndex: Map<string, number>
 
   /**
    * Build the simulation of a City and Pre-warm it (ADR 0002). `carried` is the configuration brought over from the
@@ -80,6 +87,8 @@ export class Sim {
       jammed: false,
       hold: 0,
     }))
+    this.served = new Uint32Array(this.net.junctions.length)
+    this.junctionIndex = new Map(this.net.junctions.map((j, i) => [j.id, i]))
     if (prewarm) while (!this.prewarmed) this.step()
   }
 
@@ -165,6 +174,15 @@ export class Sim {
           continue
         }
         v.s -= lane.length
+        // A trip a Junction serves: it leaves a Road for the Junction's own lanes while the Junction has no Jam. A
+        // roundabout's Ring counts it once, as it comes on.
+        // ponytail: trips run only Gateway to Gateway, so a Tile that no route passes through serves none and never
+        // grows, a dead end or a quiet corner included. #95 makes trips start and end at Tiles, which gives every
+        // Tile trips of its own to grow on.
+        if ('junction' in next.owner && !('junction' in lane.owner)) {
+          const k = this.junctionIndex.get(next.owner.junction)!
+          if (!this.approaches[k].jammed) this.served[k]++
+        }
         v.lane = next
         v.vFreeIn = v.vFree
         let i = next.vehicles.length

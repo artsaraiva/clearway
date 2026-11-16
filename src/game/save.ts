@@ -1,18 +1,19 @@
 import { City, LAYOUTS, ZONES, type Cell, type Layout, type Zone } from '../city/city'
 import type { Change } from '../sim/spec'
-import { Game, newSeed } from './game'
+import { Game, LAST_STAGE, newSeed, type Stage } from './game'
 
 // The autosave (.scratch/ui-ux/spec.md, "Save"): one save in localStorage for a normal run and one for a Free run, and
 // no menu screen, so the page opens straight into the run last played. A save holds what it takes to build the City
-// and its Junctions again, with the yen and the Record. Vehicles and the Undo window are not saved, so loading is a
+// and its Junctions again, with each Tile's Stage, the yen and the Record. Vehicles and the Undo window are not saved,
+// so loading is a
 // Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run, which keeps the
 // save's Record if that can be read.
 
 /** Raise it whenever a save written before would load wrong: when its shape changes, or what its ids name. */
-const VERSION = 2
+const VERSION = 3
 /** Where each kind of run is saved, and which of the two the page opens on. */
 const KEY = { run: 'clearway.run', freeRun: 'clearway.free-run', playing: 'clearway.playing' }
-/** Seconds between saves for yen and the Record, which move with every step. */
+/** Seconds between saves for yen, the Record and each Tile's progress, which move with every step. */
 const EVERY = 5
 const NOTICE = {
   older: 'The saved City is from an older version, so this is a new run.',
@@ -23,8 +24,11 @@ const NOTICE = {
 interface Save {
   version: number
   seed: number
-  /** The Tiles in the order they were placed, each Layout and Zone by its id. An unzoned Tile's Zone is null. */
-  tiles: { cell: Cell; layout: Layout['id']; rotation: number; zone: Zone['id'] | null }[]
+  /**
+   * The Tiles in the order they were placed, each Layout and Zone by its id, with its Stage and its progress toward the
+   * next. An unzoned Tile's Zone and Stage are null, and its progress 0.
+   */
+  tiles: { cell: Cell; layout: Layout['id']; rotation: number; zone: Zone['id'] | null; stage: Stage | null; progress: number }[]
   /** Every Junction's configuration, as a Rebuild carries it over. */
   changes: Change[]
   yen: number
@@ -39,7 +43,10 @@ export function saveOf(game: Game): string {
   const save: Save = {
     version: VERSION,
     seed: game.seed,
-    tiles: game.city.tiles.map(({ cell, layout, rotation, zone }) => ({ cell, layout: layout.id, rotation, zone: zone?.id ?? null })),
+    tiles: game.city.tiles.map(({ cell, layout, rotation, zone }) => {
+      const grown = game.stageOf(cell)
+      return { cell, layout: layout.id, rotation, zone: zone?.id ?? null, stage: grown?.stage ?? null, progress: grown?.progress ?? 0 }
+    }),
     changes: game.sim.configuration(),
     yen: game.yen,
     record: game.record,
@@ -75,6 +82,10 @@ function restore(save: Save, free: boolean): Game {
   if (save.version !== VERSION) throw new Error(`a save of version ${save.version}, not ${VERSION}`)
   if (!isInteger(save.seed) || !isAmount(save.yen) || !isAmount(save.record)) throw new Error('no seed, yen or Record')
   if (save.tiles.some(({ zone }) => zone !== null && !ZONES.some((z) => z.id === zone))) throw new Error('a Tile the game has no Zone for')
+  // A zoned Tile has a Stage the game has and progress toward the next, and an unzoned one neither.
+  const grown = ({ zone, stage, progress }: Save['tiles'][number]) =>
+    zone === null ? stage === null && progress === 0 : isInteger(stage) && stage >= 1 && stage <= LAST_STAGE && isAmount(progress)
+  if (!save.tiles.every(grown)) throw new Error('a Tile with a Stage the game has not, or progress that is no amount')
   const tiles = save.tiles.map(({ cell, layout, rotation, zone }) => ({
     cell: { x: cell.x, y: cell.y },
     layout: LAYOUTS.find((l) => l.id === layout)!,
@@ -90,7 +101,10 @@ function restore(save: Save, free: boolean): Game {
   if (tiles.length > 1 && !tiles.every((t) => city.swap(t.layout, t.rotation, t.cell).legal)) throw new Error('a Tile the rules refuse')
   if (save.changes.some(({ priority = {} }) => Object.values(priority).some((rule) => rule !== 'main' && rule !== 'yield')))
     throw new Error('a Priority rule that is neither main nor yield')
-  return new Game(save.seed, { city, changes: save.changes, yen: save.yen, record: save.record, free })
+  const stages = save.tiles.flatMap(({ cell, stage, progress }) =>
+    stage === null ? [] : [{ cell: { x: cell.x, y: cell.y }, stage, progress }],
+  )
+  return new Game(save.seed, { city, changes: save.changes, yen: save.yen, record: save.record, free, stages })
 }
 
 /** The run the page plays, and the menu's two ways out of it. Each loads the page again. */
@@ -106,7 +120,8 @@ export interface Run {
 
 /**
  * The run the page opens on: the saved run last played, or the Free run with `?free`. From then on it saves itself
- * after every Rebuild, Change and Reset, every few seconds for yen and the Record, and as the page is left. Dev only:
+ * after every Rebuild, Change and Reset, every few seconds for yen, the Record and each Tile's progress, and as the
+ * page is left. Dev only:
  * `?seed=7` plays that run again and leaves the saves alone, as a Free run with `?free`.
  * ponytail: two tabs on one run each save their own City over the other's, and the last to write wins. Listen for the
  * `storage` event and quiet the older tab if players ever keep two open.

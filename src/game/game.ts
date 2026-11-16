@@ -1,13 +1,25 @@
 import { City, type Cell, type Layout, type Refusal, type Tile, type Zone } from '../city/city'
 import { DT, Sim } from '../sim/sim'
 import type { Change } from '../sim/spec'
-import { junctionId } from '../sim/tiles'
-import { ECONOMY } from '../tuning'
+import { cellAt, junctionId } from '../sim/tiles'
+import { ECONOMY, STAGES } from '../tuning'
 
-// A run of the game: the state beside the Sim. It holds the yen, the City, the Record and the one step of Undo, pays
-// for the trips the Sim completes, and rebuilds the Sim whenever the City's roads change (ADR 0002). A Rezoning changes
-// only what a Tile is built as, which the Sim does not read, so it runs on. The Changes live in the Sim's
-// configuration, which every Rebuild carries over.
+// A run of the game: the state beside the Sim. It holds the yen, the City, each zoned Tile's Stage, the Record and the
+// one step of Undo, pays for the trips the Sim completes, grows each zoned Tile on the trips its Junction serves, and
+// rebuilds the Sim whenever the City's roads change (ADR 0002). A Rezoning changes only what a Tile is built as, which
+// the Sim does not read, so it runs on. The Changes live in the Sim's configuration, which every Rebuild carries over.
+// A Stage lives here, beside the yen, since a Rebuild throws the Sim away (ADR 0005).
+
+/** How far a zoned Tile has grown. */
+export type Stage = 1 | 2 | 3
+/** The Stage a Tile grows no further than. */
+export const LAST_STAGE = (STAGES.trips.length + 1) as Stage
+
+/** A zoned Tile's Stage, and the trips its Junction has served toward the next: none at the last Stage. */
+export interface TileStage {
+  stage: Stage
+  progress: number
+}
 
 /**
  * Whether a placement can be made and the yen it takes: the Price, less the loop rebate. A legal placement goes ahead
@@ -21,6 +33,8 @@ interface Undo {
   paid: number
   /** Every Change before a placement or a Swap, which the Rebuild that undoes it carries over. A Rezoning's Undo makes no Rebuild: null. */
   changes: Change[] | null
+  /** A Rezoning's: the rezoned Tile's Junction, and the Stage the Tile had, which undoing it puts back. None: the Tile had no Zone. */
+  rezoned?: { id: string; stage: TileStage | undefined }
 }
 
 const WINDOW_STEPS = Math.round(ECONOMY.incomeWindow / DT)
@@ -41,10 +55,14 @@ export class Game {
   /** The most trips per minute the City has carried while Holding. */
   record: number
   /**
-   * Called after every Rebuild, Rezoning, Change and Reset, the moments a save of the run must not miss. Yen and the
-   * Record move with every step, so a save keeps up with them on its own.
+   * Called after every Rebuild, Rezoning, Change and Reset, the moments a save of the run must not miss. Yen, the Record
+   * and each Tile's progress move with every step, so a save keeps up with them on its own.
    */
   onUnsaved?: () => void
+  /** Called as a zoned Tile reaches another Stage: as it grows, or as `setStage` puts it there. */
+  onStage?: (cell: Cell, from: Stage, to: Stage) => void
+  /** Dev only: a multiplier on the pace of growth. Each trip a Junction serves counts as this many. */
+  pace = 1
   private _city: City
   private _sim: Sim
   /** The Sim's completed trips already paid for. */
@@ -56,18 +74,35 @@ export class Game {
   private last?: Undo
   /** Steps of earning since the last placement, Swap or Rezoning. */
   private sinceLast = 0
+  /** Each zoned Tile's Stage, by its Junction's id. A zoned Tile with none is at Stage 1 with no progress. */
+  private stages = new Map<string, TileStage>()
+  /** The trips each Junction of the Sim had served when the Tiles last grew on them, by its index. */
+  private credited = new Uint32Array(0)
 
   /**
    * A new run: a new `seed` draws the starting Tile, and the Price of the next Tile is in hand. `free` makes it a Free
    * run. A test passes a fixed seed, and may start from its own `city` and `yen`. A saved run comes back with its seed,
-   * `city`, `changes`, `yen` and `record`. The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
+   * `city`, `changes`, `yen`, `record` and the `stages` of its zoned Tiles. The Sim starts at its Pre-warm: `step` until
+   * `sim.prewarmed`.
    */
-  constructor(seed = newSeed(), start: { city?: City; changes?: Change[]; yen?: number; record?: number; free?: boolean } = {}) {
+  constructor(
+    seed = newSeed(),
+    start: {
+      city?: City
+      changes?: Change[]
+      yen?: number
+      record?: number
+      free?: boolean
+      stages?: ({ cell: Cell } & TileStage)[]
+    } = {},
+  ) {
     this.seed = seed
     this.free = start.free ?? false
     this._city = start.city ?? City.start(seed)
     this.yen = start.yen ?? this.price
     this.record = start.record ?? 0
+    for (const { cell, stage, progress } of start.stages ?? [])
+      if (this._city.tileAt(cell)?.zone) this.stages.set(junctionId(cell), { stage, progress })
     this._sim = this.rebuild(start.changes ?? [])
   }
 
@@ -98,6 +133,29 @@ export class Game {
     return Math.max(this.tripsPerMinute * ECONOMY.pay, this.incomeFloor)
   }
 
+  /** The Stage of the Tile on `cell`, and its progress toward the next. None for an unzoned Tile, which never grows, or an empty cell. */
+  stageOf(cell: Cell): TileStage | undefined {
+    if (!this._city.tileAt(cell)?.zone) return undefined
+    return this.stages.get(junctionId(cell)) ?? { stage: 1, progress: 0 }
+  }
+
+  /** The City's Growth: the sum of the Stages of its zoned Tiles. */
+  get growth() {
+    return this._city.tiles.reduce((sum, t) => sum + (this.stageOf(t.cell)?.stage ?? 0), 0)
+  }
+
+  /**
+   * Dev only: put the zoned Tile on `cell` at `stage`, with no progress, as if it had grown there; lower too, which no
+   * Tile in play ever goes. False, changing nothing, if no zoned Tile is on `cell`.
+   */
+  setStage(cell: Cell, stage: Stage): boolean {
+    const now = this.stageOf(cell)
+    if (!now) return false
+    this.stages.set(junctionId(cell), { stage, progress: 0 })
+    if (stage !== now.stage) this.onStage?.(cell, now.stage, stage)
+    return true
+  }
+
   /** Whether the last placement, Swap or Rezoning can still be undone. */
   get undoable() {
     return this.last !== undefined && this.sinceLast < UNDO_STEPS
@@ -120,8 +178,8 @@ export class Game {
   }
 
   /**
-   * Place a Tile built as `zone` (none: unzoned), or make a Swap, which keeps the Tile's own Zone; pay for it and
-   * rebuild. An illegal or unaffordable one changes nothing.
+   * Place a Tile built as `zone` (none: unzoned), or make a Swap, which keeps the Tile's own Zone and Stage; pay for it
+   * and rebuild. An illegal or unaffordable one changes nothing.
    */
   place(layout: Layout, rotation: number, cell: Cell, zone?: Zone): Offer {
     const offer = this.offer(layout, rotation, cell)
@@ -135,15 +193,17 @@ export class Game {
   }
 
   /**
-   * Rezone the Tile on `cell`: build it as `zone`, or unzone it. It costs nothing and makes no Rebuild, so the Sim and
-   * its traffic run on, and it can be undone like a placement. False, changing nothing, if no Tile is on `cell` or the
-   * Tile is built as `zone` already.
+   * Rezone the Tile on `cell`: build it as `zone`, which starts it again at Stage 1, or unzone it. It costs nothing and
+   * makes no Rebuild, so the Sim and its traffic run on, and it can be undone like a placement. False, changing nothing,
+   * if no Tile is on `cell` or the Tile is built as `zone` already.
    */
   rezone(cell: Cell, zone?: Zone): boolean {
     const tile = this._city.tileAt(cell)
     if (!tile || tile.zone === zone) return false
-    this.remember(0, null)
+    const id = junctionId(cell)
+    this.remember(0, null, { id, stage: this.stageOf(cell) })
     this._city.rezone(cell, zone)
+    this.stages.delete(id)
     this.onUnsaved?.()
     return true
   }
@@ -167,14 +227,19 @@ export class Game {
 
   /**
    * Take back the last placement, Swap or Rezoning: the yen it took is returned, and the City is as it was before it.
-   * Undoing a placement or a Swap rebuilds, with every Change as it was; undoing a Rezoning does not. Yen earned since is
-   * kept. Refused once the window has passed.
+   * Undoing a placement or a Swap rebuilds, with every Change as it was; undoing a Rezoning does not, and puts back the
+   * Stage the Tile had. A Tile the Undo takes off takes its Stage with it. Yen earned and Stages grown since are kept.
+   * Refused once the window has passed.
    */
   undo() {
     if (!this.undoable) return false
-    const { tiles, paid, changes } = this.last!
+    const { tiles, paid, changes, rezoned } = this.last!
     this.last = undefined
     this._city = new City(tiles)
+    const placed = new Set(tiles.map((t) => junctionId(t.cell)))
+    for (const id of [...this.stages.keys()]) if (!placed.has(id)) this.stages.delete(id)
+    if (rezoned?.stage) this.stages.set(rezoned.id, rezoned.stage)
+    else if (rezoned) this.stages.delete(rezoned.id)
     this.yen += paid
     if (changes) this.rebuild(changes)
     else this.onUnsaved?.()
@@ -199,6 +264,7 @@ export class Game {
     this._sim.step()
     const arrived = this._sim.completed - this.paid
     this.paid = this._sim.completed
+    this.grow(earning)
     if (!earning) return
 
     this.trips += arrived - this.arrivals[this.cursor]
@@ -211,9 +277,32 @@ export class Game {
     this.sinceLast++
   }
 
+  /**
+   * Give each zoned Tile the trips its Junction served this step as progress, `pace` to a trip, while the game is
+   * `earning`: trips served during a Pre-warm count for nothing. A Tile that gathers enough reaches its next Stage there
+   * and then, and one at the last Stage gathers none.
+   */
+  private grow(earning: boolean) {
+    const { served, net } = this._sim
+    for (let k = 0; k < served.length; k++) {
+      const trips = served[k] - this.credited[k]
+      if (!trips) continue
+      this.credited[k] = served[k]
+      if (!earning) continue
+      const cell = cellAt(net.junctions[k].at)
+      const now = this.stageOf(cell)
+      if (!now || now.stage === LAST_STAGE) continue
+      let [stage, progress] = [now.stage as number, now.progress + trips * this.pace]
+      while (stage < LAST_STAGE && progress >= STAGES.trips[stage - 1]) progress -= STAGES.trips[stage++ - 1]
+      if (stage === LAST_STAGE) progress = 0
+      this.stages.set(net.junctions[k].id, { stage: stage as Stage, progress })
+      if (stage !== now.stage) this.onStage?.(cell, now.stage, stage as Stage)
+    }
+  }
+
   /** Keep the City as it stands for an Undo, which takes the place of the one before and opens its window. */
-  private remember(paid: number, changes: Change[] | null) {
-    this.last = { tiles: [...this._city.tiles], paid, changes }
+  private remember(paid: number, changes: Change[] | null, rezoned?: Undo['rezoned']) {
+    this.last = { tiles: [...this._city.tiles], paid, changes, rezoned }
     this.sinceLast = 0
   }
 
@@ -221,6 +310,7 @@ export class Game {
   private rebuild(carried: Change[]) {
     this.paid = 0
     this._sim = new Sim(this._city, carried, this.seed, { prewarm: false })
+    this.credited = new Uint32Array(this._sim.served.length)
     this.onUnsaved?.()
     return this._sim
   }
