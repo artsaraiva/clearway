@@ -24,6 +24,24 @@ export interface SpecialBlock {
   at: Point
 }
 
+/** What the seed adds where the scenery authors nothing. It is drawn from the seed and where things lie, never from what is laid. */
+export interface Seeded {
+  /** The chance a Block becomes a park. */
+  park: number
+  /** The chance a Block becomes a plaza with a fountain. */
+  plaza: number
+  /**
+   * Cells on a side of the squares the map is cut into. Each square has one tower landmark, in one corner of one of its
+   * cells: it stands once a Tile laid there leaves a Block in that corner with room for it.
+   */
+  landmarks: number
+  /** The chance a row or column of cells is an avenue, its Roads lined with street trees. */
+  avenue: number
+}
+
+/** What the seed adds to a City built from Tiles, which authors nothing. */
+export const SEEDED: Seeded = { park: 0.07, plaza: 0.04, landmarks: 4, avenue: 0.3 }
+
 /** What stands on the Blocks. */
 export interface Scenery {
   /** The first theme is a city; countryside and harbor join the type when their fills exist. */
@@ -36,6 +54,8 @@ export interface Scenery {
   streets: Record<string, string>
   /** Roads lined with street trees. */
   avenues: string[]
+  /** What the seed adds. None: only what is authored. */
+  seeded?: Seeded
 }
 
 /** A brick of a build, with the Block it stands on: its index in the build's `blocks`, or -1 for the slab itself. */

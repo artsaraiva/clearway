@@ -1,5 +1,6 @@
 import { LAYOUTS, type Layout } from './city/city'
 import { openRun } from './game/save'
+import { SEEDED } from './render/scenery'
 import { createView } from './render/view'
 import { DT } from './sim/sim'
 import { cellBounds } from './sim/tiles'
@@ -26,7 +27,7 @@ const game = run.game
 while (!game.sim.prewarmed) game.step()
 const view = createView(canvas, game.sim, {
   pieces: game.city.tiles.map((t) => cellBounds(t.cell)),
-  scenery: { theme: 'city', seed: game.seed, landmarks: [], blocks: [], streets: {}, avenues: [] },
+  scenery: { theme: 'city', seed: game.seed, landmarks: [], blocks: [], streets: {}, avenues: [], seeded: SEEDED },
 })
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))

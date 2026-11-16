@@ -25,14 +25,41 @@ function area(loop: Vec[]): number {
   return Math.abs(twice) / 2
 }
 
+/**
+ * The point nearest `near` (the middle of the Block's bounding box unless given) where a box `w` (east–west) by `d`
+ * stands wholly on the Block, on a 2 m grid; null where no such point exists.
+ */
+export function site(field: Field, block: Block, w: number, d: number, near = middle(block)): Vec | null {
+  const on = (x: number, y: number) => field.sample(x, y) >= 1 && inside(block.loop, x, y)
+  // Five by five points over the box: closer than a Road is wide, so no Road crosses the box between them.
+  const fits = (x: number, y: number) =>
+    [-2, -1, 0, 1, 2].every((i) => [-2, -1, 0, 1, 2].every((j) => on(x + (i * w) / 4, y + (j * d) / 4)))
+  let [best, nearest]: [Vec | null, number] = [null, Infinity]
+  for (let x = block.x0 + w / 2; x <= block.x1 - w / 2; x += 2) {
+    for (let y = block.y0 + d / 2; y <= block.y1 - d / 2; y += 2) {
+      const far = Math.hypot(x - near.x, y - near.y)
+      if (far < nearest && fits(x, y)) [best, nearest] = [{ x, y }, far]
+    }
+  }
+  return best
+}
+
+/** A fountain at `(x, y)`, as one brick: a stone basin of water with a column at its middle. */
+function fountain(kit: Kit, x: number, y: number) {
+  kit.drum(STONE, x, y, KERB, 4.8, 4.8, 1.12)
+  kit.drum(kit.water, x, y, KERB + 0.2, 4.08, 4.08, 1)
+  kit.drum(STONE, x, y, KERB, 0.72, 0.72, 3)
+  kit.brick('building', x, y, KERB)
+}
+
 /** The ground a tower landmark at `(x, y)` keeps free of seeded lots: its podium, fountain and trees. */
 export const towerGround = (x: number, y: number): Bounds => ({ x0: x - 18, y0: y - 20, x1: x + 20, y1: y + 28 })
 
 /**
- * The tower landmark, as one brick: stacked cylinders in coral and cream with two glazed decks and a beacon, on a
- * podium. A fountain stands north of it and sakura around it, wherever the pavement reaches.
+ * The tower landmark on Block `block`, as one brick: stacked cylinders in coral and cream with two glazed decks and a
+ * beacon, on a podium. A fountain stands north of it and sakura around it, wherever the Block's pavement reaches.
  */
-export function tower(kit: Kit, field: Field, x: number, y: number) {
+export function tower(kit: Kit, field: Field, block: Block, x: number, y: number) {
   const base = KERB + 1.4
   kit.add(kit.box(20, 1.4, 20, 2.4, 0.32), '#e2d8c6', x, y, KERB)
   // Each segment: from and to (m above the podium), radius at its foot and at its top.
@@ -58,23 +85,29 @@ export function tower(kit: Kit, field: Field, x: number, y: number) {
   kit.shadow(x, y, base, 20, 20, true)
   kit.brick('building', x, y, KERB, 3)
 
-  const fountain = y + 20.8
-  if (field.sample(x, fountain) >= 6) {
-    kit.drum(STONE, x, fountain, KERB, 4.8, 4.8, 1.12)
-    kit.drum(kit.water, x, fountain, KERB + 0.2, 4.08, 4.08, 1)
-    kit.drum(STONE, x, fountain, KERB, 0.72, 0.72, 3)
-    kit.brick('building', x, fountain, KERB)
-  }
+  const on = (px: number, py: number, clear: number) => field.sample(px, py) >= clear && inside(block.loop, px, py)
+  if (on(x, y + 20.8, 6)) fountain(kit, x, y + 20.8)
   for (const dx of [-14.4, 16.4]) {
-    for (const dy of [24.4, 4, -16.4]) if (field.sample(x + dx, y + dy) >= 1.5) kit.tree(x + dx, y + dy, KERB, 0.8, 'sakura')
+    for (const dy of [24.4, 4, -16.4]) if (on(x + dx, y + dy, 1.5)) kit.tree(x + dx, y + dy, KERB, 0.8, 'sakura')
   }
 }
 
-/** A plaza Block: paved in a warmer stone, and left open. */
-export function plaza(kit: Kit, field: Field, block: Block) {
+/** A plaza Block: paved in a warmer stone, and open, or with a fountain at `centre` and four trees around it. */
+export function plaza(kit: Kit, field: Field, block: Block, centre?: Vec) {
   overlay(kit, field, block, 0.4, 0.08, PLAZA)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
+  if (!centre) return
+  fountain(kit, centre.x, centre.y)
+  for (const [dx, dy] of [
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ]) {
+    const [x, y] = [centre.x + dx * 8.4, centre.y + dy * 8.4]
+    if (field.sample(x, y) >= 2 && inside(block.loop, x, y)) kit.tree(x, y, KERB + 0.08, 0.7, 'round')
+  }
 }
 
 const BIKE = { rim: 1.6, dash: 2.4, gap: 2.4, line: 0.3 } // m: pavement left each side of the lane, and its centre line
@@ -102,22 +135,28 @@ export function bikeLane(kit: Kit, field: Field, block: Block) {
   kit.brick('ground', mid.x, mid.y, KERB)
 }
 
-/** A park Block: a lawn, a pond at `(x, y)` with a little wooden deck, and trees over the rest. Pond and tree count grow with the Block. */
-export function park(kit: Kit, field: Field, block: Block, x: number, y: number) {
+/**
+ * A park Block: a lawn, a pond with a little wooden deck, and trees over the rest. Pond and tree count grow with the
+ * Block. The pond lies at `pond`; without one, nearest the Block's middle where it fits, or nowhere if it fits nowhere.
+ */
+export function park(kit: Kit, field: Field, block: Block, pond?: Vec) {
   overlay(kit, field, block, 2, 0.24, GRASS)
   const ground = KERB + 0.24
   const size = area(block.loop)
-  const s = Math.min(1.7, Math.max(1, Math.sqrt(size / 1760)))
-  kit.drum(STONE, x, y, ground, 13.6 * s, 9.6 * s, 0.32)
-  kit.drum(kit.water, x, y, ground + 0.08, 12.6 * s, 8.8 * s, 0.32)
-  kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), DECK, x - 10.8 * s, y, ground + 0.32)
+  const s = Math.min(1.7, Math.max(0.75, Math.sqrt(size / 1760)))
+  const at = pond ?? site(field, block, 29.2 * s, 21.2 * s)
+  if (at) {
+    kit.drum(STONE, at.x, at.y, ground, 13.6 * s, 9.6 * s, 0.32)
+    kit.drum(kit.water, at.x, at.y, ground + 0.08, 12.6 * s, 8.8 * s, 0.32)
+    kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), DECK, at.x - 10.8 * s, at.y, ground + 0.32)
+  }
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
   const trees = Math.min(70, Math.max(12, Math.round(size / 60)))
   for (let tries = 0, n = 0; tries < trees * 8 && n < trees; tries++) {
     const [tx, ty] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
     if (field.sample(tx, ty) < 5 || !inside(block.loop, tx, ty)) continue
-    if (((tx - x) / (17.2 * s)) ** 2 + ((ty - y) / (12.8 * s)) ** 2 < 1) continue
+    if (at && ((tx - at.x) / (17.2 * s)) ** 2 + ((ty - at.y) / (12.8 * s)) ** 2 < 1) continue
     kit.tree(tx, ty, ground, kit.range(0.75, 1.2), kit.chance(0.2) ? 'sakura' : kit.chance(0.15) ? 'pine' : 'round')
     n++
   }

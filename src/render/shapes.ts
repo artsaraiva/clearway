@@ -57,7 +57,7 @@ export function raised(loop: Vec[], h: number, bevel: number): THREE.BufferGeome
 }
 
 /** Paint a whole geometry one colour, for a material with vertex colours. */
-export function tint(g: THREE.BufferGeometry, color: string): THREE.BufferGeometry {
+export function tint(g: THREE.BufferGeometry, color: THREE.ColorRepresentation): THREE.BufferGeometry {
   const c = new THREE.Color(color)
   const a = new Float32Array(g.attributes.position.count * 3)
   for (let i = 0; i < a.length; i += 3) a.set([c.r, c.g, c.b], i)

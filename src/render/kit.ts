@@ -8,7 +8,8 @@ const TAU = Math.PI * 2
 // brick, the salmon one persimmon and the slate one a teal slate.
 const WALLS = ['#fdeed6', '#ffd7b6', '#e0f2d4', '#cbebfc', '#fbe3a2', '#fbd2dd', '#e5dafb', '#fff7e8', '#c0e9e0']
 const ROOFS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548']
-const TOWERS = ['#e5f4fc', '#d4ecf8', '#faefdc', '#d9efeb', '#fbe6d8']
+// Pale towers, then steel, dark slate glass, brick and sandstone ones, so that the skyline is not all one white.
+const TOWERS = ['#e5f4fc', '#faefdc', '#d9efeb', '#7f93a8', '#5d6878', '#c8775a', '#e6cfa6']
 const LEAVES = {
   round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
   sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
@@ -20,8 +21,11 @@ const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 
-/** A colour (painted onto the shared soft-lit material) or a material of the kit. */
-export type Look = string | THREE.Material
+/**
+ * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
+ * The kit's glass is tinted white unless a tint is given.
+ */
+export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color }
 export type TreeKind = keyof typeof LEAVES
 export type BuildingKind = 'house' | 'mid-rise' | 'tower'
 export type Kit = ReturnType<typeof createKit>
@@ -52,13 +56,28 @@ export interface Part {
  */
 export function createMaterials() {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
+  // One glass for every window, so that windows add no draw calls. Its vertex colour tints it: white for the glass
+  // itself, or the ratio to a paler or a darker glass. A darker tint lights its windows less (the glow goes with the
+  // square of the tint's green, up to full).
+  const GLASS = '#9cc7df'
   const glass = new THREE.MeshStandardMaterial({
-    color: '#9cc7df',
+    color: GLASS,
+    vertexColors: true,
     roughness: 0.22,
     metalness: 0.1,
     emissive: '#ffc78a',
     emissiveIntensity: 0,
   })
+  glass.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= min(1.0, vColor.g * vColor.g);',
+    )
+  }
+  const shade = (hex: string) => {
+    const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
+    return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
+  }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree.
@@ -95,6 +114,8 @@ export function createMaterials() {
   return {
     solid,
     glass,
+    /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
+    windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
     bulb,
     water,
     roundShadow,
@@ -115,7 +136,7 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -123,8 +144,9 @@ export function createKit(rand: () => number, materials: Materials) {
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    const geometry = typeof look === 'string' ? tint(geo, look) : geo
-    parts.push({ geometry, material: typeof look === 'string' ? solid : look, brick: -1 })
+    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
+    else if ('tint' in look) parts.push({ geometry: tint(geo, look.tint), material: look.material, brick: -1 })
+    else parts.push({ geometry: look === glass ? tint(geo, '#ffffff') : geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
@@ -192,14 +214,15 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A building on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with a glass band
-     * per floor. A house has one floor and a gable roof; `floors` is for the other two.
+     * per floor, all in one of the glass's tints. A house has one floor and a gable roof; `floors` is for the other two.
      */
     building(x: number, y: number, h: number, w: number, d: number, kind: BuildingKind, floors = 1) {
+      const panes = { material: glass, tint: pick(windows) }
       if (kind === 'house') {
         ;[w, d] = [Math.min(w, 12), Math.min(d, 12)]
         const wall = range(4.4, 6.4)
         add(box(w, wall, d, 0.48, 0.2), pick(WALLS), x, y, h)
-        add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), glass, x, y, h + wall * 0.42)
+        add(box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.42)
         const along = w >= d // the ridge runs the long way
         add(
           gable((along ? w : d) + 0.8, (along ? d : w) + 1.12, Math.min(w, d) * 0.42),
@@ -218,12 +241,12 @@ export function createKit(rand: () => number, materials: Materials) {
       const top = h + floors * storey + 1.2
       add(box(w, top - h, d, corner, 0.32), color, x, y, h)
       for (let i = 0; i < floors; i++)
-        add(box(w + 0.2, tower ? 1.68 : 1.36, d + 0.2, corner + 0.08, 0.08), glass, x, y, h + 1.28 + i * storey)
+        add(box(w + 0.2, tower ? 1.68 : 1.36, d + 0.2, corner + 0.08, 0.08), panes, x, y, h + 1.28 + i * storey)
       if (tower) {
         // A set-back crown, and sometimes a mast.
         const [cw, cd] = [w * 0.66, d * 0.66]
         add(box(cw, 4, cd, 1, 0.24), color, x, y, top)
-        add(box(cw + 0.16, 1.2, cd + 0.16, 1.08, 0.08), glass, x, y, top + 1.6)
+        add(box(cw + 0.16, 1.2, cd + 0.16, 1.08, 0.08), panes, x, y, top + 1.6)
         if (rand() < 0.6) add(CYLINDER, '#cfd5dc', x + cw * 0.2, y, top + 4, 0, 0.16, range(4.8, 9.6), 0.16)
       } else {
         // Rooftop clutter: a plant box, then a water tank or a few shrubs.

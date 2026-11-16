@@ -80,7 +80,11 @@ export function createReveal(materials: Materials) {
   const transforms = { value: new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType) }
   const copy = <M extends THREE.Material>(material: M): M => {
     const moving = material.clone() as M
-    moving.onBeforeCompile = (shader) => {
+    // The material's own patch, such as the glass's glow, comes first, and keeps the copy's program apart from the others'.
+    const own = material.onBeforeCompile.bind(material)
+    moving.customProgramCacheKey = () => `moving ${material.customProgramCacheKey()}`
+    moving.onBeforeCompile = (shader, renderer) => {
+      own(shader, renderer)
       shader.uniforms.brickTransforms = transforms
       shader.vertexShader = `attribute float brick;\nuniform highp sampler2D brickTransforms;\n${shader.vertexShader.replace('#include <begin_vertex>', MOVE)}`
     }
