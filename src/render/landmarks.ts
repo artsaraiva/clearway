@@ -213,7 +213,8 @@ const BLOOMS = ['#ffd1df', '#f6d36a', '#ffadc8', '#fff7e8']
 const FURROWS = '#cdb08a'
 const FIELDS = ['#7bc35e', '#e3c76a', '#a6d36b', '#5aae58', '#d9b45c']
 const ALLOTMENT = { w: 6.4, d: 4.6, path: 1.3 } // m: a plot, and the gravel path between plots
-// m between rows, a stretch of row and the gap between stretches; and the rows of a field.
+// m between rows, a stretch of row and the gap between stretches; and the rows of a field. A stretch of crop row, here
+// and in an allotment, is a plain box: rounded, it costs twenty times the triangles, and a farm Tile has hundreds.
 const FARM = { row: 1.6, length: 5, gap: 0.4, rows: 5 }
 
 /**
@@ -259,8 +260,7 @@ export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) 
         kit.add(kit.box(w - 3.6, 0.5, d - 1.2, 0.3, 0.12), kit.pick(CROPS), x - 1.4, y, ground + 0.22)
       } else if (roll < 0.86) {
         const colours = roll < 0.64 ? CROPS : BLOOMS
-        for (let r = 0; r < 3; r++)
-          kit.add(kit.box(w - 0.9, 0.5, 0.7, 0.3, 0.12), kit.pick(colours), x, y - d / 2 + 0.9 + r * 1.4, ground + 0.22)
+        for (let r = 0; r < 3; r++) kit.add(kit.cuboid(w - 0.9, 0.5, 0.7), kit.pick(colours), x, y - d / 2 + 0.9 + r * 1.4, ground + 0.22)
       }
       kit.brick('tree', x, y, ground)
     }
@@ -301,7 +301,7 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
         : [field.sample(x, y - length / 2), field.sample(x, y + length / 2)]
       if (Math.min(...ends, field.sample(x, y)) < 1.6 || !inside(block.loop, x, y) || inYard(x, y) || !clearOf(street, x, y, w, d, 1))
         continue
-      kit.add(kit.box(w, 0.5, d, 0.25, 0.12), crop, x, y, ground)
+      kit.add(kit.cuboid(w, 0.5, d), crop, x, y, ground)
     }
     if (row % rows === rows - 1) kit.brick('tree', along ? mid.x : t, along ? t : mid.y, ground)
   }

@@ -268,6 +268,7 @@ export function createKit(rand: () => number, materials: Materials) {
     push,
     brick,
     box,
+    cuboid,
     shadow,
     glass,
     bulb,
