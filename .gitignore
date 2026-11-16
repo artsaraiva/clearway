@@ -3,6 +3,9 @@ dist
 .DS_Store
 .playwright-mcp
 
+# Claude Code's local state: git worktrees, the app's preview servers (launch.json), locks
+.claude/
+
 # Third-party reference imagery: local only, never published
 .scratch/game/reference/apple-maps-roundabout.png
 .scratch/game/reference/lookdev-vs-reference.png
