@@ -9,7 +9,7 @@ import { cellAt } from '../sim/tiles'
 import { block, pavement, wide } from './blocks'
 import type { Field } from './field'
 import { blockSeed, fillBlock } from './fill'
-import { createKit, type Brick, type Kit, type Materials, type Part } from './kit'
+import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -86,13 +86,20 @@ export function finish(building: Building): Build {
 /**
  * The static scenery, a few pieces of slab at a time: the pieces and the Blocks on them, merged into one mesh per
  * material. The Blocks of a piece are cut within it from the network as it stands when the piece is laid, and each
- * Block is filled from its own seed as the Zone of its Tile has it, which `zoneOf` reads from the City as it stands
- * when the piece is built, so nothing laid later changes them. A Tile's Roads all end at its cell's edge, so its cell
- * comes out the same whenever it is laid, and a Swap, a Rezoning or an Undo can lift one piece and leave the rest.
+ * Block is filled from its own seed as the Zone and the Stage of its Tile have it, which `zoneOf` and `stageOf` read
+ * from the game as it stands when the piece is built, so nothing laid later changes them. A Tile's Roads all end at its
+ * cell's edge, so its cell comes out the same whenever it is laid, and a Swap, a Rezoning, an Undo or a Stage-up can
+ * lift one piece and leave the rest.
  * ponytail: each build adds about six meshes, which is nothing for a handful of them; past a few dozen Tiles, merge
  * the builds' meshes of each material (and split them again for the piece a Swap lifts).
  */
-export function createScenery(scenery: Scenery, field: Field, materials: Materials, zoneOf: (cell: Cell) => Zone | undefined) {
+export function createScenery(
+  scenery: Scenery,
+  field: Field,
+  materials: Materials,
+  zoneOf: (cell: Cell) => Zone | undefined,
+  stageOf: (cell: Cell) => number,
+) {
   /** The pieces laid, in order, each with the meshes of the build that laid it. Pieces laid together share them. */
   const laid: { piece: Bounds; meshes: THREE.Mesh[] }[] = []
   const others = (pieces: Bounds[]) => laid.map((l) => l.piece).filter((p) => !pieces.some((q) => sameBounds(p, q)))
@@ -100,9 +107,19 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
   /**
    * Build the pieces of slab `pieces` under `sim`'s network, a step at a time: the field, the slab, each Block, then
    * each material's mesh. `before` are the pieces whose slab was laid first: the new slab fills in around them.
-   * `relay` lays the pieces' field again first, which only a change to the network needs.
+   * `relay` lays the pieces' field again first, which only a change to the network needs. `stages`, for a Stage-up of
+   * one Tile's piece, are the Stages it goes between, and the build holds both; otherwise each Block is built at its
+   * Tile's Stage.
    */
-  function* build({ net, spec }: Sim, pieces: Bounds[], tagged: boolean, before: Bounds[], meshes: THREE.Mesh[], relay = true): Building {
+  function* build(
+    { net, spec }: Sim,
+    pieces: Bounds[],
+    tagged: boolean,
+    before: Bounds[],
+    meshes: THREE.Mesh[],
+    relay = true,
+    stages?: Stages,
+  ): Building {
     if (relay) {
       field.lay(net, spec, pieces, others(pieces))
       yield
@@ -124,8 +141,10 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
 
     for (const [i, b] of blocks.entries()) {
       const kit = createKit(mulberry32(blockSeed(scenery, b)), materials)
+      const cell = cellAt(middle(b))
+      kit.stages(stages ?? { from: stageOf(cell), to: stageOf(cell) })
       pavement(kit, b)
-      fillBlock(kit, b, { net, spec, scenery, field, zone: zoneOf(cellAt(middle(b))) })
+      fillBlock(kit, b, { net, spec, scenery, field, zone: zoneOf(cell) })
       take(kit, i)
       yield
     }
@@ -160,15 +179,15 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
   /**
    * Start a build of the piece of a placed Tile in the place of the build that laid it, for its animation. `old` are
    * that build's meshes: they come out of the scene whenever the caller likes, and then go to `discard`. `relay` lays
-   * the piece's field again, as a Swap's new network needs.
+   * the piece's field again, as a Swap's new network needs, and `stages` are a Stage-up's.
    */
-  const replace = (sim: Sim, piece: Bounds, relay: boolean): { old: THREE.Mesh[]; building: Building } => {
+  const replace = (sim: Sim, piece: Bounds, relay: boolean, stages?: Stages): { old: THREE.Mesh[]; building: Building } => {
     const at = laid.findIndex((l) => sameBounds(l.piece, piece))
     const old = laid[at].meshes
     const meshes: THREE.Mesh[] = []
     laid[at] = { piece, meshes }
     const before = laid.slice(0, at).map((l) => l.piece)
-    return { old, building: build(sim, [piece], true, before, meshes, relay) }
+    return { old, building: build(sim, [piece], true, before, meshes, relay, stages) }
   }
 
   return {
@@ -196,6 +215,15 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
      */
     rezone(sim: Sim, piece: Bounds): { old: THREE.Mesh[]; building: Building } {
       return replace(sim, piece, false)
+    },
+
+    /**
+     * Build the piece of a Tile that went from Stage `stages.from` to `stages.to`, under `sim`, the Sim that runs on, as
+     * `rezone` does. The build holds both Stages' buildings, each brick marked with its fate, so that the old can give
+     * way to the new lot by lot.
+     */
+    stageUp(sim: Sim, piece: Bounds, stages: Stages): { old: THREE.Mesh[]; building: Building } {
+      return replace(sim, piece, false, stages)
     },
 
     /** Take the piece of a Tile off the slab, as an Undo does. Returns its meshes, for the caller to take out of the scene and `discard`. */

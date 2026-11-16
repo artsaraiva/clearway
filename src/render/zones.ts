@@ -10,6 +10,11 @@ import { allotments, farm, meadow, park, plaza, site } from './landmarks'
 // shapes, its palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look
 // reads the Block, the ground it must leave free, the kit's random stream and one draw for its Tile, and nothing of
 // where the Block lies in the City, so a Zone builds alike at the City's middle and at its edge.
+//
+// Low-density residential and offices build at their Tile's Stage (#138), through the kit's `staged` and `from`: every
+// lot draws alike at every Stage, and each Stage builds the same lot, better. Every lot takes the same draws from the
+// Block's stream whatever its Stage, so no lot changes with what another lot's Stage builds. The other Zones look the
+// same at every Stage until #141 gives them three looks.
 
 /** m a building keeps clear of a street tree, beyond its trunk. */
 const TREE_ROOM = 2.4
@@ -34,9 +39,18 @@ const TOWERS = { lot: 30, margin: 3.4, gap: 4.5, most: [17, 15], least: 9, podiu
 // Offices: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower of at most 20 m on
 // a side and at least 8, leaving 3.6 m of the lot open on every side, 1.5 m in from the Block's edge.
 const OFFICES = { lot: 30, margin: 3.4, gap: 3.6, least: 8, most: 20, clear: 1.5 }
-// Most towers stand 7 to 11 storeys, and one in five stands 16 to 21 above them.
-const SKYLINE = { tall: 0.2, low: [7, 11], high: [16, 21] } as const
+// One tower in five stands tall above the rest. The storeys a tower stands at each Stage, most towers and the tall ones:
+// Stage 2's are #130's.
+const SKYLINE = { tall: 0.2 } as const
+const FLOORS = [
+  { low: [3, 5], high: [5, 7] },
+  { low: [6, 9], high: [11, 14] },
+  { low: [9, 13], high: [17, 22] },
+] as const
+// How big a lot left to a tree grows at each Stage, as a share of a full tree.
+const SAPLING = [0.5, 0.75, 1]
 const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
+const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
 // to three trees in the yards behind.
 const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
@@ -298,26 +312,43 @@ function yards(g: ZoneGround, lots: RowLot[], count: number) {
   }
 }
 
-/** Low-density residential: a house on a lawn on each lot, most with a garden tree, and the odd lot left to a tree. */
+/**
+ * Low-density residential: a house on a lawn on each lot, and the odd lot left to a tree. Stage 1 builds a cottage on
+ * a bare lawn, and a sapling on a lot left to a tree; from Stage 2 most gardens have a tree; Stage 3 adds a storey, a
+ * chimney, a hedge round the garden and, in half the gardens, a second tree.
+ */
 function houses(g: ZoneGround) {
   const { kit } = g
   const ground = KERB + 0.16 // on the lawn
-  for (const lot of lotsOf(g, HOUSES.margin, HOUSES.lot)) {
+  for (const [i, lot] of lotsOf(g, HOUSES.margin, HOUSES.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const lawn = fit(g, x, y, lot.x1 - lot.x0 - 2 * HOUSES.gap, lot.y1 - lot.y0 - 2 * HOUSES.gap, HOUSES.clear, HOUSES.least, 1.6, 3)
     if (!lawn) continue
+    kit.lot(i)
     const { w, d } = lawn
-    kit.lawn(x, y, KERB, w, d)
+    kit.from(1, () => {
+      kit.lawn(x, y, KERB, w, d)
+      kit.brick('ground', x, y, KERB)
+    })
     if (kit.chance(0.1)) {
-      kit.tree(x, y, ground, kit.range(0.7, 0.95), 'round')
+      kit.staged((stage) => kit.tree(x, y, ground, SAPLING[stage - 1] * kit.range(0.7, 0.95), 'round'))
       continue
     }
-    kit.house(x, y, ground, Math.min(w - 2 * HOUSES.yard, HOUSES.most), Math.min(d - 2 * HOUSES.yard, HOUSES.most))
-    if (kit.chance(0.6)) {
-      const [sx, sy] = [kit.chance(0.5) ? 1 : -1, kit.chance(0.5) ? 1 : -1]
-      kit.tree(x + sx * (w / 2 - 1.4), y + sy * (d / 2 - 1.4), ground, kit.range(0.45, 0.65), kit.chance(0.2) ? 'sakura' : 'round')
-    }
+    kit.staged((stage) =>
+      kit.house(x, y, ground, Math.min(w - 2 * HOUSES.yard, HOUSES.most), Math.min(d - 2 * HOUSES.yard, HOUSES.most), stage),
+    )
+    const [sx, sy] = [kit.chance(0.5) ? 1 : -1, kit.chance(0.5) ? 1 : -1]
+    kit.from(2, () => {
+      if (kit.chance(0.6))
+        kit.tree(x + sx * (w / 2 - 1.4), y + sy * (d / 2 - 1.4), ground, kit.range(0.45, 0.65), kit.chance(0.2) ? 'sakura' : 'round')
+    })
+    kit.from(3, () => {
+      if (kit.chance(0.5))
+        kit.tree(x - sx * (w / 2 - 1.4), y - sy * (d / 2 - 1.4), ground, kit.range(0.4, 0.55), kit.chance(0.3) ? 'sakura' : 'round')
+    })
+    kit.from(3, () => kit.hedge(x, y, ground, w, d, Math.floor(kit.range(0, 4))))
   }
+  kit.lot(-1)
 }
 
 /**
@@ -383,21 +414,39 @@ function towers(g: ZoneGround) {
   }
 }
 
-/** Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left to a tree. */
+/**
+ * Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left to a tree. A
+ * tower gains floors and finish with each Stage (`FLOORS`, and the kit's `officeTower`), and at Stage 3 its plaza has
+ * trees in planters at two corners.
+ */
 function offices(g: ZoneGround) {
   const { kit } = g
-  for (const lot of lotsOf(g, OFFICES.margin, OFFICES.lot)) {
+  for (const [i, lot] of lotsOf(g, OFFICES.margin, OFFICES.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w, d] = [lot.x1 - lot.x0 - 2 * OFFICES.gap, lot.y1 - lot.y0 - 2 * OFFICES.gap].map((side) => Math.min(OFFICES.most, side))
     const footprint = fit(g, x, y, w, d, OFFICES.clear, OFFICES.least, 3, 2)
     if (!footprint) continue
+    kit.lot(i)
     if (kit.chance(0.06)) {
-      kit.tree(x, y, KERB, kit.range(0.7, 1), 'round')
+      kit.staged((stage) => kit.tree(x, y, KERB, SAPLING[stage - 1] * kit.range(0.7, 1), 'round'))
       continue
     }
-    const floors = Math.round(kit.chance(SKYLINE.tall) ? kit.range(...SKYLINE.high) : kit.range(...SKYLINE.low))
-    kit.officeTower(x, y, KERB, footprint.w, footprint.d, floors, kit.pick(STYLES))
+    kit.staged((stage) => {
+      const [t, tall, style] = [kit.range(0, 1), kit.chance(SKYLINE.tall), kit.pick(STYLES)]
+      const [low, high] = FLOORS[stage - 1][tall ? 'high' : 'low']
+      kit.officeTower(x, y, KERB, footprint.w, footprint.d, Math.round(low + (high - low) * t), style, stage)
+    })
+    kit.from(3, () => {
+      const flip = kit.chance(0.5) ? 1 : -1
+      for (const k of [1, -1]) {
+        const [px, py] = [x + k * (footprint.w / 2 + 2.2), y + k * flip * (footprint.d / 2 + 2.2)]
+        if (!stands(g, px, py, 2.2, 2.2, 0.6)) continue
+        kit.add(kit.box(1.9, 0.7, 1.9, 0.3, 0.1), PLANTER, px, py, KERB)
+        kit.tree(px, py, KERB + 0.7, kit.range(0.36, 0.44), 'round')
+      }
+    })
   }
+  kit.lot(-1)
 }
 
 /** Shops: low shops shoulder to shoulder along every edge, each with an awning where it faces a Road, and trees behind. */

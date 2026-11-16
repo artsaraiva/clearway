@@ -14,6 +14,13 @@ export const GATEWAY_DEMAND = {
 /** The Price of the next Tile: `base × growth^(Tiles − 1)`, rounded to the nearest `round` yen. */
 export const PRICE = { base: 350, growth: 1.3, round: 50 }
 
+/**
+ * How a zoned Tile grows: `trips[n]` is how many trips its Junction must serve, while the game is earning, to take it
+ * from Stage n + 1 to the next. Stage 3 is the last.
+ * Played in #133. Retune once #95 decides where trips start and end, since a Tile then grows on its own trips.
+ */
+export const STAGES = { trips: [150, 450] }
+
 export const ECONOMY = {
   /** Yen for each trip that leaves at the Gateway it set out for. */
   pay: 10,

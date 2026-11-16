@@ -1,17 +1,17 @@
 import * as THREE from 'three'
 import { extent, middle } from '../sim/geometry'
-import type { Materials, Stage } from './kit'
-import type { Build } from './scenery'
+import type { BrickKind, Materials } from './kit'
+import type { Build, BuiltBrick } from './scenery'
 import { puff } from './shapes'
 import { slabBounds } from './slab'
 
 const DURATION = 0.62 // s a brick takes to fall in and settle, or to grow in
 const FALL = 25 // m a dropping brick falls
 const JITTER = 0.05 // s at random on each brick's start, so that a row of tiles never lands as one
-// Per stage: when its first brick starts and how much later its farthest one does (s). The slab's stages count from
+// Per kind of brick: when its first one starts and how much later its farthest one does (s). The slab's kinds count from
 // the start of the Reveal, the rest from the start of their Block. The farthest brick is the one farthest from the
 // middle of the Level's pieces of slab.
-const STARTS: Record<Stage, [at: number, spread: number]> = {
+const STARTS: Record<BrickKind, [at: number, spread: number]> = {
   soil: [0, 1.1],
   sand: [0.4, 1.1],
   grass: [0.8, 1.1],
@@ -23,12 +23,20 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
   tree: [0.6, 1.5],
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
-const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
+const POPS = new Set<BrickKind>(['lamp', 'tree']) // these grow in; everything else drops
 // What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement and the lamps. The rest of what
-// stands on its Blocks comes in again at once, its stages starting in this share of a Rebuild's time, since no slab
+// stands on its Blocks comes in again at once, its kinds starting in this share of a Rebuild's time, since no slab
 // lands first.
-const STANDING = new Set<Stage>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
+const STANDING = new Set<BrickKind>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
 const REZONED_PACE = 0.4
+// A Stage-up changes its Tile's lots one at a time, in a random order, over `spread` s. On each lot what the new Stage
+// brings falls in as a Rebuild's bricks do (trees pop in), its ground first, its building `after` s later and its trees
+// `after` s after that, and what only the old Stage had stands until the first of them lands on it, then vanishes in
+// the dust, so a lot is never bare. `dust` puffs fly where a building lands.
+const STAGE_UP = { spread: 2.8, after: 0.15, dust: 4 }
+
+/** How a build comes in: a Rebuild's, a Rezoning's over the slab standing, or a Stage-up's lot by lot. */
+export type Arrival = 'rebuild' | 'rezone' | 'stage-up'
 const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
@@ -53,10 +61,14 @@ export interface Moments {
 }
 
 /**
- * When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces.
- * For a Rezoning (`rezoned`), what it leaves standing starts landed, and the rest starts at once and sooner.
+ * When each brick of a build starts: by its kind, its Block, and how far it lies from the middle of the Level's pieces.
+ * For a Rezoning, what it leaves standing starts landed, and the rest starts at once and sooner. For a Stage-up, see
+ * `stagedUp`.
  */
-function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32Array {
+function schedule(build: Build, arrival: Arrival): Float32Array {
+  if (arrival === 'stage-up') return stagedUp(build)
+  const { bricks, blocks, pieces } = build
+  const rezoned = arrival === 'rezone'
   const area = extent(pieces)
   const centre = middle(area)
   const slab = slabBounds(area)
@@ -67,13 +79,42 @@ function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32A
   const starts = blocks.map((b) => at + far(b.middle.x, b.middle.y) * spread)
   return new Float32Array(
     bricks.map((b) =>
-      rezoned && STANDING.has(b.stage)
+      rezoned && STANDING.has(b.kind)
         ? -Infinity
         : (b.block < 0 ? 0 : starts[b.block]) +
-          (STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1]) * pace +
+          (STARTS[b.kind][0] + far(b.at.x, -b.at.z) * STARTS[b.kind][1]) * pace +
           Math.random() * JITTER,
     ),
   )
+}
+
+/**
+ * When each brick of a Stage-up starts. What stays starts landed. Each lot whose bricks change gets its moment, the lots
+ * in a random order over `STAGE_UP.spread`, and at it what comes starts falling or popping in, ground, building, then
+ * trees. What goes vanishes as the first of what comes lands on its lot, or starts popping in if none of it drops.
+ */
+function stagedUp({ bricks }: Build): Float32Array {
+  const lotOf = (b: BuiltBrick) => `${b.block}:${b.lot}`
+  const lots = [...new Set(bricks.filter((b) => b.fate !== 'stays').map(lotOf))]
+  for (let i = lots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[lots[i], lots[j]] = [lots[j], lots[i]]
+  }
+  const moment = new Map(
+    lots.map((lot, i) => [lot, (lots.length > 1 ? i / (lots.length - 1) : 0) * STAGE_UP.spread + Math.random() * JITTER]),
+  )
+  const order = (b: BuiltBrick) => (b.kind === 'building' ? 1 : b.kind === 'tree' ? 2 : 0)
+  const delays = bricks.map((b) => (b.fate === 'comes' ? moment.get(lotOf(b))! + order(b) * STAGE_UP.after : -Infinity))
+  const struck = new Map<string, number>()
+  bricks.forEach((b, i) => {
+    if (b.fate !== 'comes') return
+    const hits = delays[i] + (POPS.has(b.kind) ? 0 : DURATION / 2)
+    struck.set(lotOf(b), Math.min(struck.get(lotOf(b)) ?? Infinity, hits))
+  })
+  bricks.forEach((b, i) => {
+    if (b.fate === 'goes') delays[i] = struck.get(lotOf(b)) ?? moment.get(lotOf(b))!
+  })
+  return new Float32Array(delays)
 }
 
 /** A sprite puff's motion: velocity (m/s), gravity (m/s²), size as it starts and as it ends (m), how long it lasts (s), colour and opacity. */
@@ -82,15 +123,17 @@ const PUFF = { vx: 0, vy: 2.4, vz: 0, gravity: 0, from: 1.4, to: 5, lasts: 0.6, 
 /**
  * The Reveal animation: a Level's pieces of slab assembling brick by brick next to the slab already there. Slab
  * layers, road plate, Blocks and buildings drop with a squash, trees and lamps pop in, dust flies where large bricks
- * land, and confetti fires when it is done. A Rezoning's build plays the same way over the slab already standing. The
- * build's meshes are drawn through copies of their materials that move each brick by its own transform, read from a
- * texture, so a build costs no more draw calls than the finished scenery. One build plays at a time.
- * ponytail: 140 puffs fly at once, and a landing past that throws no dust (the slab layers' dust lands inside the slab
- * anyway); grow the pool, or draw puffs as points, if a large Reveal's dust looks thin. And the whole transforms
- * texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that changed if a
- * Reveal ever reaches tens of thousands of bricks.
+ * land, and confetti fires when it is done. A Rezoning's build plays the same way over the slab already standing, and a
+ * Stage-up's lot by lot over its Tile's buildings. The build's meshes are drawn through copies of their materials that
+ * move each brick by its own transform, read from a texture, so a build costs no more draw calls than the finished
+ * scenery. One build plays at a time, with `pool` puffs of dust and confetti.
+ * ponytail: 140 puffs fly at once in a Rebuild's, and a landing past that throws no dust (the slab layers' dust lands
+ * inside the slab anyway); grow the pool, or draw puffs as points, if a large Reveal's dust looks thin. Every puff is a
+ * sprite whose matrix three updates each frame, hidden or not, so an idle pool costs frame time too. And the whole
+ * transforms texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that
+ * changed if a Reveal ever reaches tens of thousands of bricks.
  */
-export function createReveal(materials: Materials) {
+export function createReveal(materials: Materials, pool = 140) {
   const group = new THREE.Group()
   const transforms = { value: new THREE.DataTexture(new Float32Array(4), 1, 1, THREE.RGBAFormat, THREE.FloatType) }
   const copy = <M extends THREE.Material>(material: M): M => {
@@ -114,7 +157,7 @@ export function createReveal(materials: Materials) {
   const depth = copy(new THREE.MeshDepthMaterial())
 
   const texture = puff()
-  const puffs = Array.from({ length: 140 }, () => {
+  const puffs = Array.from({ length: pool }, () => {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, toneMapped: false }))
     sprite.visible = false
     sprite.renderOrder = 8
@@ -132,6 +175,7 @@ export function createReveal(materials: Materials) {
   }
 
   let build: Build | null = null
+  let arrival: Arrival = 'rebuild'
   let moments: Moments
   let delays: Float32Array = new Float32Array(0)
   let state = new Uint8Array(0)
@@ -165,11 +209,52 @@ export function createReveal(materials: Materials) {
   }
 
   /**
+   * Take every vertex of a brick that went out of a Stage-up's meshes, so that they hold the new Stage alone. A brick's
+   * triangles are its own, so dropping its vertices drops whole triangles, and its vertices lie together, so what stays
+   * is copied a run of vertices at a time: one vertex at a time took 25 to 50 ms a Tile in #133.
+   */
+  const strip = (done: Build) => {
+    const gone = new Uint8Array(done.bricks.map((b) => (b.fate === 'goes' ? 1 : 0)))
+    for (const mesh of done.meshes) {
+      const g = mesh.geometry
+      const brick = g.getAttribute('brick')
+      if (!brick || g.index) continue
+      const ids = brick.array as Float32Array
+      const runs: number[] = [] // where each run of vertices that stays starts and ends
+      let kept = 0
+      for (let v = 0; v < ids.length;) {
+        const stays = !gone[ids[v]]
+        let end = v + 1
+        while (end < ids.length && !gone[ids[end]] === stays) end++
+        if (stays) {
+          runs.push(v, end)
+          kept += end - v
+        }
+        v = end
+      }
+      if (kept === ids.length) continue
+      const out = new THREE.BufferGeometry()
+      for (const [name, attribute] of Object.entries(g.attributes)) {
+        const { array, itemSize, normalized } = attribute as THREE.BufferAttribute
+        const copy = new (array.constructor as Float32ArrayConstructor)(kept * itemSize)
+        for (let r = 0, at = 0; r < runs.length; r += 2) {
+          copy.set(array.subarray(runs[r] * itemSize, runs[r + 1] * itemSize), at)
+          at += (runs[r + 1] - runs[r]) * itemSize
+        }
+        out.setAttribute(name, new THREE.BufferAttribute(copy, itemSize, normalized))
+      }
+      g.dispose()
+      mesh.geometry = out
+    }
+  }
+
+  /**
    * Turn the build back into static scenery, and celebrate over its pieces unless `quietly`. A build that lands early
-   * still shows its paint.
+   * still shows its paint, and a Stage-up's loses its old Stage.
    */
   const finish = (done: Build, quietly = false) => {
     if (!plated) moments.plate()
+    if (arrival === 'stage-up') strip(done)
     show(done)
     build = null
     for (let i = 0; i < (quietly ? 0 : 50); i++) {
@@ -203,6 +288,11 @@ export function createReveal(materials: Materials) {
       return build !== null
     },
 
+    /** Whether anything of it still moves: a build assembling, or a puff in the air. */
+    get busy() {
+      return build !== null || puffs.some((p) => p.left > 0)
+    },
+
     /**
      * Compile what drawing `ahead`, a build made ahead of its Reveal, will need, by drawing one frame of `scene` with it
      * in and nothing of it showing. Without this the Reveal's first frame stalls on it.
@@ -216,16 +306,21 @@ export function createReveal(materials: Materials) {
     },
 
     /**
-     * Start assembling a Reveal's build, whose meshes are already in the scene, or a Rezoning's if `rezoned`. `on` hears
-     * of the moments along the way. A build still assembling lands at once.
+     * Start assembling a build whose meshes are already in the scene, as `how` says it comes in. `on` hears of the
+     * moments along the way. A build still assembling lands at once.
      */
-    play(next: Build, on: Moments, rezoned = false) {
+    play(next: Build, on: Moments, how: Arrival = 'rebuild') {
       if (build) finish(build, true)
-      ;[build, moments, t, plated, landed] = [next, on, 0, false, 0]
+      ;[build, arrival, moments, t, plated, landed] = [next, how, on, 0, false, 0]
       hide(next)
-      delays = schedule(next, rezoned)
+      delays = schedule(next, how)
       state = new Uint8Array(next.bricks.length)
-      plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.stage === 'plate' ? [delays[i] + DURATION / 2] : [])))
+      // What a Stage-up takes away stands at full size until its lot's moment.
+      if (how === 'stage-up') {
+        const data = transforms.value.image.data as Float32Array
+        next.bricks.forEach((b, i) => b.fate === 'goes' && data.set([1, 1, 1, 0], 8 * i + 4))
+      }
+      plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.kind === 'plate' ? [delays[i] + DURATION / 2] : [])))
     },
 
     /** Land the build still assembling at once, without celebrating, as when its piece is about to be built again. */
@@ -258,13 +353,21 @@ export function createReveal(materials: Materials) {
       const data = transforms.value.image.data as Float32Array
       const { bricks } = build
       for (let i = 0; i < bricks.length; i++) {
+        if (bricks[i].fate === 'goes') {
+          // What the old Stage had vanishes at once, in the dust of what lands on it.
+          if (state[i] === LANDED || t < delays[i]) continue
+          state[i] = LANDED
+          landed++
+          data.fill(0, 8 * i + 4, 8 * i + 8)
+          continue
+        }
         const u = (t - delays[i]) / DURATION
         if (state[i] === LANDED || u <= 0) continue
         let [sx, sy, lift] = [1, 1, 0]
         if (u >= 1) {
           state[i] = LANDED
           landed++
-        } else if (POPS.has(bricks[i].stage)) {
+        } else if (POPS.has(bricks[i].kind)) {
           sx = sy = Math.max(0.001, 1 + 2.70158 * (u - 1) ** 3 + 1.70158 * (u - 1) ** 2) // back out: overshoot, then settle
         } else if (u < 0.5) {
           sx = sy = Math.min(1, 0.55 + u * 2)
@@ -277,6 +380,9 @@ export function createReveal(materials: Materials) {
             state[i] = SETTLING
             const { at, dust } = bricks[i]
             for (let k = 0; k < dust; k++) spawn(at.x + (Math.random() - 0.5) * 30, at.y + 2, at.z + (Math.random() - 0.5) * 30)
+            // A Stage-up's building lands in a cloud that hides the old one going.
+            if (arrival === 'stage-up' && bricks[i].kind === 'building')
+              for (let k = 0; k < STAGE_UP.dust; k++) spawn(at.x + (Math.random() - 0.5) * 9, at.y + 1.5, at.z + (Math.random() - 0.5) * 9)
           }
         }
         const o = 8 * i + 4

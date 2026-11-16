@@ -55,6 +55,15 @@ A new run starts with one Tile already placed and the price of the first Tile in
 - The swapped Tile's Changes return to defaults. Changes on every other Tile carry over.
 - A Tile cannot be removed or moved.
 
+### Stages
+
+A zoned Tile grows through Stages 1, 2 and 3 as its Junction serves trips ([#138](https://github.com/artsaraiva/clearway/issues/138), ADR 0005). An unzoned Tile has no Stage.
+
+- A Junction serves a trip each time one leaves a Road for the Junction's own lanes while it has no Jam. While the game is earning, never during a Pre-warm, those trips are its Tile's progress: 150 take it to Stage 2 and 450 more to Stage 3 (`STAGES` in `src/tuning.ts`). It stands in until [#95](https://github.com/artsaraiva/clearway/issues/95) gives Tiles trips of their own, so a Tile that no route passes through never grows.
+- Only up: a Jam stops growth and takes nothing away.
+- A Swap keeps the Stage and progress, and a Rezoning starts the Tile again at Stage 1. Undo takes a placed Tile's Stage with it, and undoing a Rezoning puts the old Stage back.
+- A Tile reaches a Stage in the middle of play, with no Rebuild. Growth, the sum of the Stages, shows under the yen; it becomes the Record in [#140](https://github.com/artsaraiva/clearway/issues/140).
+
 ### Undo
 
 - The last placement or Swap can be undone for a full refund until 10 sim-seconds of earning have run since it. Paused time does not count.
@@ -114,7 +123,7 @@ Pure TypeScript with no sim or Three.js import.
 
 ### The game state
 
-Beside the Sim, not inside it: the run's seed, yen, the City, the Changes, the Record and the one step of Undo. A new run takes a new seed, which picks the starting Tile and seeds the Sim; a test passes a fixed one. It reads `completed` trips and Flow from the Sim, applies the Income floor, and rebuilds the Sim on placing, Swap and Undo.
+Beside the Sim, not inside it: the run's seed, yen, the City, each zoned Tile's Stage, the Changes, the Record and the one step of Undo. A new run takes a new seed, which picks the starting Tile and seeds the Sim; a test passes a fixed one. It reads `completed` trips and Flow from the Sim, applies the Income floor, and rebuilds the Sim on placing, Swap and Undo.
 
 ### The page
 

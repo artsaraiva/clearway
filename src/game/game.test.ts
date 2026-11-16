@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
-import { City, LAYOUTS, type Layout } from '../city/city'
+import { City, LAYOUTS, ZONES, type Layout } from '../city/city'
+import type { Change } from '../sim/spec'
 import { Game } from './game'
 
 const layout = (id: Layout['id']) => LAYOUTS.find((l) => l.id === id)!
@@ -190,4 +191,72 @@ it('resets the swapped Tile’s Changes and keeps its neighbours’ in force', (
   expect(place(game, ['roundabout', 0, 0, 0])).toMatchObject({ legal: true, swap: true })
   expect(sendsTo(game, NORTH)).toBe(true)
   expect(game.sim.rates[EAST]).toBeUndefined()
+})
+
+// Stages
+
+/** A zoned Crossroads with a Straight off each Arm, all low-density residential: every trip crosses the Crossroads. */
+function plus(free = true) {
+  const zone = ZONES.find((z) => z.id === 'low-density')
+  const city = new City([{ cell: { x: 0, y: 0 }, layout: layout('crossroads'), rotation: 0, zone }])
+  for (const [x, y, rotation] of [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 1],
+    [0, -1, 1],
+  ])
+    expect(city.place(layout('straight'), rotation, { x, y }, zone).legal).toBe(true)
+  return new Game(1, { city, free, yen: 0 })
+}
+const CROSSROADS = { x: 0, y: 0 }
+/** Every Arm of the Crossroads yields but its quiet west one, which is main: its busy Approaches crawl, and it jams. */
+const YIELDING: Change = { at: 'c0_0', priority: { h0_0: 'yield', v0_0: 'yield', 'h-1_0': 'main', 'v0_-1': 'yield' } }
+
+it('takes a Tile whose Junction is served to its next Stage', () => {
+  const game = plus()
+  expect(game.stageOf(CROSSROADS)).toEqual({ stage: 1, progress: 0 })
+  earn(game, 8 * 60)
+  expect(game.stageOf(CROSSROADS)?.stage).toBe(2)
+  expect(game.growth).toBe(6)
+})
+
+it('holds a Tile at its Stage while its Junction is in a Jam', () => {
+  const game = plus()
+  game.apply(YIELDING)
+  while (!game.sim.prewarmed) game.step()
+  let jammed = 0
+  for (let i = 0; i < 8 * 60 * 30; i++) {
+    const [before, held] = [game.stageOf(CROSSROADS)!, game.sim.jams.some((j) => j.id === 'c0_0')]
+    game.step()
+    if (!held) continue
+    jammed++
+    expect(game.stageOf(CROSSROADS)).toEqual(before)
+  }
+  expect(jammed).toBeGreaterThan(5 * 60 * 30)
+  expect(game.stageOf(CROSSROADS)?.stage).toBe(1)
+})
+
+it('keeps a Tile’s Stage and progress through a Swap, and starts it again at Stage 1 on a Rezoning', () => {
+  const game = plus()
+  earn(game, 8 * 60)
+  const grown = game.stageOf(CROSSROADS)!
+  expect(grown.stage).toBe(2)
+  expect(grown.progress).toBeGreaterThan(0)
+
+  expect(place(game, ['roundabout', 0, 0, 0])).toMatchObject({ legal: true, swap: true })
+  expect(game.stageOf(CROSSROADS)).toEqual(grown)
+
+  expect(
+    game.rezone(
+      CROSSROADS,
+      ZONES.find((z) => z.id === 'offices'),
+    ),
+  ).toBe(true)
+  expect(game.stageOf(CROSSROADS)).toEqual({ stage: 1, progress: 0 })
+  // Undoing the Rezoning puts the Stage back.
+  expect(game.undo()).toBe(true)
+  expect(game.stageOf(CROSSROADS)).toEqual(grown)
+  // An unzoned Tile has no Stage.
+  expect(game.rezone(CROSSROADS, undefined)).toBe(true)
+  expect(game.stageOf(CROSSROADS)).toBeUndefined()
 })

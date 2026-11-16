@@ -7,6 +7,7 @@ import type { Relaid, View } from '../render/view'
 import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
+import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 import { createTools } from './tools'
@@ -136,10 +137,10 @@ const zonePicture = (zone: Zone | undefined) =>
     <circle cx="20" cy="20" r="18.5" fill="none" stroke="rgba(27,32,48,0.12)"/></svg>`
 
 /**
- * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
- * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts and Zones with
- * the Price and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left, which leaves the run
- * through `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route
+ * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left with Growth under them (`./growth`), the
+ * Flow gauge with trips a minute and the Record top-centre, the clock top-right with the selected Junction's panel
+ * under it, the bar of Layouts and Zones with the Price and Undo bottom-centre, the camera's buttons bottom-right and
+ * the menu bottom-left, which leaves the run through `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route
  * Inspector are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the
  * selected Junction, which draws a Connection.
  */
@@ -414,6 +415,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   })
   const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
   const jams = createJamMarkers(root, canvas, game, view, tools, () => hand !== null)
+  // A Tile that reaches a Stage shows it there and then, with no Rebuild.
+  game.onStage = (cell, from, to) => view.stageUp(cellBounds(cell), from, to)
+  const growth = createGrowth(root, canvas, game, view, () => hand !== null || dragging !== null)
   window.addEventListener('pointermove', (e) => {
     if (dragging) {
       if (moved(e, dragging.from)) dragging.moved = true
@@ -599,6 +603,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
       tools.update()
       jams.update()
+      growth.update()
     },
   }
 }

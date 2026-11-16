@@ -41,11 +41,13 @@
         --glass-edge: rgba(255, 255, 255, 0.78);
         --shade: 0 8px 28px rgba(16, 24, 48, 0.16), 0 1px 3px rgba(16, 24, 48, 0.1);
         --edge: 18px;
-        /* The accents, the only saturated colour on the screen: the yen fill, the Flow fill and the selected button. */
+        /* The accents, the only saturated colour on the screen: the yen fill, the Flow fill, the selected button and a
+           Stage's stars. */
         --yen: #ffb000;
         --yen-deep: #ff9500;
         --flow: #16c172;
         --accent: #ff3d8b;
+        --star: #f0a400;
         --font: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', sans-serif;
       }
       html,
@@ -160,6 +162,135 @@
         }
       }
 
+      /* Stages: a bar over the placed Tile under the pointer, below where a Jam marker floats, with its Stage and its trips
+         toward the next; and a badge that rises over a Tile as its Stage-up ends. */
+      .growth-layer {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      /* As wide as its note, and no narrower than 132 px: the screen centres it under its Tile. */
+      .tile-bar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: max-content;
+        min-width: 132px;
+        padding: 6px 9px 7px;
+        box-sizing: border-box;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.86);
+        box-shadow: 0 4px 14px rgba(16, 24, 48, 0.18);
+        font-size: 12px;
+        will-change: transform;
+      }
+      .tile-bar[hidden] {
+        display: none;
+      }
+      .tile-bar .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+      .tile-bar .stars {
+        color: var(--star);
+        letter-spacing: 1px;
+      }
+      .tile-bar .track {
+        height: 6px;
+        margin: 4px 0 3px;
+        border-radius: 3px;
+        background: var(--line);
+        overflow: hidden;
+      }
+      .tile-bar .track i {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #2bd98a, var(--flow));
+      }
+      .tile-bar .note {
+        color: var(--ink-soft);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .tile-bar.full .track i {
+        background: linear-gradient(90deg, var(--yen), var(--yen-deep));
+      }
+      .tile-bar.jammed .track i {
+        background: #9aa0ab;
+      }
+      .tile-bar.jammed .note {
+        color: #ff4a1f;
+        font-weight: 800;
+      }
+      .tile-bar.unzoned .track {
+        display: none;
+      }
+      .stage-badge {
+        position: absolute;
+        left: 0;
+        top: 0;
+        will-change: transform;
+      }
+      .stage-badge span {
+        position: absolute;
+        left: -60px;
+        width: 120px;
+        top: -40px;
+        display: grid;
+        justify-items: center;
+        gap: 1px;
+        font-size: 18px;
+        color: var(--star);
+        text-shadow:
+          0 0 3px #fff,
+          0 0 6px #fff,
+          0 1px 8px rgba(255, 255, 255, 0.9);
+        animation: badge-rise 1.8s ease-out both;
+      }
+      .stage-badge b {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--ink);
+      }
+      @keyframes badge-rise {
+        0% {
+          transform: translateY(10px) scale(0.4);
+          opacity: 0;
+        }
+        15% {
+          transform: translateY(0) scale(1.12);
+          opacity: 1;
+        }
+        25% {
+          transform: translateY(-4px) scale(1);
+        }
+        75% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-56px) scale(1);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stage-badge span {
+          animation: badge-fade 1.8s ease-out both;
+        }
+        @keyframes badge-fade {
+          0%,
+          100% {
+            opacity: 0;
+          }
+          15%,
+          75% {
+            opacity: 1;
+          }
+        }
+      }
+
       /* --- The screen: money top-left, traffic top-centre, the clock top-right, the bar bottom-centre, the camera's
              buttons bottom-right and the menu bottom-left. Nothing covers the middle of the board. --- */
       #ui {
@@ -244,6 +375,41 @@
         display: flex;
         justify-content: space-between;
         gap: 12px;
+      }
+      /* Growth, the sum of every Tile's Stage, under the yen, with how many Tiles are at each Stage. */
+      .growth {
+        top: calc(var(--edge) + 114px);
+        left: var(--edge);
+        padding: 8px 16px 9px;
+        border-radius: 18px;
+      }
+      .growth .row {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        white-space: nowrap;
+      }
+      .growth .label {
+        font-size: 15px;
+        font-weight: 800;
+      }
+      .growth .total {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .growth .stages {
+        margin-left: 4px;
+      }
+      .growth .stages i {
+        font-style: normal;
+        color: var(--star);
+      }
+      /* Dev only: the pace of growth, when it is sped up. */
+      .growth .pace {
+        margin-top: 2px;
+        color: var(--accent);
+        font-weight: 800;
       }
 
       .flow {

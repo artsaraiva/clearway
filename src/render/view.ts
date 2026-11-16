@@ -10,11 +10,11 @@ import { createJamEmotion } from './emotion'
 import { createField } from './field'
 import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from './hand'
 import { createRouteInspector } from './inspector'
-import { createMaterials } from './kit'
+import { createMaterials, type Stages } from './kit'
 import { createLabels } from './labels'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
-import { createScenery, finish, type Build, type Scenery } from './scenery'
+import { createScenery, finish, type Build, type Building, type Scenery } from './scenery'
 import { createSky } from './sky'
 import { createUnderShadow, slabBounds } from './slab'
 import { createTools, NO_TOOLS, nearest, reach, targets, type Target, type ToolState } from './tools'
@@ -23,6 +23,11 @@ import { createWalkers } from './walkers'
 const SHRINK = 0.3 // s for the cars to shrink out as a Rebuild starts
 const GROW = 1.5 // per second: how fast the cars grow back in once the new pieces have landed
 const CAR_PICK = 3 // m from a car's centre
+// Stage-ups: ms of each frame spent building the pieces of Tiles that reached a Stage, though always one step of a
+// build, so that one is never stuck; how many may play at once; and the puffs of dust and confetti each has. Every puff
+// is a sprite whose matrix three updates each frame even while it is hidden, so a Stage-up's reveal leaves the scene
+// while it is idle: six idle ones cost 0.2 ms a frame on the 26-Tile City.
+const STAGE_UPS = { budget: 3, most: 6, puffs: 60 }
 
 export type View = ReturnType<typeof createView>
 
@@ -33,6 +38,16 @@ export interface Ground {
   scenery: Scenery
   /** The Zone of the Tile on `cell`, as the City has it when its piece is built. None: unzoned. */
   zoneOf(cell: Cell): Zone | undefined
+  /** The Stage of the Tile on `cell`, as the game has it when its piece is built. Any, for an unzoned Tile. */
+  stageOf(cell: Cell): number
+}
+
+/** A Tile's piece to build again because the Tile went from one Stage to another, with its build once begun and done. */
+interface StageUp {
+  piece: Bounds
+  stages: Stages
+  begun?: { old: THREE.Mesh[]; building: Building }
+  built?: Build
 }
 
 /** What a Rebuild did to the slab: the cell of the Tile it placed, of the Tile it swapped (or swapped back), or of the Tile an Undo took off. */
@@ -55,7 +70,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const slabNow = () => slabBounds(extent(pieces))
   const field = createField()
   const materials = createMaterials()
-  const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf)
+  const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf, ground.stageOf)
   const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
   let slab = slabNow()
   const rig = createCamera(canvas, slab) // the camera, and what moves it
@@ -74,6 +89,55 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   labels.show(sim.net, sim.rates, field, pieces)
   const reveal = createReveal(materials)
   const regrow = createReveal(materials) // a Rezoning's, which plays beside a Rebuild's
+  /** The piece of the Rezoning playing. */
+  let regrowing: Bounds | null = null
+  // Stage-ups waiting their turn, the first of them perhaps begun, and those playing, each on a reveal of its own so
+  // that several Tiles can reach a Stage at once.
+  const waiting: StageUp[] = []
+  const playing: { reveal: ReturnType<typeof createReveal>; piece: Bounds | null }[] = []
+  /** Called as a Stage-up has played to its end, with its piece and the Stage its Tile reached. */
+  let onStageUp: ((piece: Bounds, stage: number) => void) | undefined
+  /** Whether something plays on `piece` now, which a Stage-up of it must wait for: its meshes are the ones it replaces. */
+  const busy = (piece: Bounds) =>
+    (regrowing !== null && sameBounds(regrowing, piece)) || playing.some((p) => p.piece && sameBounds(p.piece, piece))
+  /**
+   * Play a Stage-up whose build is done: its meshes take the place of the old ones, and its lots change one by one, or
+   * all at once and without celebrating if `quietly`.
+   */
+  const playStageUp = (job: StageUp, quietly = false) => {
+    const built = job.built ?? finish(job.begun!.building)
+    scene.remove(...job.begun!.old)
+    scenery.discard(job.begun!.old)
+    scene.add(...built.meshes)
+    let slot = playing.find((p) => !p.piece)
+    if (!slot) {
+      slot = { reveal: createReveal(materials, STAGE_UPS.puffs), piece: null }
+      playing.push(slot)
+    }
+    const used = slot
+    if (!used.reveal.group.parent) scene.add(used.reveal.group)
+    used.piece = job.piece
+    const done = () => {
+      used.piece = null
+      if (!quietly) onStageUp?.(job.piece, job.stages.to)
+    }
+    used.reveal.play(built, { plate() {}, done }, 'stage-up')
+    if (quietly) used.reveal.settle()
+  }
+  /** Finish at once the build of the Stage-up begun, if any, which then plays in its turn. */
+  const buildAtOnce = () => {
+    const job = waiting[0]
+    if (job?.begun && !job.built) job.built = finish(job.begun.building)
+  }
+  /**
+   * Make way for `piece` to be built again from the game as it stands: land at once a Stage-up playing on it or begun,
+   * and drop one waiting, since the new build shows the Tile's Stage now.
+   */
+  const settleStageUps = (piece: Bounds) => {
+    for (const p of playing) if (p.piece && sameBounds(p.piece, piece)) p.reveal.settle()
+    if (waiting[0]?.begun && sameBounds(waiting[0].piece, piece)) playStageUp(waiting.shift()!, true)
+    for (let i = waiting.length - 1; i >= 0; i--) if (sameBounds(waiting[i].piece, piece)) waiting.splice(i, 1)
+  }
   const hand = createHand()
   const rezoning = createRezoning()
   const scene = new THREE.Scene().add(
@@ -207,12 +271,43 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * swap the meshes once it is done, if the hitch shows on slower machines.
      */
     rezone(sim: Sim, piece: Bounds) {
+      settleStageUps(piece)
       const { old, building } = scenery.rezone(sim, piece)
       const build = finish(building)
       scene.remove(...old)
       scenery.discard(old)
       scene.add(...build.meshes)
-      regrow.play(build, { plate() {}, done() {} }, true)
+      // After `play`, which lands a Rezoning still playing, and that one's `done` lets go of its piece.
+      regrow.play(build, { plate() {}, done: () => (regrowing = null) }, 'rezone')
+      regrowing = piece
+    },
+
+    /**
+     * Show the Tile on `piece` reaching Stage `to` from `from`, with no Rebuild: its piece is built again over the next
+     * frames, a few ms of each and holding both Stages' buildings, and then its lots change one by one on the real
+     * clock, each new building dropping in as a Rebuild's do. Confetti ends it, and then `onStageUp` hears of it. Tiles
+     * that reach a Stage together are built in turn, and at most `STAGE_UPS.most` play at once: the rest wait, and none
+     * begins while a Rebuild plays. A Tile that reaches another Stage before its last one has begun goes straight there.
+     * ponytail: a Block's step of the build can't be split, so a frame takes at least one. On an M4 Pro the longest
+     * step is 10 ms for a median low-density Tile and 22 ms at worst (offices 6 and 17), and with 1,000 cars about one
+     * Stage-up in two has a frame over 16.7 ms, up to 28 ms (#138). Split a Block's fill into its lots, a step each, if
+     * that hitch shows on slower machines.
+     */
+    stageUp(piece: Bounds, from: number, to: number) {
+      const queued = waiting.find((j) => !j.begun && sameBounds(j.piece, piece))
+      if (!queued) waiting.push({ piece, stages: { from, to } })
+      else if (queued.stages.from === to) waiting.splice(waiting.indexOf(queued), 1)
+      else queued.stages = { from: queued.stages.from, to }
+    },
+
+    /** Hear of each Stage-up as it plays to its end, with its piece and the Stage its Tile reached. */
+    set onStageUp(f: ((piece: Bounds, stage: number) => void) | undefined) {
+      onStageUp = f
+    },
+
+    /** How many Stage-ups are waiting, being built or playing. */
+    get stagingUp() {
+      return waiting.length + playing.filter((p) => p.piece).length
     },
 
     /**
@@ -224,8 +319,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * machines.
      */
     rebuild(rebuilt: Sim, relaid: Relaid) {
-      // A Rezoning still playing lands at once, since its piece may be the one rebuilt.
+      // A Rezoning still playing lands at once, since its piece may be the one rebuilt, and so does a Stage-up of that
+      // piece. Another Stage-up begun is built at once, since this Rebuild lays the field again, and plays once it ends.
       regrow.settle()
+      if ('swapped' in relaid) settleStageUps(relaid.swapped)
+      if ('removed' in relaid) settleStageUps(relaid.removed)
+      buildAtOnce()
       const drop = (meshes: THREE.Mesh[]) => {
         scene.remove(...meshes)
         scenery.discard(meshes)
@@ -290,6 +389,30 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     render(dt: number, real = dt) {
       reveal.update(dt)
       regrow.update(real)
+      // The next Stage-up whose piece nothing plays on is built a few ms at a time, then plays. None begins while a
+      // Rebuild plays, or while as many play as may.
+      const end = performance.now() + STAGE_UPS.budget
+      while (waiting.length && !next) {
+        const at = waiting.findIndex((j) => j.begun || !busy(j.piece))
+        if (at < 0) break
+        const job = waiting[at]
+        if (!job.begun) {
+          if (playing.filter((p) => p.piece).length >= STAGE_UPS.most || performance.now() >= end) break
+          waiting.unshift(...waiting.splice(at, 1))
+          job.begun = scenery.stageUp(shown, job.piece, job.stages)
+        }
+        if (!job.built) {
+          let step = job.begun.building.next()
+          while (!step.done && performance.now() < end) step = job.begun.building.next()
+          if (!step.done) break
+          job.built = step.value
+        }
+        playStageUp(waiting.shift()!)
+      }
+      for (const p of playing) {
+        p.reveal.update(real)
+        if (!p.piece && !p.reveal.busy && p.reveal.group.parent) scene.remove(p.reveal.group)
+      }
       if (next && !reveal.playing && next.prewarmed) {
         shown = next
         next = null
