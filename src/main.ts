@@ -1,4 +1,5 @@
 import { LAYOUTS, ZONES, type Layout, type Zone } from './city/city'
+import type { Stage } from './game/game'
 import { openRun } from './game/save'
 import { SEEDED } from './render/scenery'
 import { createView } from './render/view'
@@ -29,6 +30,7 @@ const view = createView(canvas, game.sim, {
   pieces: game.city.tiles.map((t) => cellBounds(t.cell)),
   scenery: { theme: 'city', seed: game.seed, landmarks: [], blocks: [], streets: {}, avenues: [], seeded: SEEDED },
   zoneOf: (cell) => game.city.tileAt(cell)?.zone,
+  stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
 })
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
@@ -55,7 +57,9 @@ const frame = (dt: number) => {
 
 // Dev hook for scripted screenshots and frame timing: `clearway.place('curve', 1, 1, 0)`, `clearway.game.yen += 5000`,
 // and `clearway.frame(0.016)` where the browser is not drawing frames itself. `clearway.pick('offices')` picks the Zone
-// the Tiles placed next are built as, and `clearway.rezone(1, 0, null)` unzones a placed Tile.
+// the Tiles placed next are built as, and `clearway.rezone(1, 0, null)` unzones a placed Tile. `clearway.stage(1, 0, 3)`
+// puts a zoned Tile at a Stage, playing its Stage-up as if it had grown there, and `clearway.pace(10)` makes each trip
+// a Junction serves count ten times toward its Tile's next Stage.
 if (import.meta.env.DEV) {
   const zone = (id: Zone['id'] | null) => (id === null ? undefined : ZONES.find((z) => z.id === id)!)
   Object.assign(window, {
@@ -75,6 +79,8 @@ if (import.meta.env.DEV) {
       undo: ui.undo,
       pick: (id: Zone['id'] | null) => ui.pick(zone(id)),
       rezone: (x: number, y: number, id: Zone['id'] | null) => ui.rezone({ x, y }, zone(id)),
+      stage: (x: number, y: number, stage: Stage) => game.setStage({ x, y }, stage),
+      pace: (pace: number) => (game.pace = pace),
     },
   })
 }
