@@ -41,7 +41,7 @@ Sound is out of this spec: [#115](https://github.com/artsaraiva/clearway/issues/
 | Top-centre | The Flow gauge with trips a minute |
 | Top-right | Pause, 1×, 4×, 8× |
 | Bottom-centre | The bar of Layouts, with the Zones in a second row, the Price and Undo |
-| Bottom-right | Compass, recenter, tilt toggle, Demand view toggle |
+| Bottom-right | Compass, recenter, tilt toggle, Stage Inspector toggle, Demand view toggle |
 | Bottom-left | A menu button: New run, the Free run switch, the list of keys |
 
 Money sits apart from traffic, and nothing covers the middle of the board.
@@ -50,7 +50,7 @@ Money sits apart from traffic, and nothing covers the middle of the board.
 
 - **Yen** is the largest reading. It carries a fill that grows toward the Price and is full when the next Tile is affordable. Income is a small line under it.
 - **Flow** is a gauge, with **trips a minute** beneath. Holding, and its bar on the gauge, are retired ([#140](https://github.com/artsaraiva/clearway/issues/140)).
-- **Growth** ([#138](https://github.com/artsaraiva/clearway/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each, and the **Record** beneath ("Free-run Record" in a Free run). Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's ([#139](https://github.com/artsaraiva/clearway/issues/139)).
+- **Growth** ([#138](https://github.com/artsaraiva/clearway/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each, and the **Record** beneath ("Free-run Record" in a Free run). Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's (below).
 - No history charts.
 
 ## Placing
@@ -88,6 +88,15 @@ An Inspector that shows which parts of the City carry the most trips.
 - Hovering a line shows its trips a minute. There are no numbers otherwise.
 - With a Tile in the hand it shows the City as it stands, not as it would be.
 
+### Stage Inspector
+
+An Inspector that shows how the whole City is growing ([#139](https://github.com/artsaraiva/clearway/issues/139)).
+
+- The ground of every zoned Tile takes its Stage's tint, light for Stage 1 and strong for Stage 3: its kerbs, pavement, lawns and plazas, never its buildings. An unzoned Tile keeps its grass.
+- A zoned Tile short of Stage 3 whose Junction is in a Jam is striped grey across its tint: held back. The stripes lie on the Tile's ground, away from the Jam marker, which floats over the Junction. Like the markers, they wait for a Rebuild to show its cars.
+- A round button beside the camera buttons and the `G` key turn it on and off. It is off in a new run and the choice is kept in the save. While it is on, a legend above the buttons gives each Stage's tint with its stars, and the stripes.
+- It follows the game as it stands, a Stage the moment a Tile reaches it, and stays on through Tools, placing, Rebuilds and Rezoning. The hover bar shows the same on or off.
+
 ## Camera
 
 This overturns the drag buttons of the visual style spec, which were set for a bounded slab.
@@ -105,6 +114,7 @@ This overturns the drag buttons of the visual style spec, which were set for a b
 | `R` | Turn the Tile in the hand |
 | `Esc` | Drop the hand, then deselect |
 | `F` | Frame the whole City |
+| `G` | Stage Inspector on and off |
 | `V` | Demand view on and off |
 
 No frame step.
@@ -119,14 +129,14 @@ Three one-line hints, each shown once when it becomes relevant and remembered in
 
 ## Accessibility
 
-- **Without colour:** every state differs by shape or text as well. The ghost shows the price, "not enough yen", or ✕ and the reason. A yielding Arm has give-way triangles and a main one has none. Incoming lane ends are circles and outgoing ones are rings. A Jam has the marker's shape and the cars' faces.
+- **Without colour:** every state differs by shape or text as well. The ghost shows the price, "not enough yen", or ✕ and the reason. A yielding Arm has give-way triangles and a main one has none. Incoming lane ends are circles and outgoing ones are rings. A Jam has the marker's shape and the cars' faces. In the Stage Inspector the Stages differ in lightness, and a Tile held back has its stripes.
 - **Reduced motion:** when the browser asks for it, a Rebuild places its Tile at once, cars stop shaking and clouds stop drifting. Cars still drive. There is no setting for it.
 - **Text:** the smallest is 13 px, Gateway labels and hints included. No text-size setting.
 
 ## Save
 
 - One autosave in `localStorage` for a normal run and one for a Free run. No menu screen: the page opens straight into the saved City.
-- It holds a version number, the seed, the Tiles with each one's Stage and progress, the Changes, yen, the Record, the hints seen and the Demand view's toggle. Vehicles are not saved: loading is a Rebuild with a Pre-warm.
+- It holds a version number, the seed, the Tiles with each one's Stage and progress, the Changes, yen, the Record, the hints seen, and the Demand view's and the Stage Inspector's toggles. A save from before the Stage Inspector opens with it off. Vehicles are not saved: loading is a Rebuild with a Pre-warm.
 - It is written on every Rebuild and Change, and every few seconds for yen and progress.
 - New run asks first.
 - A save from an older version, or a damaged one, starts a new run and says so in one line. A damaged save's Record is kept if it can be read. An older save's is not, since until version 4 the Record counted trips a minute. There is no migration before release.

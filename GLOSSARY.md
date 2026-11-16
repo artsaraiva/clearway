@@ -71,7 +71,7 @@ Something the player can change about a Junction: a lane Connection or a Priorit
 _Avoid_: Action, power-up, upgrade
 
 **Inspector**:
-A read-only aid that shows the player what traffic is doing, such as a car's route. Inspectors change nothing and are always available.
+A read-only aid that shows the player what traffic is doing or what it does to the City, such as a car's route or the Tiles a Jam holds back. Inspectors change nothing and are always available.
 _Avoid_: Tool, overlay, debug view
 
 **Change**:
@@ -81,6 +81,10 @@ _Avoid_: Move, edit, action
 **Demand view**:
 An Inspector that draws Demand along its routes: the wider a line, the more trips a minute want that stretch of road. It shows how much traffic wants a road, not how well it moves.
 _Avoid_: Traffic flow view, flow map, heatmap
+
+**Stage Inspector**:
+An Inspector that shows every zoned Tile's Stage on its ground and marks the Tiles a Jam holds back from their next Stage. It shows where the City grows, not how its traffic moves.
+_Avoid_: Growth view, Stage map, heatmap
 
 **Reset**:
 Returning one Junction to its default configuration.
