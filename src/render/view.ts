@@ -202,8 +202,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * Show a Rezoning of the Tile on `piece`: what stands on its Blocks is built again as its Zone now has it, under
      * `sim`, the Sim that runs on, and drops in where the old buildings stood. It is no Rebuild: the traffic carries on,
      * and it plays on the real clock, paused or not.
-     * ponytail: the piece is built in one go, with the cars moving; spread the build over frames, as `rebuild`'s note
-     * says, if a Rezoning ever drops one.
+     * ponytail: the piece is built in one go while the cars move: about 14 ms for an offices Tile and 21 ms for a
+     * low-density one on an M4 Pro (27 ms at worst), a dropped frame or two. Step `scenery.rezone`'s build over frames,
+     * and swap the meshes once it is done, if Zones with more to build make the hitch show.
      */
     rezone(sim: Sim, piece: Bounds) {
       const { old, building } = scenery.rezone(sim, piece)

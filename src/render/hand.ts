@@ -205,8 +205,8 @@ export function createHand() {
 
 /**
  * A Zone dragged from the bar over a placed Tile: the Tile tinted on the road plane, and what letting go makes of it
- * said where a Swap's caption would be. Green when it rezones the Tile, and the grey of a drop the player cannot make
- * when the Tile is built as that Zone already.
+ * said where a Swap's caption would be. Green when it rezones the Tile, and the grey of a drop the player cannot
+ * afford when the Tile is built as that Zone already, so letting go changes nothing.
  */
 export function createRezoning() {
   const group = new THREE.Group()

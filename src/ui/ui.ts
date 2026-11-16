@@ -145,7 +145,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     <div class="glass bar" id="tray">
       <div class="picks">
         <div class="layouts" id="layouts"></div>
-        <div class="zones"><div class="zone-picks" id="zones"></div><span class="soft" id="zone-name"></span></div>
+        <div class="zones"><div class="zone-picks" id="zone-picks"></div><span class="soft" id="zone-name"></span></div>
       </div>
       <div class="side">
         <div class="price"><span class="soft">Next tile</span><b id="price"></b></div>
@@ -309,8 +309,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
 
   // The bar's second row: each Zone, then Roads only. A click picks what the Tiles laid next are built as; a drag
   // onto a placed Tile rezones it, with the Zone's picture following the pointer.
-  $('zones').innerHTML = ZONE_PICKS.map((z) => `<button class="zone" aria-label="${nameOf(z)}">${zonePicture(z)}</button>`).join('')
-  const zoneButtons = [...$('zones').querySelectorAll<HTMLButtonElement>('.zone')]
+  $('zone-picks').innerHTML = ZONE_PICKS.map((z) => `<button class="zone" aria-label="${nameOf(z)}">${zonePicture(z)}</button>`).join('')
+  const zoneButtons = [...$('zone-picks').querySelectorAll<HTMLButtonElement>('.zone')]
   const ghost = document.createElement('div')
   ghost.className = 'zone-ghost'
   ghost.hidden = true
@@ -513,8 +513,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
-      const target = dragging?.moved && dragging.cell && game.city.tileAt(dragging.cell)
-      const rezoningKey = target ? `${dragging!.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${view.rebuilding}` : ''
+      const target = dragging?.moved && dragging.cell ? game.city.tileAt(dragging.cell) : undefined
+      const rezoningKey =
+        dragging && target ? `${dragging.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${view.rebuilding}` : ''
       if (rezoningKey !== shownRezoning) view.showRezoning(rezoning())
       shownRezoning = rezoningKey
       cameraButtons.update()
