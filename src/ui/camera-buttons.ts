@@ -36,6 +36,8 @@ export function createCameraButtons(root: HTMLElement, view: View) {
 
   let [heading, steep] = [NaN, false]
   return {
+    /** The row the buttons stand in, which the Inspectors' toggles join. */
+    box,
     /** Show the camera as it stands. Call it every frame. */
     update() {
       if (view.camera.heading !== heading) {

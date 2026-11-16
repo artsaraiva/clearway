@@ -9,6 +9,7 @@ import { createCameraButtons } from './camera-buttons'
 import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
+import { createStageInspector } from './stage-inspector'
 import { createTools } from './tools'
 
 /**
@@ -138,12 +139,19 @@ const zonePicture = (zone: Zone | undefined) =>
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left with Growth and the Record under them
  * (`./growth`), the Flow gauge with trips a minute top-centre, the clock top-right with the selected Junction's panel
- * under it, the bar of Layouts and Zones with the Price and Undo bottom-centre, the camera's buttons bottom-right and
- * the menu bottom-left, which leaves the run through `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route
- * Inspector are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the
- * selected Junction, which draws a Connection.
+ * under it, the bar of Layouts and Zones with the Price and Undo bottom-centre, the camera's buttons bottom-right with
+ * the Stage Inspector's toggle (`./stage-inspector`), and the menu bottom-left, which leaves the run through `run`.
+ * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
+ * used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
+ * Junction, which draws a Connection.
  */
-export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, menu: Pick<Run, 'newRun' | 'switchRun'>) {
+export function createUI(
+  root: HTMLElement,
+  canvas: HTMLCanvasElement,
+  game: Game,
+  view: View,
+  run: Pick<Run, 'newRun' | 'switchRun' | 'screen'>,
+) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
   let scale = 4
@@ -210,6 +218,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
           <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
           <dt>Deselect</dt><dd><kbd>Esc</kbd></dd>
           <dt>Frame the whole City</dt><dd><kbd>F</kbd></dd>
+          <dt>Stage Inspector</dt><dd><kbd>G</kbd></dd>
         </dl>
       </div>
     </div>`
@@ -388,9 +397,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   // A new run takes the place of this one, so it asks first. The Free run switch moves between the two saved runs and
   // loses nothing.
   $('new-run').onclick = () => {
-    if (confirm(`Start a new ${game.free ? 'Free run' : 'run'}? This City will be lost.`)) menu.newRun()
+    if (confirm(`Start a new ${game.free ? 'Free run' : 'run'}? This City will be lost.`)) run.newRun()
   }
-  $('free-run').onclick = menu.switchRun
+  $('free-run').onclick = run.switchRun
   $('tray').onwheel = (e) => {
     if (hand) return
     e.preventDefault()
@@ -532,6 +541,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   }
 
   const cameraButtons = createCameraButtons(root, view)
+  const stageInspector = createStageInspector(root, cameraButtons.box, game, view, run.screen)
 
   return {
     /** Sim seconds per real second: 0 while paused. */
@@ -598,6 +608,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       tools.update()
       jams.update()
       growth.update()
+      stageInspector.update()
     },
   }
 }

@@ -19,6 +19,12 @@ const NOTICE = {
   damaged: 'The saved City could not be loaded, so this is a new run.',
 }
 
+/** What a save keeps of the screen, beside the run. */
+export interface Screen {
+  /** Whether the Stage Inspector is on. */
+  stageInspector: boolean
+}
+
 /** What a save holds. */
 interface Save {
   version: number
@@ -33,6 +39,8 @@ interface Save {
   yen: number
   /** The Record: the highest Growth reached. Until version 4 it was the most trips a minute carried while Holding. */
   record: number
+  /** Missing from a save written before the Stage Inspector, which then opens off: no reason to raise the version. */
+  stageInspector?: boolean
 }
 
 const isAmount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
@@ -40,8 +48,8 @@ const isInteger = (n: unknown): n is number => typeof n === 'number' && Number.i
 /** A Record a save can hold: a Growth, which is a whole number. */
 const isRecord = (n: unknown): n is number => isInteger(n) && n >= 0
 
-/** The save of `game`, as the text localStorage holds. */
-export function saveOf(game: Game): string {
+/** The save of `game`, with what `screen` keeps of the screen, as the text localStorage holds. */
+export function saveOf(game: Game, screen: Screen = { stageInspector: false }): string {
   const save: Save = {
     version: VERSION,
     seed: game.seed,
@@ -52,28 +60,32 @@ export function saveOf(game: Game): string {
     changes: game.sim.configuration(),
     yen: game.yen,
     record: game.record,
+    stageInspector: screen.stageInspector,
   }
   return JSON.stringify(save)
 }
 
 /**
- * The run saved as `text`, of the kind `free` says, or a new run when there is no save. A save from an older version,
- * or a damaged one, gives way to a new run, and `notice` says so in one line. The new run keeps a damaged save's Record
- * if that can be read, but not an older one's, which may count something else. The Sim starts at its Pre-warm: `step`
- * until `sim.prewarmed`.
+ * The run saved as `text`, of the kind `free` says, with what it keeps of the screen, or a new run when there is no
+ * save. A save from an older version, or a damaged one, gives way to a new run, and `notice` says so in one line. The
+ * new run keeps a damaged save's Record if that can be read, but not an older one's, which may count something else.
+ * The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
  */
-export function load(text: string | null, free: boolean): { game: Game; notice: string | null } {
-  if (text === null) return { game: new Game(undefined, { free }), notice: null }
+export function load(text: string | null, free: boolean): { game: Game; notice: string | null; screen: Screen } {
+  const screen = { stageInspector: false }
+  if (text === null) return { game: new Game(undefined, { free }), notice: null, screen }
   let data: unknown
   try {
     data = JSON.parse(text)
-    return { game: restore(data as Save, free), notice: null }
+    const game = restore(data as Save, free)
+    return { game, notice: null, screen: { stageInspector: (data as Save).stageInspector === true } }
   } catch {
     const { version, record } = (data ?? {}) as Partial<Save>
     const older = isInteger(version) && version < VERSION
     return {
       game: new Game(undefined, { free, record: !older && isRecord(record) ? record : 0 }),
       notice: older ? NOTICE.older : NOTICE.damaged,
+      screen,
     }
   }
 }
@@ -116,6 +128,8 @@ export interface Run {
   readonly game: Game
   /** One line on why the saved City did not load, when a new run took its place. */
   readonly notice: string | null
+  /** What the save keeps of the screen, for the screen to change. */
+  readonly screen: Screen
   /** A new run of the same kind, with a new seed, in place of this one. */
   newRun(): void
   /** The other kind of run, as it was saved: the Free run from a normal run, or back. */
@@ -134,11 +148,11 @@ export function openRun(params: URLSearchParams): Run {
   const free = params.has('free') || read(KEY.playing) === 'free'
   write(KEY.playing, free ? 'free' : 'normal')
   const key = free ? KEY.freeRun : KEY.run
-  const { game, notice } = load(read(key), free)
+  const { game, notice, screen } = load(read(key), free)
   /** Whether the page is loading again on another run, which this one must not be saved over. */
   let leaving = false
   const keep = () => {
-    if (!leaving) write(key, saveOf(game))
+    if (!leaving) write(key, saveOf(game, screen))
   }
   game.onUnsaved = keep
   setInterval(keep, EVERY * 1000)
@@ -151,6 +165,7 @@ export function openRun(params: URLSearchParams): Run {
   return {
     game,
     notice,
+    screen,
     newRun() {
       leaving = true
       write(key, saveOf(new Game(undefined, { free, record: game.record })))
@@ -171,6 +186,7 @@ function seeded(seed: number, params: URLSearchParams): Run {
   return {
     game: new Game(seed, { free }),
     notice: null,
+    screen: { stageInspector: false },
     newRun: () => go(params, (p) => p.set('seed', String(newSeed()))),
     switchRun: () => go(params, (p) => (free ? p.delete('free') : p.set('free', ''))),
   }
