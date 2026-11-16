@@ -11,23 +11,31 @@ Every Tile the player has placed, joined into one road network. It grows on a sq
 _Avoid_: District, map, world, town, level
 
 **Tile**:
-One Layout placed in one cell of the grid, at one rotation. A Tile holds exactly one Junction and the Blocks around it. A Tile cannot be removed or moved.
+One Layout placed in one cell of the grid, at one rotation, built as one Zone or unzoned. A Tile holds exactly one Junction and the Blocks around it. A Tile cannot be removed or moved.
 _Avoid_: Piece, cell, plot, parcel, land
 
 **Layout**:
-A kind of Tile the player can place: Straight, Curve, T-junction, Crossroads or Roundabout. Every Layout is always in the bar and can be placed any number of times.
+What a Tile's Roads are and how they meet, which the player picks: Straight, Curve, T-junction, Crossroads or Roundabout. Every Layout is always in the bar and can be placed any number of times.
 _Avoid_: Tile type, shape, piece, card
 
+**Zone**:
+What every Block of a Tile is built as, which the player picks: low-, medium- or high-density residential, offices, shops, industrial, parks, green or farms. A Tile with no Zone is unzoned: roads only, its Blocks left as grass.
+_Avoid_: Variation, character, use, kind, District
+
 **Swap**:
-Replacing a placed Tile with another Layout by dropping it on top. A Swap costs the Price, and the swapped Tile's Changes return to defaults.
+Replacing a placed Tile's Layout with another by dropping it on top. A Swap costs the Price and keeps the Tile's Zone, and the swapped Tile's Changes return to defaults.
 _Avoid_: Replace, upgrade, rebuild
 
+**Rezoning**:
+Giving a placed Tile another Zone, or none. It costs no yen and starts the Tile again at Stage 1.
+_Avoid_: Swap, repaint, Rebuild
+
 **Undo**:
-Taking back the last placement or Swap for a full refund, allowed only for a short stretch after it.
+Taking back the last placement, Swap or Rezoning for a full refund, allowed only for a short stretch after it.
 _Avoid_: Remove, sell, Reset
 
 **Rebuild**:
-The simulation starting again from the City after a Tile is placed, a Swap or an Undo. Changes carry over; no vehicle does.
+The simulation starting again from the City after a Tile is placed, a Swap, or the Undo of either. Changes carry over; no vehicle does. Rezoning does not cause one.
 _Avoid_: Reveal, reload, restart
 
 **Pre-warm**:
@@ -35,7 +43,7 @@ Simulating the City hidden from the player for a fixed stretch after a Rebuild, 
 _Avoid_: Warm-up
 
 **Price**:
-What the next Tile costs, in yen. It is the same for every Layout and rises with the number of Tiles placed.
+What the next Tile costs, in yen. It is the same for every Layout and Zone and rises with the number of Tiles placed.
 _Avoid_: Cost, fee
 
 **Income**:
@@ -43,7 +51,7 @@ Yen earned per minute. Every trip that arrives at its Gateway pays the same amou
 _Avoid_: Revenue, profit, score, earnings
 
 **Stage**:
-How far a Tile has grown: 1, 2 or 3. A Tile moves toward its next Stage as traffic serves it, and not while its Junction is in a Jam. A Stage makes the Tile's buildings better versions of themselves and never another kind. A Stage is never lost, and a Swap keeps it.
+How far a zoned Tile has grown: 1, 2 or 3. A Tile moves toward its next Stage as traffic serves it, and not while its Junction is in a Jam. A Stage makes the Tile's buildings better versions of themselves, never another Zone. A Swap keeps the Stage, and only Rezoning starts it again at 1.
 _Avoid_: Level, tier, rank, upgrade
 
 **Growth**:
@@ -101,7 +109,7 @@ An open road end of the City: where a Road reaches an edge of its Tile with no T
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Stage of its Tile. A lot is one building's plot inside a Block.
+An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Zone and the Stage of its Tile. A lot is one building's plot inside a Block.
 _Avoid_: Plot, parcel
 
 **Arm**:
