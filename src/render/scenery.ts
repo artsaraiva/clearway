@@ -1,9 +1,11 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import type { Cell, Zone } from '../city/city'
 import { mulberry32 } from '../sim/demand'
 import { middle, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Sim } from '../sim/sim'
 import type { Point } from '../sim/spec'
+import { cellAt } from '../sim/tiles'
 import { block, pavement, wide } from './blocks'
 import type { Field } from './field'
 import { blockSeed, fillBlock } from './fill'
@@ -26,13 +28,10 @@ export interface SpecialBlock {
 
 /** What the seed adds where the scenery authors nothing. It is drawn from the seed and where things lie, never from what is laid. */
 export interface Seeded {
-  /** The chance a Block becomes a park. */
-  park: number
-  /** The chance a Block becomes a plaza with a fountain. */
-  plaza: number
   /**
    * Cells on a side of the squares the map is cut into. Each square has one tower landmark, in one corner of one of its
-   * cells: it stands once a Tile laid there leaves a Block in that corner with room for it.
+   * cells: it stands once a Tile laid there, of a Zone that takes landmarks, leaves a Block in that corner with room
+   * for it.
    */
   landmarks: number
   /** The chance a row or column of cells is an avenue, its Roads lined with street trees. */
@@ -40,7 +39,7 @@ export interface Seeded {
 }
 
 /** What the seed adds to a City built from Tiles, which authors nothing. */
-export const SEEDED: Seeded = { park: 0.07, plaza: 0.04, landmarks: 4, avenue: 0.3 }
+export const SEEDED: Seeded = { landmarks: 4, avenue: 0.3 }
 
 /** What stands on the Blocks. */
 export interface Scenery {
@@ -87,13 +86,13 @@ export function finish(building: Building): Build {
 /**
  * The static scenery, a few pieces of slab at a time: the pieces and the Blocks on them, merged into one mesh per
  * material. The Blocks of a piece are cut within it from the network as it stands when the piece is laid, and each
- * Block is filled from its own seed, so nothing laid later changes them. A Tile's Roads all end at its cell's edge, so
- * its cell comes out the same whenever it is laid, and a Swap or an Undo can lift one piece and leave the rest.
- * `extent` is the ground the fill is graded over.
+ * Block is filled from its own seed as the Zone of its Tile has it, which `zoneOf` reads from the City as it stands
+ * when the piece is built, so nothing laid later changes them. A Tile's Roads all end at its cell's edge, so its cell
+ * comes out the same whenever it is laid, and a Swap, a Rezoning or an Undo can lift one piece and leave the rest.
  * ponytail: each build adds about six meshes, which is nothing for a handful of them; past a few dozen Tiles, merge
  * the builds' meshes of each material (and split them again for the piece a Swap lifts).
  */
-export function createScenery(scenery: Scenery, field: Field, materials: Materials, extent: Bounds) {
+export function createScenery(scenery: Scenery, field: Field, materials: Materials, zoneOf: (cell: Cell) => Zone | undefined) {
   /** The pieces laid, in order, each with the meshes of the build that laid it. Pieces laid together share them. */
   const laid: { piece: Bounds; meshes: THREE.Mesh[] }[] = []
   const others = (pieces: Bounds[]) => laid.map((l) => l.piece).filter((p) => !pieces.some((q) => sameBounds(p, q)))
@@ -101,10 +100,13 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
   /**
    * Build the pieces of slab `pieces` under `sim`'s network, a step at a time: the field, the slab, each Block, then
    * each material's mesh. `before` are the pieces whose slab was laid first: the new slab fills in around them.
+   * `relay` lays the pieces' field again first, which only a change to the network needs.
    */
-  function* build({ net, spec }: Sim, pieces: Bounds[], tagged: boolean, before: Bounds[], meshes: THREE.Mesh[]): Building {
-    field.lay(net, spec, pieces, others(pieces))
-    yield
+  function* build({ net, spec }: Sim, pieces: Bounds[], tagged: boolean, before: Bounds[], meshes: THREE.Mesh[], relay = true): Building {
+    if (relay) {
+      field.lay(net, spec, pieces, others(pieces))
+      yield
+    }
 
     const parts: Part[] = []
     const bricks: BuiltBrick[] = []
@@ -120,11 +122,10 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
     const blocks = field.outlines(0, pieces).map(block).filter(wide)
     yield
 
-    const surroundings = { net, spec, scenery, field, extent }
     for (const [i, b] of blocks.entries()) {
       const kit = createKit(mulberry32(blockSeed(scenery, b)), materials)
       pavement(kit, b)
-      fillBlock(kit, b, surroundings)
+      fillBlock(kit, b, { net, spec, scenery, field, zone: zoneOf(cellAt(middle(b))) })
       take(kit, i)
       yield
     }
@@ -156,6 +157,20 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
     return build(sim, pieces, tagged, before, meshes)
   }
 
+  /**
+   * Start a build of the piece of a placed Tile in the place of the build that laid it, for its animation. `old` are
+   * that build's meshes: they come out of the scene whenever the caller likes, and then go to `discard`. `relay` lays
+   * the piece's field again, as a Swap's new network needs.
+   */
+  const replace = (sim: Sim, piece: Bounds, relay: boolean): { old: THREE.Mesh[]; building: Building } => {
+    const at = laid.findIndex((l) => sameBounds(l.piece, piece))
+    const old = laid[at].meshes
+    const meshes: THREE.Mesh[] = []
+    laid[at] = { piece, meshes }
+    const before = laid.slice(0, at).map((l) => l.piece)
+    return { old, building: build(sim, [piece], true, before, meshes, relay) }
+  }
+
   return {
     /** Lay `pieces` under `sim`'s network, all at once. Returns their meshes. */
     lay(sim: Sim, pieces: Bounds[]): THREE.Mesh[] {
@@ -170,25 +185,17 @@ export function createScenery(scenery: Scenery, field: Field, materials: Materia
       return append(sim, pieces, true)
     },
 
-    /**
-     * Build the piece of a Tile that a Swap replaced, for its animation, in the place of the build that laid it. `old`
-     * are that build's meshes: they come out of the scene whenever the caller likes, and then go to `discard`.
-     */
+    /** Build the piece of a Tile that a Swap replaced, under the Sim the Swap rebuilt, as `replace` does. */
     swap(sim: Sim, piece: Bounds): { old: THREE.Mesh[]; building: Building } {
-      const at = laid.findIndex((l) => sameBounds(l.piece, piece))
-      const old = laid[at].meshes
-      const meshes: THREE.Mesh[] = []
-      laid[at] = { piece, meshes }
-      return {
-        old,
-        building: build(
-          sim,
-          [piece],
-          true,
-          laid.slice(0, at).map((l) => l.piece),
-          meshes,
-        ),
-      }
+      return replace(sim, piece, true)
+    },
+
+    /**
+     * Build the piece of a Tile that a Rezoning changed, under `sim`, the Sim that runs on, as `replace` does. Its
+     * network is the same, so its field and slab come out as they were and only its Blocks' fill changes.
+     */
+    rezone(sim: Sim, piece: Bounds): { old: THREE.Mesh[]; building: Building } {
+      return replace(sim, piece, false)
     },
 
     /** Take the piece of a Tile off the slab, as an Undo does. Returns its meshes, for the caller to take out of the scene and `discard`. */

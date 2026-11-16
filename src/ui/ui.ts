@@ -1,7 +1,7 @@
-import { beyond, DIRECTIONS, LAYOUTS, type Cell, type Layout } from '../city/city'
+import { beyond, DIRECTIONS, FIRST_ZONE, LAYOUTS, ZONES, type Cell, type Layout, type Zone } from '../city/city'
 import type { Game } from '../game/game'
 import type { Run } from '../game/save'
-import type { Held } from '../render/hand'
+import type { Held, Rezoning } from '../render/hand'
 import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
 import { WIN_FLOW, WIN_TIME } from '../sim/sim'
@@ -17,6 +17,11 @@ import { createTools } from './tools'
  */
 const SHORT_OF_PRICE = 0.97
 const REFUSAL = '#ff4a1f' // the hot red-orange reserved for Jams and refusals
+
+/** The picks of the bar's second row, in order: each Zone, then none, which the bar calls Roads only. */
+const ZONE_PICKS: (Zone | undefined)[] = [...ZONES, undefined]
+/** A Zone's name, or the bar's for none. */
+const nameOf = (zone: Zone | undefined) => zone?.name ?? 'Roads only'
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
 const sameCell = (a: Cell, b: Cell) => a.x === b.x && a.y === b.y
@@ -63,13 +68,35 @@ function icon(layout: Layout) {
   </svg>`
 }
 
+// The Zones' pictures: what each builds, seen from above at a slant on a small disc. Their colours are the world's.
+const ZONE_PICTURES: Record<Zone['id'] | 'none', string> = {
+  'low-density': `<circle cx="20" cy="20" r="19" fill="#cdeaad"/>
+    <rect x="8" y="21" width="15" height="11" rx="1.5" fill="#fdeed6"/><path d="M6 22.5 15.5 13l9.5 9.5z" fill="#d56454"/>
+    <rect x="13.5" y="25" width="4" height="7" fill="#9cc7df"/>
+    <circle cx="29.5" cy="22" r="5.5" fill="#6bc357"/><circle cx="27" cy="18.5" r="3.6" fill="#92d76e"/>
+    <rect x="28.8" y="26" width="1.6" height="6" fill="#a1714c"/>`,
+  offices: `<circle cx="20" cy="20" r="19" fill="#e2eef5"/>
+    <rect x="9" y="8" width="11" height="25" rx="1" fill="#7b9db0"/><rect x="9" y="7" width="11" height="2.4" rx="1" fill="#f2f4f6"/>
+    <path d="M12.7 9.5v23M16.3 9.5v23" stroke="#dde3e8" stroke-width="0.9"/>
+    <rect x="21.5" y="15" width="10" height="18" rx="1" fill="#8fadc0"/><rect x="21.5" y="14" width="10" height="2.4" rx="1" fill="#f2f4f6"/>
+    <path d="M21.5 20.5h10M21.5 25h10M21.5 29.5h10" stroke="#dde3e8" stroke-width="0.9"/>`,
+  none: `<circle cx="20" cy="20" r="19" fill="#cdeaad"/>
+    <circle cx="12.5" cy="24" r="4.6" fill="#5fbc51"/><circle cx="15.5" cy="21.5" r="3.4" fill="#85cf61"/>
+    <circle cx="27" cy="15.5" r="3.8" fill="#6bc357"/><circle cx="28" cy="27" r="3.1" fill="#7bcd5d"/>`,
+}
+
+/** A Zone's picture, or Roads only's for none: a disc like a Layout's, smaller. */
+const zonePicture = (zone: Zone | undefined) =>
+  `<svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true">${ZONE_PICTURES[zone?.id ?? 'none']}
+    <circle cx="20" cy="20" r="18.5" fill="none" stroke="rgba(27,32,48,0.12)"/></svg>`
+
 /**
  * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left, the Flow gauge with trips a minute and the
- * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts with the Price
- * and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left, which leaves the run through
- * `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector
- * are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
- * Junction, which draws a Connection.
+ * Record top-centre, the clock top-right with the selected Junction's panel under it, the bar of Layouts and Zones with
+ * the Price and Undo bottom-centre, the camera's buttons bottom-right and the menu bottom-left, which leaves the run
+ * through `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route
+ * Inspector are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the
+ * selected Junction, which draws a Connection.
  */
 export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, menu: Pick<Run, 'newRun' | 'switchRun'>) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
@@ -88,6 +115,17 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   let press = { x: 0, y: 0, again: false }
   /** What the hand last showed, so that it is only rebuilt when that changes. */
   let shown = ''
+  /** The Zone every Tile laid next is built as, until another is picked; none for Roads only. It is not saved. */
+  let zone: Zone | undefined = FIRST_ZONE
+  /**
+   * A Zone pressed in the bar, where the press was, and once the pointer has moved past a click's slop, the cell under
+   * it over the board. Let go over a placed Tile, it rezones that Tile. A Zone never goes in the hand.
+   */
+  let dragging: { zone: Zone | undefined; from: { x: number; y: number }; moved: boolean; cell: Cell | null } | null = null
+  /** The pick in the bar's second row the pointer is over, whose name the row shows. */
+  let hovering: number | null = null
+  /** What the Rezoning last showed. */
+  let shownRezoning = ''
 
   root.innerHTML = `
     <div class="glass money">
@@ -105,7 +143,10 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     </div>
     <div class="glass junction" id="junction" hidden></div>
     <div class="glass bar" id="tray">
-      <div class="layouts" id="layouts"></div>
+      <div class="picks">
+        <div class="layouts" id="layouts"></div>
+        <div class="zones"><div class="zone-picks" id="zones"></div><span class="soft" id="zone-name"></span></div>
+      </div>
       <div class="side">
         <div class="price"><span class="soft">Next tile</span><b id="price"></b></div>
         <button class="undo gone" id="undo">${UNDO}Undo</button>
@@ -147,6 +188,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     holding: text('holding'),
     trips: text('trips'),
     record: text('record'),
+    zoneName: text('zone-name'),
   }
 
   /** Play the Rebuild the game just made. */
@@ -155,10 +197,13 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     view.rebuild(game.sim, relaid)
   }
 
-  /** Drop a Layout on a cell: a placement, or a Swap on a placed Tile. Refused while a Rebuild plays. */
+  /**
+   * Drop a Layout on a cell: a placement built as the Zone picked, or a Swap on a placed Tile, which keeps its own.
+   * Refused while a Rebuild plays.
+   */
   const place = (layout: Layout, turns: number, cell: Cell) => {
     if (view.rebuilding) return false
-    const offer = game.place(layout, turns, cell)
+    const offer = game.place(layout, turns, cell, zone)
     if (!offer.legal) return false
     if (!offer.affordable) {
       $('yen').animate([{ color: REFUSAL, offset: 0 }], { duration: 600, easing: 'ease-out' })
@@ -168,24 +213,39 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     return true
   }
 
+  /** Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused while a Rebuild plays. */
+  const rezone = (cell: Cell, built: Zone | undefined) => {
+    if (view.rebuilding || !game.rezone(cell, built)) return false
+    view.rezone(game.sim, cellBounds(cell))
+    return true
+  }
+
   const undo = () => {
     if (view.rebuilding) return
     const before = game.city.tiles
     if (!game.undo()) return
-    // An Undo of a placement takes its Tile off; an Undo of a Swap puts the Tile before it back on its cell.
-    const after = game.city.tiles
-    const gone = before.find((t) => !after.some((u) => sameCell(t.cell, u.cell)))
-    const changed = before.find((t) => after.some((u) => sameCell(t.cell, u.cell) && (u.layout !== t.layout || u.rotation !== t.rotation)))
+    // An Undo of a placement takes its Tile off; an Undo of a Swap puts the Tile before it back on its cell, and an
+    // Undo of a Rezoning its Zone, with no Rebuild.
+    const after = game.city
+    const gone = before.find((t) => !after.tileAt(t.cell))
+    const changed = before.find((t) => {
+      const now = after.tileAt(t.cell)
+      return now && (now.layout !== t.layout || now.rotation !== t.rotation)
+    })
+    const rezoned = before.find((t) => after.tileAt(t.cell)?.zone !== t.zone)
     if (gone) rebuilt({ removed: cellBounds(gone.cell) })
     else if (changed) rebuilt({ swapped: cellBounds(changed.cell) })
+    else if (rezoned) view.rezone(game.sim, cellBounds(rezoned.cell))
   }
 
   /**
    * What the hand shows as it stands. Over a legal cell that includes what the drop does to Demand: the Gateways it
-   * would close and open, and the change in the City's total, read the way the Gateway labels read.
+   * would close and open, and the change in the City's total, read the way the Gateway labels read; and what the Tile
+   * will be built as: the Zone picked, or over a placed Tile, where the drop is a Swap, that Tile's own. The hand is
+   * empty while a Zone is dragged.
    */
   const held = (): Held | null => {
-    if (!hand || view.rebuilding) return null
+    if (!hand || view.rebuilding || dragging?.moved) return null
     const { layout, cell } = hand
     const city = game.city
     const empty = new Map<string, Cell>()
@@ -199,7 +259,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     const base = { layout, rotation, cell, open, after: null }
     if (!cell) return { ...base, state: 'legal', swap: false, lines: [] }
     const offer = game.offer(layout, rotation, cell)
-    const swap = city.tiles.some((t) => sameCell(t.cell, cell))
+    const placed = city.tileAt(cell)
+    const swap = placed !== undefined
     if (!offer.legal) return { ...base, state: 'refused', swap, lines: ['✕', offer.reason] }
     const after = game.preview(layout, rotation, cell)!
     const notes = [swap && 'swap', offer.price < game.price && 'loop rebate', !offer.affordable && 'not enough yen'].filter(Boolean)
@@ -211,9 +272,19 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       lines: [
         yen(offer.price),
         tripsChange(labelledDemand(after) - labelledDemand(game.sim)),
-        ...(notes.length ? [notes.join(' · ')] : []),
+        [nameOf(placed ? placed.zone : zone), ...notes].join(' · '),
       ],
     }
+  }
+
+  /** What letting go of the Zone dragged would make of the placed Tile under it, if it is over one. */
+  const rezoning = (): Rezoning | null => {
+    const tile = dragging?.moved && dragging.cell && !view.rebuilding ? game.city.tileAt(dragging.cell) : undefined
+    if (!dragging || !tile) return null
+    const becomes = nameOf(dragging.zone).toLowerCase()
+    return tile.zone === dragging.zone
+      ? { cell: tile.cell, state: 'unchanged', lines: ['No change', `already ${becomes}`] }
+      : { cell: tile.cell, state: 'legal', lines: ['Rezone', `to ${becomes}`] }
   }
 
   // The bar: its Layouts, each with a picture that the frame turns.
@@ -235,6 +306,33 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     }
   }
   const turn = (by: number) => (rotation = (((rotation + by) % 4) + 4) % 4)
+
+  // The bar's second row: each Zone, then Roads only. A click picks what the Tiles laid next are built as; a drag
+  // onto a placed Tile rezones it, with the Zone's picture following the pointer.
+  $('zones').innerHTML = ZONE_PICKS.map((z) => `<button class="zone" aria-label="${nameOf(z)}">${zonePicture(z)}</button>`).join('')
+  const zoneButtons = [...$('zones').querySelectorAll<HTMLButtonElement>('.zone')]
+  const ghost = document.createElement('div')
+  ghost.className = 'zone-ghost'
+  ghost.hidden = true
+  root.append(ghost)
+  zoneButtons.forEach((el, i) => {
+    const pick = ZONE_PICKS[i]
+    el.onclick = () => (zone = pick)
+    el.onpointerenter = () => (hovering = i)
+    el.onpointerleave = () => (hovering = null)
+    el.onpointerdown = (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      el.releasePointerCapture?.(e.pointerId)
+      dragging = { zone: pick, from: { x: e.clientX, y: e.clientY }, moved: false, cell: null }
+      ghost.innerHTML = zonePicture(pick)
+    }
+  })
+  /** Let go of the Zone dragged, without rezoning anything. */
+  const dropZone = () => {
+    dragging = null
+    ghost.hidden = true
+  }
 
   const sheet = $('menu-sheet')
   const showMenu = (open: boolean) => {
@@ -267,20 +365,38 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   let right = { x: 0, y: 0, held: false }
   window.addEventListener('pointerdown', (e) => {
     if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
-    if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null }
+    if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null || dragging !== null }
   })
   const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
   const jams = createJamMarkers(root, canvas, game, view, tools, () => hand !== null)
   window.addEventListener('pointermove', (e) => {
+    if (dragging) {
+      if (moved(e, dragging.from)) dragging.moved = true
+      const p = overScreen(e) ? null : view.pick(e)
+      dragging.cell = p && cellAt(p)
+      ghost.hidden = !dragging.moved
+      ghost.style.transform = `translate(${e.clientX + 10}px, ${e.clientY - 44}px)`
+    }
     if (!hand) return
     if (hand.how === 'pressed' && moved(e, press)) hand.how = 'dragged'
     const p = overScreen(e) ? null : view.pick(e)
     hand.cell = p && cellAt(p)
   })
   window.addEventListener('pointerup', (e) => {
-    // A right drag moves the camera, whatever the hand holds.
-    if (e.button === 2 && !moved(e, right)) hand = null
+    // A right drag moves the camera, whatever the hand holds. A right click lets go of a Zone dragged first.
+    if (e.button === 2 && !moved(e, right)) {
+      if (dragging) dropZone()
+      else hand = null
+    }
     if (e.button !== 0) return
+    // A Zone let go over a placed Tile rezones it. Over anything else, or before it moved, nothing happens: a click
+    // on it picks it.
+    if (dragging) {
+      const p = dragging.moved && !overScreen(e) ? view.pick(e) : null
+      const built = dragging.zone
+      dropZone()
+      if (p) rezone(cellAt(p), built)
+    }
     if (hand?.how === 'pressed') hand = press.again ? null : { ...hand, how: 'picked' }
     if (hand?.how !== 'dragged') return
     const p = overScreen(e) ? null : view.pick(e)
@@ -307,10 +423,11 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
   )
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') turn(e.shiftKey ? -1 : 1)
-    // Esc puts back the Tile in the hand first, and only then lets go of what is selected.
+    // Esc lets go of a Zone dragged, or puts back the Tile in the hand, before it lets go of what is selected.
     if (e.key === 'Escape') {
       showMenu(false)
-      if (hand) hand = null
+      if (dragging) dropZone()
+      else if (hand) hand = null
       else tools.back()
     }
   })
@@ -378,6 +495,12 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
 
     place,
     undo,
+    rezone,
+
+    /** Pick what the Tiles laid next are built as, as a click on the bar's second row does. None: Roads only. */
+    pick(built: Zone | undefined) {
+      zone = built
+    },
 
     /** Show the game as it stands. Call it every frame. */
     update() {
@@ -386,9 +509,14 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
       // board with the hand empty, and the hand over the screen holds no cell.
       const offer = hand?.cell && !view.rebuilding ? game.offer(hand.layout, rotation, hand.cell) : null
-      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}` : '' // prettier-ignore
+      const under = hand?.cell && game.city.tileAt(hand.cell)
+      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
+      const target = dragging?.moved && dragging.cell && game.city.tileAt(dragging.cell)
+      const rezoningKey = target ? `${dragging!.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${view.rebuilding}` : ''
+      if (rezoningKey !== shownRezoning) view.showRezoning(rezoning())
+      shownRezoning = rezoningKey
       cameraButtons.update()
 
       // Yen counts whole yen down, so it never shows the Price before the Tile is affordable. Its fill is full exactly
@@ -400,6 +528,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
         el.classList.toggle('on', hand?.layout === layout)
         el.classList.toggle('short', hand?.layout === layout && !affordable)
       }
+      // The Zone picked stands out, and the row names the one under the pointer, or else the one picked.
+      zoneButtons.forEach((el, i) => el.classList.toggle('on', ZONE_PICKS[i] === zone))
+      show.zoneName(nameOf(hovering === null ? zone : ZONE_PICKS[hovering]))
       turnPictures((((view.camera.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
       show.yen(Math.floor(game.yen).toLocaleString('en'))
       show.yenFill(`${affordable ? 100 : ((100 * SHORT_OF_PRICE * game.yen) / game.price).toFixed(1)}%`)

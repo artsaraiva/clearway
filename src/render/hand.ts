@@ -51,6 +51,16 @@ export interface Held {
   after: Sim | null
 }
 
+/** A Zone dragged over a placed Tile, as the page wants it shown. */
+export interface Rezoning {
+  /** The placed Tile's cell. */
+  cell: Cell
+  /** Whether letting go rezones the Tile, or changes nothing since the Tile is built as that Zone already. */
+  state: 'legal' | 'unchanged'
+  /** What to say over it: what the Tile will become. */
+  lines: string[]
+}
+
 /** Up to three lines of text that always face the camera, drawn over everything: a large one, then smaller ones. */
 function caption(lines: string[], color: string) {
   const texture = canvasTexture(CAPTION.width, CAPTION.height, (g) => {
@@ -130,6 +140,20 @@ function tileModel(layout: Layout, rotation: number, tint: string | null) {
   return group
 }
 
+/** Take everything out of `group`, and free it. */
+function empty(group: THREE.Group) {
+  for (const child of [...group.children]) {
+    group.remove(child)
+    child.traverse((o) => {
+      if (!(o instanceof THREE.Mesh || o instanceof THREE.Sprite)) return
+      o.geometry.dispose()
+      const material = o.material as THREE.Material & { map?: THREE.Texture | null }
+      material.map?.dispose()
+      material.dispose()
+    })
+  }
+}
+
 /**
  * The Tile in the hand while the player holds a Layout from the bar: a piece of unbuilt slab seated at the City's
  * level in the cell under the pointer, with the Price over it, tinted grey when the player cannot afford it and red,
@@ -143,16 +167,7 @@ export function createHand() {
   let last = performance.now()
 
   const clear = () => {
-    for (const child of [...group.children]) {
-      group.remove(child)
-      child.traverse((o) => {
-        if (!(o instanceof THREE.Mesh || o instanceof THREE.Sprite)) return
-        o.geometry.dispose()
-        const material = o.material as THREE.Material & { map?: THREE.Texture | null }
-        material.map?.dispose()
-        material.dispose()
-      })
-    }
+    empty(group)
     tile = null
   }
 
@@ -184,6 +199,30 @@ export function createHand() {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
       tile?.position.lerp(target, 1 - Math.exp(-FOLLOW * dt))
+    },
+  }
+}
+
+/**
+ * A Zone dragged from the bar over a placed Tile: the Tile tinted on the road plane, and what letting go makes of it
+ * said where a Swap's caption would be. Green when it rezones the Tile, and the grey of a drop the player cannot make
+ * when the Tile is built as that Zone already.
+ */
+export function createRezoning() {
+  const group = new THREE.Group()
+  return {
+    group,
+
+    /** Show `rezoning`. `null` shows nothing. */
+    show(rezoning: Rezoning | null) {
+      empty(group)
+      if (!rezoning) return
+      const color = rezoning.state === 'legal' ? COLORS.legal : COLORS.unaffordable
+      group.add(mark(rezoning.cell, color, MARK.under))
+      const text = caption(rezoning.lines, color)
+      const { x, y } = middle(cellBounds(rezoning.cell))
+      text.position.set(x, SWAP_LIFT + 16, -y)
+      group.add(text)
     },
   }
 }
