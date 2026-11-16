@@ -1,6 +1,6 @@
 # Clearway
 
-A browser sandbox about a small city the player builds from road tiles. Traffic earns the money, growth causes traffic jams, and the player clears them by changing how junctions work or by building around them. One context: the game and its simulation share this vocabulary.
+A browser diorama city builder. The player lays road tiles and chooses what is built on them, and each tile grows as traffic serves it. Traffic earns the money, growth causes traffic jams, and the player clears them by changing how junctions work or by building around them. One context: the game and its simulation share this vocabulary.
 
 ## Language
 
@@ -42,12 +42,16 @@ _Avoid_: Cost, fee
 Yen earned per minute. Every trip that arrives at its Gateway pays the same amount, so Income falls when a Jam keeps trips from arriving. It never falls below a small floor.
 _Avoid_: Revenue, profit, score, earnings
 
-**Holding**:
-Flow staying at or above its bar for a sustained stretch. A City that is Holding is carrying its Demand.
-_Avoid_: Winning, stable, clear
+**Stage**:
+How far a Tile has grown: 1, 2 or 3. A Tile moves toward its next Stage as traffic serves it, and not while its Junction is in a Jam. A Stage makes the Tile's buildings better versions of themselves and never another kind. A Stage is never lost, and a Swap keeps it.
+_Avoid_: Level, tier, rank, upgrade
+
+**Growth**:
+The sum of the Stages of every Tile in the City. The game's measure of doing well.
+_Avoid_: Score, population, size, level
 
 **Record**:
-The most trips per minute the City has carried while Holding. The game's measure of doing well.
+The highest Growth reached in any run.
 _Avoid_: Score, high score, Win
 
 **Free run**:
@@ -97,7 +101,7 @@ An open road end of the City: where a Road reaches an edge of its Tile with no T
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area beside Roads filled with buildings, grass or a plaza. Blocks are scenery: traffic never enters them and they do not change Demand. A lot is one building's plot inside a Block.
+An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Stage of its Tile. A lot is one building's plot inside a Block.
 _Avoid_: Plot, parcel
 
 **Arm**:
@@ -138,9 +142,11 @@ The measure of how well traffic is moving: the average of each vehicle's speed r
 _Avoid_: Score, efficiency, speed ratio, throughput
 
 **Jam**:
-Sustained low Flow caused by queues at a Junction. It lowers Income, and the player clears it with Changes or by building around it.
+Sustained low Flow caused by queues at a Junction. It lowers Income and keeps the Tile of that Junction from its next Stage. The player clears it with Changes or by building around it.
 _Avoid_: Congestion, traffic, gridlock
 
 ## Retired
 
 District, Level, Fog, Reveal and Win belonged to the authored game and the land game. They name nothing in the sandbox.
+
+Holding, Flow staying above its bar for a sustained stretch, qualified the Record when the Record counted trips a minute. Growth needs no such test.
