@@ -25,8 +25,10 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
 const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
 // What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement and the lamps. The rest of what
-// stands on its Blocks comes in again at once.
+// stands on its Blocks comes in again at once, its stages starting in this share of a Rebuild's time, since no slab
+// lands first.
 const STANDING = new Set<Stage>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
+const REZONED_PACE = 0.4
 const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
@@ -52,7 +54,7 @@ export interface Moments {
 
 /**
  * When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces.
- * For a Rezoning (`rezoned`), what it leaves standing starts landed, and the Blocks start at once.
+ * For a Rezoning (`rezoned`), what it leaves standing starts landed, and the rest starts at once and sooner.
  */
 function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32Array {
   const area = extent(pieces)
@@ -61,12 +63,15 @@ function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32A
   const reach = Math.hypot(slab.x1 - slab.x0, slab.y1 - slab.y0) / 2
   const far = (x: number, y: number) => Math.min(1, Math.hypot(x - centre.x, y - centre.y) / reach)
   const [at, spread] = rezoned ? [0, 0] : BLOCKS
+  const pace = rezoned ? REZONED_PACE : 1
   const starts = blocks.map((b) => at + far(b.middle.x, b.middle.y) * spread)
   return new Float32Array(
     bricks.map((b) =>
       rezoned && STANDING.has(b.stage)
         ? -Infinity
-        : (b.block < 0 ? 0 : starts[b.block]) + STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1] + Math.random() * JITTER,
+        : (b.block < 0 ? 0 : starts[b.block]) +
+          (STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1]) * pace +
+          Math.random() * JITTER,
     ),
   )
 }
