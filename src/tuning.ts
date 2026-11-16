@@ -23,6 +23,6 @@ export const ECONOMY = {
   incomeWindow: 60,
   /** The Income floor, as a share of the Price per minute. */
   incomeFloor: 1 / 25,
-  /** Sim-seconds of earning after a placement or a Swap in which it can be undone. */
+  /** Sim-seconds of earning after a placement, a Swap or a Rezoning in which it can be undone. */
   undoWindow: 10,
 }

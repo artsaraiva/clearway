@@ -34,11 +34,28 @@ export const LAYOUTS: readonly Layout[] = [
   { id: 'roundabout', name: 'Roundabout', roads: [true, true, true, true] },
 ]
 
+/** What every Block of a Tile is built as, which the player picks. */
+export interface Zone {
+  id: 'low-density' | 'offices'
+  name: string
+}
+
+/** The Zones in the order the bar offers them. A Tile can also be unzoned: its Blocks are left as grass. */
+export const ZONES: readonly Zone[] = [
+  { id: 'low-density', name: 'Low-density residential' },
+  { id: 'offices', name: 'Offices' },
+]
+
+/** The Zone a new run's first Tile is built as, and the one picked when a run opens. */
+export const FIRST_ZONE = ZONES.find((z) => z.id === 'low-density')!
+
 export interface Tile {
   cell: Cell
   layout: Layout
   /** Quarter turns counterclockwise. */
   rotation: number
+  /** What every Block of the Tile is built as. None: the Tile is unzoned, roads only. */
+  zone?: Zone
 }
 
 /** A Road end of the City with no Tile beyond it. */
@@ -70,14 +87,19 @@ export class City {
     for (const tile of this.tiles) this.at.set(key(tile.cell), tile)
   }
 
-  /** A new City: one Tile, its Layout and rotation drawn from `seed`. */
+  /** A new City: one Tile, its Layout and rotation drawn from `seed`, built as the first Zone. */
   static start(seed: number) {
     const random = mulberry32(seed)
     const layout = LAYOUTS[Math.floor(random() * LAYOUTS.length)]
-    return new City([{ cell: { x: 0, y: 0 }, layout, rotation: Math.floor(random() * 4) }])
+    return new City([{ cell: { x: 0, y: 0 }, layout, rotation: Math.floor(random() * 4), zone: FIRST_ZONE }])
   }
 
-  /** The Price: what the next Tile costs, whatever its Layout. A Swap costs it too, and does not raise it. */
+  /** The Tile on `cell`, if one is placed there. */
+  tileAt(cell: Cell): Tile | undefined {
+    return this.at.get(key(cell))
+  }
+
+  /** The Price: what the next Tile costs, whatever its Layout or Zone. A Swap costs it too, and does not raise it. */
   get price() {
     return Math.round((PRICE.base * PRICE.growth ** (this.tiles.length - 1)) / PRICE.round) * PRICE.round
   }
@@ -94,16 +116,25 @@ export class City {
     return this.fits({ cell, layout, rotation })
   }
 
-  /** Drop a Tile on an empty cell, or swap the Tile on a taken one. A refused placement changes nothing. */
-  place(layout: Layout, rotation: number, cell: Cell): Verdict {
+  /**
+   * Drop a Tile built as `zone` (none: unzoned) on an empty cell, or swap the Layout of the Tile on a taken one, which
+   * keeps its own Zone. A refused placement changes nothing.
+   */
+  place(layout: Layout, rotation: number, cell: Cell, zone?: Zone): Verdict {
     const old = this.at.get(key(cell))
-    const tile = { cell: { ...cell }, layout, rotation }
+    const tile: Tile = { cell: { ...cell }, layout, rotation, zone: old ? old.zone : zone }
     const verdict = this.fits(tile)
     if (!verdict.legal) return verdict
-    if (old) this.tiles[this.tiles.indexOf(old)] = tile
-    else this.tiles.push(tile)
-    this.at.set(key(cell), tile)
+    this.put(tile, old)
     return verdict
+  }
+
+  /** Build the Tile on `cell` as `zone`, or unzone it. A Zone never makes a Tile illegal. False if no Tile is on `cell`. */
+  rezone(cell: Cell, zone?: Zone): boolean {
+    const old = this.at.get(key(cell))
+    if (!old) return false
+    this.put({ ...old, zone }, old)
+    return true
   }
 
   /** Every Road end with no Tile beyond it, in the order the Tiles were placed. */
@@ -118,6 +149,13 @@ export class City {
     return tiles.flatMap((t) =>
       DIRECTIONS.filter((d) => hasRoad(t, d) && !taken(beyond(t.cell, d))).map((direction) => ({ cell: { ...t.cell }, direction })),
     )
+  }
+
+  /** Put `tile` on its cell, in the place of `old` in the order if it replaces one. */
+  private put(tile: Tile, old: Tile | undefined) {
+    if (old) this.tiles[this.tiles.indexOf(old)] = tile
+    else this.tiles.push(tile)
+    this.at.set(key(tile.cell), tile)
   }
 
   /** The conditions a drop and a Swap share. The Tile already on the cell, if any, is ignored. */
