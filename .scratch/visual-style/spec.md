@@ -120,6 +120,10 @@ Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the 
   - An unzoned Tile: grass with a few bushes.
 
   Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere. The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped. A coral tower landmark stands on an offices or a high-density residential Tile where the seed puts one.
+- **Stages** ([#138](https://github.com/artsaraiva/clearway/issues/138)): low-density residential and offices build at their Tile's Stage. The look above is Stage 2; Stage 1 is a humbler version of it and Stage 3 goes beyond it. Every lot draws from its own random stream, so each Stage builds the same building, better, and never another kind. The other Zones look the same at every Stage until [#141](https://github.com/artsaraiva/clearway/issues/141).
+  - Low-density residential: a one-storey cottage on 70% of the footprint, on a bare lawn, and a sapling on a lot left to a tree; then the house above, with most gardens given a tree; then two storeys with a ledge between them, a chimney, a hedge round the garden and a second tree in half the gardens.
+  - Offices: 3 to 5 storeys (5 to 7 for the one tower in five that stands tall), a plain body with no penthouse, dome or spire, one tier and fewer floors lit; then 6 to 9 (11 to 14) as above; then 9 to 13 (17 to 22), a spire on every style, a third tier on a stepped tower, more floors lit and trees in planters on the plaza.
+  - A Tile that reaches a Stage changes lot by lot over about 3 s, in a random order. Each new building drops in as a Rebuild's bricks do while trees pop in, and the old one stands until the new one lands on it, then vanishes in the dust, so a lot is never bare. Confetti ends it.
 - Lamps stand at Block corners. Street trees line the avenues the seed picks, whatever the Zone, and what a Zone builds keeps clear of them: buildings, ponds, crop rows and allotment plots alike.
 - Districts are themed (city, countryside, harbor). The first is a city.
 
