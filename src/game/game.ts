@@ -52,7 +52,10 @@ export class Game {
   /** A Free run: the Price is ¥0, so every Tile and Swap costs nothing. Its Record is kept apart from a normal run's. */
   readonly free: boolean
   yen: number
-  /** The most trips per minute the City has carried while Holding. */
+  /**
+   * The highest Growth reached in any run of this kind, this one included: a new run carries it over. It rises the
+   * moment Growth passes it, and stays when Growth falls, as on an Undo or a Rezoning.
+   */
   record: number
   /**
    * Called after every Rebuild, Rezoning, Change and Reset, the moments a save of the run must not miss. Yen, the Record
@@ -82,8 +85,8 @@ export class Game {
   /**
    * A new run: a new `seed` draws the starting Tile, and the Price of the next Tile is in hand. `free` makes it a Free
    * run. A test passes a fixed seed, and may start from its own `city` and `yen`. A saved run comes back with its seed,
-   * `city`, `changes`, `yen`, `record` and the `stages` of its zoned Tiles. The Sim starts at its Pre-warm: `step` until
-   * `sim.prewarmed`.
+   * `city`, `changes`, `yen`, `record` and the `stages` of its zoned Tiles. A `record` under the City's Growth rises to
+   * it. The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
    */
   constructor(
     seed = newSeed(),
@@ -103,6 +106,7 @@ export class Game {
     this.record = start.record ?? 0
     for (const { cell, stage, progress } of start.stages ?? [])
       if (this._city.tileAt(cell)?.zone) this.stages.set(junctionId(cell), { stage, progress })
+    this.reach()
     this._sim = this.rebuild(start.changes ?? [])
   }
 
@@ -152,6 +156,7 @@ export class Game {
     const now = this.stageOf(cell)
     if (!now) return false
     this.stages.set(junctionId(cell), { stage, progress: 0 })
+    this.reach()
     if (stage !== now.stage) this.onStage?.(cell, now.stage, stage)
     return true
   }
@@ -188,6 +193,7 @@ export class Game {
     this.remember(offer.price, changes)
     this._city.place(layout, rotation, cell, zone)
     this.yen -= offer.price
+    this.reach()
     this.rebuild(carried(changes, cell, offer.swap))
     return offer
   }
@@ -204,6 +210,7 @@ export class Game {
     this.remember(0, null, { id, stage: this.stageOf(cell) })
     this._city.rezone(cell, zone)
     this.stages.delete(id)
+    this.reach()
     this.onUnsaved?.()
     return true
   }
@@ -241,6 +248,8 @@ export class Game {
     if (rezoned?.stage) this.stages.set(rezoned.id, rezoned.stage)
     else if (rezoned) this.stages.delete(rezoned.id)
     this.yen += paid
+    // Undoing a Rezoning puts back a Stage, which with the Stages grown since can take Growth past the Record.
+    this.reach()
     if (changes) this.rebuild(changes)
     else this.onUnsaved?.()
     return true
@@ -273,7 +282,6 @@ export class Game {
     // Below the floor, the difference is made up, so a jammed City can always afford a fix.
     const short = Math.max(0, this.incomeFloor - this.tripsPerMinute * ECONOMY.pay)
     this.yen += arrived * ECONOMY.pay + (short * DT) / 60
-    if (this._sim.holding) this.record = Math.max(this.record, this.tripsPerMinute)
     this.sinceLast++
   }
 
@@ -296,8 +304,15 @@ export class Game {
       while (stage < LAST_STAGE && progress >= STAGES.trips[stage - 1]) progress -= STAGES.trips[stage++ - 1]
       if (stage === LAST_STAGE) progress = 0
       this.stages.set(net.junctions[k].id, { stage: stage as Stage, progress })
-      if (stage !== now.stage) this.onStage?.(cell, now.stage, stage as Stage)
+      if (stage === now.stage) continue
+      this.reach()
+      this.onStage?.(cell, now.stage, stage as Stage)
     }
+  }
+
+  /** Raise the Record to Growth, if Growth has passed it. */
+  private reach() {
+    this.record = Math.max(this.record, this.growth)
   }
 
   /** Keep the City as it stands for an Undo, which takes the place of the one before and opens its window. */
