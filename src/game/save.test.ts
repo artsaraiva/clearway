@@ -58,7 +58,7 @@ const STAGED = [
 
 /**
  * A run on the ten Tiles, some grown, the last just placed and then one rezoned, with Changes at three Junctions, yen
- * and a Record from an earlier run, above this one's Growth.
+ * and a Record.
  */
 function played(free: boolean) {
   const [[id, rotation, x, y, z], ...rest] = TEN
@@ -71,7 +71,7 @@ function played(free: boolean) {
   game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
   for (const at of ['c3_0', 'c5_0']) game.apply({ at, disable: open(game, at).slice(0, 2) })
   game.yen = 1234.56
-  game.record = 41
+  game.record = 41.25
   return game
 }
 
@@ -92,47 +92,46 @@ it('loads a save back as the same run, each Tile with its Zone and Stage, with n
     expect(back.growth).toBe(12)
     expect(back.sim.configuration()).toEqual(game.sim.configuration())
     expect(back.yen).toBe(1234.56)
-    expect(back.record).toBe(41)
+    expect(back.record).toBe(41.25)
     expect(back.price).toBe(game.price)
     expect(back.undoable).toBe(false)
   }
 })
 
-it('starts a new run when a save will not load, which keeps the Record of a save of this version', () => {
+it('starts a new run that keeps the Record when a save will not load', () => {
   const text = saveOf(played(false))
   const save = JSON.parse(text)
-  // A Record that is not kept starts again from the new run's own Growth: its starting Tile, at Stage 1.
-  const fresh = 1
   const broken: [what: string, text: string, record: number][] = [
-    ['cut short', text.slice(0, -12), fresh],
-    // Version 3's Record was the most trips a minute carried while Holding, which means nothing as Growth.
-    ['from before the Record was Growth', JSON.stringify({ ...save, version: 3 }), fresh],
+    ['cut short', text.slice(0, -12), 0],
     // Version 2, from before Stages: a Tile was a cell, a Layout, a rotation and a Zone.
     [
-      'from before Stages',
+      'from an older version',
       JSON.stringify({
         ...save,
         version: 2,
         tiles: save.tiles.map(({ cell, layout, rotation, zone }: Placed) => ({ cell, layout, rotation, zone })),
       }),
-      fresh,
+      41.25,
     ],
-    ['a Record that is no Growth', JSON.stringify({ ...save, record: 41.25 }), fresh],
-    ['a Layout the game lacks', JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], layout: 'flyover' }, ...save.tiles.slice(1)] }), 41],
-    ['a Zone the game lacks', JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], zone: 'casino' }, ...save.tiles.slice(1)] }), 41],
-    ['a Stage the game lacks', JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], stage: 4 }, ...save.tiles.slice(1)] }), 41],
+    [
+      'a Layout the game lacks',
+      JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], layout: 'flyover' }, ...save.tiles.slice(1)] }),
+      41.25,
+    ],
+    ['a Zone the game lacks', JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], zone: 'casino' }, ...save.tiles.slice(1)] }), 41.25],
+    ['a Stage the game lacks', JSON.stringify({ ...save, tiles: [{ ...save.tiles[0], stage: 4 }, ...save.tiles.slice(1)] }), 41.25],
     [
       'a Stage on an unzoned Tile',
       JSON.stringify({ ...save, tiles: save.tiles.map((t: Placed) => (t.zone === null ? { ...t, stage: 2 } : t)) }),
-      41,
+      41.25,
     ],
     [
       'a Tile that joins nothing',
       JSON.stringify({ ...save, tiles: [...save.tiles, { cell: { x: 9, y: 9 }, layout: 'straight', rotation: 0, zone: null }] }),
-      41,
+      41.25,
     ],
-    ['a Connection the City lacks', JSON.stringify({ ...save, changes: [{ at: 'c0_0', enable: ['h9_9.in0>h0_0.out0'] }] }), 41],
-    ['no yen', JSON.stringify({ ...save, yen: 'lots' }), 41],
+    ['a Connection the City lacks', JSON.stringify({ ...save, changes: [{ at: 'c0_0', enable: ['h9_9.in0>h0_0.out0'] }] }), 41.25],
+    ['no yen', JSON.stringify({ ...save, yen: 'lots' }), 41.25],
   ]
   for (const [what, text, record] of broken) {
     const { game, notice } = load(text, false)

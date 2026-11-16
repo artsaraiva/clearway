@@ -1,7 +1,7 @@
 // Dev script, not a test: grows scripted Cities headless, a Tile at a time, and reports them against the bars of
 // .scratch/tile-sandbox/spec.md. Each City is grown twice. Untouched, to see where a Jam emerges. Then fixed: whenever
-// a Junction jams, a search tries Changes first, then a Swap (a Crossroads for a Roundabout, or back), then a placement
-// that joins two placed Tiles, which adds a second route.
+// the City stops Holding, a search tries Changes first, then a Swap (a Crossroads for a Roundabout, or back), then a
+// placement that joins two placed Tiles, which adds a second route.
 //   npm run tune
 //   CITY=grid npm run tune                 one City
 //   SEARCH=0 npm run tune                  untouched only
@@ -105,6 +105,8 @@ interface Result {
   demand: number
   trips: number
   flow: number
+  /** Holding at the end of the run under most of the seeds. */
+  holding: boolean
   /** Flow on the Approaches of each Junction over the last `TAIL` seconds, with the cars waiting off the map at its Gateways. */
   flows: Record<string, number>
   sim: Sim
@@ -117,6 +119,7 @@ function measure(city: City, carried: Change[]): Result {
     demand: runs[0].demand,
     trips: mean((r) => r.trips),
     flow: mean((r) => r.flow),
+    holding: runs.filter((r) => r.holding).length * 2 > runs.length,
     flows: Object.fromEntries(Object.keys(runs[0].flows).map((id) => [id, mean((r) => r.flows[id])])),
     sim: runs[0].sim,
   }
@@ -147,20 +150,19 @@ function measureSeed(city: City, carried: Change[], seed: number) {
     demand: Object.values(sim.rates).reduce((sum, d) => sum + d.rate, 0),
     trips: ((sim.completed - before) / TAIL) * 60,
     flow: sim.flow,
+    holding: sim.holding,
     flows: Object.fromEntries(Object.entries(sums).map(([id, [sum, n]]) => [id, n ? sum / n : 1])),
     sim,
   }
 }
 
-const jammed = (r: Pick<Result, 'flows'>) => Object.keys(r.flows).filter((id) => r.flows[id] < JAM).sort((a, b) => r.flows[a] - r.flows[b]) // prettier-ignore
+const jammed = (r: Result) => Object.keys(r.flows).filter((id) => r.flows[id] < JAM).sort((a, b) => r.flows[a] - r.flows[b]) // prettier-ignore
 const worst = (r: Result, n: number) => Object.keys(r.flows).sort((a, b) => r.flows[a] - r.flows[b]).slice(0, n) // prettier-ignore
-/** Whether no Junction is jammed. */
-const clear = (r: Pick<Result, 'flows'>) => jammed(r).length === 0
-/** Fewer Jams beat more; with as many, more Flow is better. */
-const score = (r: Pick<Result, 'flows' | 'flow'>) => r.flow - jammed(r).length
+/** Holding beats not Holding; short of it, more Flow is better. */
+const score = (r: Pick<Result, 'holding' | 'flow'>) => (r.holding ? 2 : r.flow)
 const income = (city: City, r: Result) => Math.max(r.trips * ECONOMY.pay, city.price * ECONOMY.incomeFloor)
 const show = (city: City, r: Result) =>
-  `${fmt(r.trips)} of ${fmt(r.demand)} trips/min, Flow ${pct(r.flow)}, ¥${fmt(income(city, r))}/min, jammed: ${jammed(r).join(' ') || 'none'}`
+  `${fmt(r.trips)} of ${fmt(r.demand)} trips/min, Flow ${pct(r.flow)}${r.holding ? '' : ' NOT HOLDING'}, ¥${fmt(income(city, r))}/min, jammed: ${jammed(r).join(' ') || 'none'}`
 
 interface Named {
   name: string
@@ -198,12 +200,12 @@ function candidates(sim: Sim, id: string): Named[] {
 }
 
 /**
- * Greedy: at the worst Junctions, the single Change that helps most, again and again until no Junction is jammed or
+ * Greedy: at the worst Junctions, the single Change that helps most, again and again until the City is Holding or
  * nothing helps. Every candidate is screened on one seed, and only the `CONFIRM` best are measured in full.
  */
 function searchChanges(city: City, carried: Change[], now: Result, rounds = 4) {
   const made: Named[] = []
-  for (let round = 0; round < rounds && !clear(now); round++) {
+  for (let round = 0; round < rounds && !now.holding; round++) {
     const screened = worst(now, 3)
       .flatMap((id) => candidates(now.sim, id))
       .map((c) => ({ c, screen: measureSeed(city, [...carried, c.change], SEED) }))
@@ -212,7 +214,7 @@ function searchChanges(city: City, carried: Change[], now: Result, rounds = 4) {
     for (const { c } of screened.slice(0, CONFIRM)) {
       const result = measure(city, [...carried, c.change])
       if (score(result) > score(best?.result ?? now) + 0.02) best = { c, result }
-      if (clear(result)) break
+      if (result.holding) break
     }
     if (!best) break
     carried = [...carried, best.c.change]
@@ -252,7 +254,7 @@ function placements(city: City): Tile[] {
   return [...out.values()]
 }
 
-/** The first of `tiles` that leaves no Junction jammed once placed; failing that, the best of them with Changes on top. */
+/** The first of `tiles` that leaves the City Holding once placed; failing that, the best of them with Changes on top. */
 function searchBuilding(city: City, carried: Change[], tiles: Tile[]) {
   let best: { tile: Tile; city: City; carried: Change[]; made: Named[]; result: Result } | undefined
   for (const tile of tiles) {
@@ -263,7 +265,7 @@ function searchBuilding(city: City, carried: Change[], tiles: Tile[]) {
     const kept = swap ? carried.filter((c) => c.at !== junctionId(tile.cell)) : carried
     const result = measure(built, kept)
     if (!best || score(result) > score(best.result)) best = { tile, city: built, carried: kept, made: [], result }
-    if (clear(result)) return best
+    if (result.holding) return best
   }
   if (!best) return undefined
   const changed = searchChanges(best.city, best.carried, best.result, 2)
@@ -273,7 +275,7 @@ function searchBuilding(city: City, carried: Change[], tiles: Tile[]) {
 type Fix = 'Change' | 'Swap' | 'placement' | 'none'
 
 function grow(name: string, steps: Step[], fix: boolean) {
-  console.log(fix ? '-- fixed whenever a Junction jams' : '-- untouched')
+  console.log(fix ? '-- fixed whenever it stops Holding' : '-- untouched')
   const [first, ...rest] = steps
   let city = new City([{ layout: layout(first[0]), rotation: first[1], cell: { x: first[2], y: first[3] } }])
   let carried: Change[] = []
@@ -306,7 +308,7 @@ function grow(name: string, steps: Step[], fix: boolean) {
     now = measure(city, carried)
     if (city.tiles.length === PACE_TILES) pace = minutes
     report(`${id} at ${at(cell)}${verdict.joins >= 2 ? ' (loop)' : ''}`)
-    if (clear(now)) continue
+    if (now.holding) continue
     firstJam ??= city.tiles.length
     if (!fix) continue
 
@@ -315,13 +317,13 @@ function grow(name: string, steps: Step[], fix: boolean) {
     for (const c of changed.made) console.log(`      Change at ${c.change.at}: ${c.name}`)
     carried = changed.carried
     now = changed.result
-    if (clear(now)) {
-      console.log(`      → Changes clear the Jams: ${show(city, now)}`)
+    if (now.holding) {
+      console.log(`      → Changes restore Holding: ${show(city, now)}`)
       fixes.push({ tiles, by: 'Change' })
       continue
     }
-    console.log(`      no Change clears the Jams (best: ${show(city, now)})`)
-    // Both kinds of building are tried, to learn which clear the Jams; the first that does is the one built.
+    console.log(`      no Change restores Holding (best: ${show(city, now)})`)
+    // Both kinds of building are tried, to learn which restore Holding; the first that does is the one built.
     let built: (NonNullable<ReturnType<typeof searchBuilding>> & { kind: Exclude<Fix, 'Change' | 'none'> }) | undefined
     for (const [kind, candidates] of [
       ['Swap', swaps(city, now)],
@@ -333,11 +335,11 @@ function grow(name: string, steps: Step[], fix: boolean) {
         continue
       }
       const what = `${kind} of ${found.tile.layout.id} at ${at(found.tile.cell)}${found.made.map((c) => `, Change at ${c.change.at}: ${c.name}`).join('')}`
-      if (!clear(found.result)) {
-        console.log(`      no ${kind} clears the Jams (best: ${what} → ${show(found.city, found.result)})`)
+      if (!found.result.holding) {
+        console.log(`      no ${kind} restores Holding (best: ${what} → ${show(found.city, found.result)})`)
         continue
       }
-      console.log(`      → ${what} clears the Jams${built ? ' too' : ''}: ${show(found.city, found.result)}`)
+      console.log(`      → ${what} restores Holding${built ? ' too' : ''}: ${show(found.city, found.result)}`)
       fixes.push({ tiles, by: kind })
       built ??= { ...found, kind }
     }
@@ -374,11 +376,11 @@ const mins = (pace?: number) => (pace === undefined ? 'n/a' : `${pace.toFixed(0)
 console.log('\n=== Bars ===')
 for (const { untouched, fixed } of summaries) {
   console.log(`City "${untouched.name}"`)
-  console.log(`   A Jam emerges (by about 6 Tiles): untouched, first jams at ${untouched.firstJam ?? 'no Tile count tried'}`)
+  console.log(`   A Jam emerges (by about 6 Tiles): untouched, stops Holding at ${untouched.firstJam ?? 'no Tile count tried'}`)
   if (fixed) {
-    console.log(`   Changes work early (to about 10): Changes cleared the Jams at ${list(fixed.fixes, 'Change')} Tiles`)
+    console.log(`   Changes work early (to about 10): Changes restored Holding at ${list(fixed.fixes, 'Change')} Tiles`)
     console.log(
-      `   Building works late: a Swap cleared them at ${list(fixed.fixes, 'Swap')}, a placement at ${list(fixed.fixes, 'placement')}, nothing at ${list(fixed.fixes, 'none')}`,
+      `   Building works late: a Swap restored Holding at ${list(fixed.fixes, 'Swap')}, a placement at ${list(fixed.fixes, 'placement')}, nothing at ${list(fixed.fixes, 'none')}`,
     )
   }
   console.log(

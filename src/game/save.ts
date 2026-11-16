@@ -6,10 +6,10 @@ import { Game, LAST_STAGE, newSeed, type Stage } from './game'
 // no menu screen, so the page opens straight into the run last played. A save holds what it takes to build the City
 // and its Junctions again, with each Tile's Stage, the yen and the Record. Vehicles and the Undo window are not saved,
 // so loading is a Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run,
-// which keeps the save's Record if that can be read and the save is of this version.
+// which keeps the save's Record if that can be read.
 
 /** Raise it whenever a save written before would load wrong: when its shape changes, or what its ids name. */
-const VERSION = 4
+const VERSION = 3
 /** Where each kind of run is saved, and which of the two the page opens on. */
 const KEY = { run: 'clearway.run', freeRun: 'clearway.free-run', playing: 'clearway.playing' }
 /** Seconds between saves for yen, the Record and each Tile's progress, which move with every step. */
@@ -31,14 +31,11 @@ interface Save {
   /** Every Junction's configuration, as a Rebuild carries it over. */
   changes: Change[]
   yen: number
-  /** The Record: the highest Growth reached. Until version 4 it was the most trips a minute carried while Holding. */
   record: number
 }
 
 const isAmount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
 const isInteger = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n)
-/** A Record a save can hold: a Growth, which is a whole number. */
-const isRecord = (n: unknown): n is number => isInteger(n) && n >= 0
 
 /** The save of `game`, as the text localStorage holds. */
 export function saveOf(game: Game): string {
@@ -58,9 +55,8 @@ export function saveOf(game: Game): string {
 
 /**
  * The run saved as `text`, of the kind `free` says, or a new run when there is no save. A save from an older version,
- * or a damaged one, gives way to a new run, and `notice` says so in one line. The new run keeps a damaged save's Record
- * if that can be read, but not an older one's, which may count something else. The Sim starts at its Pre-warm: `step`
- * until `sim.prewarmed`.
+ * or a damaged one, gives way to a new run, which keeps the save's Record if that can be read, and `notice` says so in
+ * one line. The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
  */
 export function load(text: string | null, free: boolean): { game: Game; notice: string | null } {
   if (text === null) return { game: new Game(undefined, { free }), notice: null }
@@ -70,10 +66,9 @@ export function load(text: string | null, free: boolean): { game: Game; notice: 
     return { game: restore(data as Save, free), notice: null }
   } catch {
     const { version, record } = (data ?? {}) as Partial<Save>
-    const older = isInteger(version) && version < VERSION
     return {
-      game: new Game(undefined, { free, record: !older && isRecord(record) ? record : 0 }),
-      notice: older ? NOTICE.older : NOTICE.damaged,
+      game: new Game(undefined, { free, record: isAmount(record) ? record : 0 }),
+      notice: isInteger(version) && version < VERSION ? NOTICE.older : NOTICE.damaged,
     }
   }
 }
@@ -84,7 +79,7 @@ export function load(text: string | null, free: boolean): { game: Game; notice: 
  */
 function restore(save: Save, free: boolean): Game {
   if (save.version !== VERSION) throw new Error(`a save of version ${save.version}, not ${VERSION}`)
-  if (!isInteger(save.seed) || !isAmount(save.yen) || !isRecord(save.record)) throw new Error('no seed, yen or Record')
+  if (!isInteger(save.seed) || !isAmount(save.yen) || !isAmount(save.record)) throw new Error('no seed, yen or Record')
   if (save.tiles.some(({ zone }) => zone !== null && !ZONES.some((z) => z.id === zone))) throw new Error('a Tile the game has no Zone for')
   // A zoned Tile has a Stage the game has and progress toward the next, and an unzoned one neither.
   const grown = ({ zone, stage, progress }: Save['tiles'][number]) =>

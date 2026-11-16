@@ -1,14 +1,14 @@
 import { City } from '../city/city'
 import { Demand, type VehicleType } from './demand'
 import { accel } from './driving'
-import { measure, measureJams, PREWARM, type Approaches } from './metric'
+import { measure, measureJams, PREWARM, WIN_TIME, type Approaches } from './metric'
 import { applyChange, buildNetwork, type Arm, type Connection, type Junction, type Lane, type Network } from './network'
 import { replan, route } from './routing'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
 
 export { VEHICLE_TYPES, type VehicleType } from './demand'
-export { PREWARM } from './metric'
+export { PREWARM, WIN_FLOW, WIN_TIME } from './metric'
 
 export interface Vehicle {
   id: number
@@ -41,6 +41,8 @@ export class Sim {
   flow = 1
   completed = 0
   vehicles: Vehicle[] = []
+  /** Sim-seconds the flow has stayed at or above WIN_FLOW. */
+  sustained = 0
   /**
    * The trips each Junction has served since the Sim was built, by its index in `net.junctions`: each trip that left a
    * Road for the Junction's own lanes while it had no Jam. A Tile grows on its Junction's (ADR 0005).
@@ -97,6 +99,11 @@ export class Sim {
    */
   get jams(): Junction[] {
     return this.approaches.filter((a) => a.jammed).map((a) => a.junction)
+  }
+
+  /** Whether Flow has stayed at or above its bar for long enough: the City is carrying its Demand. */
+  get holding() {
+    return this.sustained >= WIN_TIME
   }
 
   /** Whether the Pre-warm is done, so the traffic can be shown. */
@@ -189,6 +196,7 @@ export class Sim {
       this,
       this.vehicles,
       Object.values(this.queues).reduce((n, q) => n + q.length, 0),
+      this.time,
       DT,
     )
     measureJams(this.approaches, DT)

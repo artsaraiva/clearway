@@ -4,6 +4,7 @@ import type { Run } from '../game/save'
 import type { Held, Rezoning } from '../render/hand'
 import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
+import { WIN_FLOW, WIN_TIME } from '../sim/sim'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
 import { createGrowth } from './growth'
@@ -136,8 +137,8 @@ const zonePicture = (zone: Zone | undefined) =>
     <circle cx="20" cy="20" r="18.5" fill="none" stroke="rgba(27,32,48,0.12)"/></svg>`
 
 /**
- * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left with Growth and the Record under them
- * (`./growth`), the Flow gauge with trips a minute top-centre, the clock top-right with the selected Junction's panel
+ * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left with Growth under them (`./growth`), the
+ * Flow gauge with trips a minute and the Record top-centre, the clock top-right with the selected Junction's panel
  * under it, the bar of Layouts and Zones with the Price and Undo bottom-centre, the camera's buttons bottom-right and
  * the menu bottom-left, which leaves the run through `menu`. While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route
  * Inspector are used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the
@@ -179,9 +180,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       <div class="income soft"><span id="income"></span><span id="to-price"></span></div>
     </div>
     <div class="glass flow" id="flow">
-      <div class="row"><span class="label">Flow</span><span class="pct" id="flow-pct"></span></div>
-      <div class="gauge"><i id="flow-fill"></i></div>
-      <div class="row soft"><span id="trips"></span></div>
+      <div class="row"><span class="label">Flow</span><span class="state soft" id="holding"></span><span class="pct" id="flow-pct"></span></div>
+      <div class="gauge"><i id="flow-fill"></i><b style="left: ${WIN_FLOW * 100}%"></b></div>
+      <div class="row sub soft"><span id="trips"></span><span id="record"></span></div>
     </div>
     <div class="glass speed">
       <button data-scale="0" aria-label="Pause">${PAUSE}</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
@@ -230,7 +231,9 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
     price: text('price'),
     flow: text('flow-pct'),
     flowFill: width('flow-fill'),
+    holding: text('holding'),
     trips: text('trips'),
+    record: text('record'),
     zoneName: text('zone-name'),
   }
 
@@ -586,6 +589,7 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       show.price(yen(game.price))
       const trips = Math.round(game.tripsPerMinute)
       show.trips(`${trips} ${trips === 1 ? 'trip' : 'trips'} a minute`)
+      show.record(`${game.free ? 'Free-run Record' : 'Record'} ${Math.round(game.record)}`)
       const undoButton = $('undo') as HTMLButtonElement
       undoButton.classList.toggle('gone', !game.undoable)
       undoButton.disabled = view.rebuilding
@@ -593,6 +597,8 @@ export function createUI(root: HTMLElement, canvas: HTMLCanvasElement, game: Gam
       if (!view.rebuilding) {
         show.flow(`${Math.round(sim.flow * 100)}%`)
         show.flowFill(`${Math.min(100, sim.flow * 100).toFixed(1)}%`)
+        $('flow').classList.toggle('holding', sim.holding)
+        show.holding(sim.holding ? 'Holding' : sim.sustained > 0 ? `Holding in ${Math.ceil(WIN_TIME - sim.sustained)} s` : '')
       }
       root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
       tools.update()

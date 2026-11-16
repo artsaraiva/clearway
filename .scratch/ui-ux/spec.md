@@ -37,8 +37,8 @@ Sound is out of this spec: [#115](https://github.com/artsaraiva/clearway/issues/
 
 | Place | Holds |
 | --- | --- |
-| Top-left | Yen with its fill toward the Price, Income small beneath, Growth and the Record under them |
-| Top-centre | The Flow gauge with trips a minute |
+| Top-left | Yen with its fill toward the Price, Income small beneath, Growth under them |
+| Top-centre | The Flow gauge with the Holding state, trips a minute and the Record |
 | Top-right | Pause, 1×, 4×, 8× |
 | Bottom-centre | The bar of Layouts, with the Zones in a second row, the Price and Undo |
 | Bottom-right | Compass, recenter, tilt toggle, Demand view toggle |
@@ -49,8 +49,9 @@ Money sits apart from traffic, and nothing covers the middle of the board.
 ## Readings
 
 - **Yen** is the largest reading. It carries a fill that grows toward the Price and is full when the next Tile is affordable. Income is a small line under it.
-- **Flow** is a gauge, with **trips a minute** beneath. Holding, and its bar on the gauge, are retired ([#140](https://github.com/artsaraiva/clearway/issues/140)).
-- **Growth** ([#138](https://github.com/artsaraiva/clearway/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each, and the **Record** beneath ("Free-run Record" in a Free run). Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's ([#139](https://github.com/artsaraiva/clearway/issues/139)).
+- **Flow** keeps its gauge and its Holding bar. Holding shows as the gauge's state and the word "Holding". There is no separate banner.
+- **Trips a minute** and the **Record** sit with Flow.
+- **Growth** ([#138](https://github.com/artsaraiva/clearway/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each. Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's ([#139](https://github.com/artsaraiva/clearway/issues/139)).
 - No history charts.
 
 ## Placing
@@ -119,7 +120,7 @@ Three one-line hints, each shown once when it becomes relevant and remembered in
 
 ## Accessibility
 
-- **Without colour:** every state differs by shape or text as well. The ghost shows the price, "not enough yen", or ✕ and the reason. A yielding Arm has give-way triangles and a main one has none. Incoming lane ends are circles and outgoing ones are rings. A Jam has the marker's shape and the cars' faces.
+- **Without colour:** every state differs by shape or text as well. The ghost shows the price, "not enough yen", or ✕ and the reason. A yielding Arm has give-way triangles and a main one has none. Incoming lane ends are circles and outgoing ones are rings. Holding has its mark and its word. A Jam has the marker's shape and the cars' faces.
 - **Reduced motion:** when the browser asks for it, a Rebuild places its Tile at once, cars stop shaking and clouds stop drifting. Cars still drive. There is no setting for it.
 - **Text:** the smallest is 13 px, Gateway labels and hints included. No text-size setting.
 
@@ -129,7 +130,7 @@ Three one-line hints, each shown once when it becomes relevant and remembered in
 - It holds a version number, the seed, the Tiles with each one's Stage and progress, the Changes, yen, the Record, the hints seen and the Demand view's toggle. Vehicles are not saved: loading is a Rebuild with a Pre-warm.
 - It is written on every Rebuild and Change, and every few seconds for yen and progress.
 - New run asks first.
-- A save from an older version, or a damaged one, starts a new run and says so in one line. A damaged save's Record is kept if it can be read. An older save's is not, since until version 4 the Record counted trips a minute. There is no migration before release.
+- A save from an older version, or a damaged one, starts a new run and says so in one line. The Record is kept if it can be read. There is no migration before release.
 
 ## Verification
 
