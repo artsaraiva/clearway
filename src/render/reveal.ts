@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { extent, middle } from '../sim/geometry'
-import type { Materials, Stage } from './kit'
+import type { BrickKind, Materials } from './kit'
 import type { Build } from './scenery'
 import { puff } from './shapes'
 import { slabBounds } from './slab'
@@ -8,10 +8,10 @@ import { slabBounds } from './slab'
 const DURATION = 0.62 // s a brick takes to fall in and settle, or to grow in
 const FALL = 25 // m a dropping brick falls
 const JITTER = 0.05 // s at random on each brick's start, so that a row of tiles never lands as one
-// Per stage: when its first brick starts and how much later its farthest one does (s). The slab's stages count from
+// Per kind of brick: when its first one starts and how much later its farthest one does (s). The slab's kinds count from
 // the start of the Reveal, the rest from the start of their Block. The farthest brick is the one farthest from the
 // middle of the Level's pieces of slab.
-const STARTS: Record<Stage, [at: number, spread: number]> = {
+const STARTS: Record<BrickKind, [at: number, spread: number]> = {
   soil: [0, 1.1],
   sand: [0.4, 1.1],
   grass: [0.8, 1.1],
@@ -23,11 +23,11 @@ const STARTS: Record<Stage, [at: number, spread: number]> = {
   tree: [0.6, 1.5],
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
-const POPS = new Set<Stage>(['lamp', 'tree']) // these grow in; everything else drops
+const POPS = new Set<BrickKind>(['lamp', 'tree']) // these grow in; everything else drops
 // What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement and the lamps. The rest of what
-// stands on its Blocks comes in again at once, its stages starting in this share of a Rebuild's time, since no slab
+// stands on its Blocks comes in again at once, its kinds starting in this share of a Rebuild's time, since no slab
 // lands first.
-const STANDING = new Set<Stage>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
+const STANDING = new Set<BrickKind>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
 const REZONED_PACE = 0.4
 const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
@@ -53,7 +53,7 @@ export interface Moments {
 }
 
 /**
- * When each brick of a build starts: by its stage, its Block, and how far it lies from the middle of the Level's pieces.
+ * When each brick of a build starts: by its kind, its Block, and how far it lies from the middle of the Level's pieces.
  * For a Rezoning (`rezoned`), what it leaves standing starts landed, and the rest starts at once and sooner.
  */
 function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32Array {
@@ -67,10 +67,10 @@ function schedule({ bricks, blocks, pieces }: Build, rezoned: boolean): Float32A
   const starts = blocks.map((b) => at + far(b.middle.x, b.middle.y) * spread)
   return new Float32Array(
     bricks.map((b) =>
-      rezoned && STANDING.has(b.stage)
+      rezoned && STANDING.has(b.kind)
         ? -Infinity
         : (b.block < 0 ? 0 : starts[b.block]) +
-          (STARTS[b.stage][0] + far(b.at.x, -b.at.z) * STARTS[b.stage][1]) * pace +
+          (STARTS[b.kind][0] + far(b.at.x, -b.at.z) * STARTS[b.kind][1]) * pace +
           Math.random() * JITTER,
     ),
   )
@@ -225,7 +225,7 @@ export function createReveal(materials: Materials) {
       hide(next)
       delays = schedule(next, rezoned)
       state = new Uint8Array(next.bricks.length)
-      plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.stage === 'plate' ? [delays[i] + DURATION / 2] : [])))
+      plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.kind === 'plate' ? [delays[i] + DURATION / 2] : [])))
     },
 
     /** Land the build still assembling at once, without celebrating, as when its piece is about to be built again. */
@@ -264,7 +264,7 @@ export function createReveal(materials: Materials) {
         if (u >= 1) {
           state[i] = LANDED
           landed++
-        } else if (POPS.has(bricks[i].stage)) {
+        } else if (POPS.has(bricks[i].kind)) {
           sx = sy = Math.max(0.001, 1 + 2.70158 * (u - 1) ** 3 + 1.70158 * (u - 1) ** 2) // back out: overshoot, then settle
         } else if (u < 0.5) {
           sx = sy = Math.min(1, 0.55 + u * 2)

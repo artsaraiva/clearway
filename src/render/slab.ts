@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { Bounds } from '../sim/geometry'
-import type { Kit, Stage } from './kit'
+import type { BrickKind, Kit } from './kit'
 import { canvasTexture, roundedBox } from './shapes'
 
 const RIM = 4 // m of grass showing around the road plate
@@ -9,7 +9,7 @@ const PLATE_TILE = 64 // the road plate is laid in tiles too, so that a Rebuild 
 const ROAD = '#c3c7ce' // pale and near-neutral, so that cars, paint and Tool aids read against it
 const PLATE = 0.6 // m thick, its surface at height 0
 // Top of each layer (m, road surface = 0), thickness and colour: soil, sand, grass.
-const LAYERS: [number, number, string, Stage][] = [
+const LAYERS: [number, number, string, BrickKind][] = [
   [-10, 8.8, '#d2a069', 'soil'],
   [-2.8, 8, '#e3bf8c', 'sand'],
   [-0.6, 2.2, '#9ed67d', 'grass'],
@@ -60,11 +60,11 @@ function tiles(r: Bounds, size: number): [x: number, y: number, w: number, d: nu
  */
 export function laySlab(kit: Kit, plate: Bounds, earlier: Bounds[]) {
   const ground = subtract(slabBounds(plate), earlier.map(slabBounds))
-  for (const [top, h, color, stage] of LAYERS) {
+  for (const [top, h, color, kind] of LAYERS) {
     for (const r of ground) {
       for (const [x, y, w, d] of tiles(r, TILE)) {
         kit.push(roundedBox(w, h, d, 2, 0.4).translate(x, top - h, -y), color)
-        kit.brick(stage, x, y, top - h, 3)
+        kit.brick(kind, x, y, top - h, 3)
       }
     }
   }

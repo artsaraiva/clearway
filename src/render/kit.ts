@@ -85,11 +85,11 @@ export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
 
 /** What a brick is, which decides when and how it comes in during a Rebuild. */
-export type Stage = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
+export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
 
 /** One brick of the slab or of what stands on it: the unit that drops or pops in during a Rebuild. */
 export interface Brick {
-  stage: Stage
+  kind: BrickKind
   /** The point it lands on, or grows out of, in Three coordinates. */
   at: THREE.Vector3
   /** Puffs of dust thrown up where it lands. */
@@ -221,11 +221,11 @@ export function createKit(rand: () => number, materials: Materials) {
     push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(sx, sy, sz))), look)
   }
   /** Close the shapes added since the last brick into one, which lands on `(x, y)`, `h` above the road. */
-  const brick = (stage: Stage, x: number, y: number, h: number, dust = 0) => {
+  const brick = (kind: BrickKind, x: number, y: number, h: number, dust = 0) => {
     if (open === parts.length) return
     for (let i = open; i < parts.length; i++) parts[i].brick = bricks.length
     open = parts.length
-    bricks.push({ stage, at: new THREE.Vector3(x, h, -y), dust })
+    bricks.push({ kind, at: new THREE.Vector3(x, h, -y), dust })
   }
 
   // Buildings repeat their boxes, so each is cut once per size.
