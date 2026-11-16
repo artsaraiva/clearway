@@ -24,7 +24,8 @@ const HOUSES = { lot: 15.2, margin: 2.8, gap: 0.4, least: 7, clear: 0.6, yard: 1
 const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4 } as const
 // Courtyards: lots at most 42 m on a side, 3.2 m in from the Block's bounding box, built over all but 1.6 m of the lot
 // on every side and 1.5 m in from the Block's edge, at least 9 m across, in wings 7.5 to 9 m deep and 4 to 7 storeys
-// tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L.
+// tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L,
+// and a narrower one a bar.
 const COURTYARDS = { lot: 42, margin: 3.2, gap: 1.6, clear: 1.5, least: 9, wing: [7.5, 9], floors: [4, 7.4], court: 5 } as const
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
 // of at most 17 m east–west by 15 north–south and at least 9, 11 to 17 storeys tall, leaving 4.5 m of the lot open on
