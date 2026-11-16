@@ -9,7 +9,7 @@ import { createDay } from './day'
 import { createJamEmotion } from './emotion'
 import { createField } from './field'
 import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from './hand'
-import { createRouteInspector } from './inspector'
+import { createRouteInspector, createStageInspector, type InspectedTile } from './inspector'
 import { createMaterials, type Stages } from './kit'
 import { createLabels } from './labels'
 import { createReveal } from './reveal'
@@ -70,6 +70,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const slabNow = () => slabBounds(extent(pieces))
   const field = createField()
   const materials = createMaterials()
+  // Before the reveals, which copy the materials it patches.
+  const stageInspector = createStageInspector(materials)
   const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf, ground.stageOf)
   const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
   let slab = slabNow()
@@ -240,6 +242,14 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     /** Highlight a car's remaining route. `null` clears it. */
     inspectCar(v: Vehicle | null) {
       inspected = v
+    },
+
+    /**
+     * Tint the ground of every zoned Tile in `tiles` by its Stage, and stripe the ones a Jam holds back: the Stage
+     * Inspector. `null` turns it off. Call it every frame.
+     */
+    inspectStages(tiles: InspectedTile[] | null) {
+      stageInspector.show(tiles)
     },
 
     /**
@@ -421,6 +431,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       grow = next ? Math.max(0, grow - dt / SHRINK) : Math.min(1, grow + dt * GROW)
       if (inspected && !shown.vehicles.includes(inspected)) inspected = null
       route.update(inspected)
+      stageInspector.update(real)
       const glow = day.update(dt)
       materials.setGlow(glow)
       cars.setGlow(glow)

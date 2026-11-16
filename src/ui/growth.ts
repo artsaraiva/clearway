@@ -2,7 +2,7 @@ import type { Cell } from '../city/city'
 import { LAST_STAGE, type Game } from '../game/game'
 import type { View } from '../render/view'
 import { middle, type Vec } from '../sim/geometry'
-import { cellAt, cellBounds, junctionId } from '../sim/tiles'
+import { cellAt, cellBounds } from '../sim/tiles'
 import { STAGES } from '../tuning'
 
 /** px the bar sits below its Tile's middle, clear of a Jam marker, which floats above it. */
@@ -107,7 +107,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
         show.at(`translate(${x.toFixed(1)}px, ${(y + BELOW).toFixed(1)}px) translateX(-50%)`)
         const grown = game.stageOf(cell)
         const full = grown?.stage === LAST_STAGE
-        const jammed = !!grown && !full && game.sim.jams.some((j) => j.id === junctionId(cell))
+        const jammed = game.heldBack(cell)
         show.look(['tile-bar', !grown && 'unzoned', jammed && 'jammed', full && 'full'].filter(Boolean).join(' '))
         if (!grown) {
           show.stage('Roads only')

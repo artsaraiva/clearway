@@ -143,6 +143,12 @@ export class Game {
     return this.stages.get(junctionId(cell)) ?? { stage: 1, progress: 0 }
   }
 
+  /** Whether a Jam holds the Tile on `cell` back from its next Stage: a zoned Tile short of the last whose Junction is in a Jam. */
+  heldBack(cell: Cell): boolean {
+    const grown = this.stageOf(cell)
+    return !!grown && grown.stage < LAST_STAGE && this._sim.jams.some((j) => j.id === junctionId(cell))
+  }
+
   /** The City's Growth: the sum of the Stages of its zoned Tiles. */
   get growth() {
     return this._city.tiles.reduce((sum, t) => sum + (this.stageOf(t.cell)?.stage ?? 0), 0)
