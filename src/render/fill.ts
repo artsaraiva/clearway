@@ -136,6 +136,6 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
-  // The streets round a Tile built to the level of finish (#175).
-  if (look?.finish && kit.finished) dressStreet(kit, block, field, net, spec, lamps, street, kept)
+  // The streets round a Tile built to the level of finish (#175), as its street lights and road plate are (`./scenery`).
+  if (kit.finished) dressStreet(kit, block, field, net, spec, lamps, street, kept)
 }

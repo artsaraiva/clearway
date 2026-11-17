@@ -937,7 +937,11 @@ export function createKit(rand: () => number, materials: Materials) {
      * strength of `kind`'s light, where the kit builds with pools (#174): it rides the next brick closed.
      */
     pool,
-    /** Whether what the kit builds now wears surface pattern (#174), as the Zones built to the level of finish do. */
+    /**
+     * Whether what the kit builds now is built to the level of finish (`finish`), as far as the materials' `finish`
+     * allows: wearing surface pattern or leaving pools of light (#174). The streets round it, their street lights and
+     * the marks on their road plate go with it (#175).
+     */
     get finished() {
       return patterned || pooled
     },

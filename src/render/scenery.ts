@@ -189,12 +189,12 @@ export function createScenery(
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
     const poles = createKit(mulberry32(0), materials)
     for (const piece of pieces) {
-      // A Tile built to the level of finish has street lights and marks on its road plate (#175).
+      // A Tile built to the level of finish has street lights and marks on its road plate (#175), as far as the
+      // materials' finish allows: the kit's test, which its Blocks' streets take too.
       const zone = zoneOf(cellAt(middle(piece)))
-      const finished = !!(zone && LOOKS[zone.id].finish)
-      poles.finish(finished)
-      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, finished)
-      if (finished) markPlate(poles, piece, net)
+      poles.finish(!!(zone && LOOKS[zone.id].finish))
+      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.finished)
+      if (poles.finished) markPlate(poles, piece, net)
       const entry = laid.find((l) => sameBounds(l.piece, piece))
       if (entry) entry.ends = ends
     }
