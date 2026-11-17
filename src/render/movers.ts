@@ -142,13 +142,16 @@ const KINDS: Record<MoverKind, Kind> = {
 }
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
-// Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s) and how the wind
-// carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
-// its colour.
-const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
-// Steam (#175), from a noodle shop's vent or a food stall's pot: puffs as smoke's, but quicker, smaller and fainter, and
-// slower on the wind.
-const STEAM = { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, from: 0.3, to: 1.15, fade: 0.7 }
+// Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
+const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
+// Each kind of plume's puffs: a chimney's smoke (#150), and steam (#175) from a noodle shop's vent or a food stall's pot,
+// quicker, smaller and fainter, and slower on the wind. s between puffs, how long a puff lasts (s), how fast it rises
+// (m/s), its share of the wind and of its own drift, its radius as it leaves and as it fades (m), and its share of the
+// smoke's opacity.
+const PLUMES = {
+  smoke: { every: 0.6, lasts: 5.5, rise: 1.6, wind: 1, drift: 1, from: 0.7, to: 2.5, fade: 1 },
+  steam: { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, drift: 0.4, from: 0.3, to: 1.15, fade: 0.7 },
+}
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
 // to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
 // pole and how far its free end swings (m); and how many waves run along it.
@@ -449,7 +452,7 @@ export interface Poses {
   pose(of: Build, i: number): { scale: number; lift: number } | null
 }
 
-/** A puff of smoke in the air: where it left its chimney, when (s run), its own drift, and whether it is steam (#175). */
+/** A puff of smoke in the air: where it left its chimney, when (s run), its own drift, and its kind of plume (#175). */
 interface Puff {
   x: number
   y: number
@@ -457,7 +460,7 @@ interface Puff {
   born: number
   dx: number
   dz: number
-  steam?: boolean
+  kind: keyof typeof PLUMES
 }
 
 /** The movers, plumes, flags, beacons and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
@@ -864,7 +867,7 @@ export function createMovers() {
         return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
-        return { plume, next: draw() * SMOKE.every, draw }
+        return { plume, next: draw() * PLUMES.smoke.every, draw } // its first puff within a chimney's beat, steam's too
       })
       const beacons = build.beacons.map((beacon) => ({ beacon, phase: mulberry32(spot(beacon.at.x, -beacon.at.z))() }))
       const sways = build.sways.map((sway) => {
@@ -1004,26 +1007,25 @@ export function createMovers() {
       for (const e of entries) {
         for (const p of e.plumes) {
           if (!working || !stands(e, p.plume.brick)) continue
-          const steam = p.plume.steam
-          for (p.next -= dt; p.next <= 0; p.next += steam ? STEAM.every : SMOKE.every) {
+          const kind = p.plume.steam ? 'steam' : 'smoke'
+          const { every, drift } = PLUMES[kind]
+          for (p.next -= dt; p.next <= 0; p.next += every) {
             const { x, y, z } = p.plume.at
-            const [a, r] = [p.draw() * Math.PI * 2, (0.25 + 0.25 * p.draw()) * (steam ? 0.4 : 1)]
-            e.puffs.push({ x, y, z, born: t + p.next, dx: Math.cos(a) * r, dz: Math.sin(a) * r, steam })
+            const [a, r] = [p.draw() * Math.PI * 2, (0.25 + 0.25 * p.draw()) * drift]
+            e.puffs.push({ x, y, z, born: t + p.next, dx: Math.cos(a) * r, dz: Math.sin(a) * r, kind })
           }
         }
-        e.puffs = e.puffs.filter((f) => t - f.born < (f.steam ? STEAM.lasts : SMOKE.lasts))
+        e.puffs = e.puffs.filter((f) => t - f.born < PLUMES[f.kind].lasts)
         for (const f of e.puffs) {
           if (n >= PUFFS) break
           const age = Math.max(0, t - f.born)
-          const [lasts, rise, from, to, blow] = f.steam
-            ? [STEAM.lasts, STEAM.rise, STEAM.from, STEAM.to, STEAM.wind]
-            : [SMOKE.lasts, SMOKE.rise, SMOKE.from, SMOKE.to, 1]
+          const { lasts, rise, from, to, wind, fade } = PLUMES[f.kind]
           const k = age / lasts
           const [wx, wz] = SMOKE.wind
-          at.set(f.x + (wx * blow + f.dx) * age, f.y + rise * age * (1 - 0.3 * k), f.z + (wz * blow + f.dz) * age)
+          at.set(f.x + (wx * wind + f.dx) * age, f.y + rise * age * (1 - 0.3 * k), f.z + (wz * wind + f.dz) * age)
           m.compose(at, q, scale.setScalar(from + (to - from) * Math.sqrt(k)))
           smoke.setMatrixAt(n, m)
-          fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8 * (f.steam ? STEAM.fade : 1))
+          fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8 * fade)
           n++
         }
       }
