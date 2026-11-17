@@ -181,10 +181,13 @@ const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.
 const HANG = { out: 0.05, in: 0.06, takes: 0.004 }
 // Pools of light (#174): how much of its colour a pool adds at its middle for the lamps' glow; how much of the moonlight
 // on the ground it takes the place of there, without which a warm light added to the bright blue night comes out
-// white; and how it fades out to its edge (the share of both at each share of the way out).
+// white, once the lamps glow `full`, as from dusk through the night; and how it fades out to its edge (the share of
+// both at each share of the way out). Below `full`, as the lamps come on before dusk and go out at dawn, it dims as
+// much less as it lights less, so that a pool never darkens the ground.
 const POOLS = {
   bright: 0.26,
   dims: 0.6,
+  full: 4,
   fade: [
     [0, 1],
     [0.4, 0.82],
@@ -625,8 +628,8 @@ export function createMovers() {
   hanging.onBeforeCompile = takesPaint
   const swaying = new Map<SwayKind, THREE.InstancedMesh>()
   // Pools of light (#174): one instanced mesh of warm decals for the whole City, added to what lies under them, unlit
-  // and untouched by tone mapping, as the contact shadows are, dimming the moonlight under them by `POOLS.dims` (its
-  // alpha) as they add their own (its colour, premultiplied by it). Each takes its colour; the material's is the
+  // and untouched by tone mapping, as the contact shadows are, dimming the moonlight under them by up to `POOLS.dims`
+  // (its opacity) as they add their own (its colour, premultiplied by it). Each takes its colour; the material's is the
   // lamps' glow.
   const warmth = new THREE.MeshBasicMaterial({
     map: canvasTexture(64, 64, (g) => {
@@ -1071,10 +1074,13 @@ export function createMovers() {
       }
       for (const mesh of swaying.values()) mesh.instanceMatrix.needsUpdate = true
 
-      // Pools of light: lit as the lamps are, and hidden by day. Only those whose lights still arrive move.
-      warmth.color.setScalar(((glow?.lamps ?? 0) * POOLS.bright) / POOLS.dims)
+      // Pools of light: lit as the lamps are, dimming the moonlight as much, and hidden by day. Only those whose lights
+      // still arrive move.
+      const lamps = glow?.lamps ?? 0
+      warmth.opacity = POOLS.dims * Math.min(1, lamps / POOLS.full)
+      warmth.color.setScalar(warmth.opacity > 0 ? (lamps * POOLS.bright) / warmth.opacity : 0)
       if (pooled) {
-        pooled.visible = warmth.color.r > 0
+        pooled.visible = warmth.opacity > 0
         for (const e of entries) if (e.playing) layPools(e)
       }
     },
