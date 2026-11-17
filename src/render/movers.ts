@@ -46,6 +46,9 @@ export interface Plume {
 const WORK = { from: 0.02, to: 0.5, slack: 0.2 }
 /** Real seconds of work in a day. */
 const SHIFT = (WORK.to - WORK.from) * DAY
+// Washing and futons (#156) are hung out as the working day starts and taken in before it ends, each over this share of
+// the day's clock (about 2 s).
+const HANG = 0.012
 // Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, and its model.
 const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model: () => THREE.BufferGeometry }> = {
   tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor },
@@ -326,8 +329,18 @@ export function createMovers() {
     return !pose || (pose.scale > 0.999 && Math.abs(pose.lift) < 0.01)
   }
 
+  let out = 0 // how far the washing is hung out (#156)
+
   return {
     group,
+
+    /**
+     * The wind that sways the washing (#156): its clock, which runs with the world and stops while it is paused, and how
+     * far the washing is hung out, 1 through the working day and 0 from dusk to the next morning.
+     */
+    get wind() {
+      return { time: t, out }
+    },
 
     /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
@@ -357,6 +370,7 @@ export function createMovers() {
       t += dt
       const was = working
       working = time >= WORK.from && time < WORK.to
+      out = Math.max(0, Math.min(1, (time - WORK.from) / HANG, (WORK.to - time) / HANG))
       // At the end of the working day the day's work is done, so every mover stops at the end of its last stretch,
       // even when the time of day jumps there.
       if (was && !working) work = Math.ceil(work / SHIFT - 1e-6) * SHIFT

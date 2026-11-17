@@ -53,6 +53,33 @@ const CONTAINERS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8
 export const CONTAINER = { long: 6.1, wide: 2.45, tall: 2.6 }
 const PALLET = { wood: '#c49a6c', goods: ['#d8b98b', '#f4f1ea', '#d8b98b', '#e9eef2'] }
 const BAY = '#f0c75e'
+// Medium-density details (#156), each a thing of its own that any Zone may use: an outdoor AC unit's casing and its
+// fan's grille; a vending machine's paints and its dark trim, its lit front the lamps' bulb; a covered bike rack's
+// steel and roof, and its bicycles' frames (the cars' colours) and tyres; washing and futons; and the steel of outside
+// stairs and walkways, with their treads.
+const AIRCON = { body: '#f2f3ef', grille: '#8e979f' }
+const VENDING = { paints: ['#f4f6f8', '#2fb39a', '#f0b43c', '#79c86a', '#e8925e', '#f4f6f8'], trim: '#4a525c' }
+const BIKES = {
+  frames: ['#ffffff', '#db6982', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb', '#e9eef2', '#009dcb'],
+  tyre: '#2f3440',
+  steel: '#9aa3ad',
+  roof: '#d6e4d3',
+}
+const WASHING = ['#ffffff', '#ffffff', '#ff9cbb', '#ffc52d', '#64cb9f', '#bc9ef2', '#fbe3a2', '#a6dcef']
+const FUTONS = ['#ff9ab8', '#f0b43c', '#a58ad8', '#79c86a', '#fff7e8', '#5cc0d6']
+// How far washing and futons swing out, as a share of how far below the pole or the rail (a heavy futon barely stirs).
+const WIND = { washing: 0.3, futon: 0.06 }
+const STEEL = { frame: '#6f7986', tread: '#a7aeb6', pole: '#c4ccd4' }
+/** Outside stairs (#156): m along their flights, across their two lanes, and the depth of a landing. */
+export const STAIR = { long: 4.2, wide: 2.4, landing: 1.1 }
+/** Stairs up a wall (#156): m out from the wall, and how much longer than their rise their flight runs. */
+export const WALL_STAIR = { wide: 1.1, run: 1.2 }
+/** An open walkway along an apartment block's face (#156): m out from the wall, and its parapet's height. */
+export const WALKWAY = { deep: 1.3, parapet: 1 }
+/** A covered bike rack (#156): m long and deep from its back to its open front, and m along it a bicycle takes. */
+export const BIKE_RACK = { long: 4.4, deep: 2.2, per: 0.62 }
+/** A vending machine's footprint (#156): m across its front and deep. */
+export const VENDING_MACHINE = { wide: 1.1, deep: 0.85 }
 // Farms: a barn's walls, roof and door, the silo and its dome, and bales of straw.
 const BARN = {
   walls: ['#7e9aab', '#b85a4c', '#8aa58b'],
@@ -85,10 +112,11 @@ const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // sm
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+const DISC = new THREE.CylinderGeometry(1, 1, 1, 12).rotateX(Math.PI / 2) // a wheel or a fan's grille, its axis along z
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /** The faces of a box, as the way each looks: north, south, east and west. */
-const FACES = [
+export const FACES = [
   [0, 1],
   [0, -1],
   [1, 0],
@@ -98,9 +126,20 @@ const FACES = [
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
  * The kit's glass is tinted white unless a tint is given, and takes `glow`, how brightly it lights at night: 1 unless
- * given, so that a curtain wall can be lit floor by floor.
+ * given, so that a curtain wall can be lit floor by floor. The kit's cloth takes `hung`, how it hangs (#156).
  */
-export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number }
+export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number; hung?: Hung }
+
+/**
+ * How a piece of cloth hangs and sways (#156), in Three coordinates: the point it hangs from (the middle of its top),
+ * which it is gathered into when it is taken in; the way it swings out, as far as it swings at a metre below that
+ * point; and where in its sway it starts.
+ */
+export interface Hung {
+  at: THREE.Vector3
+  swing: THREE.Vector2
+  phase: number
+}
 export type TreeKind = keyof typeof LEAVES
 /** An office tower: a framed curtain wall, fins up its faces, tiers set back, or round. */
 export type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
@@ -128,6 +167,23 @@ export function shedDoors(w: number, d: number): number[] {
   const n = Math.max(1, Math.floor(len / 9))
   return Array.from({ length: n }, (_, k) => -len / 2 + ((k + 0.5) * len) / n)
 }
+
+/**
+ * Where the outside stairs at end `end` (1 or -1) of face `face` (of `FACES`) of an apartment wing stand (#156): beyond
+ * the wing's end, alongside its end wall, their flights running out from the face so that their landings meet the
+ * walkway's end. Their middle, and their facing as the kit's frames take it: their flights run along its front.
+ */
+export function stairAt(wing: Bounds, face: number, end: number): { x: number; y: number; ry: number } {
+  const [nx, ny] = FACES[face]
+  const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
+  const [len, half] = [nx === 0 ? w : d, nx === 0 ? d / 2 : w / 2]
+  const along = end * (len / 2 + 0.05 + STAIR.wide / 2)
+  const out = half + WALKWAY.deep - STAIR.long / 2
+  return { x: cx + ny * along + nx * out, y: cy - nx * along + ny * out, ry: Math.atan2(ny, nx) }
+}
+
+/** Where an apartment building has its open walkways (#156): for each wing, the face (of `FACES`) along which it runs, or -1. */
+export type Walks = number[]
 
 /**
  * What becomes of a brick as its Tile reaches another Stage: it stands throughout, it goes (the old Stage's), or it
@@ -195,6 +251,32 @@ export function createMaterials() {
   }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
+  // Cloth (#156): washing and futons, which sway in the wind and are taken in for the night. Each vertex carries how its
+  // piece hangs (`Hung`): it swings out about the point it hangs from, the further the lower, on the wind's clock, and
+  // is gathered into that point as `out` falls to 0. Moved here rather than placed each frame, so a City's thousands of
+  // pieces cost no time on the CPU and ride their buildings' bricks.
+  const wind = { time: { value: 0 }, out: { value: 1 } }
+  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
+  cloth.onBeforeCompile = (shader) => {
+    shader.uniforms.windTime = wind.time
+    shader.uniforms.windOut = wind.out
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute vec4 hang;\nattribute vec2 swing;\nuniform float windTime;\nuniform float windOut;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+{
+  vec3 rest = position - hang.xyz;
+  float sway = 0.65 * sin(windTime * 1.9 + hang.w) + 0.35 * sin(windTime * 3.3 + 1.7 * hang.w);
+  vec3 hung = rest + vec3(swing.x, 0.0, swing.y) * max(0.0, -rest.y) * sway;
+  transformed += hung * windOut - rest;
+}`,
+      )
+  }
+  cloth.customProgramCacheKey = () => 'cloth'
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
   const decal = (map: THREE.Texture, opacity: number) =>
@@ -238,12 +320,18 @@ export function createMaterials() {
     glassOf: shade,
     bulb,
     water,
+    cloth,
     roundShadow,
     squareShadow,
     /** Light the windows and lamps as the time of day has them. */
     setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
+    },
+    /** Sway the cloth to the wind's clock `time` (s), hung out as far as `out` (1 out, 0 taken in) (#156). */
+    setWind(time: number, out: number) {
+      wind.time.value = time
+      wind.out.value = out
     },
   }
 }
@@ -256,7 +344,7 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, unlit, glassOf, bulb, water, cloth, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -283,12 +371,23 @@ export function createKit(rand: () => number, materials: Materials) {
   /** Give every vertex of a geometry of the glass the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
+  /** Give every vertex of a geometry of the cloth how its piece hangs (#156). */
+  const hanging = (geo: THREE.BufferGeometry, { at, swing, phase }: Hung) => {
+    const n = geo.attributes.position.count
+    const [hang, swings] = [new Float32Array(4 * n), new Float32Array(2 * n)]
+    for (let i = 0; i < n; i++) {
+      hang.set([at.x, at.y, at.z, phase], 4 * i)
+      swings.set([swing.x, swing.y], 2 * i)
+    }
+    return geo.setAttribute('hang', new THREE.BufferAttribute(hang, 4)).setAttribute('swing', new THREE.BufferAttribute(swings, 2))
+  }
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
     if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
-      parts.push({ geometry: look.material === glass ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
+      const geometry = look.material === glass ? glowing(tinted, look.glow ?? 1) : look.hung ? hanging(tinted, look.hung) : tinted
+      parts.push({ geometry, material: look.material, brick: -1 })
     } else parts.push({ geometry: look === glass ? glowing(tint(geo, '#ffffff'), 1) : geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
@@ -338,6 +437,112 @@ export function createKit(rand: () => number, materials: Materials) {
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
   const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
+  /** Add a shape at `(lx, ly)` in the frame of something at `(x, y)` facing `ry`, turned with it and scaled. */
+  const put = (
+    geo: THREE.BufferGeometry,
+    look: Look,
+    x: number,
+    y: number,
+    ry: number,
+    lx: number,
+    ly: number,
+    h: number,
+    sx = 1,
+    sy = 1,
+    sz = 1,
+  ) => add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx, sy, sz)
+  // A flight of stairs (#156): a slab `w` wide and `t` thick sloping up `rise` over `run`, up toward +x (or -x for a
+  // negative `run`), centred on its middle. Each is cut once per size.
+  const flights = new Map<string, THREE.BufferGeometry>()
+  const flight = (run: number, rise: number, w: number, t: number) => {
+    const key = [run, rise, w, t].map((v) => v.toFixed(2)).join()
+    if (!flights.has(key)) flights.set(key, new THREE.BoxGeometry(Math.hypot(run, rise), t, w).rotateZ(Math.atan2(rise, run)))
+    return flights.get(key)!
+  }
+  /**
+   * An outdoor AC unit (#156) with its back to a wall at `(x, y)`, the wall facing `ry`, standing `h` above the road: a
+   * pale casing with a fan's round grille, drawn a little large as the props are. It joins the next brick.
+   */
+  const airCon = (x: number, y: number, h: number, ry: number) => {
+    put(cuboid(1.05, 0.74, 0.44), AIRCON.body, x, y, ry, 0, 0.24, h)
+    put(DISC, AIRCON.grille, x, y, ry, -0.17, 0.47, h + 0.37, 0.26, 0.26, 0.03)
+  }
+  /**
+   * The cloth's look for a piece in `colour` hung from `(x, y)`, `h` above the road, before a wall facing `ry`: it swings
+   * out from the wall and back, `swing` as far a metre down, from where it hangs in its own phase (#156).
+   */
+  const hung = (colour: string, x: number, y: number, h: number, ry: number, swing: number): Look => ({
+    material: cloth,
+    tint: new THREE.Color(colour),
+    hung: {
+      at: new THREE.Vector3(x, h, -y),
+      swing: new THREE.Vector2(-Math.sin(ry) * swing, -Math.cos(ry) * swing),
+      phase: (spot(x, y) % 6283) / 1000,
+    },
+  })
+  /**
+   * Washing on a pole `len` long, `h` above the road, `out` m from a wall at `(x, y)` that faces `ry` (#156): a pole on
+   * two brackets and a few towels and shirts hung from it, in the kit's stream. It joins the next brick.
+   */
+  const washing = (x: number, y: number, h: number, ry: number, len: number, out: number) => {
+    put(cuboid(len, 0.05, 0.05), STEEL.pole, x, y, ry, 0, out, h)
+    for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, (k * (len - 0.1)) / 2, out / 2, h)
+    for (let at = -len / 2 + 0.1; at < len / 2 - 0.4;) {
+      const [w, drop] = [range(0.45, 0.7), range(0.6, 1.05)]
+      if (at + w > len / 2 - 0.05) break
+      if (rand() < 0.8) {
+        const [px, py] = to(x, y, ry, at + w / 2, out)
+        put(cuboid(w, drop, 0.05), hung(pick(WASHING), px, py, h, ry, WIND.washing), x, y, ry, at + w / 2, out, h - drop)
+      }
+      at += w + range(0.06, 0.2)
+    }
+  }
+  /** A futon `w` wide hung over a rail `h` above the road, `out` m from a wall at `(x, y)` facing `ry` (#156). It joins the next brick. */
+  const futon = (x: number, y: number, h: number, ry: number, w: number, out: number) => {
+    const [px, py] = to(x, y, ry, 0, out)
+    const look = hung(pick(FUTONS), px, py, h, ry, WIND.futon)
+    put(cuboid(w, 0.12, 0.34), look, x, y, ry, 0, out, h)
+    put(cuboid(w, 1.2, 0.1), look, x, y, ry, 0, out + 0.14, h - 1.15)
+  }
+  /** A bicycle standing at `(x, y)`, its length along `ry`'s right, a little large (#156): two wheels, a frame, a saddle and a basket. */
+  const bicycle = (x: number, y: number, h: number, ry: number) => {
+    const frame = pick(BIKES.frames)
+    const r = 0.38
+    for (const lx of [-0.6, 0.6]) put(DISC, BIKES.tyre, x, y, ry, lx, 0, h + r, r, r, 0.07)
+    put(cuboid(1.2, 0.07, 0.07), frame, x, y, ry, -0.05, 0, h + r - 0.03) // the chain stay
+    put(cuboid(0.85, 0.07, 0.07), frame, x, y, ry, 0.05, 0, h + 0.82) // the top tube
+    put(cuboid(0.07, 0.6, 0.07), frame, x, y, ry, -0.32, 0, h + r) // the seat tube
+    put(cuboid(0.07, 0.7, 0.07), frame, x, y, ry, 0.48, 0, h + r) // the fork
+    put(cuboid(0.3, 0.07, 0.15), BIKES.tyre, x, y, ry, -0.32, 0, h + r + 0.6) // the saddle
+    put(cuboid(0.06, 0.05, 0.56), BIKES.tyre, x, y, ry, 0.48, 0, h + r + 0.72) // the handlebar
+    put(cuboid(0.36, 0.26, 0.38), BIKES.steel, x, y, ry, 0.72, 0, h + r + 0.42) // the basket
+  }
+  /**
+   * Steel outside stairs (#156), centred on `(x, y)`, their flights running along their front `ry`: two flights a
+   * storey in two lanes, turning at a landing half-way, from the first of `tops` (m above the road) to each of the rest,
+   * with a landing at each, posts at the corners and a railing up the outer side. They join the next brick.
+   */
+  const stairs = (x: number, y: number, ry: number, tops: number[]) => {
+    const { long: L, wide: W, landing: D } = STAIR
+    const [run, lane] = [L - 2 * D, (W - 0.1) / 2]
+    for (let f = 0; f + 1 < tops.length; f++) {
+      const [lo, hi] = [tops[f], tops[f + 1]]
+      const half = (hi - lo) / 2
+      // Out along one lane to the half-landing at the far end, and back along the other to the next floor.
+      put(flight(-run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, (W - lane) / 2, lo + half / 2)
+      put(flight(-run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, W / 2 - 0.03, lo + half / 2 + 0.5)
+      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, -(L - D) / 2, 0, lo + half - 0.14)
+      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, -L / 2 + 0.03, 0, lo + half)
+      put(flight(run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, -(W - lane) / 2, lo + 1.5 * half)
+      put(flight(run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, -W / 2 + 0.03, lo + 1.5 * half + 0.5)
+      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, (L - D) / 2, 0, hi - 0.14)
+      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, L / 2 - 0.03, 0, hi)
+    }
+    const top = tops[tops.length - 1] + 0.9
+    for (const lx of [-1, 1])
+      for (const ly of [-1, 1])
+        put(cuboid(0.14, top - tops[0], 0.14), STEEL.frame, x, y, ry, lx * (L / 2 - 0.07), ly * (W / 2 - 0.07), tops[0])
+  }
 
   return {
     add,
@@ -526,6 +731,16 @@ export function createKit(rand: () => number, materials: Materials) {
         }
       }
       if (storeys > 1 && (stage === 3 || (stage === 2 && eave))) local(cuboid(w + 0.1, 0.22, 1.1), tile, x, y, ry, 0, d / 2 + 0.5, h + 3.1)
+      // Its details (#156), drawn from where it stands: an AC unit by the door on some, and on Stage 3's eave a second;
+      // washing on a pole under the top floor's eaves.
+      own(spot(x, y), fate, () => {
+        const [ac, high, wash] = [rand(), rand(), rand()]
+        const wall = (lx: number) => to(x, y, ry, lx, d / 2)
+        // Under the ground floor's window, or beside the door of a house one window wide.
+        if (ac < [0.25, 0.5, 0.75][stage - 1]) airCon(...wall(across === 2 ? -w * 0.23 : -1.3), h + 0.02, ry)
+        if (stage === 3 && storeys > 1 && high < 0.45) airCon(...wall(across === 2 ? 0 : 1.3), h + 3.34, ry)
+        if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, w - 0.9, 0.7)
+      })
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },
@@ -538,37 +753,82 @@ export function createKit(rand: () => number, materials: Materials) {
      * - Stage 2: a water tank on the first wing.
      * - Stage 3: a balcony slab along every face at each floor, and a plant room beside the water tank.
      */
-    apartment(wings: Bounds[], h: number, floors: number, stage = 2) {
+    apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = []) {
       const colour = pick(COURTYARD.walls)
       const height = floors * 3.2 + 0.8
       /** Whether `(px, py)` lies on a wing other than wing `self`. */
       const against = (px: number, py: number, self: number) =>
         wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
+      // Where an AC unit may stand (#156): on the wall between two windows, or before a window on a walkway, and whether
+      // a slab is there to stand on.
+      const spots: { x: number; y: number; ry: number; slab: boolean }[] = []
       wings.forEach((wing, k) => {
         const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
         add(box(w, height, d, 0.6, 0.2), colour, cx, cy, h)
         add(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), COURTYARD.cap, cx, cy, h + height)
-        for (const [nx, ny] of FACES) {
+        for (const [face, [nx, ny]] of FACES.entries()) {
           const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
           const ry = Math.atan2(-nx, ny)
+          const len = nx === 0 ? w : d
+          const [mx, my] = [cx + (nx * w) / 2, cy + (ny * d) / 2]
+          // From Stage 2 an open walkway runs along the face its wing walks (#156), and Stage 3's balconies take the rest.
+          const walk = stage > 1 && walks[k] === face
+          const balcony = stage === 3 && !walk && !against(mx + nx * 0.4, my + ny * 0.4, k)
+          /** Whether a window or a door at `(px, py)` would look into the next wing, by just out of the face across its width. */
+          const blind = (px: number, py: number) => [-0.9, 0, 0.9].some((a) => against(px + nx * 0.4 + ny * a, py + ny * 0.4 + nx * a, k))
           for (let i = 0; i < n; i++) {
             const t = -(n - 1) * 1.6 + i * 3.2
             const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
-            // Just out of the face, across the window's width: a window there would look into the next wing.
-            if ([-0.9, 0, 0.9].some((a) => against(fx + nx * 0.4 + ny * a, fy + ny * 0.4 + nx * a, k))) continue
+            if (blind(fx, fy)) continue
             for (let f = 0; f < floors; f++) add(cuboid(1.5, 1.6, 0.3), pane(0.65), fx, fy, h + 1.1 + f * 3.2, ry)
+            if (walk) spots.push({ x: fx, y: fy, ry, slab: true })
+            // Between this window and the next: a door onto the walkway at each floor, or a wall for an AC unit.
+            const [gx, gy] = nx === 0 ? [fx + 1.6, fy] : [fx, fy + 1.6]
+            if (i === n - 1 || blind(gx, gy)) continue
+            if (walk) for (let f = 1; f < floors; f++) add(cuboid(0.95, 2.05, 0.16), TERRACE.door, gx, gy, h + 0.94 + f * 3.2, ry)
+            else spots.push({ x: gx, y: gy, ry, slab: balcony })
+          }
+          if (walk) {
+            // A slab the length of the face at each floor above the ground, behind a parapet with a steel rail on top.
+            // Where it runs into another wing it stays hidden inside it.
+            const { deep, parapet } = WALKWAY
+            for (let f = 1; f < floors; f++) {
+              const at = h + 0.7 + f * 3.2
+              add(cuboid(len - 0.1, 0.24, deep), COURTYARD.cap, mx + (nx * deep) / 2, my + (ny * deep) / 2, at, ry)
+              add(cuboid(len - 0.1, parapet, 0.14), COURTYARD.cap, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24, ry)
+              add(cuboid(len - 0.1, 0.07, 0.2), STEEL.frame, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24 + parapet, ry)
+            }
           }
           // Stage 3's balconies: a slab and its railing along the face at every floor above the ground, unless the
-          // face's middle is against another wing. Where a slab runs into another wing it stays hidden inside it.
-          const len = nx === 0 ? w : d
-          const [mx, my] = [cx + (nx * w) / 2, cy + (ny * d) / 2]
-          if (stage !== 3 || against(mx + nx * 0.4, my + ny * 0.4, k)) continue
+          // face's middle is against another wing. Where a slab runs into another wing it stays hidden inside it. Washing
+          // hangs on poles in some of their bays and futons over the rail in others, drawn from where the face stands.
+          if (!balcony) continue
           for (let f = 1; f < floors; f++) {
             add(cuboid(len - 0.8, 0.24, 1.1), COURTYARD.cap, mx + nx * 0.55, my + ny * 0.55, h + 0.7 + f * 3.2, ry)
             add(cuboid(len - 0.8, 0.8, 0.12), COURTYARD.cap, mx + nx * 1.05, my + ny * 1.05, h + 0.94 + f * 3.2, ry)
           }
+          own(spot(mx, my), fate, () => {
+            for (let f = 1; f < floors; f++) {
+              for (let i = 0; i < n; i++) {
+                const t = -(n - 1) * 1.6 + i * 3.2
+                const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+                const r = rand()
+                if (blind(fx, fy)) continue
+                if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 2.6, 0.62)
+                else if (r < 0.33) futon(fx, fy, h + 1.76 + f * 3.2, ry, range(1.3, 1.7), 1.05)
+              }
+            }
+          })
         }
         shadow(cx, cy, h, w * 1.2 + 2, d * 1.2 + 2)
+      })
+      // A few AC units (#156), drawn from where the building stands: on a slab where there is one, else on the wall.
+      own(spot(wings[0].x0, wings[0].y0), fate, () => {
+        for (let k = 0; k < [2, 3, 6][stage - 1] && spots.length && floors > 1; k++) {
+          const [s] = spots.splice(Math.floor(rand() * spots.length), 1)
+          const f = 1 + Math.floor(rand() * (floors - 1))
+          airCon(s.x, s.y, h + (s.slab ? 0.94 : 0.42) + f * 3.2, s.ry)
+        }
       })
       const [first] = wings
       const [tx, ty] = [first.x0 + (first.x1 - first.x0) * 0.3, (first.y0 + first.y1) / 2]
@@ -1045,6 +1305,73 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
+     * Steel outside stairs centred on `(x, y)`, their flights running along `ry`'s right, as one brick (#156): two
+     * flights a storey from the first of `tops` (m above the road) to each of the others, as an apartment block has up
+     * one end of its walkways.
+     */
+    outsideStairs(x: number, y: number, ry: number, tops: number[]) {
+      stairs(x, y, ry, tops)
+      shadow(x, y, tops[0], STAIR.long + 1, STAIR.wide + 1, false, ry)
+      brick('building', x, y, tops[0])
+    },
+
+    /**
+     * A straight flight of steel stairs up a wall, centred on `(x, y)` with its flight along `ry`'s right and the wall
+     * at its back, rising `rise` m toward its end `toward` (1: its right, -1: its left) to a landing there with a door
+     * in the wall, as one brick (#156): the stairs up the end of a small apartment house's row.
+     */
+    wallStairs(x: number, y: number, h: number, ry: number, rise: number, toward: number) {
+      const { landing: D } = STAIR
+      const W = WALL_STAIR.wide
+      const run = rise * WALL_STAIR.run
+      const L = run + D
+      put(flight(toward * run, rise, W - 0.1, 0.14), STEEL.tread, x, y, ry, (-toward * D) / 2, 0, h + rise / 2)
+      put(flight(toward * run, rise, 0.05, 0.9), STEEL.frame, x, y, ry, (-toward * D) / 2, W / 2 - 0.03, h + rise / 2 + 0.5)
+      const end = toward * (L / 2 - D / 2) // the landing's middle
+      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, end, 0, h + rise - 0.14)
+      put(cuboid(D, 0.9, 0.05), STEEL.frame, x, y, ry, end, W / 2 - 0.03, h + rise)
+      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, toward * (L / 2 - 0.03), 0, h + rise)
+      for (const lx of [end - D / 2 + 0.06, end + D / 2 - 0.06]) put(cuboid(0.12, rise, 0.12), STEEL.frame, x, y, ry, lx, W / 2 - 0.06, h)
+      put(cuboid(0.9, 2.05, 0.12), TERRACE.door, x, y, ry, end, -W / 2 - 0.02, h + rise)
+      shadow(x, y, h, L + 0.8, W + 0.8, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A vending machine with its back to a wall, standing at `(x, y)` with its front facing `ry`, as one brick (#156):
+     * a box in one of a few paints, a little large as the props are, its front a panel of the lamps' bulb that lights at
+     * dusk, over a dark row of buttons and the slot.
+     */
+    vendingMachine(x: number, y: number, h: number, ry: number) {
+      const { wide: W, deep: D } = VENDING_MACHINE
+      put(box(W, 2, D, 0.08, 0.04), pick(VENDING.paints), x, y, ry, 0, 0, h)
+      put(cuboid(W - 0.18, 1.2, 0.05), bulb, x, y, ry, 0, D / 2, h + 0.68)
+      put(cuboid(W - 0.18, 0.12, 0.06), VENDING.trim, x, y, ry, 0, D / 2, h + 0.5)
+      put(cuboid(W - 0.4, 0.22, 0.06), VENDING.trim, x, y, ry, 0, D / 2, h + 0.16)
+      shadow(x, y, h, W + 0.8, D + 0.8, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A covered bike rack `len` long centred on `(x, y)`, open to its front `ry`, with `bikes` bicycles in it, as one
+     * brick (#156): steel posts and a pale roof, a rail along the back, and the bicycles side by side facing out.
+     */
+    bikeRack(x: number, y: number, h: number, ry: number, len: number, bikes: number) {
+      const D = BIKE_RACK.deep
+      for (const lx of [-1, 1])
+        for (const ly of [-1, 1]) put(cuboid(0.1, 2.25, 0.1), BIKES.steel, x, y, ry, lx * (len / 2 - 0.08), ly * (D / 2 - 0.08), h)
+      put(cuboid(len + 0.3, 0.08, D + 0.3), BIKES.roof, x, y, ry, 0, 0, h + 2.25)
+      put(cuboid(len - 0.2, 0.08, 0.08), BIKES.steel, x, y, ry, 0, -D / 2 + 0.25, h + 0.55)
+      const n = Math.min(bikes, Math.floor((len - 0.3) / BIKE_RACK.per))
+      for (let k = 0; k < n; k++) {
+        const lx = -len / 2 + 0.15 + BIKE_RACK.per * (k + 0.5)
+        bicycle(...to(x, y, ry, lx, -0.05), h, ry + Math.PI / 2)
+      }
+      shadow(x, y, h, len + 1, D + 1, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
      * A scarecrow standing at `(x, y)`, its arms turned `ry`, as one brick that pops in like a tree (#149): a post with
      * outstretched arms in a bright shirt, a cloth head and a straw hat, oversized a little so it reads from afar.
      */
@@ -1083,10 +1410,11 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
-      for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
+      for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values(), ...flights.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
+      flights.clear()
       return { parts, bricks, movers, plumes }
     },
   }

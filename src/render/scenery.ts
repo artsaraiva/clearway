@@ -184,7 +184,8 @@ export function createScenery(
       if (!merged) throw new Error(`parts of one material do not share their vertex attributes (${material.type})`)
       for (const g of geometries) g.dispose()
       const mesh = new THREE.Mesh(merged, material)
-      mesh.castShadow = !material.transparent
+      // Cloth casts none: its shadow would stand still, and stay out when the washing is taken in (#156).
+      mesh.castShadow = !material.transparent && material !== materials.cloth
       mesh.receiveShadow = true
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)
