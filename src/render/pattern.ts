@@ -257,10 +257,12 @@ float patternHash(vec3 p) {
 float patternKind = floor(vPattern.x);
 float patternGlass = 0.0;
 float patternLit = 0.0;
-// Derivatives before the branch: a face's neighbour may wear no pattern.
+// Derivatives before the branch: a face's neighbour may wear no pattern. A roof's m in from its nearest edge.
 vec2 patternAt = patternKind == ${f(PATTERN.roof)} ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
 vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);
+float patternEdge = min(min(vPatternAt.x, vPattern.y - vPatternAt.x), min(vPatternAt.y, vPattern.z - vPatternAt.y));
+float patternAa = fwidth(patternEdge);
 if (patternKind > 0.5) {
   float layer = patternKind - 1.0;
   if (patternKind == ${f(PATTERN.back)}) layer = floor(patternAt.x) == floor(floor(vPattern.y + 0.5) * 0.5) ? ${f(DOOR)} : ${f(PATTERN.wall - 1)};
@@ -268,9 +270,8 @@ if (patternKind > 0.5) {
   float shade = worn.r * 2.0;
   if (patternKind == ${f(PATTERN.roof)}) {
     // The parapet: a pale rim round the roof, and the shadow it throws in.
-    vec2 m = vPatternAt;
-    float edge = min(min(m.x, vPattern.y - m.x), min(m.y, vPattern.z - m.y));
-    float aa = fwidth(edge);
+    float edge = patternEdge;
+    float aa = patternAa;
     float rim = 1.0 - smoothstep(${f(PARAPET.wide)} - aa, ${f(PARAPET.wide)} + aa, edge);
     float lee = 1.0 - smoothstep(${f(PARAPET.shadow)} - aa, ${f(PARAPET.shadow)} + aa, edge) - rim;
     float grey = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
