@@ -11,15 +11,15 @@ import { ZEBRA } from './roads'
 // The streets round a Tile built to the level of finish (#173, #175; #176 takes them to every Tile). On each Block: a
 // darker kerbstone line along its edge, a yellow tactile strip where each zebra meets its kerb, a guard rail round each
 // corner, a convex mirror on a pole at some corners, tree pits round the street trees, drain grates along the kerb, and
-// planters or bollards to break long runs of pavement. On the road plate: manhole covers and patches of newer tarmac, in
+// planters, bollards and benches to break long runs of pavement. On the road plate: manhole covers and patches of newer tarmac, in
 // tones within 6% of the plate's lightness, so that paint and cars read as before. No new paint: paint carries Priority.
 
 // The kerbstone line, m in from the Block's edge (past its bevel) to its inner edge, and its colour; tactile paving, its
 // pad along a zebra's end and the guide strip in from it; a guard rail's height, how far it reaches round a corner each
 // way, how far in from the edge it stands and how far it keeps from a tactile pad; a convex mirror's pole and its share
 // of corners; tree pits; drain grates, one every `every` m of straight kerb; and the longest run of pavement left bare
-// before a planter or a pair of bollards breaks it.
-const KERBSTONE = { from: 0.26, to: 0.62, colour: '#d6cfc3' }
+// before a planter, a pair of bollards or a bench breaks it.
+const KERBSTONE = { from: 0.26, to: 0.62, colour: '#cbc3b5' }
 const TACTILE = { colour: '#f2c744', deep: 0.6, guide: 1.6, wide: 0.3 }
 const RAIL = { tall: 0.9, reach: 7.5, in: 0.45, gap: 2.6, colour: '#f4f6f8' }
 const MIRROR = { tall: 3.3, r: 0.4, share: 3, pole: '#f0b43c', face: '#d8e6ee' }
@@ -236,8 +236,11 @@ export function dressStreet(
     }
     bare = busy(p) || field.sample(p.x, p.y) < RUN.in - 0.2 ? 0 : bare + step
     if (bare > RUN.most && straight) {
-      if (breaks++ % 2) bollards(kit, p.x, p.y, ry)
-      else planter(kit, at(i, RUN.in + 0.2).x, at(i, RUN.in + 0.2).y, ry, 1.8)
+      const q = at(i, RUN.in + 0.2)
+      const kind = breaks++ % 3
+      if (kind === 0) planter(kit, q.x, q.y, ry, 1.8)
+      else if (kind === 1) bollards(kit, p.x, p.y, ry)
+      else kit.bench(q.x, q.y, KERB, ry + Math.PI) // facing the road
       bare = 0
     }
   }

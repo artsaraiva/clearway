@@ -125,7 +125,7 @@ const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0
 // capsule machines leave their own.
 const POOL = {
   lamp: 4,
-  least: 2.4,
+  least: 1.4,
   lantern: 3,
   front: { vending: 0.75, window: 1.25 },
   deep: { vending: 1.7, window: 2.3 },
@@ -148,9 +148,10 @@ export type PoolKind = keyof typeof POOL.colours
 // Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
 // with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
 // standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
-// flat roof, AC condensers, a panel water tank on a steel stand, a billboard on two posts, and at Stage 3 a timber
-// terrace with tables, a parasol and string lights. A Stage 3 front on a Road lies under the row's arcade: a pale roof
-// on steel posts with a lit fascia.
+// flat roof, AC condensers, a panel water tank on a steel stand, a billboard on two posts, a stair house on a setback
+// shop of one storey, and at Stage 3 a timber terrace with tables, a parasol and string lights. A Stage 3 front on a
+// Road lies under the row's arcade: a pale roof on steel posts, glowing at night as if lit from under it, with a lit
+// fascia. How brightly each lit part glows, for the lamps' glow.
 const SHOPFRONT = {
   door: { wide: 1.5, tall: 2.3, frames: ['#4a525c', '#a1714c', '#fbf8f2', '#4a525c'] },
   noren: ['#3f4a5e', '#fbf8f2', '#8a5a3c', '#55705f', '#6c5a8a', '#3f4a5e'],
@@ -169,7 +170,7 @@ const SHOPFRONT = {
     ['#5cc0d6', '#a58ad8', '#fbf8f2', '#ff9ab8'],
     ['#79c86a', '#2fb39a', '#f6d36a', '#fbf8f2'],
   ],
-  lit: { board: 0.33, marks: 1.6, strip: 1.2, string: 1.5 },
+  lit: { board: 0.33, marks: 1.6, strip: 1.2, string: 1.5, arcade: 0.32, awning: 0.22 },
 }
 // Crates at a shop's back door, and the pots of plants by its front (#175).
 const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
@@ -1421,7 +1422,7 @@ export function createKit(rand: () => number, materials: Materials) {
       }
       const markOf = (colour: string, on: boolean): Look =>
         pale(colour) ? SHOPFRONT.marks.dark : on ? lit(SHOPFRONT.marks.pale, SHOPFRONT.lit.marks) : SHOPFRONT.marks.pale
-      const boardOf = (colour: string, on: boolean): Look => (on ? lit(colour, SHOPFRONT.lit.board) : colour)
+      const boardOf = (colour: string, on: boolean, glow = SHOPFRONT.lit.board): Look => (on ? lit(colour, glow) : colour)
       /** A board `bw` by `bh` on a face at `v`, its foot `z`, with `n` marks across it. */
       const signboard = (colour: string, on: boolean, bw: number, bh: number, v: number, z: number, n: number) => {
         local(cuboid(bw, bh, 0.14), boardOf(colour, on), x, y, ry, 0, v, z)
@@ -1465,9 +1466,19 @@ export function createKit(rand: () => number, materials: Materials) {
         const span = w * 0.86
         const stripes = Math.max(3, Math.round(span / 1.2))
         for (let i = 0; i < stripes; i++)
-          local(AWNING, i % 2 ? SHOP.stripe : stripe, x, y, ry, -span / 2 + (i + 0.5) * (span / stripes), fv + 0.85, h + 3, span / stripes)
+          local(
+            AWNING,
+            boardOf(i % 2 ? SHOP.stripe : stripe, stage >= 2, SHOPFRONT.lit.awning),
+            x,
+            y,
+            ry,
+            -span / 2 + (i + 0.5) * (span / stripes),
+            fv + 0.85,
+            h + 3,
+            span / stripes,
+          )
       } else {
-        local(cuboid(w + 0.02, 0.16, ARCADE), SHOPFRONT.arcade, x, y, ry, 0, fv + ARCADE / 2, h + 3.44)
+        local(cuboid(w + 0.02, 0.16, ARCADE), lit(SHOPFRONT.arcade, SHOPFRONT.lit.arcade), x, y, ry, 0, fv + ARCADE / 2, h + 3.44)
         signboard(board, true, w + 0.02, 0.5, fv + ARCADE, h + 3.04, 2 + (seed % 3))
         for (const k of [-1, 1]) local(cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), fv + ARCADE - 0.12, h)
         local(cuboid(w * 0.8, 0.05, 0.16), lit('#fff4dc', SHOPFRONT.lit.strip), x, y, ry, 0, fv + ARCADE * 0.5, h + 3.39)
@@ -1507,6 +1518,13 @@ export function createKit(rand: () => number, materials: Materials) {
       for (const k of [-1, 1])
         local(cuboid(P.wide, P.tall, td - 2 * P.wide), SHOPFRONT.parapet, x, y, ry, k * (tw / 2 - P.wide / 2), tv, roof)
 
+      // A stair house on a setback shop of one storey, so that its roof differs from a flat neighbour's.
+      if (form === 'setback' && storeys === 1) {
+        const [u, v] = [-door * (tw / 2 - 1.5), tv - td * 0.12]
+        local(cuboid(2.2, 2.3, 2.6), SHOPFRONT.parapet, x, y, ry, u, v, roof)
+        local(cuboid(2.4, 0.16, 2.8), SHOPFRONT.steel, x, y, ry, u, v, roof + 2.3)
+        local(cuboid(0.9, 1.9, 0.06), frame, x, y, ry, u, v + 1.31, roof)
+      }
       // On the roof: condensers along the back, a tank on its stand, a noodle shop's vent, a billboard and a terrace.
       const units = Math.min(stage, Math.floor((tw - 1.2) / 1.25))
       for (let k = 0; k < units; k++) {
@@ -2354,8 +2372,10 @@ export function createKit(rand: () => number, materials: Materials) {
     lamp(x: number, y: number, h: number) {
       add(CYLINDER, '#7d8794', x, y, h, 0, 0.14, 5, 0.14)
       add(SPHERE, bulb, x, y, h + 5.2, 0, 0.44, 0.44, 0.44)
+      // As wide as the pavement round its post lets it, its faint rim and no more past the kerb (#175), where a decal
+      // at the pavement's height would float over the road plate.
       let r = POOL.lamp
-      while (r > POOL.least && !onBlock(x, y, r - 0.6)) r -= 0.2
+      while (r > POOL.least && !onBlock(x, y, r * 0.78)) r -= 0.2
       pool('lamp', x, y, h, 2 * r, 2 * r)
       brick('lamp', x, y, h)
     },

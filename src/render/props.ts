@@ -171,6 +171,22 @@ export function pots(kit: Kit, spots: [number, number][], size = 0.7) {
   kit.brick('building', ...spots[0], KERB)
 }
 
+/**
+ * A plant stand at `(x, y)` against a shop front facing `ry`, as one Close-only brick (#175): two timber steps with pot
+ * plants on them.
+ */
+export function plantStand(kit: Kit, x: number, y: number, ry: number) {
+  const draw = mulberry32(spot(x, y))
+  kit.closeOnly(() => {
+    for (let k = 0; k < 2; k++) {
+      const [ly, z] = [0.2 - k * 0.32, KERB + 0.35 + k * 0.35]
+      kit.put(kit.cuboid(1.3, z - KERB, 0.32), WOOD.stand, x, y, ry, 0, ly, KERB)
+      for (const lx of [-0.42, 0, 0.42]) kit.pot(...at(x, y, ry, lx, ly), z, 0.42 + draw() * 0.18, draw)
+    }
+  })
+  kit.brick('building', x, y, KERB)
+}
+
 /** Crates of produce at `(x, y)`, facing `ry`, as one Close-only brick (#175): two on the pavement and one on top. */
 export function produce(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))

@@ -23,7 +23,7 @@ import {
   type Walks,
 } from './kit'
 import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
-import { cafeTable, capsules, florist, foodStall, greengrocer, menuBoard, pots, type ShopScene } from './props'
+import { cafeTable, capsules, florist, foodStall, greengrocer, menuBoard, plantStand, pots, produce, type ShopScene } from './props'
 import { planter, type Footprint } from './streets'
 
 // What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
@@ -115,8 +115,8 @@ const FLAGS = {
   cloths: ['#2fb39a', '#f0b43c', '#5cc0d6', '#a58ad8', '#79c86a', '#ff9ab8', '#fbf8f2'],
 }
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
-// to three trees in the yards behind.
-const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
+// to four trees in the yards behind.
+const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 4 } as const
 // Shop details (#153), before the fronts that face a Road: the share of shops with each from Stages 1, 2 and 3 (one
 // roll a shop for each detail, so a shop keeps its details as it grows), and the share of those with a vending machine
 // that have a second at Stage 3. Parked bicycles stand `gap` m apart, `row` m out from the front to their middles and
@@ -129,6 +129,7 @@ const FRONT = {
   nobori: [0, 0.35, 0.55],
   lanterns: [0, 0.35, 0.6],
   bikes: [0, 0.3, 0.5],
+  wares: 0.6, // of the fronts with room before the window, the share with crates of produce or a plant stand (#175)
   gap: 0.7,
   row: 1,
   slant: Math.PI + 0.4,
@@ -139,17 +140,18 @@ const FRONT = {
   cloths: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
 } as const
 // Shops to the level of finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
-// noodle shops; the scenes a Block picks from, the narrowest lot a scene takes (m) and the area (m²) from which a Block
+// noodle shops; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
+// widest on a Road where none is that wide, and the area (m²) from which a Block
 // has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
 // far out from the fronts shoppers walk (m), how long they stop at each (s), and their coats, the cars' colours.
 const SHOP_PLAN = {
   forms: ['flat', 'facade', 'flat', 'setback'] as ShopForm[],
   noodle: 0.2,
   scenes: ['greengrocer', 'florist', 'capsules', 'stall'] as ShopScene[],
-  wide: 6.2,
+  wide: 8,
   second: 2500,
   paved: 1.7,
-  paving: ['#e6c6a0', '#dbb8aa', '#cdd3b8', '#d8c7de'],
+  paving: ['#efd3ad', '#ecd0c6', '#dde3c6', '#e5d6ec'],
   walk: 2.1,
   waits: [1.5, 5],
   coats: ['#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'],
@@ -1111,7 +1113,28 @@ function shops(g: ZoneGround) {
   }
   kit.lot(-1)
   shoppers(g, lots)
-  yards(g, lots, SHOPS.trees)
+  backYard(g, lots, yards(g, lots, SHOPS.trees))
+}
+
+/**
+ * A shops Block's back yard behind its rows (#175): a delivery kei truck parked alongside the nearest back wall from
+ * Stage 2, and a second at Stage 3, where there is room clear of the shops and the yard's trees.
+ */
+function backYard(g: ZoneGround, lots: RowLot[], trees: Vec[]) {
+  const { kit, block, field } = g
+  const centre = middle(block)
+  const draw = mulberry32(spot(centre.x, centre.y) ^ 0xbac4)
+  const parked: Vec[] = []
+  for (let tries = 0; tries < 40 && parked.length < 2 && lots.length; tries++) {
+    const [x, y] = [block.x0 + draw() * (block.x1 - block.x0), block.y0 + draw() * (block.y1 - block.y0)]
+    if (field.sample(x, y) < 4 || lots.some((l) => near(l, x, y, 1.4))) continue
+    if ([...trees, ...parked].some((p) => Math.hypot(p.x - x, p.y - y) < 4.5)) continue
+    const back = lots.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a))
+    const ry = back.ry + Math.PI / 2 // its length along the wall
+    if (!stands(g, x, y, 2.4, 5, 1.5, ry)) continue
+    kit.from(parked.length ? 3 : 2, () => kit.keiTruck(x, y, KERB, ry), spot(x, y))
+    parked.push({ x, y })
+  }
 }
 
 /**
@@ -1121,7 +1144,9 @@ function shops(g: ZoneGround) {
  */
 function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<number, { kind: ShopScene; from: number }> {
   const scenes = new Map<number, { kind: ShopScene; from: number }>()
-  const fit = lots.flatMap((l, i) => (l.onRoad && l.w >= SHOP_PLAN.wide ? [i] : []))
+  const road = lots.flatMap((l, i) => (l.onRoad ? [i] : []))
+  const widest = Math.max(0, ...road.map((i) => lots[i].w))
+  const fit = road.filter((i) => lots[i].w >= Math.min(SHOP_PLAN.wide, widest))
   const kinds = [...SHOP_PLAN.scenes]
   const [first, at] = [kinds.splice(Math.floor(draw() * kinds.length), 1)[0], Math.floor(draw() * fit.length)]
   const [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
@@ -1278,11 +1303,12 @@ function shopFront(g: ZoneGround, l: RowLot, door: number) {
   }
   const side = draw() < 0.5 ? 1 : -1 // the end the vending machines stand at, away from the door (`shops`)
   const [vending, banners, lanterns, bikes] = [first(FRONT.vending), first(FRONT.nobori), first(FRONT.lanterns), first(FRONT.bikes)]
-  const [second, count, cloth, amber] = [
+  const [second, count, cloth, amber, wares] = [
     draw() < FRONT.second,
     2 + Math.floor(draw() * 3),
     FRONT.cloths[Math.floor(draw() * FRONT.cloths.length)],
     draw() < 0.5,
+    draw(),
   ]
   /** Build `fn` at `p` from Stage `stage`, on a stream of its own from where it stands. */
   const from = (stage: number, p: Vec, fn: (p: Vec) => void) => stage && kit.from(stage, () => fn(p), spot(p.x, p.y))
@@ -1322,6 +1348,12 @@ function shopFront(g: ZoneGround, l: RowLot, door: number) {
       if (more) row(3, n, extra)
       free = t(more ? n + extra : n)
     }
+  }
+  if (free < doorFrame - 1.8 && wares < FRONT.wares) {
+    // Before the window where no bicycles stand, from Stage 2: crates of produce, or a plant stand, Close-only.
+    const q = at(u(free + 0.9), 0.45)
+    if (clear(0.45, u(free + 0.2), u(free + 1.6)))
+      kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }
   if (banners) {
     // Up to three along what is left of the front, at the pavement's edge, each cloth hung to the right of its pole.
