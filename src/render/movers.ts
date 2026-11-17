@@ -81,7 +81,7 @@ export interface Beacon {
 }
 
 /** The kinds of thing that hangs and sways in the wind, each with its own model. */
-export type SwayKind = 'laundry' | 'futon' | 'washing'
+export type SwayKind = 'laundry' | 'futon' | 'washing' | 'cloth'
 
 /**
  * Something that hangs from a line and sways in the wind (#155): laundry on a pole, a futon over a railing. It hangs
@@ -94,6 +94,8 @@ export interface Sway {
   ry: number
   /** The colour its model's white parts take. White unless given. */
   paint?: string
+  /** How far its model stretches along its line and down from it (#157): 1 and 1 unless given. */
+  size?: [number, number]
   brick: number
 }
 
@@ -147,6 +149,7 @@ const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.
   laundry: { swing: 0.2, rate: 2.4, model: laundry },
   futon: { swing: 0.04, rate: 1.6, model: futon },
   washing: { swing: 0.24, rate: 2.4, model: washing }, // #156
+  cloth: { swing: 0.2, rate: 2.4, model: () => part(1, 1, 0.05, 0, -1, 0, '#ffffff') }, // #157: one piece pegged to a pole, stretched to its size
 }
 // Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
 // moment, and takes this share of the day to come or go.
@@ -929,7 +932,8 @@ export function createMovers() {
           tilt.setFromAxisAngle(across, swing * gust * (0.35 + Math.sin(t * rate + phase)))
           q.setFromAxisAngle(up, sway.ry).multiply(tilt)
           at.copy(sway.at).y += pose.lift
-          mesh.setMatrixAt(i, m.compose(at, q, scale.setScalar(Math.max(0.001, pose.scale * hung))))
+          const [k, [sx, sy]] = [Math.max(0.001, pose.scale * hung), sway.size ?? [1, 1]]
+          mesh.setMatrixAt(i, m.compose(at, q, scale.set(sx * k, sy * k, k)))
         }
       }
       for (const mesh of swaying.values()) mesh.instanceMatrix.needsUpdate = true
