@@ -25,8 +25,10 @@ const TERRACE = {
   walls: ['#fff4e2', '#f6dfb4', '#f3d2c4', '#ead9c2', '#dcc6a6', '#d6e4d3', '#f9e7c8'],
   roofs: ['#4d6575', '#5b6b7a', '#3f5866', '#7a5a46', '#b85a4c', '#5aa69b', '#8b7dbf', '#a8765a'],
   door: '#8a5a3c',
+  blooms: ['#ffadc8', '#f6d36a', '#fff7e8', '#c7b8f0'], // a Stage 3 house's window boxes
 }
 const COURTYARD = { walls: ['#e0f2d4', '#cbebfc', '#e5dafb', '#fbe3a2', '#c0e9e0', '#fbd2dd', '#fdeed6'], cap: '#fbfaf6' }
+const PAVILION = { posts: '#a1714c', roof: '#4d6575', floor: '#c49a6c' } // a Stage 3 park's, over its pond
 // High-density residential: pale walls, so the towers read as homes beside the offices' glass, and white or stone trim.
 const FLATS = { walls: ['#fbf3e6', '#eef5f0', '#f4eefb', '#fdf0e2', '#eaf3f8', '#f8eef0'], trims: ['#ffffff', '#e9e4da', '#d9e3ea'] }
 // Shops: a ground floor in a bold colour, which the awning and the signs take too, under pale storeys, so that it leads.
@@ -467,34 +469,44 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A house of a terraced row, as one brick: `w` along the row and `d` deep, its front facing `ry` (0 north, π/2
-     * west), `storeys` high. It shares its side walls with the houses beside it, under a gable roof whose ridge runs
-     * along the row, with a window or two a storey on its front, a wooden door, and on some an eave over the ground floor.
+     * A house of a terraced row at Stage `stage`, as one brick: `w` along the row and `d` deep, its front facing `ry` (0
+     * north, π/2 west), `storeys` high, as many as the caller gives its Stage. It shares its side walls with the houses
+     * beside it, under a gable roof whose ridge runs along the row, with a window or two a storey on its front and a
+     * wooden door. Its colours and whether it has an eave are drawn before anything a Stage changes:
+     * - Stage 1: plain, with no eave.
+     * - Stage 2: an eave over the ground floor on some.
+     * - Stage 3: an eave on every house of two storeys or more, a pale cornice under the roof, and a window box of
+     *   flowers under each upper window.
      */
-    townhouse(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number) {
+    townhouse(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, stage = 2) {
       const wall = storeys * 3 + 0.6
-      const tile = pick(TERRACE.roofs)
-      add(box(w, wall, d, 0.16, 0.08), pick(TERRACE.walls), x, y, h, ry)
+      const [tile, walls, eave, bloom] = [pick(TERRACE.roofs), pick(TERRACE.walls), rand() < 0.55, pick(TERRACE.blooms)]
+      add(box(w, wall, d, 0.16, 0.08), walls, x, y, h, ry)
       add(gableRoof(w + 0.2, d + 1, Math.min(4.2, d * 0.34)), tile, x, y, h + wall, ry + Math.PI / 2)
+      if (stage === 3) local(cuboid(w + 0.06, 0.42, 0.5), LEDGE, x, y, ry, 0, d / 2 + 0.05, h + wall - 0.42)
       const across = w >= 5.6 ? 2 : 1 // windows a storey
       for (let s = 0; s < storeys; s++) {
         for (let k = 0; k < across; k++) {
           const lx = across === 1 ? 0 : (k ? 1 : -1) * w * 0.23
           if (s === 0 && k === across - 1) local(cuboid(1.2, 2.2, 0.3), TERRACE.door, x, y, ry, lx, d / 2, h)
           else local(cuboid(1.1, 1.3, 0.3), pane(0.7), x, y, ry, lx, d / 2, h + 1 + s * 3)
+          if (stage === 3 && s > 0) local(cuboid(1.4, 0.34, 0.55), bloom, x, y, ry, lx, d / 2 + 0.2, h + 0.7 + s * 3)
         }
       }
-      if (storeys > 1 && rand() < 0.55) local(cuboid(w + 0.1, 0.22, 1.1), tile, x, y, ry, 0, d / 2 + 0.5, h + 3.1)
+      if (storeys > 1 && (stage === 3 || (stage === 2 && eave))) local(cuboid(w + 0.1, 0.22, 1.1), tile, x, y, ry, 0, d / 2 + 0.5, h + 3.1)
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },
 
     /**
-     * An apartment building of `floors` storeys over the wings `wings`, rectangles that meet at their edges in an O, a
-     * U, an L or a bar, as one brick: one wall colour, with a row of windows a storey, lit or dark one by one, on every
-     * face not against another wing, a cap on each wing and a water tank on the first.
+     * An apartment building at Stage `stage`, of `floors` storeys over the wings `wings`, rectangles that meet at their
+     * edges in an O, a U, an L or a bar, as one brick: one wall colour, with a row of windows a storey, lit or dark one
+     * by one, on every face not against another wing, and a cap on each wing. The caller gives each Stage its floors.
+     * - Stage 1: plain, with no water tank.
+     * - Stage 2: a water tank on the first wing.
+     * - Stage 3: a balcony slab along every face at each floor, and a plant room beside the water tank.
      */
-    apartment(wings: Bounds[], h: number, floors: number) {
+    apartment(wings: Bounds[], h: number, floors: number, stage = 2) {
       const colour = pick(COURTYARD.walls)
       const height = floors * 3.2 + 0.8
       /** Whether `(px, py)` lies on a wing other than wing `self`. */
@@ -514,24 +526,43 @@ export function createKit(rand: () => number, materials: Materials) {
             if ([-0.9, 0, 0.9].some((a) => against(fx + nx * 0.4 + ny * a, fy + ny * 0.4 + nx * a, k))) continue
             for (let f = 0; f < floors; f++) add(cuboid(1.5, 1.6, 0.3), pane(0.65), fx, fy, h + 1.1 + f * 3.2, ry)
           }
+          // Stage 3's balconies: a slab and its railing along the face at every floor above the ground, unless the
+          // face's middle is against another wing. Where a slab runs into another wing it stays hidden inside it.
+          const len = nx === 0 ? w : d
+          const [mx, my] = [cx + (nx * w) / 2, cy + (ny * d) / 2]
+          if (stage !== 3 || against(mx + nx * 0.4, my + ny * 0.4, k)) continue
+          for (let f = 1; f < floors; f++) {
+            add(cuboid(len - 0.8, 0.24, 1.1), COURTYARD.cap, mx + nx * 0.55, my + ny * 0.55, h + 0.7 + f * 3.2, ry)
+            add(cuboid(len - 0.8, 0.8, 0.12), COURTYARD.cap, mx + nx * 1.05, my + ny * 1.05, h + 0.94 + f * 3.2, ry)
+          }
         }
         shadow(cx, cy, h, w * 1.2 + 2, d * 1.2 + 2)
       })
       const [first] = wings
       const [tx, ty] = [first.x0 + (first.x1 - first.x0) * 0.3, (first.y0 + first.y1) / 2]
-      add(CYLINDER, TANK.body, tx, ty, h + height + 0.6, 0, 1.12, 2.2, 1.12)
-      add(CONE, TANK.lid, tx, ty, h + height + 2.8, 0, 1.2, 0.8, 1.2)
+      if (stage > 1) {
+        add(CYLINDER, TANK.body, tx, ty, h + height + 0.6, 0, 1.12, 2.2, 1.12)
+        add(CONE, TANK.lid, tx, ty, h + height + 2.8, 0, 1.2, 0.8, 1.2)
+      }
+      if (stage === 3) {
+        const [pw, pd] = [(first.x1 - first.x0) * 0.3, (first.y1 - first.y0) * 0.5]
+        add(box(pw, 2.6, pd, 0.3, 0.1), COURTYARD.cap, first.x0 + (first.x1 - first.x0) * 0.68, ty, h + height + 0.6)
+      }
       const [x0, x1] = [Math.min(...wings.map((r) => r.x0)), Math.max(...wings.map((r) => r.x1))]
       const [y0, y1] = [Math.min(...wings.map((r) => r.y0)), Math.max(...wings.map((r) => r.y1))]
       brick('building', (x0 + x1) / 2, (y0 + y1) / 2, h)
     },
 
     /**
-     * A residential tower of `floors` storeys on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick:
-     * a podium with a lit lobby, a pale wall with windows lit or dark one by one, a stack of balconies up the middle of
-     * its two long faces, and on its roof a water tank and a little garden.
+     * A residential tower at Stage `stage`, of `floors` storeys on a footprint `w` (east–west) by `d`, centred on
+     * `(x, y)`, as one brick: a podium with a lit lobby, a pale wall with windows lit or dark one by one, a stack of
+     * balconies up the middle of its two long faces, and on its roof a water tank. The caller gives each Stage its floors.
+     * - Stage 1: a bare roof but for the tank.
+     * - Stage 2: a little garden on the roof.
+     * - Stage 3: a band of trim round the wall every four floors, a crown of lit glass under a deeper cap, and a bigger
+     *   roof garden.
      */
-    residentialTower(x: number, y: number, h: number, w: number, d: number, floors: number) {
+    residentialTower(x: number, y: number, h: number, w: number, d: number, floors: number, stage = 2) {
       const [colour, trim] = [pick(FLATS.walls), pick(FLATS.trims)]
       const STOREY = 3.1
       const base = h + 4.2
@@ -561,25 +592,42 @@ export function createKit(rand: () => number, materials: Materials) {
           local(cuboid(3.6, 2.2, 0.3), pane(0.55), mx, my, ry, 0, 0, at + 0.3)
         }
       }
-      // A cap over the roof, and on it a water tank and a little garden.
-      add(box(w + 0.3, 1.2, d + 0.3, 1, 0.12), trim, x, y, top)
-      add(CYLINDER, TANK.body, x - w * 0.22, y + d * 0.2, top + 0.9, 0, 1.3, 2.4, 1.3)
-      add(CONE, TANK.lid, x - w * 0.22, y + d * 0.2, top + 3.3, 0, 1.4, 0.9, 1.4)
-      add(box(w * 0.36, 0.5, d * 0.3, 0.3, 0.1), LAWN, x + w * 0.18, y - d * 0.16, top + 0.9)
-      for (const k of [-1, 1]) add(SPHERE, LEAVES.round[1], x + w * (0.18 + 0.08 * k), y - d * 0.16, top + 1.5, 0, 0.9, 0.8, 0.9)
+      if (stage === 3) {
+        // A band of trim every four floors, and a crown: the top floor's glass all round, lit at night.
+        for (let f = 4; f < floors - 1; f += 4) add(cuboid(w + 0.5, 0.5, d + 0.5), trim, x, y, base + f * STOREY - 0.25)
+        add(box(w + 0.16, 1.8, d + 0.16, 0.9, 0.08), { material: glass, tint: windows[1] }, x, y, top - 2.3)
+      }
+      // A cap over the roof, and on it a water tank and a garden.
+      const cap = stage === 3 ? 2 : 1.2
+      add(box(w + 0.3, cap, d + 0.3, 1, 0.12), trim, x, y, top)
+      const roof = top + cap - 0.3
+      add(CYLINDER, TANK.body, x - w * 0.22, y + d * 0.2, roof, 0, 1.3, 2.4, 1.3)
+      add(CONE, TANK.lid, x - w * 0.22, y + d * 0.2, roof + 2.4, 0, 1.4, 0.9, 1.4)
+      if (stage > 1) {
+        const [gw, gd] = stage === 3 ? [w * 0.5, d * 0.5] : [w * 0.36, d * 0.3]
+        add(box(gw, 0.5, gd, 0.3, 0.1), LAWN, x + w * 0.18, y - d * 0.16, roof)
+        const bushes = stage === 3 ? [-1.5, -0.5, 0.5, 1.5] : [-1, 1]
+        for (const k of bushes) add(SPHERE, LEAVES.round[1], x + w * (0.18 + 0.08 * k), y - d * 0.16, roof + 0.6, 0, 0.9, 0.8, 0.9)
+      }
       shadow(x, y, h, w * 1.4 + 3, d * 1.4 + 3)
       brick('building', x, y, h)
     },
 
     /**
-     * A shop, as one brick: `w` along its street and `d` deep, its front facing `ry`, `storeys` high. A ground floor in
-     * a bold colour with a lit shop window, under pale storeys with windows or none. Facing a Road (`onRoad`) rather
-     * than a seam between Tiles, it has a striped awning, and on some a sign on the roof or one hung by the door.
+     * A shop at Stage `stage`, as one brick: `w` along its street and `d` deep, its front facing `ry`, `storeys` high,
+     * as many as the caller gives its Stage. A ground floor in a bold colour with a lit shop window, under pale storeys
+     * with windows or none. Facing a Road (`onRoad`) rather than a seam between Tiles, it has a striped awning. Its
+     * colours and which signs it would have are drawn before anything a Stage changes:
+     * - Stage 1: a narrower shop window and no signs.
+     * - Stage 2: on some, a sign on the roof or one hung by the door.
+     * - Stage 3: both signs on every shop facing a Road, and a pale cornice over the ground floor.
      */
-    shop(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, onRoad: boolean) {
-      const [front, upper] = [pick(SHOP.fronts), pick(SHOP.uppers)]
+    shop(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, onRoad: boolean, stage = 2) {
+      const [front, upper, colour, roofSign, hung] = [pick(SHOP.fronts), pick(SHOP.uppers), pick(SHOP.fronts), rand() < 0.45, rand() < 0.45]
+      const [signColour, hungColour] = [pick(SHOP.fronts), pick(SHOP.fronts)]
       add(box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry)
-      local(cuboid(w * 0.8, 2.4, 0.3), { material: glass, tint: windows[0] }, x, y, ry, 0, d / 2, h + 0.3)
+      local(cuboid(w * (stage === 1 ? 0.6 : 0.8), 2.4, 0.3), { material: glass, tint: windows[0] }, x, y, ry, 0, d / 2, h + 0.3)
+      if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, d / 2 + 0.04, h + 3.7)
       let top = h + 3.8
       if (storeys > 1) {
         const tall = (storeys - 1) * 3.1
@@ -593,8 +641,8 @@ export function createKit(rand: () => number, materials: Materials) {
       }
       add(box(w + 0.1, 0.5, d + 0.1, 0.26, 0.08), storeys > 1 ? upper : front, x, y, top, ry)
       if (onRoad) {
-        if (rand() < 0.45) local(cuboid(w * 0.6, 1.8, 0.3), pick(SHOP.fronts), x, y, ry, 0, d / 2 - 1.2, top + 0.5)
-        const [span, colour] = [w * 0.86, pick(SHOP.fronts)]
+        if (stage === 3 || (stage === 2 && roofSign)) local(cuboid(w * 0.6, 1.8, 0.3), signColour, x, y, ry, 0, d / 2 - 1.2, top + 0.5)
+        const span = w * 0.86
         const stripes = Math.max(3, Math.round(span / 1.2))
         for (let i = 0; i < stripes; i++)
           local(
@@ -608,56 +656,120 @@ export function createKit(rand: () => number, materials: Materials) {
             h + 3,
             span / stripes,
           )
-        if (rand() < 0.45) local(cuboid(0.24, 2.4, 1.1), pick(SHOP.fronts), x, y, ry, w / 2 - 0.5, d / 2 + 0.55, h + 4.2)
+        if (stage === 3 || (stage === 2 && hung)) local(cuboid(0.24, 2.4, 1.1), hungColour, x, y, ry, w / 2 - 0.5, d / 2 + 0.55, h + 4.2)
       }
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },
 
     /**
-     * A shed on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under a sawtooth roof
-     * whose teeth follow one another along its long side, glazed up each tooth, roller doors along one long side, and a
-     * brick chimney if `chimney`.
+     * A shed at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under
+     * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along one
+     * long side, and a brick chimney if `chimney`. Its colours, its glazing, its height within its Stage and which side
+     * its doors face are drawn before anything a Stage changes:
+     * - Stage 1: on 80% of the footprint, lower, and with no chimney.
+     * - Stage 2: on the whole footprint.
+     * - Stage 3: a metre taller, with a two-storey office at one end of its back, vents along its roof, and a taller
+     *   chimney with a second band.
      */
-    warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean) {
-      const wall = range(5.4, 7.4)
-      add(box(w, wall, d, 0.4, 0.14), pick(SHED.walls), x, y, h)
+    warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean, stage = 2) {
+      const [tall, walls, roofs, lit, side, doorColour, chimneyTall] = [
+        rand(),
+        pick(SHED.walls),
+        pick(SHED.roofs),
+        rand() < 0.5,
+        rand() < 0.5 ? 1 : -1,
+        pick(SHED.doors),
+        range(15, 21),
+      ]
+      if (stage === 1) [w, d] = [w * 0.8, d * 0.8]
+      const wall = [4.2 + 1.2 * tall, 5.4 + 2 * tall, 6.4 + 2 * tall][stage - 1]
+      add(box(w, wall, d, 0.4, 0.14), walls, x, y, h)
       const along = w >= d
       const [len, wid, ry] = along ? [w - 0.4, d - 0.4, 0] : [d - 0.4, w - 0.4, Math.PI / 2]
       const n = Math.max(2, Math.round(len / 6))
       const rise = Math.min(3.4, (len / n) * 0.55)
       const teeth = sawtooth(len, wid, rise, n)
-      add(teeth, pick(SHED.roofs), x, y, h + wall, ry)
+      add(teeth, roofs, x, y, h + wall, ry)
       teeth.dispose()
-      const glaze: Look = { material: glass, tint: rand() < 0.5 ? windows[2] : unlit }
+      const glaze: Look = { material: glass, tint: lit ? windows[2] : unlit }
       for (let i = 1; i < n; i++) local(cuboid(0.2, rise * 0.8, wid - 1.2), glaze, x, y, ry, -len / 2 + (i * len) / n - 0.12, 0, h + wall)
-      const side = rand() < 0.5 ? 1 : -1
       const doors = Math.max(1, Math.floor(len / 9))
       for (let k = 0; k < doors; k++)
-        local(cuboid(3.6, 4, 0.3), pick(SHED.doors), x, y, ry, -len / 2 + (k + 0.5) * (len / doors), (side * (wid + 0.4)) / 2, h)
-      if (chimney) {
+        local(cuboid(3.6, 4, 0.3), doorColour, x, y, ry, -len / 2 + (k + 0.5) * (len / doors), (side * (wid + 0.4)) / 2, h)
+      if (stage === 3) {
+        // An office at the far end of the back, standing a storey clear of the walls, with a band of windows a floor.
+        const [ow, od] = [Math.min(11, len * 0.32), Math.min(7, wid * 0.45)]
+        const [ox, oy] = [-len / 2 + ow / 2 + 0.2, -side * (wid / 2 - od / 2 + 0.35)] // its face just out of the shed's
+        const high = wall + 3.4
+        local(box(ow, high, od, 0.3, 0.1), SHED.band, x, y, ry, ox, oy, h)
+        for (const f of [0, 1])
+          local(
+            cuboid(ow - 1.2, 1.3, 0.3),
+            { material: glass, tint: windows[0] },
+            x,
+            y,
+            ry,
+            ox,
+            oy - side * (od / 2),
+            h + high - 6.2 + f * 3.1,
+          )
+        for (let i = 0; i < n; i++) {
+          const [vx, vy] = to(x, y, ry, -len / 2 + ((i + 0.5) * len) / n + 1.2, 0)
+          add(CYLINDER, PLANT, vx, vy, h + wall + rise * 0.5, 0, 0.5, rise * 0.5 + 1.2, 0.5)
+        }
+      }
+      if (chimney && stage > 1) {
         const [cx, cy] = to(x, y, ry, len / 2 - 2.6, -side * (wid / 2 - 2.6))
-        const tall = range(15, 21)
-        add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, tall, 1)
-        add(CYLINDER, SHED.band, cx, cy, h + tall - 2.4, 0, 1.06, 0.9, 1.06)
+        const high = chimneyTall + (stage === 3 ? 5 : 0)
+        add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, high, 1)
+        add(CYLINDER, SHED.band, cx, cy, h + high - 2.4, 0, 1.06, 0.9, 1.06)
+        if (stage === 3) add(CYLINDER, SHED.band, cx, cy, h + high - 6, 0, 1.06, 0.6, 1.06)
       }
       shadow(x, y, h, w * 1.3 + 2, d * 1.3 + 2)
       brick('building', x, y, h)
     },
 
-    /** A barn facing `ry`, with a silo beside it and a few bales of straw before it, as one brick. */
-    barn(x: number, y: number, h: number, ry: number) {
+    /**
+     * A barn at Stage `stage` facing `ry`, with a few bales of straw before it, as one brick. Its colour is drawn before
+     * anything a Stage changes:
+     * - Stage 1: the barn and a bale.
+     * - Stage 2: a silo beside it, and three bales.
+     * - Stage 3: a second, shorter silo and a lean-to shed against its other side.
+     */
+    barn(x: number, y: number, h: number, ry: number, stage = 2) {
       add(box(9, 5.2, 7, 0.3, 0.1), pick(BARN.walls), x, y, h, ry)
       add(gableRoof(9.6, 8, 3.2), BARN.roof, x, y, h + 5.2, ry + Math.PI / 2)
       local(cuboid(3.2, 3.8, 0.3), BARN.door, x, y, ry, 0, 3.5, h)
-      const [sx, sy] = to(x, y, ry, 6.6, -1)
-      add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.9, 9.5, 1.9)
-      add(SPHERE, BARN.dome, sx, sy, h + 9.5, 0, 1.95, 1.4, 1.95)
-      for (const k of [0, 1, 2]) {
+      if (stage > 1) {
+        const [sx, sy] = to(x, y, ry, 6.6, -1)
+        add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.9, 9.5, 1.9)
+        add(SPHERE, BARN.dome, sx, sy, h + 9.5, 0, 1.95, 1.4, 1.95)
+      }
+      if (stage === 3) {
+        const [sx, sy] = to(x, y, ry, 6.4, -4.6)
+        add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.5, 7, 1.5)
+        add(SPHERE, BARN.dome, sx, sy, h + 7, 0, 1.55, 1.1, 1.55)
+        local(box(3.4, 3.2, 6, 0.2, 0.08), BARN.door, x, y, ry, -6.2, 0, h)
+        local(cuboid(4, 0.3, 6.6), BARN.roof, x, y, ry, -6.4, 0, h + 3.2)
+      }
+      for (const k of stage === 1 ? [1] : [0, 1, 2]) {
         const [bx, by] = to(x, y, ry, -3 + k * 2.2, 5.6)
         add(CYLINDER, BARN.straw, bx, by, h, 0, 0.85, 1.1, 0.85)
       }
       shadow(x, y, h, 12, 9, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A pavilion standing on its floor at `(x, y)`, `h` above the road, as one brick: four wooden posts under a hipped
+     * roof, open on every side, the kind that stands over a Japanese garden's pond.
+     */
+    pavilion(x: number, y: number, h: number) {
+      add(cuboid(4.2, 0.3, 4.2), PAVILION.floor, x, y, h)
+      for (const i of [-1, 1]) for (const j of [-1, 1]) add(cuboid(0.3, 2.6, 0.3), PAVILION.posts, x + i * 1.75, y + j * 1.75, h + 0.3)
+      add(PYRAMID, PAVILION.roof, x, y, h + 2.9, Math.PI / 4, 3.6, 1.8, 3.6)
+      shadow(x, y, h, 6, 6, true) // round, as the trees' are: a park or a meadow then draws no other shadow
       brick('building', x, y, h)
     },
 
