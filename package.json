@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "bench": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/bench.ts'))\"",
+    "shots": "node scripts/visual/shots.mjs",
+    "bench:visual": "node scripts/visual/bench.mjs",
     "tune": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/tune.ts'))\"",
     "prepare": "husky"
   },
@@ -18,6 +20,7 @@
     "@types/three": "^0.187.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
+    "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.7",

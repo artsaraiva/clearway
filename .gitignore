@@ -3,6 +3,9 @@ dist
 .DS_Store
 .playwright-mcp
 
+# Shots and Stage sheets from `npm run shots`
+scripts/visual/out/
+
 # Claude Code's local state: git worktrees, the app's preview servers (launch.json), locks
 .claude/
 
