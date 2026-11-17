@@ -618,7 +618,7 @@ function shopFront(g: ZoneGround, l: RowLot) {
       [-0.1, 3],
       [0.1, 3],
     ])
-      from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => kit.lantern(p.x, p.y, KERB + 2.2, amber))
+      from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => kit.lantern(p.x, p.y, KERB + 1.95, amber))
   }
 }
 

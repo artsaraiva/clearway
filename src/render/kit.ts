@@ -70,7 +70,9 @@ const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb
 // and bicycles' frames, in the cars' colours, their tyres and baskets.
 const VENDING = { bodies: ['#f4f6f8', '#fbf8f2', '#2fb39a', '#f0b43c', '#79c86a'], slot: '#4a525c' }
 const NOBORI = { pole: '#c4ccd4' } // the cloths and their lettering are `./movers`'
-const LANTERN = { amber: '#f6b04a', caps: '#4a525c' }
+// A cream lantern glows at twice a lamp's strength, so it burns whiter than the lit window behind it, and an amber one
+// at a third of it, so it keeps its colour.
+const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0.33 } }
 // The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
 const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
 const BICYCLE = {
@@ -78,6 +80,19 @@ const BICYCLE = {
   dark: '#3a404a',
   basket: '#c4ccd4',
 }
+// A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
+const PAPER = new THREE.LatheGeometry(
+  [
+    [0.2, -0.5],
+    [0.31, -0.36],
+    [0.36, -0.12],
+    [0.36, 0.12],
+    [0.31, 0.36],
+    [0.2, 0.5],
+  ].map(([r, y]) => new THREE.Vector2(r, y)),
+  10,
+)
+const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
 // A bicycle's wheel: a thin tyre round an axle across it, ten-sided, as bicycles stand by the hundred.
 const WHEEL = new THREE.TorusGeometry(1, 0.1, 3, 10).rotateY(Math.PI / 2)
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
@@ -111,8 +126,8 @@ const FACES = [
 
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
- * The kit's glass is tinted white unless a tint is given, and takes `glow`, how brightly it lights at night: 1 unless
- * given, so that a curtain wall can be lit floor by floor.
+ * The kit's glass and bulb are tinted white unless a tint is given, and take `glow`, how brightly they light at night:
+ * 1 unless given, so that a curtain wall can be lit floor by floor, and a paper lantern brighter or dimmer than a lamp.
  */
 export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number }
 export type TreeKind = keyof typeof LEAVES
@@ -207,8 +222,9 @@ export function createMaterials() {
     const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
     return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
   }
-  // One bulb for every lamp, tinted white unless a tint is given: a tinted bulb glows in its own colour, as a paper
-  // lantern's amber does (#153).
+  // One bulb for every lamp, tinted white unless a tint is given. Like the glass, each vertex's `glow` scales how
+  // brightly it lights, and a tinted bulb glows in its own colour (#153): a paper lantern's cream burns whiter than a
+  // lit window, and its amber deeper.
   const bulb = new THREE.MeshStandardMaterial({
     color: '#fff4dc',
     vertexColors: true,
@@ -217,10 +233,12 @@ export function createMaterials() {
     emissiveIntensity: 0,
   })
   bulb.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <emissivemap_fragment>',
-      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb;',
-    )
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float glow;\nvarying float vGlow;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGlow = glow;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vGlow;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vGlow;')
   }
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
@@ -309,7 +327,7 @@ export function createKit(rand: () => number, materials: Materials) {
     ;[rand, fate] = [outer, was]
   }
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
-  /** Give every vertex of a geometry of the glass the glow `glow`. */
+  /** Give every vertex of a geometry of the glass or the bulb the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
@@ -317,9 +335,10 @@ export function createKit(rand: () => number, materials: Materials) {
     if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
-      parts.push({ geometry: look.material === glass ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
-    } else if (look === glass) parts.push({ geometry: glowing(tint(geo, '#ffffff'), 1), material: look, brick: -1 })
-    else parts.push({ geometry: look === bulb ? tint(geo, '#ffffff') : geo, material: look, brick: -1 })
+      const lit = look.material === glass || look.material === bulb
+      parts.push({ geometry: lit ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
+    } else if (look === glass || look === bulb) parts.push({ geometry: glowing(tint(geo, '#ffffff'), 1), material: look, brick: -1 })
+    else parts.push({ geometry: geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
@@ -1127,15 +1146,16 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A paper lantern hung at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or amber, lit at dusk
-     * as the lamps are, with dark caps, a metre tall and oversized as the props are.
+     * A paper lantern hung on a short cord at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or
+     * amber, lit at dusk as the lamps are, with dark caps, a metre tall and oversized as the props are.
      */
     lantern(x: number, y: number, h: number, amber: boolean) {
-      const paper: Look = amber ? { material: bulb, tint: AMBER } : bulb
-      add(SPHERE, paper, x, y, h, 0, 0.36, 0.5, 0.36)
-      add(CYLINDER, LANTERN.caps, x, y, h + 0.44, 0, 0.19, 0.08, 0.19)
-      add(CYLINDER, LANTERN.caps, x, y, h - 0.52, 0, 0.19, 0.08, 0.19)
-      add(cuboid(0.03, 0.3, 0.03), LANTERN.caps, x, y, h + 0.5)
+      const paper: Look = amber
+        ? { material: bulb, tint: AMBER, glow: LANTERN.glows.amber }
+        : { material: bulb, tint: new THREE.Color(1, 1, 1), glow: LANTERN.glows.cream }
+      add(PAPER, paper, x, y, h)
+      for (const at of [h + 0.46, h - 0.54]) add(CAP, LANTERN.caps, x, y, at, 0, 0.22, 0.08, 0.22)
+      add(cuboid(0.03, 0.5, 0.03), LANTERN.caps, x, y, h + 0.54) // its cord
       brick('lamp', x, y, h)
     },
 
