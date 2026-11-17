@@ -348,6 +348,16 @@ export function createMovers() {
    * as that takes (a forklift's, many times), and never more than the shift has time for, so that it always ends the
    * day at a stop.
    */
+  /**
+   * A phase of its own for each mover's bob and wingbeat (rad), from where its loop starts and the stop it sets out
+   * from: an instance's index shifts whenever movers come or go, and a phase from it would jump (#152).
+   */
+  const phases = new WeakMap<Mover, number>()
+  const phaseOf = (v: Mover) => {
+    let phase = phases.get(v)
+    if (phase === undefined) phases.set(v, (phase = mulberry32(spot(v.loop.pts[0].x, v.loop.pts[0].y) + v.first)() * Math.PI * 2))
+    return phase
+  }
   const perDay = new WeakMap<Mover, number>()
   const stretches = (v: Mover) => {
     let count = perDay.get(v)
@@ -454,16 +464,17 @@ export function createMovers() {
           const { bob, rate, fly, beat } = KINDS[v.kind]
           // In flight, risen off its path, eased up from a stop and down onto the next.
           const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
-          const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + i)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
+          const phase = phaseOf(v)
+          const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
           q.setFromAxisAngle(up, p.heading)
           m.compose(at.set(p.x, v.h + pose.lift + rise + hop, -p.y), q, scale.setScalar(Math.max(0.001, pose.scale)))
           mesh.setMatrixAt(i, m)
           if (beat !== undefined) {
             const wing = mesh.geometry.getAttribute('wing') as THREE.InstancedBufferAttribute
             const angle = p.moving
-              ? WINGS.open + WINGS.sweep * Math.sin(t * beat * Math.PI * 2 + i * 1.7)
+              ? WINGS.open + WINGS.sweep * Math.sin(t * beat * Math.PI * 2 + phase)
               : working
-                ? WINGS.rest + WINGS.fan * Math.sin(t * 1.3 + i)
+                ? WINGS.rest + WINGS.fan * Math.sin(t * 1.3 + phase)
                 : WINGS.night
             wing.setX(i, angle)
           }
