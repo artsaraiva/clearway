@@ -11,7 +11,7 @@ import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { standPoles, stringWires, type LineEnd } from './poles'
-import type { Mover } from './movers'
+import type { Mover, Plume } from './movers'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -71,6 +71,8 @@ export interface Build {
   bricks: BuiltBrick[]
   /** What moves on its own, each riding one of `bricks` (`./movers`). */
   movers: Mover[]
+  /** The chimneys' smoke, each riding its chimney's brick (`./movers`). */
+  plumes: Plume[]
   /** The middle of each Block built. */
   blocks: { middle: Vec }[]
   pieces: Bounds[]
@@ -135,11 +137,13 @@ export function createScenery(
     const parts: Part[] = []
     const bricks: BuiltBrick[] = []
     const movers: Mover[] = []
+    const plumes: Plume[] = []
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
       for (const part of done.parts) parts.push({ ...part, brick: part.brick + bricks.length })
       for (const mover of done.movers) movers.push({ ...mover, brick: mover.brick + bricks.length })
+      for (const plume of done.plumes) plumes.push({ ...plume, brick: plume.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
     const slab = createKit(mulberry32(0), materials)
@@ -186,7 +190,7 @@ export function createScenery(
       meshes.push(mesh)
       yield
     }
-    return { meshes, bricks, movers, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
+    return { meshes, bricks, movers, plumes, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
   }
 
   /** Start a build of `pieces` as the last pieces laid. */

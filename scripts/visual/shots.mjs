@@ -1,13 +1,14 @@
 // Each Zone all over the 26-Tile City at Stages 1, 2 and 3, from the default zoom and close up, at noon and at dusk,
 // laid out as sheets for a PR: the Stages side by side, the default zoom above the close-ups.
 //
-// Usage: npm run shots -- <zones | all> [--times noon,dusk] [--at x,y[,zoom]]... [--ref <git ref>] [--out <dir>]
+// Usage: npm run shots -- <zones | all> [--times noon,dusk] [--at x,y[,zoom]]... [--run <s>] [--ref <git ref>] [--out <dir>]
 //
 // Writes <out>/<zone>-<time>.jpg, a sheet per time of day for a PR body; <out>/<zone>.jpg, every time stacked under the
 // Zone's name; and the shots under <out>/shots/. <out> defaults to scripts/visual/out, or scripts/visual/out/<ref>
 // with --ref, which shoots that ref instead of the working tree. --times takes morning, noon, afternoon, dusk and
 // night. --at replaces every Zone's close-ups with sim points in metres (a Tile is 100 m; zoom as for
-// `view.camera.zoomAt`, more negative is closer).
+// `view.camera.zoomAt`, more negative is closer). --run lets the world run that many seconds at each time of day before
+// its shots, so moving details stand mid-work and chimneys smoke; without it they stand where they rest.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -33,6 +34,7 @@ const { values, positionals } = parseArgs({
   options: {
     times: { type: 'string', default: 'noon,dusk' },
     at: { type: 'string', multiple: true },
+    run: { type: 'string', default: '0' },
     ref: { type: 'string' },
     out: { type: 'string' },
   },
@@ -46,10 +48,16 @@ const at = values.at?.map((s) => {
 const out = values.out ?? join(ROOT, 'scripts/visual/out', values.ref?.replace(/[^\w.-]+/g, '-') ?? '')
 mkdirSync(join(out, 'shots'), { recursive: true })
 
-/** In the page: hold the day at `day`, frame the City, and clip the screenshot to its Tiles. */
-function far(day) {
+/** In the page: hold the day at `day`, let the world run `run` s, frame the City, and clip the screenshot to its Tiles. */
+function far({ day, run }) {
   const c = window.clearway
   c.view.holdDay(day)
+  // The game is paused, so `frame` would pass dt 0. Its cars stand still meanwhile, and would look stuck in a Jam: none
+  // is drawn while the world runs, which forgets how long each has stood.
+  const vehicles = c.sim.vehicles
+  c.sim.vehicles = []
+  for (let i = 0; i < run * 10; i++) c.view.render(0.1, 0.1)
+  c.sim.vehicles = vehicles
   c.view.camera.frameCity()
   for (let i = 0; i < 12; i++) c.frame(0.1)
   const corners = c.game.city.tiles.flatMap((t) =>
@@ -118,7 +126,7 @@ try {
       await stageAll(page, stage)
       for (const time of times) {
         const shot = (view) => join(out, 'shots', `${zone}-${time}-s${stage}-${view}.png`)
-        await page.screenshot({ path: shot('far'), clip: await page.evaluate(far, TIMES[time]) })
+        await page.screenshot({ path: shot('far'), clip: await page.evaluate(far, { day: TIMES[time], run: Number(values.run) }) })
         for (const [k, point] of closes.entries()) {
           await page.evaluate(closeUp, point)
           await page.screenshot({ path: shot(`close${k}`), clip: CLOSE_CLIP })

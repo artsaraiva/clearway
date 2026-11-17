@@ -3,7 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import type { Glow } from './day'
-import type { Mover, MoverKind } from './movers'
+import type { Mover, MoverKind, Plume } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -46,6 +46,13 @@ const SHED = {
   chimney: '#a8604f',
   band: '#f4f1ea',
 }
+// Industrial details (#150): shipping containers in the roofs' colours, their frames and ribs a shade darker; pallets'
+// wood and the goods on them, cartons and shrink-wrap; the paint marking a truck's bay; and a lamp over each door.
+const CONTAINERS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548', '#7f8c7c']
+/** A shipping container's size (m): long, wide and tall (#150). */
+export const CONTAINER = { long: 6.1, wide: 2.45, tall: 2.6 }
+const PALLET = { wood: '#c49a6c', goods: ['#d8b98b', '#f4f1ea', '#d8b98b', '#e9eef2'] }
+const BAY = '#f0c75e'
 // Farms: a barn's walls, roof and door, the silo and its dome, and bales of straw.
 const BARN = {
   walls: ['#7e9aab', '#b85a4c', '#8aa58b'],
@@ -111,6 +118,16 @@ export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground'
  * gives the same detail, and nothing else on its Block draws differently for it.
  */
 export const spot = (x: number, y: number) => (Math.imul(Math.round(x * 100), 0x9e3779b1) ^ Math.round(y * 100)) >>> 0
+
+/**
+ * Where a shed `w` by `d` has its roller doors, as `warehouse` lays them (#150): m along its long side from its middle,
+ * about one to every 9 m.
+ */
+export function shedDoors(w: number, d: number): number[] {
+  const len = Math.max(w, d) - 0.4
+  const n = Math.max(1, Math.floor(len / 9))
+  return Array.from({ length: n }, (_, k) => -len / 2 + ((k + 0.5) * len) / n)
+}
 
 /**
  * What becomes of a brick as its Tile reaches another Stage: it stands throughout, it goes (the old Stage's), or it
@@ -244,6 +261,7 @@ export function createKit(rand: () => number, materials: Materials) {
   const parts: Part[] = []
   const bricks: Brick[] = []
   const movers: Mover[] = []
+  const plumes: Plume[] = []
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -678,21 +696,20 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A shed at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under
-     * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along one
-     * long side, and a brick chimney if `chimney`. Its colours, its glazing, its height within its Stage and which side
-     * its doors face are drawn before anything a Stage changes:
+     * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along the
+     * long side `side` (1 north or west, -1 south or east), and a brick chimney if `chimney`, which smokes. Its colours,
+     * its glazing and its height within its Stage are drawn before anything a Stage changes:
      * - Stage 1: on 80% of the footprint, lower, and with no chimney.
-     * - Stage 2: on the whole footprint.
+     * - Stage 2: on the whole footprint, with a lamp over each door that lights at dusk (#150).
      * - Stage 3: a metre taller, with a two-storey office at one end of its back, vents along its roof, and a taller
      *   chimney with a second band.
      */
-    warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean, stage = 2) {
-      const [tall, walls, roofs, lit, side, doorColour, chimneyTall] = [
+    warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean, side: number, stage = 2) {
+      const [tall, walls, roofs, lit, doorColour, chimneyTall] = [
         rand(),
         pick(SHED.walls),
         pick(SHED.roofs),
         rand() < 0.5,
-        rand() < 0.5 ? 1 : -1,
         pick(SHED.doors),
         range(15, 21),
       ]
@@ -708,9 +725,10 @@ export function createKit(rand: () => number, materials: Materials) {
       teeth.dispose()
       const glaze: Look = { material: glass, tint: lit ? windows[2] : unlit }
       for (let i = 1; i < n; i++) local(cuboid(0.2, rise * 0.8, wid - 1.2), glaze, x, y, ry, -len / 2 + (i * len) / n - 0.12, 0, h + wall)
-      const doors = Math.max(1, Math.floor(len / 9))
-      for (let k = 0; k < doors; k++)
-        local(cuboid(3.6, 4, 0.3), doorColour, x, y, ry, -len / 2 + (k + 0.5) * (len / doors), (side * (wid + 0.4)) / 2, h)
+      for (const u of shedDoors(w, d)) {
+        local(cuboid(3.6, 4, 0.3), doorColour, x, y, ry, u, (side * (wid + 0.4)) / 2, h)
+        if (stage > 1) local(cuboid(0.7, 0.22, 0.5), bulb, x, y, ry, u, side * (wid / 2 + 0.45), h + 4.5)
+      }
       if (stage === 3) {
         // An office at the far end of the back, standing a storey clear of the walls, with a band of windows a floor.
         const [ow, od] = [Math.min(11, len * 0.32), Math.min(7, wid * 0.45)]
@@ -739,6 +757,7 @@ export function createKit(rand: () => number, materials: Materials) {
         add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, high, 1)
         add(CYLINDER, SHED.band, cx, cy, h + high - 2.4, 0, 1.06, 0.9, 1.06)
         if (stage === 3) add(CYLINDER, SHED.band, cx, cy, h + high - 6, 0, 1.06, 0.6, 1.06)
+        plumes.push({ at: new THREE.Vector3(cx, h + high + 0.4, -cy), brick: bricks.length }) // the brick about to close
       }
       shadow(x, y, h, w * 1.3 + 2, d * 1.3 + 2)
       brick('building', x, y, h)
@@ -933,10 +952,18 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A detail that moves on its own (`./movers`), working the closed `loop` a stretch at a time from stop `first` of
-     * `stops`, `h` above the road: a brick of its own with no shapes, standing where the loop starts.
+     * `stops`, `h` above the road, and waiting, reversing and painted as `more` has it: a brick of its own with no
+     * shapes, standing where the loop starts.
      */
-    mover(kind: MoverKind, loop: Polyline, stops: number[], first: number, h: number) {
-      movers.push({ kind, loop, stops, first, h, brick: bricks.length })
+    mover(
+      kind: MoverKind,
+      loop: Polyline,
+      stops: number[],
+      first: number,
+      h: number,
+      more: Pick<Mover, 'waits' | 'reverse' | 'paint'> = {},
+    ) {
+      movers.push({ kind, loop, stops, first, h, ...more, brick: bricks.length })
       bricks.push({ kind: 'mover', at: new THREE.Vector3(loop.pts[0].x, h, -loop.pts[0].y), dust: 0, fate, lot })
     },
 
@@ -976,6 +1003,48 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
+     * Shipping containers stacked on the ground at `(x, y)`, their length along `ry` (0 east–west), as one brick (#150):
+     * the layers from `first` up to `layers`, each a box in its own colour with its frame and ribs a shade darker.
+     */
+    containers(x: number, y: number, h: number, ry: number, layers: number, first = 0) {
+      const { long: L, wide: W, tall: H } = CONTAINER
+      for (let k = first; k < layers; k++) {
+        const colour = pick(CONTAINERS)
+        const frame = `#${new THREE.Color(colour).multiplyScalar(0.78).getHexString()}`
+        const at = h + k * H
+        add(cuboid(L - 0.24, H - 0.12, W - 0.1), colour, x, y, at + 0.06, ry)
+        for (const end of [-1, 1]) local(cuboid(0.14, H, W), frame, x, y, ry, end * (L / 2 - 0.07), 0, at)
+        for (let r = 1; r < 6; r++) local(cuboid(0.1, H - 0.3, W + 0.04), frame, x, y, ry, -L / 2 + (r * L) / 6, 0, at + 0.15)
+      }
+      if (!first) shadow(x, y, h, L + 1.2, W + 1.2, false, ry)
+      brick('building', x, y, h + first * H)
+    },
+
+    /**
+     * Pallets stacked at `(x, y)`, turned `ry`, each with its load of goods, as one brick (#150): the layers from `first`
+     * up to `layers`. The forklifts' work, oversized a little as the props are.
+     */
+    pallets(x: number, y: number, h: number, ry: number, layers: number, first = 0) {
+      const [P, T, G] = [1.4, 0.18, 0.95] // the pallet's side, its thickness and the height of its load
+      for (let k = first; k < layers; k++) {
+        const at = h + k * (T + G)
+        add(cuboid(P, T, P), PALLET.wood, x, y, at, ry)
+        add(cuboid(P - 0.12, G, P - 0.12), pick(PALLET.goods), x, y, at + T, ry)
+      }
+      if (!first) shadow(x, y, h, P + 0.8, P + 0.8, false, ry)
+      brick('building', x, y, h + first * (T + G))
+    },
+
+    /**
+     * The paint marking a truck's bay, a line down each side `l` m long and `w` apart, its length across a shed whose
+     * long side runs `ry` (0 east–west), as a brick (#150).
+     */
+    bay(x: number, y: number, h: number, ry: number, l: number, w: number) {
+      for (const k of [-1, 1]) local(cuboid(0.14, 0.02, l), BAY, x, y, ry, (k * w) / 2, 0, h)
+      brick('ground', x, y, h)
+    },
+
+    /**
      * A scarecrow standing at `(x, y)`, its arms turned `ry`, as one brick that pops in like a tree (#149): a post with
      * outstretched arms in a bright shirt, a cloth head and a straw hat, oversized a little so it reads from afar.
      */
@@ -1008,14 +1077,17 @@ export function createKit(rand: () => number, materials: Materials) {
       add(SPHERE, look, x, y, h, 0, r, r, r)
     },
 
-    /** Everything built, as parts tagged with their bricks, and the movers. Every shape must be in a brick by now. The kit is spent after this. */
-    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[] } {
+    /**
+     * Everything built, as parts tagged with their bricks, the movers and the chimneys' plumes. Every shape must be in a
+     * brick by now. The kit is spent after this.
+     */
+    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
-      return { parts, bricks, movers }
+      return { parts, bricks, movers, plumes }
     },
   }
 }

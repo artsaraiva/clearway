@@ -94,7 +94,8 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const roundabout = net.junctions.find((j) => j.type === 'roundabout' && inside(block.loop, j.at.x, j.at.y))
   if (roundabout) return island(kit, field, block, roundabout.at)
 
-  for (const { x, y } of lampSpots(block, field)) kit.lamp(x, y, KERB)
+  const lamps = lampSpots(block, field)
+  for (const { x, y } of lamps) kit.lamp(x, y, KERB)
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
@@ -130,7 +131,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     }
   }
 
-  if (look) look.fill({ kit, block, field, reserved, street, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
+  if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
   else verge(kit, field, block, street)
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
 }
