@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Cell, Zone } from '../city/city'
+import type { Stage } from '../game/game'
 import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Junction } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
@@ -40,7 +41,7 @@ export interface Ground {
   /** The Zone of the Tile on `cell`, as the City has it when its piece is built. None: unzoned. */
   zoneOf(cell: Cell): Zone | undefined
   /** The Stage of the Tile on `cell`, as the game has it when its piece is built. Any, for an unzoned Tile. */
-  stageOf(cell: Cell): number
+  stageOf(cell: Cell): Stage
 }
 
 /** A Tile's piece to build again because the Tile went from one Stage to another, with its build once begun and done. */
@@ -328,7 +329,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
      * Stage-up in two has a frame over 16.7 ms, up to 28 ms (#138). Split a Block's fill into its lots, a step each, if
      * that hitch shows on slower machines.
      */
-    stageUp(piece: Bounds, from: number, to: number) {
+    stageUp(piece: Bounds, from: Stage, to: Stage) {
       const queued = waiting.find((j) => !j.begun && sameBounds(j.piece, piece))
       if (!queued) waiting.push({ piece, stages: { from, to } })
       else if (queued.stages.from === to) waiting.splice(waiting.indexOf(queued), 1)

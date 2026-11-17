@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
@@ -127,8 +128,8 @@ const POOL = {
   lamp: 4,
   least: 1.4,
   lantern: 3,
-  front: { vending: 0.75, window: 1.25 },
-  deep: { vending: 1.7, window: 2.3 },
+  front: { vending: 0.75, window: 1.15 },
+  deep: { vending: 1.7, window: 2.2 },
   colours: {
     lamp: '#ffbe6a',
     cream: '#ffd49a',
@@ -176,6 +177,8 @@ const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
 const SETBACK = 1.6
 /** How deep a shop's arcade reaches over the pavement, m out from its front (#175): short of the banners. */
 const ARCADE = 1.45
+/** A shop's stone parapet round its roof, m wide and tall (#175). */
+const PARAPET = { wide: 0.26, tall: 0.42 }
 /** The bulb's own colour, cream. */
 const CREAM = '#fff4dc'
 /** The bulb's tint that paints and lights it `colour`: the colour over the bulb's own cream. */
@@ -273,8 +276,8 @@ const DISC = new THREE.CylinderGeometry(1, 1, 1, 32) // centred on its middle, u
 const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helipad's painted ring, 1 m out
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
-/** Shapes the kit lays, for the builders beside it (`./props`), each standing on y = 0 but the plane and the disc. */
-export const SHAPES = { thin: THIN, cylinder: CYLINDER, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC, plane: PLANE }
+/** Shapes the kit lays, for the builders beside it (`./props`, `./streets`), each standing on y = 0 but the disc. */
+export const SHAPES = { thin: THIN, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC }
 /**
  * Where `(lx, ly)` in the frame of something at `(x, y)` lies: `lx` to its right, `ly` out of its front, which faces
  * `ry` (0 north, π/2 west). The kit places shapes by it, as do the builders beside it.
@@ -312,7 +315,7 @@ export type ShopForm = 'flat' | 'facade' | 'setback'
 export interface ShopPlan {
   /** Its storeys at the Stage built. */
   storeys: number
-  stage: number
+  stage: Stage
   /** Whether its front faces a Road, rather than the seam with the next Tile: only a Road's has signs above its roof. */
   onRoad: boolean
   /** The end of its front its door is at: 1 its right, -1 its left (as `local`'s x runs). */
@@ -419,8 +422,8 @@ export interface Brick {
 
 /** The Stage a build is of, `to`, or, when `from` differs, the two Stages a Tile's Stage-up goes between. */
 export interface Stages {
-  from: number
-  to: number
+  from: Stage
+  to: Stage
 }
 
 /** A geometry in place, in Three coordinates, with its material and the index of the brick it belongs to. */
@@ -994,7 +997,7 @@ export function createKit(rand: () => number, materials: Materials) {
      * that it draws alike at every Stage until it draws what only its Stage has: each Stage builds the same thing,
      * better. In a Stage-up the old Stage's goes and the new Stage's comes.
      */
-    staged(fn: (stage: number) => void, seed = (rand() * 4294967296) >>> 0) {
+    staged(fn: (stage: Stage) => void, seed = (rand() * 4294967296) >>> 0) {
       if (stages.from === stages.to) return own(seed, 'stays', () => fn(stages.to))
       own(seed, 'goes', () => fn(stages.from))
       own(seed, 'comes', () => fn(stages.to))
@@ -1413,7 +1416,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     shop(x: number, y: number, h: number, w: number, d: number, ry: number, plan: ShopPlan) {
       const { storeys, stage, onRoad, door, front, form, noodle } = plan
-      const [upper, stripe, roofSign, hung, board, billboard, tall] = [
+      const [upper, stripe, roofSign, hung, board, billboard, tallSign] = [
         pick(SHOP.uppers),
         pick(SHOP.fronts),
         rand() < 0.45,
@@ -1432,7 +1435,7 @@ export function createKit(rand: () => number, materials: Materials) {
       ]
       const seed = spot(x, y) // which patterned windows light, and the small things' draws, so the kit's stream is untouched
       const draw = mulberry32(seed + 5)
-      const fv = d / 2 // the front's face
+      const face = d / 2 // the front's face, out from the middle
       const glazing: Look = { material: glass, tint: windows[0] }
       const arcade = stage === 3 && onRoad
       // Marks for lettering on a board: pale and lit on a dark board, dark on a pale one.
@@ -1455,33 +1458,34 @@ export function createKit(rand: () => number, materials: Materials) {
 
       // The door at one end, its glass lit at night, under a noren of three panels with a crest on a rod.
       const layout = frontOf(w, door)
-      const ud = layout.door
-      local(cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, ud, fv + 0.01, h)
-      local(cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, ud, fv + 0.03, h + 0.04)
-      local(cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, ud, fv + 0.04, h + 0.04)
-      local(cuboid(1.66, 0.05, 0.05), frame, x, y, ry, ud, fv + 0.2, h + 2.36)
-      for (const k of [-1, 0, 1]) local(cuboid(0.47, 0.8, 0.03), noren, x, y, ry, ud + k * 0.5, fv + 0.2, h + 1.56)
-      local(cuboid(0.22, 0.22, 0.05), pale(noren) ? SHOPFRONT.marks.dark : SHOPFRONT.marks.pale, x, y, ry, ud, fv + 0.21, h + 1.86)
+      const doorAt = layout.door
+      local(cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, doorAt, face + 0.01, h)
+      local(cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, doorAt, face + 0.03, h + 0.04)
+      local(cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, doorAt, face + 0.04, h + 0.04)
+      local(cuboid(1.66, 0.05, 0.05), frame, x, y, ry, doorAt, face + 0.2, h + 2.36)
+      for (const k of [-1, 0, 1]) local(cuboid(0.47, 0.8, 0.03), noren, x, y, ry, doorAt + k * 0.5, face + 0.2, h + 1.56)
+      local(cuboid(0.22, 0.22, 0.05), pale(noren) ? SHOPFRONT.marks.dark : SHOPFRONT.marks.pale, x, y, ry, doorAt, face + 0.21, h + 1.86)
 
       // The shop window over the rest of the front, narrower at Stage 1, framed and silled, with goods on its sill.
       const ww = layout.glazed * (stage === 1 ? 0.72 : 1)
-      const uw = layout.window
-      local(cuboid(ww, 2, 0.12), glazing, x, y, ry, uw, fv + 0.02, h + 0.8)
-      local(cuboid(ww + 0.16, 0.08, 0.3), SHOPFRONT.trim, x, y, ry, uw, fv + 0.1, h + 0.72)
-      local(cuboid(ww + 0.16, 0.1, 0.16), SHOPFRONT.trim, x, y, ry, uw, fv + 0.04, h + 2.8)
+      const windowAt = layout.window
+      local(cuboid(ww, 2, 0.12), glazing, x, y, ry, windowAt, face + 0.02, h + 0.8)
+      local(cuboid(ww + 0.16, 0.08, 0.3), SHOPFRONT.trim, x, y, ry, windowAt, face + 0.1, h + 0.72)
+      local(cuboid(ww + 0.16, 0.1, 0.16), SHOPFRONT.trim, x, y, ry, windowAt, face + 0.04, h + 2.8)
       const bars = Math.max(1, Math.round(ww / 1.7))
-      for (let k = 1; k < bars; k++) local(cuboid(0.06, 2, 0.16), frame, x, y, ry, uw - ww / 2 + (k * ww) / bars, fv + 0.04, h + 0.8)
+      for (let k = 1; k < bars; k++)
+        local(cuboid(0.06, 2, 0.16), frame, x, y, ry, windowAt - ww / 2 + (k * ww) / bars, face + 0.04, h + 0.8)
       closeOnly(() => {
-        for (let u = uw - ww / 2 + 0.3; u < uw + ww / 2 - 0.25; u += 0.42 + draw() * 0.2) {
+        for (let u = windowAt - ww / 2 + 0.3; u < windowAt + ww / 2 - 0.25; u += 0.42 + draw() * 0.2) {
           const tall = 0.18 + draw() * 0.3
-          local(cuboid(0.3, tall, 0.2), goods[Math.floor(draw() * goods.length)], x, y, ry, u, fv + 0.15, h + 0.76)
+          local(cuboid(0.3, tall, 0.2), goods[Math.floor(draw() * goods.length)], x, y, ry, u, face + 0.15, h + 0.76)
         }
       })
 
       // Over the ground floor: a signboard over the awning, or at Stage 3 on a Road the arcade with the board on its
       // fascia. A false front carries its board above the roof instead.
       if (form !== 'facade' && !arcade)
-        signboard(board, stage >= 2, w * 0.88, stage === 1 ? 0.4 : 0.48, fv + 0.07, h + 3.28, 2 + (seed % 3))
+        signboard(board, stage >= 2, w * 0.88, stage === 1 ? 0.4 : 0.48, face + 0.07, h + 3.28, 2 + (seed % 3))
       if (!arcade) {
         const span = w * 0.86
         const stripes = Math.max(3, Math.round(span / 1.2))
@@ -1493,17 +1497,17 @@ export function createKit(rand: () => number, materials: Materials) {
             y,
             ry,
             -span / 2 + (i + 0.5) * (span / stripes),
-            fv + 0.85,
+            face + 0.85,
             h + 3,
             span / stripes,
           )
       } else {
-        local(cuboid(w + 0.02, 0.16, ARCADE), lit(SHOPFRONT.arcade, SHOPFRONT.lit.arcade), x, y, ry, 0, fv + ARCADE / 2, h + 3.44)
-        signboard(board, true, w + 0.02, 0.5, fv + ARCADE, h + 3.04, 2 + (seed % 3))
-        for (const k of [-1, 1]) local(cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), fv + ARCADE - 0.12, h)
-        local(cuboid(w * 0.8, 0.05, 0.16), lit(CREAM, SHOPFRONT.lit.strip), x, y, ry, 0, fv + ARCADE * 0.5, h + 3.39)
+        local(cuboid(w + 0.02, 0.16, ARCADE), lit(SHOPFRONT.arcade, SHOPFRONT.lit.arcade), x, y, ry, 0, face + ARCADE / 2, h + 3.44)
+        signboard(board, true, w + 0.02, 0.5, face + ARCADE, h + 3.04, 2 + (seed % 3))
+        for (const k of [-1, 1]) local(cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), face + ARCADE - 0.12, h)
+        local(cuboid(w * 0.8, 0.05, 0.16), lit(CREAM, SHOPFRONT.lit.strip), x, y, ry, 0, face + ARCADE * 0.5, h + 3.39)
       }
-      if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, fv + 0.04, h + 3.7)
+      if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, face + 0.04, h + 3.7)
 
       // Upper storeys, set back behind a balcony on a setback shop, and the roof's lid over the top one.
       let top = h + 3.8
@@ -1515,10 +1519,10 @@ export function createKit(rand: () => number, materials: Materials) {
         const cladding = { front: storey, back: storey, sides: storey, storey: 3.1 }
         cladded(box(w - 0.3, tallness, d - 0.6 - back, 0.24, 0.1), upper, ...to(x, y, ry, 0, -back / 2), top, ry, cladding, seed + 1)
         if (back) {
-          local(cuboid(w - 0.1, 0.1, back + 0.3), SHOPFRONT.balcony, x, y, ry, 0, fv - (back + 0.3) / 2, top)
-          local(cuboid(w - 0.1, 0.9, 0.12), upper, x, y, ry, 0, fv - 0.1, top + 0.1)
+          local(cuboid(w - 0.1, 0.1, back + 0.3), SHOPFRONT.balcony, x, y, ry, 0, face - (back + 0.3) / 2, top)
+          local(cuboid(w - 0.1, 0.9, 0.12), upper, x, y, ry, 0, face - 0.1, top + 0.1)
           closeOnly(() => {
-            for (const k of [-0.3, 0.3]) pot(...to(x, y, ry, k * w, fv - 0.55), top + 0.1, 0.32, draw)
+            for (const k of [-0.3, 0.3]) pot(...to(x, y, ry, k * w, face - 0.55), top + 0.1, 0.32, draw)
           })
         }
         top += tallness
@@ -1526,17 +1530,18 @@ export function createKit(rand: () => number, materials: Materials) {
       }
       cladded(cuboid(tw, 0.5, td), storeys > 1 ? upper : front, ...to(x, y, ry, 0, tv), top, ry, { top: PATTERN.roof }, seed + 2)
       const roof = top + 0.5 // the lid's top
-      const [ft, bk] = [tv + td / 2, tv - td / 2] // the roof's front and back edges, out of the front
+      const [roofFront, roofBack] = [tv + td / 2, tv - td / 2] // the roof's front and back edges, out of the front
 
       // The parapet, or on a false front a wall raised over the roof's front edge with the signboard on it.
-      const P = { wide: 0.26, tall: 0.42 }
+      /** A length of the parapet `pw` by `pd` on the roof, its middle at `(u, v)` in the shop's frame. */
+      const parapet = (pw: number, pd: number, u: number, v: number) =>
+        local(cuboid(pw, PARAPET.tall, pd), SHOPFRONT.parapet, x, y, ry, u, v, roof)
       if (form === 'facade') {
-        local(cuboid(tw, 1.6, 0.3), storeys > 1 ? upper : front, x, y, ry, 0, ft - 0.15, roof)
-        signboard(board, stage >= 2, tw * 0.8, 0.95, ft + 0.06, roof + 0.32, 2 + (seed % 3))
-      } else local(cuboid(tw, P.tall, P.wide), SHOPFRONT.parapet, x, y, ry, 0, ft - P.wide / 2, roof)
-      local(cuboid(tw, P.tall, P.wide), SHOPFRONT.parapet, x, y, ry, 0, bk + P.wide / 2, roof)
-      for (const k of [-1, 1])
-        local(cuboid(P.wide, P.tall, td - 2 * P.wide), SHOPFRONT.parapet, x, y, ry, k * (tw / 2 - P.wide / 2), tv, roof)
+        local(cuboid(tw, 1.6, 0.3), storeys > 1 ? upper : front, x, y, ry, 0, roofFront - 0.15, roof)
+        signboard(board, stage >= 2, tw * 0.8, 0.95, roofFront + 0.06, roof + 0.32, 2 + (seed % 3))
+      } else parapet(tw, PARAPET.wide, 0, roofFront - PARAPET.wide / 2)
+      parapet(tw, PARAPET.wide, 0, roofBack + PARAPET.wide / 2)
+      for (const k of [-1, 1]) parapet(PARAPET.wide, td - 2 * PARAPET.wide, k * (tw / 2 - PARAPET.wide / 2), tv)
 
       // A stair house on a setback shop of one storey, so that its roof differs from a flat neighbour's.
       if (form === 'setback' && storeys === 1) {
@@ -1549,16 +1554,16 @@ export function createKit(rand: () => number, materials: Materials) {
       const units = Math.min(stage, Math.floor((tw - 1.2) / 1.25))
       for (let k = 0; k < units; k++) {
         const u = -door * (tw / 2 - 0.95 - k * 1.25)
-        local(cuboid(1, 0.72, 0.5), AIRCON.body, x, y, ry, u, bk + 0.75, roof)
-        put(FACING_DISC, AIRCON.grille, x, y, ry, u - 0.16, bk + 1.01, roof + 0.36, 0.24, 0.24, 1)
+        local(cuboid(1, 0.72, 0.5), AIRCON.body, x, y, ry, u, roofBack + 0.75, roof)
+        put(FACING_DISC, AIRCON.grille, x, y, ry, u - 0.16, roofBack + 1.01, roof + 0.36, 0.24, 0.24, 1)
       }
       if (stage >= 2 && tank < (stage === 2 ? 0.55 : 0.8)) {
-        const [u, v] = [door * (tw / 2 - 1.25), bk + td * 0.42]
+        const [u, v] = [door * (tw / 2 - 1.25), roofBack + td * 0.42]
         local(cuboid(1.6, 0.5, 1.6), SHOPFRONT.steel, x, y, ry, u, v, roof)
         local(cuboid(1.5, 1.3, 1.5), SHOPFRONT.tank, x, y, ry, u, v, roof + 0.5)
       }
       if (noodle) {
-        const [u, v] = [door * (tw / 2 - 0.55), bk + 0.6]
+        const [u, v] = [door * (tw / 2 - 0.55), roofBack + 0.6]
         put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof, 0.18, 1.6, 0.18)
         put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof + 1.6, 0.3, 0.14, 0.3)
         const [px, py] = to(x, y, ry, u, v)
@@ -1567,13 +1572,13 @@ export function createKit(rand: () => number, materials: Materials) {
       const billboarded = onRoad && form !== 'facade' && (stage === 3 || (stage === 2 && roofSign))
       if (billboarded) {
         const bw = Math.min(tw * 0.62, 5.6)
-        const v = ft - 0.9
+        const v = roofFront - 0.9
         for (const k of [-1, 1]) local(cuboid(0.12, 2.9, 0.12), SHOPFRONT.steel, x, y, ry, k * bw * 0.36, v - 0.16, roof)
         signboard(billboard, true, bw, 1.8, v, roof + 1.05, 3 + (seed % 2))
       }
       if (stage === 3 && terrace && storeys > 1 && td > 7) {
         const [dw, dd] = [Math.min(tw * 0.5, 4.2), Math.min(td * 0.42, 4.4)]
-        const [u, v] = [-door * (tw / 2 - 0.35 - dw / 2), ft - (billboarded ? 1.7 : 0.45) - dd / 2]
+        const [u, v] = [-door * (tw / 2 - 0.35 - dw / 2), roofFront - (billboarded ? 1.7 : 0.45) - dd / 2]
         local(cuboid(dw, 0.1, dd), SHOPFRONT.deck, x, y, ry, u, v, roof)
         for (const [i, j] of [
           [-0.22, -0.18],
@@ -1608,16 +1613,17 @@ export function createKit(rand: () => number, materials: Materials) {
       // A tall sign standing out from the wall at the window's end, on a Road: on the upper storey, or on the roof's
       // front corner over a shop of one storey.
       if (onRoad && (stage === 3 || (stage === 2 && hung))) {
-        const [us, z] = [-door * (w / 2 - 0.4), storeys > 1 ? h + 3.95 : roof]
-        local(cuboid(0.22, 2.7, 1.05), boardOf(tall, true), x, y, ry, us, fv + 0.3, z)
-        for (let k = 0; k < 3; k++) local(cuboid(0.26, 0.44, 0.62), markOf(tall, true), x, y, ry, us, fv + 0.36, z + 0.32 + k * 0.72)
+        const [signAt, z] = [-door * (w / 2 - 0.4), storeys > 1 ? h + 3.95 : roof]
+        local(cuboid(0.22, 2.7, 1.05), boardOf(tallSign, true), x, y, ry, signAt, face + 0.3, z)
+        for (let k = 0; k < 3; k++)
+          local(cuboid(0.26, 0.44, 0.62), markOf(tallSign, true), x, y, ry, signAt, face + 0.36, z + 0.32 + k * 0.72)
       }
 
       // At the back, Close-only: gas cylinders, a pipe up the wall, crates from Stage 2, and an AC unit at Stage 3.
       closeOnly(() => {
-        for (const k of [0, 1]) put(THIN, '#b6c3cc', x, y, ry, door * (w / 2 - 0.6 - k * 0.44), -fv - 0.26, h, 0.18, 1.15, 0.18)
-        local(cuboid(0.1, 3.6, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 0.45), -fv - 0.07, h)
-        local(cuboid(1.4, 0.1, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 1.1), -fv - 0.07, h + 3.2)
+        for (const k of [0, 1]) put(THIN, '#b6c3cc', x, y, ry, door * (w / 2 - 0.6 - k * 0.44), -face - 0.26, h, 0.18, 1.15, 0.18)
+        local(cuboid(0.1, 3.6, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 0.45), -face - 0.07, h)
+        local(cuboid(1.4, 0.1, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 1.1), -face - 0.07, h + 3.2)
         if (stage >= 2)
           for (let k = 0; k < 3; k++)
             local(
@@ -1627,13 +1633,20 @@ export function createKit(rand: () => number, materials: Materials) {
               y,
               ry,
               -door * (w / 2 - 1.5),
-              -fv - 0.3,
+              -face - 0.3,
               h + k * 0.31,
             )
-        if (stage === 3) airCon(...to(x, y, ry, door * (w / 2 - 2.4), -fv), h + 2.2, ry + Math.PI)
+        if (stage === 3) airCon(...to(x, y, ry, door * (w / 2 - 2.4), -face), h + 2.2, ry + Math.PI)
       })
 
-      pool(stage === 1 ? 'window' : arcade ? 'arcade' : 'sign', ...to(x, y, ry, 0, fv + 1.15), h, w + 0.4, 2.2, ry)
+      pool(
+        stage === 1 ? 'window' : arcade ? 'arcade' : 'sign',
+        ...to(x, y, ry, 0, face + POOL.front.window),
+        h,
+        w + 0.4,
+        POOL.deep.window,
+        ry,
+      )
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },

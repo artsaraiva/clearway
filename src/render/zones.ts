@@ -146,7 +146,7 @@ const FRONT = {
 // widest on a Road where none is that wide, and the area (m²) from which a Block
 // has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
 // far out from the fronts shoppers walk (m), how long they stop at each (s), and their coats, the cars' colours.
-const SHOP_PLAN = {
+const SHOP_FINISH = {
   forms: ['flat', 'facade', 'flat', 'setback'] as ShopForm[],
   noodle: 0.12,
   scenes: ['greengrocer', 'florist', 'capsules', 'stall'] as ShopScene[],
@@ -1082,15 +1082,15 @@ function shops(g: ZoneGround) {
   const centre = middle(block)
   const plans = mulberry32(spot(centre.x, centre.y) ^ 0x51d5) // the plans' own stream: the kit's draws as they did
   const scenes = sceneLots(g, lots, plans)
-  const paving = SHOP_PLAN.paving[Math.floor(plans() * SHOP_PLAN.paving.length)]
+  const paving = SHOP_FINISH.paving[Math.floor(plans() * SHOP_FINISH.paving.length)]
   let [front, form] = [-1, -1]
   for (const [i, l] of lots.entries()) {
     kit.lot(i)
     const storeys = kit.chance(0.45) ? 1 : 2
     front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
-    const drawn = Math.floor(plans() * SHOP_PLAN.forms.length)
-    form = SHOP_PLAN.forms[drawn] === SHOP_PLAN.forms[form] ? (drawn + 1) % SHOP_PLAN.forms.length : drawn
-    const noodle = plans() < SHOP_PLAN.noodle
+    const drawn = Math.floor(plans() * SHOP_FINISH.forms.length)
+    form = SHOP_FINISH.forms[drawn] === SHOP_FINISH.forms[form] ? (drawn + 1) % SHOP_FINISH.forms.length : drawn
+    const noodle = plans() < SHOP_FINISH.noodle
     const scene = scenes.get(i)
     // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
     const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
@@ -1099,10 +1099,10 @@ function shops(g: ZoneGround) {
       kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving))
       continue
     }
-    const plan = { front: FRONT.cloths[front], form: SHOP_PLAN.forms[form], noodle, door, onRoad: l.onRoad }
+    const plan = { front: FRONT.cloths[front], form: SHOP_FINISH.forms[form], noodle, door, onRoad: l.onRoad }
     kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
-    const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_PLAN.paved / 2)
-    kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_PLAN.paved, l.ry, paving), spot(l.x, l.y) + 2)
+    const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_FINISH.paved / 2)
+    kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_FINISH.paved, l.ry, paving), spot(l.x, l.y) + 2)
     if (scene) sceneFront(g, l, door, scene)
     else if (l.onRoad) shopFront(g, l, door)
     else seamFront(g, l, door)
@@ -1142,14 +1142,14 @@ function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<numbe
   const scenes = new Map<number, { kind: ShopScene; from: number }>()
   const road = lots.flatMap((l, i) => (l.onRoad ? [i] : []))
   const widest = Math.max(0, ...road.map((i) => lots[i].w))
-  const fit = road.filter((i) => lots[i].w >= Math.min(SHOP_PLAN.wide, widest))
-  const kinds = [...SHOP_PLAN.scenes]
+  const fit = road.filter((i) => lots[i].w >= Math.min(SHOP_FINISH.wide, widest))
+  const kinds = [...SHOP_FINISH.scenes]
   const [first, at] = [kinds.splice(Math.floor(draw() * kinds.length), 1)[0], Math.floor(draw() * fit.length)]
   const [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
   if (!fit.length) return scenes
   scenes.set(fit[at], { kind: first, from: 2 })
   const rest = fit.filter((i) => Math.abs(i - fit[at]) > 1)
-  if (area(g.block.loop) >= SHOP_PLAN.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
+  if (area(g.block.loop) >= SHOP_FINISH.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
   return scenes
 }
 
@@ -1183,8 +1183,8 @@ function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, pavin
   const tree = at((l.w / 2 - 1.6) * (spot(l.x, l.y) % 2 ? 1 : -1), back)
   kit.tree(tree.x, tree.y, KERB, GROW[stage - 1] * 0.6, 'round')
   if (stage < from) return
-  const court = at(0, SHOP_PLAN.paved / 2)
-  kit.paving(court.x, court.y, KERB, l.w, l.d + SHOP_PLAN.paved, l.ry, paving)
+  const court = at(0, SHOP_FINISH.paved / 2)
+  kit.paving(court.x, court.y, KERB, l.w, l.d + SHOP_FINISH.paved, l.ry, paving)
   const stall = at(0, l.d / 2 - 1.3)
   foodStall(kit, stall.x, stall.y, l.ry)
   for (const k of [-1, 1]) {
@@ -1220,7 +1220,7 @@ function seamFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
 
 /**
  * Shoppers walking each run of fronts on a Road (#175): one from Stage 2 and, on a run of three shops or more, a
- * second at Stage 3, setting out half its loop ahead. Each walks along the run `SHOP_PLAN.walk` m out from the fronts,
+ * second at Stage 3, setting out half its loop ahead. Each walks along the run `SHOP_FINISH.walk` m out from the fronts,
  * stopping a few seconds at each front's middle and turning at the run's ends, past a scene's lot as past any other.
  */
 function shoppers(g: ZoneGround, lots: RowLot[]) {
@@ -1238,16 +1238,16 @@ function shoppers(g: ZoneGround, lots: RowLot[]) {
   }
   if (run.length >= 2) runs.push(run)
   for (const r of runs) {
-    const out = (l: RowLot, u: number) => turned(l.x, l.y, l.ry, u, l.d / 2 + SHOP_PLAN.walk)
+    const out = (l: RowLot, u: number) => turned(l.x, l.y, l.ry, u, l.d / 2 + SHOP_FINISH.walk)
     const [first, last] = [r[0], r[r.length - 1]]
     const there = [out(first, -first.w / 2 + 0.5), ...r.map((l) => out(l, 0)), out(last, last.w / 2 - 0.5)]
     const pts = [...there, ...there.slice(0, -1).reverse()]
     const stops = [0]
     for (let i = 1; i < pts.length - 1; i++) stops.push(stops[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y))
     const draw = mulberry32(spot(first.x, first.y) ^ 0x5b0b)
-    const [lo, hi] = SHOP_PLAN.waits
+    const [lo, hi] = SHOP_FINISH.waits
     const waits = stops.map(() => lo + draw() * (hi - lo))
-    const paints = [0, 1].map(() => SHOP_PLAN.coats[Math.floor(draw() * SHOP_PLAN.coats.length)])
+    const paints = [0, 1].map(() => SHOP_FINISH.coats[Math.floor(draw() * SHOP_FINISH.coats.length)])
     const loop = polyline(pts)
     kit.from(2, () => kit.mover('shopper', loop, stops, 0, KERB, { waits, paint: paints[0] }), spot(pts[0].x, pts[0].y))
     if (r.length >= 3)

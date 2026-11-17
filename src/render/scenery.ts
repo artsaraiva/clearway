@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Cell, Zone } from '../city/city'
+import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import { middle, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Sim } from '../sim/sim'
@@ -129,7 +130,7 @@ export function createScenery(
   field: Field,
   materials: Materials,
   zoneOf: (cell: Cell) => Zone | undefined,
-  stageOf: (cell: Cell) => number,
+  stageOf: (cell: Cell) => Stage,
 ) {
   /**
    * The pieces laid, in order, each with the meshes of the build that laid it (pieces laid together share them) and the

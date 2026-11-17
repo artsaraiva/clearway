@@ -159,12 +159,12 @@ export function menuBoard(kit: Kit, x: number, y: number, ry: number) {
   kit.brick('building', x, y, KERB)
 }
 
-/** Pot plants standing at `spots` on the pavement, as one Close-only brick (#175), each in a pot of its own colour. */
-export function pots(kit: Kit, spots: [number, number][], size = 0.7) {
+/** Pot plants about 0.7 m tall standing at `spots` on the pavement, as one Close-only brick (#175), each in a pot of its own colour. */
+export function pots(kit: Kit, spots: [number, number][]) {
   if (!spots.length) return
   const draw = mulberry32(spot(...spots[0]))
   kit.closeOnly(() => {
-    for (const [x, y] of spots) kit.pot(x, y, KERB, size * (0.75 + draw() * 0.5), draw)
+    for (const [x, y] of spots) kit.pot(x, y, KERB, 0.7 * (0.75 + draw() * 0.5), draw)
   })
   kit.brick('building', ...spots[0], KERB)
 }
