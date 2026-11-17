@@ -3,6 +3,13 @@ import type { Bounds } from '../sim/geometry'
 import { centre } from './slab'
 
 export const DAY = 180 // real seconds per day
+/**
+ * The working day, as the day's clock reads (0–1): moving details set out at `from` and stop work at `to` (#149), and
+ * flags fly between them (#154).
+ */
+export const WORK = { from: 0.02, to: 0.5 }
+/** The light wind (m/s, east and north) that leans the chimneys' smoke (#150) and flies the flags (#154). */
+export const WIND = { x: 0.55, y: 0.35 }
 const START = 0 // the day opens in the morning
 const LIGHT_DISTANCE = 500 // m from the slab's centre to the light, at least
 const MIN_REACH = 250 // m: the shadow map never covers less than this either side of the slab's centre

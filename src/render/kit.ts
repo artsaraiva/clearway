@@ -1,8 +1,8 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
-import type { Bounds, Polyline } from '../sim/geometry'
+import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
-import type { Glow } from './day'
+import { WIND, WORK, type Glow } from './day'
 import type { Mover, MoverKind, Plume } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
@@ -68,6 +68,30 @@ const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: [
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
+// Office details (#154): a cooling unit's fans, a helipad's pad and its marks, and flags' poles, finials and cloths.
+const FAN = '#5b6570'
+const HELIPAD = { pad: '#68727f', mark: '#f4f1ea', ring: '#f0c75e' }
+const FLAG = { pole: '#e9eef2', finial: '#f0c75e', cloths: ['#2fb39a', '#f0b43c', '#5cc0d6', '#a58ad8', '#79c86a', '#ff9ab8', '#fbf8f2'] }
+/**
+ * Beacons (#154), white or amber and never red: how much brighter than the lamps they light, and how each kind
+ * blinks, flashes a second and the share of each flash it is lit: a white strobe on a spire, an amber lamp on a roof.
+ */
+const BEACON = {
+  glow: 0.4,
+  white: { colour: '#ffffff', rate: 0.6, duty: 0.22 },
+  amber: { colour: '#ffb54a', rate: 0.5, duty: 0.5 },
+}
+/** Cloth in the wind (#154): how fast its waves run (rad/s), and the share of the day it takes to raise or lower a flag. */
+const CLOTH = { rate: 7, raise: 0.02 }
+/**
+ * A window cleaners' cradle (#154): how far down a face it works at most and how far it goes between stops (m), how
+ * long it waits under its arms and at each stop on the way down (s, a range from which each stop draws its own), and,
+ * as `./movers` draws it, how far out from the face it hangs, and how far along from its middle and in from it its
+ * ropes are (m). A lap fits in the working day.
+ */
+const GONDOLA = { drop: 26, every: 6.4, waits: { top: 5, floor: [1.6, 2.6] }, reach: 0.85, ropes: 2.4, rope: 0.375 }
+/** A flag (#154): its pole's height, its size and how far it swings at its free end (m), and its waves along it. */
+const FLAGPOLE = { tall: 8.5, long: 2.3, high: 1.45, swing: 0.32, waves: 1.3 }
 const LEAVES = {
   round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
   sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
@@ -81,6 +105,10 @@ const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
+const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
+const BEAD = new THREE.IcosahedronGeometry(1, 1) // a beacon's lamp
+const DISC = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2)
+const RING = new THREE.RingGeometry(0.84, 1, 24).rotateX(-Math.PI / 2)
 const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // smoother, for a round tower's glass
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
@@ -194,6 +222,61 @@ export function createMaterials() {
     return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
   }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
+  // Beacons (#154): lit with the lamps, in their vertex colour (white or amber, never red), each blinking on its own
+  // beat, as its vertex attribute `flash` has it: flashes a second, when in its cycle (0–1), and the share of the
+  // cycle it is lit.
+  const blink = { value: 0 } // s the world has run
+  const beacon = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0 })
+  beacon.onBeforeCompile = (shader) => {
+    shader.uniforms.blink = blink
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec3 flash;\nvarying vec3 vFlash;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvFlash = flash;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float blink;\nvarying vec3 vFlash;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * step(fract(blink * vFlash.x + vFlash.y), vFlash.z);',
+      )
+  }
+  // Cloth that flutters in the wind (#154): each vertex swings along its attribute `flutter`'s xyz, as far as that is
+  // long, on a wave whose phase is its w, and moves by its attribute `rest` as the cloth is taken in for the night.
+  const [wave, hoist] = [{ value: 0 }, { value: 1 }]
+  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })
+  /**
+   * Move a shader's vertices as the cloth's are, so that its shadow moves with it. The cloth moves before anything else
+   * moves it: a Rebuild's bricks (`./reveal`) scale the cloth as it flutters.
+   */
+  const flutters = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, { wave, hoist })
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute vec4 flutter;\nattribute vec3 rest;\nuniform float wave;\nuniform float hoist;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        [
+          'vec3 clothed = position + flutter.xyz * sin(flutter.w - wave) * hoist + rest * (1.0 - hoist);',
+          '#define position clothed',
+          '#include <begin_vertex>',
+          '#undef position',
+        ].join('\n'),
+      )
+  }
+  cloth.onBeforeCompile = (shader) => {
+    flutters(shader)
+    // Each wave's crest catches the light and its trough falls in shade.
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
+      .replace('vec3 clothed', 'vRipple = length(flutter.xyz) > 0.0 ? 0.18 * cos(flutter.w - wave) : 0.0;\nvec3 clothed')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
+  }
+  const clothShadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
+  clothShadow.onBeforeCompile = flutters
+  cloth.userData.depth = clothShadow // the shadow a mesh of it casts, which `./scenery` gives it
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
@@ -237,13 +320,27 @@ export function createMaterials() {
     /** The tint that makes `glass` the colour `color`, as an office tower's curtain wall is. */
     glassOf: shade,
     bulb,
+    beacon,
+    cloth,
     water,
     roundShadow,
     squareShadow,
-    /** Light the windows and lamps as the time of day has them. */
+    /** Light the windows, lamps and beacons as the time of day has them. */
     setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
+      beacon.emissiveIntensity = lamps * BEACON.glow
+    },
+    /**
+     * Run the beacons' blinking and the cloth's flutter on by `dt` real seconds (0 while paused), and fly the flags at
+     * the time of day `time` (0–1): up through the working day, taken in for the night.
+     */
+    advance(dt: number, time: number) {
+      blink.value += dt
+      wave.value = (wave.value + dt * CLOTH.rate) % (Math.PI * 2000)
+      const { from, to } = WORK
+      const t = (time - from + 1) % 1 // since the working day began
+      hoist.value = Math.max(0, Math.min(1, t / CLOTH.raise, (to - from + CLOTH.raise - t) / CLOTH.raise))
     },
   }
 }
@@ -256,7 +353,7 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, unlit, glassOf, bulb, beacon, cloth, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -338,6 +435,48 @@ export function createKit(rand: () => number, materials: Materials) {
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
   const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
+  /** A beacon of radius `r` at `(x, y)`, `h` above the road (#154): white or amber, blinking from `phase` (0–1) of its beat. */
+  const light = (x: number, y: number, h: number, r: number, kind: 'white' | 'amber', phase: number) => {
+    const { colour, rate, duty } = BEACON[kind]
+    const geo = tint(BEAD.clone().scale(r, r, r).translate(x, h, -y), colour)
+    const flash = new Float32Array(geo.attributes.position.count * 3)
+    for (let i = 0; i < flash.length; i += 3) flash.set([rate, phase, duty], i)
+    parts.push({ geometry: geo.setAttribute('flash', new THREE.BufferAttribute(flash, 3)), material: beacon, brick: -1 })
+  }
+  /** A helipad's marks, radius `r`, on a roof at `(x, y)`, `h` above the road (#154): a dark pad, a yellow ring and a white H. */
+  const helipadMark = (x: number, y: number, h: number, r: number) => {
+    add(DISC, HELIPAD.pad, x, y, h + 0.02, 0, r, 1, r)
+    add(RING, HELIPAD.ring, x, y, h + 0.05, 0, r * 0.9, 1, r * 0.9)
+    const k = r * 0.5
+    for (const s of [-1, 1]) add(cuboid(k * 0.22, 0.04, k * 1.2), HELIPAD.mark, x + s * k * 0.36, y, h + 0.05)
+    add(cuboid(k * 0.72, 0.04, k * 0.2), HELIPAD.mark, x, y, h + 0.05)
+  }
+  /** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
+  const cooler = (x: number, y: number, h: number, w: number, d: number) => {
+    add(cuboid(w, 1.1, d), PLANT, x, y, h)
+    const fans = w >= 1.8 * d ? 2 : 1
+    const r = Math.min(d, w / fans) * 0.34
+    for (let k = 0; k < fans; k++) add(DISC, FAN, x + (fans === 2 ? (k - 0.5) * w * 0.5 : 0), y, h + 1.12, 0, r, 1, r)
+  }
+  /** A vent on a roof at `(x, y)`, `h` above the road (#154): a stub under a wider cap. */
+  const vent = (x: number, y: number, h: number) => {
+    add(THIN, PLANT, x, y, h, 0, 0.22, 0.8, 0.22)
+    add(THIN, PLANT, x, y, h + 0.8, 0, 0.42, 0.18, 0.42)
+  }
+  /** A detail that moves on its own (`./movers`): a brick of its own with no shapes, standing where its loop starts. */
+  const mover = (
+    kind: MoverKind,
+    loop: Polyline,
+    stops: number[],
+    first: number,
+    h: number,
+    more: Pick<Mover, 'waits' | 'reverse' | 'paint' | 'face' | 'hang' | 'laps'> = {},
+  ) => {
+    movers.push({ kind, loop, stops, first, h, ...more, brick: bricks.length })
+    const [p, f] = [loop.pts[0], more.face]
+    const at = f ? new THREE.Vector3(f.x, h + p.y, -f.y) : new THREE.Vector3(p.x, h, -p.y)
+    bricks.push({ kind: 'mover', at, dust: 0, fate, lot })
+  }
 
   return {
     add,
@@ -820,8 +959,14 @@ export function createKit(rand: () => number, materials: Materials) {
      * one tier, and fewer floors lit at night. Stage 2 builds it as above. Stage 3 puts a spire on every style and a
      * third tier on a stepped one, and lights more floors. Its glass, its trim and how busy it is are drawn before
      * anything a Stage changes, so each Stage builds the same tower, better.
+     *
+     * Its details (#154), drawn from where it stands so that its own draws are untouched: plant on a flat roof, a
+     * couple of vents at Stage 1, cooling units from Stage 2 and more at Stage 3, when a tall tower and one in four of
+     * the rest carry a helipad on the penthouse; a white strobe on every spire, and amber lamps blinking on the roof's
+     * corners of a tall tower from Stage 2 and of every flat roof at Stage 3. With `gondola`, from Stage 2 a flat-roofed
+     * tower hangs a window cleaners' cradle on its south or east face, which creeps down it and climbs back.
      */
-    officeTower(x: number, y: number, h: number, w: number, d: number, floors: number, style: OfficeStyle, stage = 2) {
+    officeTower(x: number, y: number, h: number, w: number, d: number, floors: number, style: OfficeStyle, stage = 2, gondola = false) {
       const STOREY = 3.2
       const SKY = new THREE.Color('#e9f4fb')
       const [foot, trim, busy] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), rand()]
@@ -835,6 +980,10 @@ export function createKit(rand: () => number, materials: Materials) {
       const base = h + 3.6
       const body = floors * STOREY
       const top = base + body
+      const own = mulberry32(spot(x, y))
+      const [phase, padDraw, south, slide, busier] = [own(), own(), own() < 0.5, own(), own() < 0.6]
+      const helipad = stage === 3 && (floors >= 17 || padDraw < 0.25)
+      const lamps = stage === 3 || (stage === 2 && floors >= 14)
       /** Corner posts up a box `pw` by `pd`, from `from` for `tall` m. */
       const posts = (pw: number, pd: number, from: number, tall: number) => {
         for (const i of [-1, 1]) {
@@ -866,19 +1015,46 @@ export function createKit(rand: () => number, materials: Materials) {
           add(cuboid(0.45, 1.3, rd - 0.9), trim, x + side * (rw / 2 - 0.22), y, at)
         }
       }
-      /** A penthouse with its own little roof on a roof `rw` by `rd` at `at`, and a plant box or two. Returns its top. */
+      /**
+       * A penthouse with its own little roof on a roof `rw` by `rd` at `at`, and a plant box or two, with a helipad on
+       * it if the tower has one. Returns its top.
+       */
       const penthouse = (rw: number, rd: number, at: number) => {
         const [pw, pd] = [rw * 0.5, rd * 0.44]
         add(box(pw, 3.4, pd, 0.4, 0.12), trim, x - rw * 0.08, y + rd * 0.08, at)
         add(box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, x - rw * 0.08, y + rd * 0.08, at + 3.4)
         add(box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), PLANT, x + rw * 0.28, y - rd * 0.27, at)
         add(box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), PLANT, x - rw * 0.3, y - rd * 0.24, at)
+        if (helipad) helipadMark(x - rw * 0.08, y + rd * 0.08, at + 3.8, Math.min(pw, pd) / 2 - 0.2)
         return at + 3.8
       }
-      /** A spire `tall` m high from `at`, with a beacon on its tip. */
-      const spire = (at: number, tall: number, r: number) => {
-        add(CYLINDER, PLANT, x, y, at, 0, r, tall, r)
-        add(SPHERE, bulb, x, y, at + tall, 0, r * 1.4, r * 1.4, r * 1.4)
+      /**
+       * A spire `tall` m high from `at`, with a white strobe on its tip: off the middle of a helipad tower's roof `rw` by
+       * `rd`, onto its back corner.
+       */
+      const spire = (at: number, tall: number, r: number, rw = 0, rd = 0) => {
+        const [sx, sy] = helipad && rw ? [x - rw * 0.4, y + rd * 0.4] : [x, y]
+        add(CYLINDER, PLANT, sx, sy, at, 0, r, tall, r)
+        light(sx, sy, at + tall, Math.max(0.42, r * 1.8), 'white', phase)
+      }
+      /** Amber lamps on the corners of a roof `rw` by `rd`, `at` high, if the tower has them. */
+      const corners = (rw: number, rd: number, at: number) => {
+        if (!lamps) return
+        for (const i of [-1, 1])
+          for (const j of [-1, 1])
+            light(x + i * (rw / 2 - 0.3), y + j * (rd / 2 - 0.3), at + 0.25, 0.4, 'amber', phase + 0.25 * (i + 2 * j))
+      }
+      /**
+       * Plant on a flat roof `rw` by `rd` at `at`, where no penthouse stands: two vents at Stage 1, and cooling units
+       * along its east side from Stage 2, more at Stage 3.
+       */
+      const plant = (rw: number, rd: number, at: number) => {
+        for (const u of [-0.12, 0.04]) vent(x + rw * u, y - rd * 0.36, at)
+        if (stage === 1) return
+        const [cw, cd] = [Math.max(1.6, rw * 0.2), Math.max(1.4, rd * 0.18)]
+        cooler(x + rw * 0.32, y + rd * 0.28, at, cw, cd)
+        if (stage === 3 || busier) cooler(x + rw * 0.32, y + rd * 0.04, at, cw, cd)
+        if (stage === 3) cooler(x - rw * 0.12, y + rd * 0.4, at, rw * 0.3, Math.max(1.2, rd * 0.1))
       }
 
       // A plinth, a lit lobby and a canopy over it.
@@ -932,19 +1108,54 @@ export function createKit(rand: () => number, materials: Materials) {
           }
         }
         roof(w - 0.7, d - 0.7, top, false)
+        plant(w - 2, d - 2, top + 0.3)
+        corners(w, d, top + 2.6)
         if (stage > 1) {
           const crown = penthouse(w - 2, d - 2, top + 0.3)
-          if (stage === 3 || floors >= 14) spire(crown, stage === 3 ? range(7, 11) : range(5, 8), 0.3)
+          if (stage === 3 || floors >= 14) spire(helipad ? top + 0.3 : crown, stage === 3 ? range(7, 11) : range(5, 8), 0.3, w - 2, d - 2)
         }
       } else {
         for (let f = 0; f < floors; f++) add(cuboid(w - 0.2, STOREY, d - 0.2), storey(f), x, y, base + f * STOREY)
         posts(w, d, base, body)
         mullions(w - 0.2, d - 0.2, base, body)
         roof(w, d, top, true)
+        plant(w - 1, d - 1, top + 0.3)
+        corners(w, d, top + 1.3)
         if (stage > 1) {
           const crown = penthouse(w, d, top + 0.3)
-          if (stage === 3 || floors >= 14 || rand() < 0.4) spire(crown, stage === 3 ? range(7, 11) : range(5, 9), 0.18)
+          if (stage === 3 || floors >= 14 || rand() < 0.4)
+            spire(helipad ? top + 0.3 : crown, stage === 3 ? range(7, 11) : range(5, 9), 0.18, w - 1, d - 1)
         }
+      }
+      if (gondola && stage > 1 && (style === 'curtain' || style === 'fins')) {
+        // A cradle on the south or east face, hanging from two arms over the roof's edge, that works down the face a
+        // couple of floors at a time, stopping at each to clean, and climbs back to wait under the arms.
+        const { drop, every, waits } = GONDOLA
+        const [len, across] = south ? [w, d] : [d, w]
+        const out = across / 2 + GONDOLA.reach
+        const heading = south ? -Math.PI / 2 : 0
+        const [fx, fy] = south ? [x, y - out] : [x + out, y]
+        const u = (slide * 2 - 1) * Math.max(0, len / 2 - 3.4)
+        const [high, low] = [top - h - 2.1, base - h + 1.2]
+        const fall = Math.min(drop, high - low)
+        const stops = [0]
+        for (let s = every; s < fall - 0.5; s += every) stops.push(s)
+        stops.push(fall)
+        const loop = polyline([
+          { x: u, y: high },
+          { x: u, y: high - fall },
+          { x: u, y: high },
+        ])
+        const wait = stops.map((_, i) => (i === 0 ? waits.top : waits.floor[0] + own() * (waits.floor[1] - waits.floor[0])))
+        // Each arm stands on the roof a little in from the face and reaches out over the cradle's rope at its end.
+        const arm = top + 2.4
+        const at = (along: number, o: number) => (south ? [x - along, y - o] : [x + o, y - along]) as [number, number]
+        const [o0, o1] = [across / 2 - 0.9, out - GONDOLA.rope + 0.15]
+        for (const k of [-1, 1]) {
+          add(cuboid(0.3, 2.6, 0.3), PLANT, ...at(u + k * GONDOLA.ropes, o0), top)
+          add(cuboid(0.26, 0.26, o1 - o0 + 0.15), PLANT, ...at(u + k * GONDOLA.ropes, (o0 + o1) / 2), arm - 0.2, south ? 0 : Math.PI / 2)
+        }
+        mover('gondola', loop, stops, 0, h, { waits: wait, face: { x: fx, y: fy, heading }, hang: arm - h, laps: true })
       }
       shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4, style === 'round')
       brick('building', x, y, h)
@@ -952,19 +1163,40 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A detail that moves on its own (`./movers`), working the closed `loop` a stretch at a time from stop `first` of
-     * `stops`, `h` above the road, and waiting, reversing and painted as `more` has it: a brick of its own with no
-     * shapes, standing where the loop starts.
+     * `stops`, `h` above the road, and waiting, reversing, painted, on a wall, hanging and working whole laps as `more`
+     * has it: a brick of its own with no shapes, standing where the loop starts.
      */
-    mover(
-      kind: MoverKind,
-      loop: Polyline,
-      stops: number[],
-      first: number,
-      h: number,
-      more: Pick<Mover, 'waits' | 'reverse' | 'paint'> = {},
-    ) {
-      movers.push({ kind, loop, stops, first, h, ...more, brick: bricks.length })
-      bricks.push({ kind: 'mover', at: new THREE.Vector3(loop.pts[0].x, h, -loop.pts[0].y), dust: 0, fate, lot })
+    mover,
+
+    /** A beacon of radius `r` at `(x, y)`, `h` above the road (#154): white or amber, blinking from `phase` (0–1) of its beat. */
+    beacon: light,
+
+    /**
+     * A flagpole at `(x, y)`, `h` above the road, with a flag of colour `colour` flying downwind from its top, as one
+     * brick that pops in like a tree (#154). The flag flutters on the wind, its waves starting `phase` (rad) along, and
+     * is taken in for the night (the materials' `advance`). Pole and flag stand oversized a little, as the props do.
+     */
+    flag(x: number, y: number, h: number, colour: string, phase: number) {
+      const { tall, long, high, swing, waves } = FLAGPOLE
+      add(THIN, FLAG.pole, x, y, h, 0, 0.09, tall, 0.09)
+      add(BEAD, FLAG.finial, x, y, h + tall + 0.08, 0, 0.16, 0.16, 0.16)
+      const geo = new THREE.PlaneGeometry(1, 1, 8, 2).toNonIndexed()
+      const pos = geo.attributes.position
+      const [flutter, rest] = [new Float32Array(pos.count * 4), new Float32Array(pos.count * 3)]
+      const len = Math.hypot(WIND.x, WIND.y)
+      const [wx, wy] = [WIND.x / len, WIND.y / len]
+      const top = h + tall - 0.12
+      for (let i = 0; i < pos.count; i++) {
+        const [a, b] = [(pos.getX(i) + 0.5) * long, (pos.getY(i) - 0.5) * high] // along from the pole, and down from the top
+        const k = a / long
+        pos.setXYZ(i, x + wx * a, top + b, -(y + wy * a))
+        flutter.set([wy * swing * k, 0, wx * swing * k, phase - k * waves * TAU], i * 4)
+        rest.set([-wx * a * 0.94, -(tall - high - 1.6), wy * a * 0.94], i * 3) // lowered, and furled against the pole
+      }
+      geo.computeVertexNormals()
+      geo.setAttribute('flutter', new THREE.BufferAttribute(flutter, 4)).setAttribute('rest', new THREE.BufferAttribute(rest, 3))
+      parts.push({ geometry: tint(geo, colour), material: cloth, brick: -1 })
+      brick('tree', x, y, h)
     },
 
     /**

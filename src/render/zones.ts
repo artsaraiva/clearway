@@ -3,6 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
+import { WIND } from './day'
 import { inside, type Field } from './field'
 import { CONTAINER, shedDoors, spot, type Kit, type OfficeStyle } from './kit'
 import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
@@ -58,6 +59,23 @@ const COURT_FLOORS = (f: number, stage: number) => [Math.max(3, f - 2), f, f + 2
 const TOWER_FLOORS = (f: number, stage: number) => Math.round(f * [0.55, 1, 1.25][stage - 1])
 const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
 const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
+// Flags by an office tower's lobby (#154): the share of towers that fly them from Stage 2 and from Stage 3, m out from
+// the tower's middle past its face and apart, how far a flag flies from its pole (as the kit's `flag` draws it), and
+// their colours.
+const FLAGS = {
+  share: [0.34, 0.67],
+  out: 2.2,
+  apart: 2.6,
+  fly: 2.3,
+  cloths: ['#2fb39a', '#f0b43c', '#5cc0d6', '#a58ad8', '#79c86a', '#ff9ab8', '#fbf8f2'],
+}
+/** The faces of a box, as the way each looks: south and east first, the faces the default camera sees. */
+const FACES = [
+  [0, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+] as const
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
 // to three trees in the yards behind.
 const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
@@ -473,6 +491,7 @@ function towers(g: ZoneGround) {
  */
 function offices(g: ZoneGround) {
   const { kit } = g
+  const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
   for (const [i, lot] of lotsOf(g, OFFICES.margin, OFFICES.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w, d] = [lot.x1 - lot.x0 - 2 * OFFICES.gap, lot.y1 - lot.y0 - 2 * OFFICES.gap].map((side) => Math.min(OFFICES.most, side))
@@ -486,8 +505,12 @@ function offices(g: ZoneGround) {
     kit.staged((stage) => {
       const [t, tall, style] = [kit.range(0, 1), kit.chance(SKYLINE.tall), kit.pick(STYLES)]
       const [low, high] = FLOORS[stage - 1][tall ? 'high' : 'low']
-      kit.officeTower(x, y, KERB, footprint.w, footprint.d, Math.round(low + (high - low) * t), style, stage)
+      // The Block's first tower with a flat roof hangs its gondola (#154).
+      const gondola = !hung.has(stage) && (style === 'curtain' || style === 'fins')
+      if (gondola) hung.add(stage)
+      kit.officeTower(x, y, KERB, footprint.w, footprint.d, Math.round(low + (high - low) * t), style, stage, gondola)
     })
+    flags(g, x, y, footprint.w, footprint.d)
     kit.from(3, () => {
       const flip = kit.chance(0.5) ? 1 : -1
       for (const k of [1, -1]) {
@@ -499,6 +522,39 @@ function offices(g: ZoneGround) {
     })
   }
   kit.lot(-1)
+}
+
+/**
+ * Three flagpoles by the lobby of the tower `w` by `d` at `(x, y)` (#154), drawn from where it stands: on the face
+ * nearest the Block's edge where all three stand, a third of the towers from Stage 2 and two in three at Stage 3, each
+ * flag in a colour of its own.
+ */
+function flags(g: ZoneGround, x: number, y: number, w: number, d: number) {
+  const { kit, field } = g
+  const draw = mulberry32(spot(x, y + 3))
+  const [roll, colours] = [draw(), [draw(), draw(), draw()]]
+  const first = roll < FLAGS.share[0] ? 2 : roll < FLAGS.share[1] ? 3 : 0
+  if (!first) return
+  // Each face's pavement, out past the plinth: the face whose pavement lies nearest the Block's edge faces the street.
+  const faces = FACES.map(([fx, fy]) => {
+    const out = (fx ? w : d) / 2 + FLAGS.out
+    return { fx, fy, out, edge: field.sample(x + fx * out, y + fy * out) }
+  }).sort((a, b) => a.edge - b.edge)
+  const len = Math.hypot(WIND.x, WIND.y)
+  const fly = { x: (WIND.x / len) * FLAGS.fly, y: (WIND.y / len) * FLAGS.fly } // from a pole to its flag's free end
+  /** Whether a pole stands at `p` with its flag over the Block, clear of the lamps and the street trees' crowns. */
+  const room = (p: Vec) =>
+    stands(g, p.x, p.y, 0.8, 0.8, 0.6) &&
+    stands(g, p.x + fly.x, p.y + fly.y, 0.4, 0.4, 0.2) &&
+    !g.lamps.some((l) => Math.hypot(l.x - p.x, l.y - p.y) < 2)
+  for (const { fx, fy, out } of faces) {
+    const poles = [-1, 0, 1].map((k) => ({ x: x + fx * out - fy * k * FLAGS.apart, y: y + fy * out + fx * k * FLAGS.apart }))
+    if (!poles.every(room)) continue
+    poles.forEach((p, k) =>
+      kit.from(first, () => kit.flag(p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)], k * 2.1), spot(p.x, p.y)),
+    )
+    return
+  }
 }
 
 /**

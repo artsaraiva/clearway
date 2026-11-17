@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
-import { DAY } from './day'
+import { DAY, WIND, WORK } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
 import { tint } from './shapes'
@@ -13,7 +13,7 @@ import { tint } from './shapes'
 // (#150) rises through the same working day.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'gondola'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -28,6 +28,15 @@ export interface Mover {
   reverse?: boolean[]
   /** The colour its model's white parts take (#150). White unless given. */
   paint?: string
+  /**
+   * The wall it works, when it works one (#154): its loop is drawn on the wall's face, x along it from `(x, y)` and y up
+   * it from `h`, and it always faces out of the wall, `heading` (0 east, π/2 north). Along the wall runs to its right.
+   */
+  face?: { x: number; y: number; heading: number }
+  /** m above `h` of the arm it hangs from, by two ropes that pay out as it goes down (#154). None unless given. */
+  hang?: number
+  /** Whether it works whole laps of its loop a day, so that it ends each day at the stop it set out from (#154). */
+  laps?: boolean
   /** The stop it sets out from on the first day. */
   first: number
   /** m above the road it drives on. */
@@ -42,8 +51,8 @@ export interface Plume {
   brick: number
 }
 
-/** The time of day (0–1, as the day's clock) at which the movers set out and stop work, and their share of work left free. */
-const WORK = { from: 0.02, to: 0.5, slack: 0.2 }
+/** The movers' share of the working day (`WORK`) left free. */
+const SLACK = 0.2
 /** Real seconds of work in a day. */
 const SHIFT = (WORK.to - WORK.from) * DAY
 // Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, and its model.
@@ -51,11 +60,12 @@ const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model
   tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor },
   truck: { speed: 2.2, bob: 0.02, rate: 11, model: truck },
   forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift },
+  gondola: { speed: 1, bob: 0, rate: 0, model: gondola },
 }
 // Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s) and how the wind
 // carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
 // its colour.
-const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [0.55, -0.35], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
@@ -140,6 +150,36 @@ function forklift(): THREE.BufferGeometry {
   return merged(parts).translate(-0.3, 0, 0).scale(1.3, 1.3, 1.3)
 }
 
+/**
+ * A window cleaners' cradle (#154), facing out of the wall along +x with the wall behind it, centred under its middle
+ * and standing on y = 0, oversized a little as the cars are: a yellow platform 4 m long with rails round it, and two
+ * cleaners in it.
+ */
+function gondola(): THREE.BufferGeometry {
+  const [FRAME, RAIL, SHIRT, HAT, SKIN] = ['#f0c75e', '#9aa3ad', '#64cb9f', '#ffffff', '#f4ead2']
+  const parts = [
+    part(0.9, 0.22, 4, 0, 0, 0, FRAME), // the platform
+    part(0.08, 1, 4, 0.41, 0.22, 0, FRAME), // the rail facing out
+    part(0.9, 1, 0.08, 0, 0.22, 1.96, FRAME), // the rails at the ends
+    part(0.9, 1, 0.08, 0, 0.22, -1.96, FRAME),
+    part(0.06, 0.06, 4, -0.42, 1.16, 0, RAIL), // the rail by the wall
+    part(0.12, 1.5, 0.12, -0.3, 0.22, 1.9, RAIL), // the stirrups the ropes hold
+    part(0.12, 1.5, 0.12, -0.3, 0.22, -1.9, RAIL),
+  ]
+  for (const z of [-0.9, 0.85]) {
+    parts.push(
+      part(0.34, 0.9, 0.44, -0.08, 0.22, z, SHIRT),
+      tint(new THREE.SphereGeometry(0.2, 8, 6).translate(-0.08, 1.32, z), SKIN),
+      tint(new THREE.SphereGeometry(0.22, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).translate(-0.08, 1.38, z), HAT),
+    )
+  }
+  return merged(parts).scale(1.25, 1.25, 1.25)
+}
+/** The ropes a gondola hangs by, one at each end: 1 m tall from y = 0, to be stretched to their length. */
+function ropes(): THREE.BufferGeometry {
+  return merged([-1.9, 1.9].map((z) => part(0.05, 1, 0.05, -0.3 * 1.25, 0, z * 1.25, '#4a525c')))
+}
+
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
 function along(line: Polyline, s: number): { x: number; y: number; heading: number } {
   const { pts, cum } = line
@@ -193,6 +233,8 @@ export function createMovers() {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
   const models = new Map((Object.keys(KINDS) as MoverKind[]).map((k) => [k, KINDS[k].model()]))
   const meshes = new Map<MoverKind, THREE.InstancedMesh>()
+  const rope = ropes()
+  let hung: THREE.InstancedMesh | null = null // the ropes of every mover that hangs
   let entries: Entry[] = []
   let work = 0 // s worked: a whole number of shifts outside the working day
   let working = false
@@ -241,6 +283,18 @@ export function createMovers() {
       mesh.dispose()
     }
     meshes.clear()
+    if (hung) {
+      group.remove(hung)
+      hung.dispose()
+      hung = null
+    }
+    const hanging = entries.reduce((n, e) => n + e.movers.filter((v) => v.hang).length, 0)
+    if (hanging) {
+      hung = new THREE.InstancedMesh(rope, material, hanging)
+      hung.name = 'ropes'
+      hung.frustumCulled = false
+      group.add(hung)
+    }
     for (const [kind, model] of models) {
       const count = entries.reduce((n, e) => n + e.movers.filter((v) => v.kind === kind).length, 0)
       if (!count) continue
@@ -285,8 +339,9 @@ export function createMovers() {
     let count = perDay.get(v)
     if (count) return count
     const n = v.stops.length
-    count = Math.max(1, Math.floor(((1 - WORK.slack) * SHIFT * n) / timeOf(v, 0, n)))
-    while (count > 1 && v.stops.some((_, i) => timeOf(v, i, count!) > 0.95 * SHIFT)) count--
+    count = Math.max(1, Math.floor(((1 - SLACK) * SHIFT * n) / timeOf(v, 0, n)))
+    if (v.laps) count = n * Math.max(1, Math.floor(count / n))
+    while (count > (v.laps ? n : 1) && v.stops.some((_, i) => timeOf(v, i, count!) > 0.95 * SHIFT)) count -= v.laps ? n : 1
     perDay.set(v, count)
     return count
   }
@@ -310,14 +365,20 @@ export function createMovers() {
       const reach = reachOf(v, from, 1)
       if (left * speed < reach) {
         const p = along(loop, (stops[from] + left * speed) % loop.length)
-        return { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working }
+        return onFace(v, { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working })
       }
       left -= reach / speed
       from = (from + 1) % n
     }
     // At stop `from`, facing as it came in: a stop at the loop's start is its end too.
     const p = along(loop, stops[from] || loop.length)
-    return { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false }
+    return onFace(v, { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false })
+  }
+  /** Where a place on `v`'s loop lies on the map, and m above `v.h`: for a mover that works a wall, on the wall's face. */
+  const onFace = (v: Mover, p: { x: number; y: number; heading: number; moving: boolean }) => {
+    if (!v.face) return { ...p, up: 0 }
+    const { x, y, heading } = v.face
+    return { x: x + p.x * Math.sin(heading), y: y - p.x * Math.cos(heading), up: p.y, heading, moving: p.moving }
   }
 
   /** Whether brick `i` of entry `e`'s build stands at rest, in its place and at full size. */
@@ -374,6 +435,7 @@ export function createMovers() {
       }
       if (changed) remesh()
       const counts = new Map<MoverKind, number>()
+      let roped = 0
       for (const e of entries) {
         for (const v of e.movers) {
           const mesh = meshes.get(v.kind)
@@ -384,12 +446,20 @@ export function createMovers() {
           const p = place(v)
           const { bob, rate } = KINDS[v.kind]
           const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + i)) : 0
+          const size = Math.max(0.001, pose.scale)
           q.setFromAxisAngle(up, p.heading)
-          m.compose(at.set(p.x, v.h + pose.lift + hop, -p.y), q, scale.setScalar(Math.max(0.001, pose.scale)))
+          m.compose(at.set(p.x, v.h + p.up + pose.lift + hop, -p.y), q, scale.setScalar(size))
           mesh.setMatrixAt(i, m)
+          // Its ropes, from its stirrups up to the arm it hangs from.
+          if (v.hang && hung) {
+            const foot = v.h + p.up + pose.lift + 1.5
+            m.compose(at.set(p.x, foot, -p.y), q, scale.set(size, Math.max(0.001, (v.hang + v.h - foot) * size), size))
+            hung.setMatrixAt(roped++, m)
+          }
         }
       }
       for (const mesh of meshes.values()) mesh.instanceMatrix.needsUpdate = true
+      if (hung) hung.instanceMatrix.needsUpdate = true
 
       // Smoke: each standing chimney puffs while the working day runs, and its puffs rise, swell and fade.
       let n = 0

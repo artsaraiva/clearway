@@ -186,6 +186,7 @@ export function createScenery(
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = !material.transparent
       mesh.receiveShadow = true
+      if (material.userData.depth) mesh.customDepthMaterial = material.userData.depth // a shadow that moves as it does
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)
       yield
