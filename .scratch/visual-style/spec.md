@@ -2,6 +2,10 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#148](https://github.com/artsaraiva/clearway/issues/148) (2026-11-17)
+
+Coloured light, utility poles and petals, the three things the prototype in [#146](https://github.com/artsaraiva/clearway/issues/146) kept. Shadows are crisp and blue-violet at every time of day, under a stronger, warmer sun; contact shadows are violet too. Utility poles with two wires line one side of every Road, and fallen petals lie round every sakura. Each Zone's own details, still and moving, have a ticket each (Block fill, below). Sky reflections, catch-lights and cel bands were tried in [#146](https://github.com/artsaraiva/clearway/issues/146) and changed little in the real City.
+
 ## Amended by [#15](https://github.com/artsaraiva/clearway/issues/15) (2026-11-15)
 
 The direction is now cozy Japanese and oversaturated. The palette below was recoloured in [#105](https://github.com/artsaraiva/clearway/issues/105) at the strength the user picked from the mock in [#104](https://github.com/artsaraiva/clearway/issues/104), "a little"; the road plate and the pavement stay pale. Blue is reserved for Tools and Inspectors and hot red-orange for Jams and refusals. The camera's drag buttons are swapped. Details in `.scratch/ui-ux/spec.md`.
@@ -12,7 +16,7 @@ Replace the throwaway `src/render/scene.ts` with a renderer that draws a Distric
 
 The target is the user's "Anime Map Diorama" design. Its proof on the real sim was the prototype at `/diorama.html` (`src/lookdev/diorama.ts`, deleted from `main` in #32), kept with the three rejected looks on the local branch `16-visual-style-prototype`. Its screenshots, `.scratch/game/reference/diorama-*.png`, show the original design, whose tone the palette keeps.
 
-Reference screenshots of the game in its palette ([#105](https://github.com/artsaraiva/clearway/issues/105)): `.scratch/visual-style/reference/morning.png`, `noon.png`, `dusk.png`, `night.png`, a Jam up close in `close-noon.png` and `close-night.png`, and a Rebuild half-way, a new Tile's piece of slab assembling, in `rebuild.png`. They show the #104 mock's twelve Tiles, laid one cell south-west of where the mock lays them, in a Free run (`?free&seed=3`), with its two Changes to Priority rules and its west Crossroads jammed.
+Reference screenshots of the game, retaken in [#148](https://github.com/artsaraiva/clearway/issues/148): `.scratch/visual-style/reference/morning.png`, `noon.png`, `afternoon.png`, `dusk.png`, `night.png`, a Jam up close in `close-noon.png`, `close-dusk.png` and `close-night.png`, and a Rebuild half-way, a new Tile's piece of slab assembling, in `rebuild.png`. They show the #104 mock's twelve Tiles, laid one cell south-west of where the mock lays them, in a Free run (`?free&seed=3`), with its two Changes to Priority rules and its west Crossroads jammed. Each Tile is a Zone: the starting Crossroads shops, then low-, medium- and high-density residential, offices, industrial, parks, green and farms in the order they are laid, and round again.
 
 This overturns three look-dev (03) decisions: the perspective camera, static AO in place of shadows, and the baked distance-field ground.
 
@@ -23,7 +27,7 @@ Readability beats style. Roads, markings, cars and jam feedback must stay as leg
 ## Rendering recipe
 
 - Three.js on WebGL, standard soft-lit materials (roughness about 0.85), neutral tone mapping.
-- One directional light with a 4096² soft shadow map, plus a hemisphere light. Blurred dark decals under every building and tree give the contact shadow.
+- One directional light with a 4096² shadow map, plus a hemisphere light. A shadow's edge is blurred by one texel, so it is crisp ([#148](https://github.com/artsaraiva/clearway/issues/148)). Blurred decals under every building and tree give the contact shadow, in violet (`rgb(52, 44, 150)`) like the shadows the light casts.
 - No cel bands, no outlines, no ink, no painterly filter. The only post-processing allowed was one bloom pass for night lights, and only if it cost under 2 ms per frame. It was measured in [#29](https://github.com/artsaraiva/clearway/issues/29) at 6.2 ms and cut, so there is no post-processing.
 - Everything is procedural geometry and canvas-drawn textures. No authored 3D models, no image files.
 - Static scenery is merged into one mesh per material. Cars and walkers are instanced.
@@ -65,6 +69,8 @@ Within 30° of hue (OKLCH) of either colour, no scenery or car goes over 65% of 
 | Pines | `#379e62` `#43ac6b` `#2e9358` |
 | The slab's layers | grass `#9ed67d`, sand `#e3bf8c`, soil `#d2a069` |
 | Lawns | the park's and islands' `#b0df88`, houses' gardens, courts and roof gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
+| Utility poles ([#148](https://github.com/artsaraiva/clearway/issues/148)) | poles and crossbars `#6f7986`, transformer drums `#c4ccd4`, wires `#2a3142` |
+| Fallen sakura petals | `#ffd1df` `#ffbbd1` `#ffe3ec` |
 | Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
 | Bike lanes | `#57c6b5` |
 | Water | `#63d1f4` |
@@ -77,11 +83,16 @@ Walkers' shirts, the planes' wings and the confetti take the cars' colours. The 
 
 | Time | Sky, top to bottom | Sun or moon | Fill, sky / ground |
 | --- | --- | --- | --- |
-| Noon | `#68ccf5` `#beeaf9` `#e5f8f9` | `#fffaf0` | `#d1edfb` / `#f2ead9` at 1.25 |
-| Dusk | `#8d6cc2` `#d887ae` `#fcb17e` | `#fe9f6f` | `#bd98c9` / `#eaa48c` at 1.1 |
-| Night | `#191c5b` `#31398e` `#5c61b5` | `#bfd0ff` | `#adbbf2` / `#7780c2` at 1.75 |
+| Noon | `#68ccf5` `#beeaf9` `#e5f8f9` | `#fffaf0` at 3.45 | `#aec9fd` / `#e2d9e0` at 0.72 |
+| Dusk | `#8d6cc2` `#d887ae` `#fcb17e` | `#fead7b` at 2.7 | `#9c78d7` / `#de989b` at 1.62 |
+| Night | `#191c5b` `#31398e` `#5c61b5` | `#bfd0ff` at 2.55 | `#8697fb` / `#6f79c6` at 1.49 |
 
-A clear cyan noon, an orange and pink dusk, and a deep blue night that stays bright. Dusk's low sun leaves most of the road plate in shadow, so its fill is pink and raised from 0.85 to 1.1. Morning, late afternoon and the handovers between sun and moon keep their earlier values, and the day blends between them.
+A clear cyan noon, an orange and pink dusk, and a deep blue night that stays bright. The day blends between these and the morning, the late afternoon and the handovers between sun and moon, whose values are in `day.ts`.
+
+Since [#148](https://github.com/artsaraiva/clearway/issues/148) the light is coloured. A shadow shows the fill alone, so the fill's colour is the shadow's: the [#105](https://github.com/artsaraiva/clearway/issues/105) fill moved 70% of the way to a blue-violet at every time of day (half way at noon), and its ground bounce 30%, so walls stay warm. The sun is about 15–50% stronger and warmer in the morning, the afternoon and at dusk. Two rules set the values:
+
+- **No road in shadow is darker than one in [#105](https://github.com/artsaraiva/clearway/issues/105)'s dusk shadow**, the darkest the game had and still read. Dusk's fill is raised until its shadow matches that, and noon's and the afternoon's are lowered to it, which gives the navy shadows by day. The handovers stay brighter than dusk.
+- **Whites in the sun stay white at noon:** a white surface lit by noon's sun and fill is neutral within 1% on each channel. That is why noon's fill moves only half way to the blue-violet and noon's sun is not warmed.
 
 ## Camera
 
@@ -126,6 +137,13 @@ Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the 
   - A Tile that reaches a Stage changes lot by lot over about 3 s, in a random order. Each new building drops in as a Rebuild's bricks do while trees pop in, and the old one stands until the new one lands on it, then vanishes in the dust, so a lot is never bare. Confetti ends it.
 - **The Stage Inspector** ([#139](https://github.com/artsaraiva/clearway/issues/139)) tints the ground of each zoned Tile, below a hand's height above the pavement, in the gold of a Stage's stars: `#fbeeb4`, `#f2c12e` and `#d29600` for Stages 1 to 3, in even steps of lightness (OKLCH 0.95, 0.83, 0.71) and all more than 45° of hue from the hot red-orange. Half the tinted ground's light is the tint itself, unlit, so it reads at dusk and at night. A Tile held back by a Jam is striped diagonally with a neutral grey `#7a7670`, 3 m stripes 6 m apart. It fades in and out over 0.2 s.
 - Lamps stand at Block corners. Street trees line the avenues the seed picks, whatever the Zone, and what a Zone builds keeps clear of them: buildings, ponds, crop rows and allotment plots alike.
+- **Utility poles** ([#148](https://github.com/artsaraiva/clearway/issues/148), `src/render/poles.ts`) line one side of every Road: the south side of a Road running east–west and the east side of one running north–south, so a line meets the next Tile's on the same side. They are 9 m tall, 0.45 m in from the kerb, with a crossbar across the road carrying two wires that sag about 6 cm for each metre of span, and a transformer drum on every other pole.
+  - They stand six to a cell's width, half a spacing (8.3 m) in from each edge, whatever the Tiles around, so the spacing runs on unbroken across a seam and a seam's wire always finds its poles. On an avenue they stand between the street trees instead.
+  - A line carries on across its Junction where its Road runs straight on, though not across a Roundabout, whose island and Ring stay clear. On a Curve both lines take the outside of the bend and turn the corner on a corner pole standing on the kerb of the bend; where that puts a line on the other side from the next Tile's, the wire across the seam crosses the Road. A T-junction's stem joins the line across it on a corner pole, where one can stand.
+  - Poles move up to 3 m along the Road to keep clear of a lamp, or are left out. Standing just in from the kerb, with their crossbars set toward the road, poles and wires clear what every Zone builds, which keeps at least 0.6 m back from the kerb, and the Zones' fill is unchanged.
+  - A wire across a seam belongs to neither Tile: all of them are strung again whenever a Tile lands or an Undo takes one off.
+- **Fallen petals** lie round every sakura, as many to the square metre whatever its size, out to seven times its size, on the Block only and, on a raised lawn, well in from its edge. They are drawn from where the tree stands, so no Block's fill changes.
+- **Every Zone's own details** ([#148](https://github.com/artsaraiva/clearway/issues/148)): each Tile type carries small details of its own, and some of them move. Each Zone's are in a ticket of their own, with the rules they share: they grow with the Stage, ignore Jams, follow the time of day, and are drawn a little oversized where they move or matter, while scatter on the ground stays true to size. Farms go first ([#149](https://github.com/artsaraiva/clearway/issues/149)), since their tractors build the machinery for every moving detail; then industrial ([#150](https://github.com/artsaraiva/clearway/issues/150)), parks ([#151](https://github.com/artsaraiva/clearway/issues/151)), green ([#152](https://github.com/artsaraiva/clearway/issues/152)), shops ([#153](https://github.com/artsaraiva/clearway/issues/153)), offices ([#154](https://github.com/artsaraiva/clearway/issues/154)), high-, medium- and low-density residential ([#155](https://github.com/artsaraiva/clearway/issues/155), [#156](https://github.com/artsaraiva/clearway/issues/156), [#157](https://github.com/artsaraiva/clearway/issues/157)) and a wilder verge on unzoned Tiles ([#158](https://github.com/artsaraiva/clearway/issues/158)).
 - Districts are themed (city, countryside, harbor). The first is a city.
 
 ## Vehicles and jam feedback
@@ -142,7 +160,7 @@ Orthographic. Left drag pans, right drag rotates and the wheel zooms toward the 
 
 ## Reveal animation
 
-On a Reveal the Level's pieces assemble brick by brick next to the slab already there: slab layers, road plate, Blocks, buildings (drop with a squash), trees and lamps (pop in), with dust where large pieces land. When it finishes the pieces are merged into the static meshes, cars grow in, and confetti fires. Decoration and labels for the new pieces appear after they land. Nothing already on the slab disappears or is rebuilt.
+On a Reveal the Level's pieces assemble brick by brick next to the slab already there: slab layers, road plate, Blocks, buildings (drop with a squash), trees and lamps (pop in), with dust where large pieces land. A Tile's utility poles pop in once the Blocks near them have landed, and each span of wire grows out from its middle just after; the wires across its seams appear once it has landed. A Rezoning leaves the poles standing. When it finishes the pieces are merged into the static meshes, cars grow in, and confetti fires. Decoration and labels for the new pieces appear after they land. Nothing already on the slab disappears or is rebuilt.
 
 ## Sky and ambient life
 
@@ -163,7 +181,7 @@ The renderer needs, per District: a theme, the seed for Block fill, authored lan
 
 ## Budget
 
-60 frames per second with 1,000 cars on an M4 Pro with the day cycle running. The prototype measures 9.9 ms per frame with 1,000 cars at 2× pixel density, about 1.06 M triangles. If shadows break the budget, the shadow map shrinks before any look decision changes.
+60 frames per second with 1,000 cars on an M4 Pro with the day cycle running. The prototype measures 9.9 ms per frame with 1,000 cars at 2× pixel density, about 1.06 M triangles. If shadows break the budget, the shadow map shrinks before any look decision changes. Coloured light, poles and petals ([#148](https://github.com/artsaraiva/clearway/issues/148)) cost no frame time the bench can see: 7.82 ms against `main`'s 7.57 on the twelve-Tile City and 8.68 against 8.58 on 26 Tiles, inside the noise, for two or three more draw calls and under 0.1 M more triangles.
 
 ## Verification
 
@@ -190,4 +208,4 @@ Follow-ups outside this effort:
 
 ## Out of scope
 
-Bike bands, medians, splitter islands, buses and other vehicle types, in-world signs, signal lamps, weather, player control of the time of day, and Demand that follows the time of day.
+Bike bands, medians, splitter islands, buses and other vehicle types, in-world signs, signal lamps, weather, player control of the time of day, and Demand that follows the time of day. Sky reflections on glass, water and cars, catch-lights, and cel bands, which [#146](https://github.com/artsaraiva/clearway/issues/146) tried and found changed little in the real City.
