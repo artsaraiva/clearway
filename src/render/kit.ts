@@ -3,7 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import type { Glow } from './day'
-import type { Mover, MoverKind, Plume } from './movers'
+import type { Beacon, BeaconColour, Mover, MoverKind, Plume, Sway, SwayKind } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -65,10 +65,10 @@ const BIKES = {
   steel: '#9aa3ad',
   roof: '#d6e4d3',
 }
-const WASHING = ['#ffffff', '#ffffff', '#ff9cbb', '#ffc52d', '#64cb9f', '#bc9ef2', '#fbe3a2', '#a6dcef']
-const FUTONS = ['#ff9ab8', '#f0b43c', '#a58ad8', '#79c86a', '#fff7e8', '#5cc0d6']
-// How far washing and futons swing out, as a share of how far below the pole or the rail (a heavy futon barely stirs).
-const WIND = { washing: 0.3, futon: 0.06 }
+// The paints a line of washing's white pieces take, and the bright covers of futons on a balcony's rail (brighter than
+// the towers', so they read against pale walls and white balconies).
+const WASHING = ['#ffffff', '#ffffff', '#ffc52d', '#bc9ef2', '#a6dcef', '#fbe3a2', '#ff9cbb']
+const COVERS = ['#ff9ab8', '#f0b43c', '#a58ad8', '#79c86a', '#fff7e8', '#5cc0d6']
 const STEEL = { frame: '#6f7986', tread: '#a7aeb6', pole: '#c4ccd4' }
 /** Outside stairs (#156): m along their flights, across their two lanes, and the depth of a landing. */
 export const STAIR = { long: 4.2, wide: 2.4, landing: 1.1 }
@@ -108,6 +108,25 @@ const LIGHT = (() => {
   g.computeVertexNormals()
   return g
 })()
+// High-density residential details (#155): a rooftop helipad's pad and its paint; balcony plants' pots; the covers of
+// futons aired over the railings; and a playground's soft ground, slide, swings, sandbox and spring rider.
+const HELIPAD = { pad: '#4f7a62', paint: '#f6d36a' }
+const POTS = ['#d09c53', '#c49a6c', '#e9e4da']
+const FUTONS = ['#fbd2dd', '#fff7e8', '#e0f2d4', '#fbe3a2', '#e5dafb', '#ffffff']
+const PLAY = {
+  ground: '#8fd1a8',
+  frame: '#5aa69b',
+  deck: '#f4f1ea',
+  chute: '#f0c75e',
+  swings: '#ea8548',
+  seat: '#4a525c',
+  chain: '#9aa3ad',
+  sand: '#e8d3a6',
+  rim: '#c49a6c',
+  rider: '#ff9cbb',
+}
+const BEACON = { mast: 2.2, r: 0.85 } // a roof beacon's mast, m tall, and its bulb's radius
+const BUSH = new THREE.IcosahedronGeometry(1, 0) // a balcony plant's leaves: a few faces, laid by the thousand
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
@@ -128,9 +147,9 @@ const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 // A flat disc facing -z, the way the kit's frames face at no turn: a fan's grille or one side of a wheel (#156).
-const DISC = new THREE.CircleGeometry(1, 8).rotateY(Math.PI)
-// A sheet hanging down from its top edge's middle, facing -z: a towel or a shirt on the cloth, drawn from both sides.
-const SHEET = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0)
+const FACING_DISC = new THREE.CircleGeometry(1, 8).rotateY(Math.PI)
+const DISC = new THREE.CylinderGeometry(1, 1, 1, 32) // centred on its middle, unlike CYLINDER: a helipad's pad
+const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helipad's painted ring, 1 m out
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /** The faces of a box, as the way each looks: north, south, east and west. */
@@ -144,20 +163,10 @@ export const FACES = [
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
  * The kit's glass is tinted white unless a tint is given, and takes `glow`, how brightly it lights at night: 1 unless
- * given, so that a curtain wall can be lit floor by floor. The kit's cloth takes `hung`, how it hangs (#156).
+ * given, so that a curtain wall can be lit floor by floor.
  */
-export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number; hung?: Hung }
+export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number }
 
-/**
- * How a piece of cloth hangs and sways (#156), in Three coordinates: the point it hangs from (the middle of its top),
- * which it is gathered into when it is taken in; the way it swings out, as far as it swings at a metre below that
- * point; and where in its sway it starts.
- */
-export interface Hung {
-  at: THREE.Vector3
-  swing: THREE.Vector2
-  phase: number
-}
 export type TreeKind = keyof typeof LEAVES
 /** An office tower: a framed curtain wall, fins up its faces, tiers set back, or round. */
 export type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
@@ -269,32 +278,6 @@ export function createMaterials() {
   }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
-  // Cloth (#156): washing and futons, which sway in the wind and are taken in for the night. Each vertex carries how its
-  // piece hangs (`Hung`): it swings out about the point it hangs from, the further the lower, on the wind's clock, and
-  // is gathered into that point as `out` falls to 0. Moved here rather than placed each frame, so a City's thousands of
-  // pieces cost no time on the CPU and ride their buildings' bricks.
-  const wind = { time: { value: 0 }, out: { value: 1 } }
-  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })
-  cloth.onBeforeCompile = (shader) => {
-    shader.uniforms.windTime = wind.time
-    shader.uniforms.windOut = wind.out
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nattribute vec4 hang;\nattribute vec2 swing;\nuniform float windTime;\nuniform float windOut;',
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-{
-  vec3 rest = position - hang.xyz;
-  float sway = 0.65 * sin(windTime * 1.9 + hang.w) + 0.35 * sin(windTime * 3.3 + 1.7 * hang.w);
-  vec3 hung = rest + vec3(swing.x, 0.0, swing.y) * max(0.0, -rest.y) * sway;
-  transformed += hung * windOut - rest;
-}`,
-      )
-  }
-  cloth.customProgramCacheKey = () => 'cloth'
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
   const decal = (map: THREE.Texture, opacity: number) =>
@@ -338,18 +321,12 @@ export function createMaterials() {
     glassOf: shade,
     bulb,
     water,
-    cloth,
     roundShadow,
     squareShadow,
     /** Light the windows and lamps as the time of day has them. */
     setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
-    },
-    /** Sway the cloth to the wind's clock `time` (s), hung out as far as `out` (1 out, 0 taken in) (#156). */
-    setWind(time: number, out: number) {
-      wind.time.value = time
-      wind.out.value = out
     },
   }
 }
@@ -362,12 +339,14 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, unlit, glassOf, bulb, water, cloth, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
   const movers: Mover[] = []
   const plumes: Plume[] = []
+  const beacons: Beacon[] = []
+  const sways: Sway[] = []
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -389,23 +368,12 @@ export function createKit(rand: () => number, materials: Materials) {
   /** Give every vertex of a geometry of the glass the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
-  /** Give every vertex of a geometry of the cloth how its piece hangs (#156). */
-  const hanging = (geo: THREE.BufferGeometry, { at, swing, phase }: Hung) => {
-    const n = geo.attributes.position.count
-    const [hang, swings] = [new Float32Array(4 * n), new Float32Array(2 * n)]
-    for (let i = 0; i < n; i++) {
-      hang.set([at.x, at.y, at.z, phase], 4 * i)
-      swings.set([swing.x, swing.y], 2 * i)
-    }
-    return geo.setAttribute('hang', new THREE.BufferAttribute(hang, 4)).setAttribute('swing', new THREE.BufferAttribute(swings, 2))
-  }
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
     if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
-      const geometry = look.material === glass ? glowing(tinted, look.glow ?? 1) : look.hung ? hanging(tinted, look.hung) : tinted
-      parts.push({ geometry, material: look.material, brick: -1 })
+      parts.push({ geometry: look.material === glass ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
     } else parts.push({ geometry: look === glass ? glowing(tint(geo, '#ffffff'), 1) : geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
@@ -483,59 +451,38 @@ export function createKit(rand: () => number, materials: Materials) {
    */
   const airCon = (x: number, y: number, h: number, ry: number) => {
     put(cuboid(1.05, 0.74, 0.44), AIRCON.body, x, y, ry, 0, 0.24, h)
-    put(DISC, AIRCON.grille, x, y, ry, -0.17, 0.47, h + 0.37, 0.26, 0.26, 1)
+    put(FACING_DISC, AIRCON.grille, x, y, ry, -0.17, 0.47, h + 0.37, 0.26, 0.26, 1)
   }
   /**
-   * The cloth's look for a piece in `colour` hung from `(x, y)`, `h` above the road, before a wall facing `ry`: it swings
-   * out from the wall and back, `swing` as far a metre down, from where it hangs in its own phase (#156).
+   * A line of washing (`./movers`' `washing`, 2.6 m) on a pole `out` m from a wall at `(x, y)` that faces `ry`, `h` above
+   * the road (#156), its white pieces in a paint from the kit's stream: on two brackets from the wall if `brackets`
+   * (under a balcony's slab it hangs from hooks too small to draw). The line rides the next brick closed and sways;
+   * the brackets join that brick.
    */
-  const hung = (colour: string, x: number, y: number, h: number, ry: number, swing: number): Look => ({
-    material: cloth,
-    tint: new THREE.Color(colour),
-    hung: {
-      at: new THREE.Vector3(x, h, -y),
-      swing: new THREE.Vector2(-Math.sin(ry) * swing, -Math.cos(ry) * swing),
-      phase: (spot(x, y) % 6283) / 1000,
-    },
-  })
-  /**
-   * Washing on a pole `len` long, `h` above the road, `out` m from a wall at `(x, y)` that faces `ry` (#156): a pole,
-   * on two brackets from the wall if `brackets` (under a balcony's slab it hangs from hooks too small to draw), and a
-   * few towels and shirts hung from it, in the kit's stream. It joins the next brick.
-   */
-  const washing = (x: number, y: number, h: number, ry: number, len: number, out: number, brackets: boolean) => {
-    put(cuboid(len, 0.05, 0.05), STEEL.pole, x, y, ry, 0, out, h)
-    if (brackets) for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, (k * (len - 0.1)) / 2, out / 2, h)
-    for (let at = -len / 2 + 0.1; at < len / 2 - 0.4;) {
-      const [w, drop] = [range(0.45, 0.7), range(0.6, 1.05)]
-      if (at + w > len / 2 - 0.05) break
-      if (rand() < 0.8) {
-        const [px, py] = to(x, y, ry, at + w / 2, out)
-        put(SHEET, hung(pick(WASHING), px, py, h, ry, WIND.washing), x, y, ry, at + w / 2, out, h - 0.03, w, drop, 1)
-      }
-      at += w + range(0.06, 0.2)
-    }
+  const washing = (x: number, y: number, h: number, ry: number, out: number, brackets: boolean) => {
+    if (brackets) for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, k * 1.25, out / 2, h)
+    sway('washing', ...to(x, y, ry, 0, out), h, ry, { paint: pick(WASHING) })
   }
-  /** A futon `w` wide hung over a rail `h` above the road, `out` m from a wall at `(x, y)` facing `ry` (#156). It joins the next brick. */
-  const futon = (x: number, y: number, h: number, ry: number, w: number, out: number) => {
-    const [px, py] = to(x, y, ry, 0, out)
-    const look = hung(pick(FUTONS), px, py, h, ry, WIND.futon)
-    put(cuboid(w, 0.12, 0.34), look, x, y, ry, 0, out, h)
-    put(cuboid(w, 1.2, 0.1), look, x, y, ry, 0, out + 0.14, h - 1.15)
-  }
+  /** A futon over a rail `h` above the road, `out` m from a wall at `(x, y)` facing `ry`, in a bright cover (#156): it rides the next brick closed and sways. */
+  const futon = (x: number, y: number, h: number, ry: number, out: number) =>
+    sway('futon', ...to(x, y, ry, 0, out), h, ry, { paint: pick(COVERS) })
   /** A bicycle standing at `(x, y)`, its length along `ry`'s right, a little large (#156): two wheels, a frame, a saddle and a basket. */
   const bicycle = (x: number, y: number, h: number, ry: number) => {
     const frame = pick(BIKES.frames)
     const r = 0.38
     // Each wheel a disc on either side, so it shows from both, at a few dozen triangles a bicycle: they come by the hundred.
     for (const lx of [-0.6, 0.6]) {
-      put(DISC, BIKES.tyre, x, y, ry, lx, 0.04, h + r, r, r, 1)
-      put(DISC, BIKES.tyre, x, y, ry + Math.PI, -lx, 0.04, h + r, r, r, 1)
+      put(FACING_DISC, BIKES.tyre, x, y, ry, lx, 0.04, h + r, r, r, 1)
+      put(FACING_DISC, BIKES.tyre, x, y, ry + Math.PI, -lx, 0.04, h + r, r, r, 1)
     }
     put(cuboid(0.95, 0.07, 0.07), frame, x, y, ry, 0.05, 0, h + 0.82) // the top tube
     put(cuboid(0.07, 0.62, 0.07), frame, x, y, ry, -0.32, 0, h + r) // the seat tube, its saddle on top
     put(cuboid(0.07, 0.72, 0.5), frame, x, y, ry, 0.48, 0, h + r) // the fork and the handlebar
     put(cuboid(0.36, 0.26, 0.38), BIKES.steel, x, y, ry, 0.72, 0, h + r + 0.42) // the basket
+  }
+  /** `count` bicycles side by side `gap` m apart, centred on `(x, y)` along `ry`'s right, each facing out to its front (#156). They join the next brick. */
+  const row = (x: number, y: number, h: number, ry: number, count: number, gap: number) => {
+    for (let k = 0; k < count; k++) bicycle(...to(x, y, ry, (k - (count - 1) / 2) * gap, 0), h, ry + Math.PI / 2)
   }
   /**
    * Steel outside stairs (#156), centred on `(x, y)`, their flights running along their front `ry`: two flights a
@@ -562,6 +509,33 @@ export function createKit(rand: () => number, materials: Materials) {
     for (const lx of [-1, 1])
       for (const ly of [-1, 1])
         put(cuboid(0.14, top - tops[0], 0.14), STEEL.frame, x, y, ry, lx * (L / 2 - 0.07), ly * (W / 2 - 0.07), tops[0])
+  }
+  /**
+   * A beacon's bulb of radius `r` at `(x, y)`, `h` above the road (#155), white or amber, never red: `./movers` draws it
+   * and blinks it at night, riding the next brick closed.
+   */
+  const beacon = (x: number, y: number, h: number, r: number, colour: BeaconColour = 'white') => {
+    beacons.push({ at: new THREE.Vector3(x, h, -y), r, colour, brick: bricks.length })
+  }
+  /**
+   * Something that hangs from a line through `(x, y)`, `h` above the road, and sways in the wind (#155): laundry on a
+   * pole or a futon over a railing, the line running along `ry` (0 along x, as a front facing `ry` runs), out of the
+   * building on the side a front facing `ry` looks, painted as `more` has it. A futon's cover, unless given, is drawn
+   * from where it hangs, so the kit's stream is untouched. `./movers` draws it, riding the next brick closed.
+   */
+  const sway = (kind: SwayKind, x: number, y: number, h: number, ry: number, more: Pick<Sway, 'paint'> = {}) => {
+    const paint = more.paint ?? (kind === 'futon' ? FUTONS[spot(x, y) % FUTONS.length] : undefined)
+    sways.push({ kind, at: new THREE.Vector3(x, h, -y), ry, ...(paint ? { paint } : {}), brick: bricks.length })
+  }
+  /**
+   * The mark of a helipad painted on a roof at `(x, y)`, `h` above the road (#155): a dark green disc with a yellow ring
+   * `r` m across its outside, and an H inside, joining the next brick.
+   */
+  const helipad = (x: number, y: number, h: number, r: number) => {
+    add(DISC, HELIPAD.pad, x, y, h, 0, r + 0.6, 0.12, r + 0.6)
+    add(RING, HELIPAD.paint, x, y, h + 0.13, 0, r, 1, r)
+    for (const k of [-1, 1]) add(cuboid(0.55, 0.04, r * 1.05), HELIPAD.paint, x + k * r * 0.33, y, h + 0.12)
+    add(cuboid(r * 0.66, 0.04, 0.5), HELIPAD.paint, x, y, h + 0.12)
   }
 
   return {
@@ -767,7 +741,7 @@ export function createKit(rand: () => number, materials: Materials) {
         // Under the ground floor's window, or beside the door of a house one window wide.
         if (ac < [0.25, 0.5, 0.75][stage - 1]) airCon(...wall(across === 2 ? -w * 0.23 : -1.3), h + 0.02, ry)
         if (stage === 3 && storeys > 1 && high < 0.45) airCon(...wall(across === 2 ? 0 : 1.3), h + 3.34, ry)
-        if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, w - 0.9, 0.7, true)
+        if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, 0.7, true)
       })
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
@@ -845,8 +819,8 @@ export function createKit(rand: () => number, materials: Materials) {
                 const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
                 const r = rand()
                 if (blind(fx, fy)) continue
-                if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 2.6, 0.62, false)
-                else if (r < 0.33) futon(fx, fy, h + 1.76 + f * 3.2, ry, range(1.3, 1.7), 1.05)
+                if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 0.62, false)
+                else if (r < 0.33) futon(fx, fy, h + 1.76 + f * 3.2, ry, 1.05)
               }
             }
           })
@@ -879,14 +853,36 @@ export function createKit(rand: () => number, materials: Materials) {
     /**
      * A residential tower at Stage `stage`, of `floors` storeys on a footprint `w` (east–west) by `d`, centred on
      * `(x, y)`, as one brick: a podium with a lit lobby, a pale wall with windows lit or dark one by one, a stack of
-     * balconies up the middle of its two long faces, and on its roof a water tank. The caller gives each Stage its floors.
-     * - Stage 1: a bare roof but for the tank.
-     * - Stage 2: a little garden on the roof.
+     * balconies up the middle of its two long faces, and on its roof a water tank. The caller gives each Stage its floors,
+     * and says whether its roof is a helipad and has beacons (#155). Some balconies have plants in pots, washing on a
+     * pole or a futon over the railing (#155), each balcony's drawn from where it stands; washing and futons sway in the
+     * wind (`./movers`) and ride its brick.
+     * - Stage 1: a bare roof but for the tank, and plants on a few balconies.
+     * - Stage 2: a little garden on the roof; plants on more balconies, and washing out on some.
      * - Stage 3: a band of trim round the wall every four floors, a crown of lit glass under a deeper cap, and a bigger
-     *   roof garden.
+     *   roof garden; more plants and washing, and futons aired on a few balconies.
+     *
+     * A helipad takes the whole roof, with no tank or garden, and a beacon stands at a corner, or at two opposite ones
+     * round a helipad.
      */
-    residentialTower(x: number, y: number, h: number, w: number, d: number, floors: number, stage = 2) {
+    residentialTower(
+      x: number,
+      y: number,
+      h: number,
+      w: number,
+      d: number,
+      floors: number,
+      stage = 2,
+      rooftop: { pad?: boolean; beacon?: boolean } = {},
+    ) {
       const [colour, trim] = [pick(FLATS.walls), pick(FLATS.trims)]
+      // Its balconies' plants, washing and futons (#155), each balcony's drawn from where it stands, so the tower's own
+      // stream is untouched: the share of balconies with each at this Stage.
+      const [plants, washing, futons] = [
+        [0.12, 0.3, 0.4],
+        [0, 0.16, 0.24],
+        [0, 0, 0.1],
+      ].map((shares) => shares[stage - 1])
       const STOREY = 3.1
       const base = h + 4.2
       const top = base + floors * STOREY
@@ -913,6 +909,19 @@ export function createKit(rand: () => number, materials: Materials) {
           local(cuboid(4.6, 0.24, 1.5), trim, mx, my, ry, 0, 0.75, at)
           local(cuboid(4.6, 1, 0.14), trim, mx, my, ry, 0, 1.45, at + 0.24)
           local(cuboid(3.6, 2.2, 0.3), pane(0.55), mx, my, ry, 0, 0, at + 0.3)
+          const draw = mulberry32(spot(mx, my) ^ Math.imul(f + 1, 0x2c1b3c6d))
+          const [green, wash, airing, side, kind] = [draw(), draw(), draw(), draw() < 0.5 ? 1 : -1, draw()]
+          if (green < plants) {
+            // A plant or two in pots by the railing, peeping over it.
+            for (const k of green < plants / 3 ? [side, -side] : [side]) {
+              const [px, py] = to(mx, my, ry, k * 1.75, 1.0)
+              add(cuboid(0.56, 0.5, 0.56), POTS[Math.floor(kind * 3)], px, py, at + 0.24)
+              add(BUSH, LEAVES.round[Math.floor(kind * 5)], px, py, at + 1.05, kind * TAU, 0.5, 0.48, 0.5)
+            }
+          }
+          if (wash < washing) sway('laundry', ...to(mx, my, ry, 0, 1.25), at + 2.75, ry + (kind < 0.5 ? 0 : Math.PI))
+          if (airing < futons)
+            sway('futon', ...to(mx, my, ry, -side * 1.2, 1.45), at + 1.24, ry, { paint: FUTONS[Math.floor(kind * FUTONS.length)] })
         }
       }
       if (stage === 3) {
@@ -924,6 +933,20 @@ export function createKit(rand: () => number, materials: Materials) {
       const cap = stage === 3 ? 2 : 1.2
       add(box(w + 0.3, cap, d + 0.3, 1, 0.12), trim, x, y, top)
       const roof = top + cap - 0.3
+      // A beacon at a corner of the roof (#155), and at the opposite one too round a helipad.
+      if (rooftop.beacon) {
+        for (const k of rooftop.pad ? [1, -1] : [1]) {
+          const [bx, by] = [x + k * (w / 2 - 0.75), y + k * (d / 2 - 0.75)]
+          add(CYLINDER, PLANT, bx, by, roof, 0, 0.1, BEACON.mast, 0.1)
+          beacon(bx, by, roof + BEACON.mast + 0.8 * BEACON.r, BEACON.r)
+        }
+      }
+      if (rooftop.pad) {
+        // The helipad takes the whole roof (#155).
+        helipad(x, y, roof + 0.25, Math.min(w, d) / 2 - 1.3)
+        shadow(x, y, h, w * 1.4 + 3, d * 1.4 + 3)
+        return brick('building', x, y, h)
+      }
       add(CYLINDER, TANK.body, x - w * 0.22, y + d * 0.2, roof, 0, 1.3, 2.4, 1.3)
       add(CONE, TANK.lid, x - w * 0.22, y + d * 0.2, roof + 2.4, 0, 1.4, 0.9, 1.4)
       if (stage > 1) {
@@ -1394,11 +1417,19 @@ export function createKit(rand: () => number, materials: Materials) {
       put(cuboid(len + 0.3, 0.08, D + 0.3), BIKES.roof, x, y, ry, 0, 0, h + 2.25)
       put(cuboid(len - 0.2, 0.08, 0.08), BIKES.steel, x, y, ry, 0, -D / 2 + 0.25, h + 0.55)
       const n = Math.min(bikes, Math.floor((len - 0.3) / BIKE_RACK.per))
-      for (let k = 0; k < n; k++) {
-        const lx = -len / 2 + 0.15 + BIKE_RACK.per * (k + 0.5)
-        bicycle(...to(x, y, ry, lx, -0.05), h, ry + Math.PI / 2)
-      }
+      row(...to(x, y, ry, -len / 2 + 0.15 + (BIKE_RACK.per * n) / 2, -0.05), h, ry, n, BIKE_RACK.per)
       shadow(x, y, h, len + 1, D + 1, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * `count` bicycles standing side by side `gap` m apart, centred on `(x, y)`, the row along `ry`'s right and each
+     * bicycle facing out to its front, as one brick (#156): parked against a wall, by a shop or a house. Frames in the
+     * cars' colours, a little large as the props are.
+     */
+    bicycles(x: number, y: number, h: number, ry: number, count: number, gap = BIKE_RACK.per) {
+      row(x, y, h, ry, count, gap)
+      shadow(x, y, h, count * gap + 0.6, 2.4, false, ry)
       brick('building', x, y, h)
     },
 
@@ -1419,6 +1450,19 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('tree', x, y, h)
     },
 
+    sway,
+    beacon,
+    helipad,
+
+    /**
+     * A soft surface on the ground, `w` by `d` centred on `(x, y)` and turned `ry`, as a brick (#155): a playground's,
+     * or with `look` a garden's lawn. Plain boxes, as are the flower beds: a tower's foot is laid by the hundred.
+     */
+    surface(x: number, y: number, h: number, w: number, d: number, ry: number, look: Look = PLAY.ground) {
+      add(cuboid(w, 0.1, d), look, x, y, h, ry)
+      brick('ground', x, y, h)
+    },
+
     /**
      * A park bench at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick that drops in (#152): wooden
      * slats on iron ends, 2 m long, oversized a little as the props are.
@@ -1433,6 +1477,51 @@ export function createKit(rand: () => number, materials: Materials) {
       }
       shadow(x, y, h, 2.8, 1.4, true, ry) // round, as the trees' are: a meadow then draws no other shadow
       brick('building', x, y, h)
+    },
+
+    /**
+     * A slide at `(x, y)`, running down along `ry`'s right (its chute toward +x when `ry` is 0), as a brick that pops in
+     * (#155): a ladder to a deck on four posts, and the chute.
+     */
+    slide(x: number, y: number, h: number, ry: number) {
+      const deck = 1.7
+      for (const i of [-0.55, 0.55]) for (const j of [-0.55, 0.55]) local(cuboid(0.14, deck + 1, 0.14), PLAY.frame, x, y, ry, -1 + i, j, h)
+      local(cuboid(1.3, 0.12, 1.3), PLAY.deck, x, y, ry, -1, 0, h + deck)
+      for (let k = 1; k < 5; k++) local(cuboid(0.12, 0.08, 1.1), PLAY.deck, x, y, ry, -1.85, 0, h + (k * deck) / 5) // the ladder
+      const chute = new THREE.BoxGeometry(3.2, 0.12, 0.9).rotateZ(-Math.atan2(deck, 2.8)).translate(0.5, deck / 2 + 0.06, 0)
+      local(chute, PLAY.chute, x, y, ry, 0, 0, h)
+      chute.dispose()
+      shadow(x, y, h, 5, 2.2, false, ry)
+      brick('tree', x, y, h)
+    },
+
+    /** A frame of two swings at `(x, y)`, its bar along `ry`'s right, as a brick that pops in (#155). */
+    swings(x: number, y: number, h: number, ry: number) {
+      const [wide, tall] = [3.4, 2.5]
+      for (const k of [-1, 1]) {
+        for (const j of [-0.7, 0.7]) {
+          const leg = new THREE.BoxGeometry(0.14, tall + 0.2, 0.14).rotateX(-j * 0.5).translate(0, tall / 2, j * 0.62)
+          local(leg, PLAY.swings, x, y, ry, (k * wide) / 2, 0, h)
+          leg.dispose()
+        }
+      }
+      local(cuboid(wide + 0.3, 0.14, 0.14), PLAY.swings, x, y, ry, 0, 0, h + tall)
+      for (const k of [-0.8, 0.8]) {
+        for (const c of [-0.28, 0.28]) local(cuboid(0.04, tall - 0.6, 0.04), PLAY.chain, x, y, ry, k + c, 0, h + 0.6)
+        local(cuboid(0.7, 0.08, 0.36), PLAY.seat, x, y, ry, k, 0, h + 0.55)
+      }
+      shadow(x, y, h, wide + 1.6, 2.4, false, ry)
+      brick('tree', x, y, h)
+    },
+
+    /** A sandbox `w` by `d` at `(x, y)`, turned `ry`, as a brick (#155): a wooden rim round the sand. */
+    sandbox(x: number, y: number, h: number, w: number, d: number, ry: number) {
+      local(cuboid(w - 0.3, 0.2, d - 0.3), PLAY.sand, x, y, ry, 0, 0, h)
+      for (const k of [-1, 1]) {
+        local(cuboid(w, 0.34, 0.16), PLAY.rim, x, y, ry, 0, (k * (d - 0.16)) / 2, h)
+        local(cuboid(0.16, 0.34, d - 0.32), PLAY.rim, x, y, ry, (k * (w - 0.16)) / 2, 0, h)
+      }
+      brick('ground', x, y, h)
     },
 
     /**
@@ -1457,6 +1546,27 @@ export function createKit(rand: () => number, materials: Materials) {
         add(cuboid(0.06, 2.3, 0.06), BENCH.iron, px, py, h)
         add(CONE, shade, px, py, h + 1.95, 0, 1.4, 0.5, 1.4)
         shadow(px, py, h, 3, 3, true)
+      }
+      brick('ground', x, y, h)
+    },
+
+    /** A spring rider at `(x, y)` facing `ry`, as a brick that pops in (#155): a little animal to rock on. */
+    rider(x: number, y: number, h: number, ry: number) {
+      local(cuboid(0.14, 0.45, 0.14), PLAY.chain, x, y, ry, 0, 0, h)
+      local(box(0.5, 0.45, 0.95, 0.2, 0.06), PLAY.rider, x, y, ry, 0, 0, h + 0.4)
+      local(box(0.42, 0.42, 0.42, 0.18, 0.06), PLAY.rider, x, y, ry, 0, 0.45, h + 0.75)
+      shadow(x, y, h, 1.2, 1.4, true)
+      brick('tree', x, y, h)
+    },
+
+    /** A raised bed of flowers `w` by `d` at `(x, y)`, turned `ry`, in bloom `colour`, as a brick (#155). */
+    flowerBed(x: number, y: number, h: number, w: number, d: number, ry: number, colour: string) {
+      local(cuboid(w, 0.4, d), PLAY.rim, x, y, ry, 0, 0, h)
+      local(cuboid(w - 0.3, 0.32, d - 0.3), HEDGE, x, y, ry, 0, 0, h + 0.3)
+      const n = Math.max(2, Math.round(w / 0.9))
+      for (let k = 0; k < n; k++) {
+        const [bx, by] = to(x, y, ry, -w / 2 + 0.5 + (k * (w - 1)) / (n - 1), ((k % 2 ? 1 : -1) * d) / 4)
+        add(BUSH, colour, bx, by, h + 0.66, k, 0.34, 0.26, 0.34)
       }
       brick('ground', x, y, h)
     },
@@ -1502,17 +1612,17 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * Everything built, as parts tagged with their bricks, the movers and the chimneys' plumes. Every shape must be in a
-     * brick by now. The kit is spent after this.
+     * Everything built, as parts tagged with their bricks, the movers, the chimneys' plumes, the beacons and what sways.
+     * Every shape must be in a brick by now. The kit is spent after this.
      */
-    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[] } {
+    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[]; beacons: Beacon[]; sways: Sway[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values(), ...flights.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
       flights.clear()
-      return { parts, bricks, movers, plumes }
+      return { parts, bricks, movers, plumes, beacons, sways }
     },
   }
 }

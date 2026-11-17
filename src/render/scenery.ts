@@ -11,7 +11,7 @@ import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { standPoles, stringWires, type LineEnd } from './poles'
-import type { Mover, Plume } from './movers'
+import type { Beacon, Mover, Plume, Sway } from './movers'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -73,6 +73,10 @@ export interface Build {
   movers: Mover[]
   /** The chimneys' smoke, each riding its chimney's brick (`./movers`). */
   plumes: Plume[]
+  /** The roof beacons, each riding its building's brick (`./movers`). */
+  beacons: Beacon[]
+  /** What hangs and sways in the wind, each riding its building's brick (`./movers`). */
+  sways: Sway[]
   /** The middle of each Block built. */
   blocks: { middle: Vec }[]
   pieces: Bounds[]
@@ -138,12 +142,16 @@ export function createScenery(
     const bricks: BuiltBrick[] = []
     const movers: Mover[] = []
     const plumes: Plume[] = []
+    const beacons: Beacon[] = []
+    const sways: Sway[] = []
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
       for (const part of done.parts) parts.push({ ...part, brick: part.brick + bricks.length })
       for (const mover of done.movers) movers.push({ ...mover, brick: mover.brick + bricks.length })
       for (const plume of done.plumes) plumes.push({ ...plume, brick: plume.brick + bricks.length })
+      for (const beacon of done.beacons) beacons.push({ ...beacon, brick: beacon.brick + bricks.length })
+      for (const sway of done.sways) sways.push({ ...sway, brick: sway.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
     const slab = createKit(mulberry32(0), materials)
@@ -184,14 +192,13 @@ export function createScenery(
       if (!merged) throw new Error(`parts of one material do not share their vertex attributes (${material.type})`)
       for (const g of geometries) g.dispose()
       const mesh = new THREE.Mesh(merged, material)
-      // Cloth casts none: its shadow would stand still, and stay out when the washing is taken in (#156).
-      mesh.castShadow = !material.transparent && material !== materials.cloth
+      mesh.castShadow = !material.transparent
       mesh.receiveShadow = true
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)
       yield
     }
-    return { meshes, bricks, movers, plumes, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
+    return { meshes, bricks, movers, plumes, beacons, sways, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
   }
 
   /** Start a build of `pieces` as the last pieces laid. */
