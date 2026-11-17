@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
-import { DAY } from './day'
+import { DAY, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
 import { tint } from './shapes'
@@ -10,7 +10,8 @@ import { tint } from './shapes'
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
 // stretch: it sets out each morning and stops for the night once it has worked the day's stretches. A chimney's smoke
-// (#150) rises through the same working day.
+// (#150) rises through the same working day, washing and futons (#155) hang out through it and sway in the wind, and
+// beacons (#155) blink at night.
 
 /** The kinds of mover, each with its own model. */
 export type MoverKind = 'tractor' | 'truck' | 'forklift'
@@ -42,6 +43,34 @@ export interface Plume {
   brick: number
 }
 
+/** A beacon's colour (#155): white or amber, never the Jam's red. */
+export type BeaconColour = 'white' | 'amber'
+
+/** A beacon (#155): a bulb of radius `r` at `at`, in Three coordinates, riding the brick at `brick`, that blinks at night. */
+export interface Beacon {
+  at: THREE.Vector3
+  r: number
+  colour: BeaconColour
+  brick: number
+}
+
+/** The kinds of thing that hangs and sways in the wind, each with its own model. */
+export type SwayKind = 'laundry' | 'futon'
+
+/**
+ * Something that hangs from a line and sways in the wind (#155): laundry on a pole, a futon over a railing. It hangs
+ * from `at`, in Three coordinates, on a line turned `ry` as the kit turns a shape (0 along x, as a front facing north
+ * runs), out of the building on the side a front facing `ry` looks, riding the brick at `brick`.
+ */
+export interface Sway {
+  kind: SwayKind
+  at: THREE.Vector3
+  ry: number
+  /** The colour its model's white parts take. White unless given. */
+  paint?: string
+  brick: number
+}
+
 /** The time of day (0–1, as the day's clock) at which the movers set out and stop work, and their share of work left free. */
 const WORK = { from: 0.02, to: 0.5, slack: 0.2 }
 /** Real seconds of work in a day. */
@@ -59,6 +88,18 @@ const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [0.55, -0.35], from: 0.
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
+// Beacons (#155): s between flashes, the share of that the flash holds before it fades, how fast it fades, how dimly it
+// glows between flashes, and how bright a flash is for the lamps' glow; the colours, white or amber.
+const BLINK = { every: 2, hold: 0.4, fade: 14, rest: 0.04, bright: 1 }
+const BEACONS: Record<BeaconColour, string> = { white: '#fff3e2', amber: '#ffb24a' }
+// Swaying (#155): per kind, how far it swings each way (rad), how fast (rad/s), and its model.
+const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.BufferGeometry }> = {
+  laundry: { swing: 0.2, rate: 2.4, model: laundry },
+  futon: { swing: 0.04, rate: 1.6, model: futon },
+}
+// Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
+// moment, and takes this share of the day to come or go.
+const HANG = { out: 0.05, in: 0.06, takes: 0.004 }
 
 /** A box `w` by `h` by `d` centred on `(x, z)` with its bottom at `y`, painted. */
 const part = (w: number, h: number, d: number, x: number, y: number, z: number, color: string) =>
@@ -140,6 +181,34 @@ function forklift(): THREE.BufferGeometry {
   return merged(parts).translate(-0.3, 0, 0).scale(1.3, 1.3, 1.3)
 }
 
+/**
+ * A line of washing (#155), hanging from a pole along x at y = 0, oversized a little as the moving details are: towels
+ * and shirts in pale colours, out of the building along -z.
+ */
+function laundry(): THREE.BufferGeometry {
+  const parts = [tint(new THREE.CylinderGeometry(0.045, 0.045, 3.9, 6).rotateZ(Math.PI / 2), '#c4ccd4')]
+  const CLOTHS = ['#ffffff', '#fbd2dd', '#fbe3a2', '#d6efe6']
+  ;[-1.38, -0.46, 0.46, 1.38].forEach((x, i) => {
+    if (i % 2)
+      parts.push(part(0.66, 0.82, 0.05, x, -0.98, 0, CLOTHS[i]), part(1.1, 0.28, 0.05, x, -0.34, 0, CLOTHS[i])) // a shirt
+    else parts.push(part(0.76, 1.05 - 0.15 * (i / 2), 0.05, x, -1.05 + 0.15 * (i / 2), 0, CLOTHS[i])) // a towel
+  })
+  return merged(parts)
+}
+
+/**
+ * A futon aired over a railing whose top runs along x at y = 0 (#155): a thick quilt folded over it, most of it hanging
+ * out of the building along -z. White, for the cover each takes.
+ */
+function futon(): THREE.BufferGeometry {
+  const PAINT = '#ffffff'
+  return merged([
+    part(1.7, 0.14, 0.42, 0, 0, 0, PAINT), // over the rail
+    part(1.7, 1.05, 0.14, 0, -1, -0.24, PAINT), // hanging out
+    part(1.7, 0.55, 0.14, 0, -0.5, 0.24, PAINT), // and in
+  ])
+}
+
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
 function along(line: Polyline, s: number): { x: number; y: number; heading: number } {
   const { pts, cum } = line
@@ -170,12 +239,16 @@ interface Puff {
   dz: number
 }
 
-/** The movers and plumes of one build, the reveal it may be playing on, and its plumes' puffs. */
+/** The movers, plumes, beacons and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
 interface Entry {
   build: Build
   movers: Mover[]
   plumes: { plume: Plume; next: number; draw: () => number }[]
   puffs: Puff[]
+  /** Each beacon, and where it is in its blink (0–1) when the run starts. */
+  beacons: { beacon: Beacon; phase: number }[]
+  /** Each swaying thing, where it is in its swing when the run starts, and when (the day's clock) it is hung out and taken in. */
+  sways: { sway: Sway; phase: number; out: number; in: number }[]
   playing?: Poses
 }
 
@@ -197,12 +270,14 @@ export function createMovers() {
   let work = 0 // s worked: a whole number of shifts outside the working day
   let working = false
   let t = 0 // s run, for the bob and the smoke
-  const [m, q, at, scale, up, white] = [
+  const [m, q, tilt, at, scale, up, across, white] = [
     new THREE.Matrix4(),
+    new THREE.Quaternion(),
     new THREE.Quaternion(),
     new THREE.Vector3(),
     new THREE.Vector3(),
     new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(1, 0, 0),
     new THREE.Color('#ffffff'),
   ]
 
@@ -234,13 +309,55 @@ export function createMovers() {
   smoke.renderOrder = 3
   group.add(smoke)
 
-  /** New instanced meshes for the movers there are now. */
+  // Beacons (#155): one instanced mesh of bulbs in their colours, each lit by its own share of the material's glow.
+  const bulb = new THREE.IcosahedronGeometry(1, 1)
+  const lens = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.35, emissive: '#ffffff', emissiveIntensity: 0 })
+  lens.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float flash;\nvarying float vFlash;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvFlash = flash;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFlash;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vFlash;')
+  }
+  let beacons: THREE.InstancedMesh | null = null
+  let flashes = new THREE.InstancedBufferAttribute(new Float32Array(0), 1)
+  // Swaying things (#155): one instanced mesh per kind.
+  const swayModels = new Map((Object.keys(SWAYS) as SwayKind[]).map((k) => [k, SWAYS[k].model()]))
+  const swaying = new Map<SwayKind, THREE.InstancedMesh>()
+
+  /** New instanced meshes for the movers, beacons and swaying things there are now. */
   const remesh = () => {
-    for (const mesh of meshes.values()) {
+    for (const mesh of [...meshes.values(), ...swaying.values(), ...(beacons ? [beacons] : [])]) {
       group.remove(mesh)
       mesh.dispose()
     }
+    beacons?.geometry.dispose() // its own copy of the bulb, carrying its flashes
     meshes.clear()
+    swaying.clear()
+    beacons = null
+    const lights = entries.flatMap((e) => e.beacons)
+    if (lights.length) {
+      flashes = new THREE.InstancedBufferAttribute(new Float32Array(lights.length), 1)
+      const geometry = bulb.clone()
+      geometry.setAttribute('flash', flashes)
+      beacons = new THREE.InstancedMesh(geometry, lens, lights.length)
+      beacons.name = 'beacon'
+      beacons.frustumCulled = false
+      lights.forEach((b, i) => beacons!.setColorAt(i, new THREE.Color(BEACONS[b.beacon.colour])))
+      group.add(beacons)
+    }
+    for (const [kind, model] of swayModels) {
+      const hung = entries.flatMap((e) => e.sways.filter((s) => s.sway.kind === kind))
+      if (!hung.length) continue
+      const mesh = new THREE.InstancedMesh(model, material, hung.length)
+      mesh.name = kind
+      mesh.receiveShadow = true // too fine to cast a shadow worth its cost, a thousand at a time
+      mesh.frustumCulled = false
+      hung.forEach((s, i) => mesh.setColorAt(i, s.sway.paint ? new THREE.Color(s.sway.paint) : white))
+      swaying.set(kind, mesh)
+      group.add(mesh)
+    }
     for (const [kind, model] of models) {
       const count = entries.reduce((n, e) => n + e.movers.filter((v) => v.kind === kind).length, 0)
       if (!count) continue
@@ -329,31 +446,38 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes, beacons and swaying things of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length) return
+      if (!build.movers.length && !build.plumes.length && !build.beacons.length && !build.sways.length) return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
         return { plume, next: draw() * SMOKE.every, draw }
       })
-      entries.push({ build, movers: build.movers, plumes, puffs: [], playing })
-      if (build.movers.length) remesh()
+      const beacons = build.beacons.map((beacon) => ({ beacon, phase: mulberry32(spot(beacon.at.x, -beacon.at.z))() }))
+      const sways = build.sways.map((sway) => {
+        const draw = mulberry32(spot(sway.at.x, -sway.at.z) ^ Math.round(sway.at.y * 100))
+        const [phase, out, taken] = [draw() * Math.PI * 2, draw(), draw()]
+        return { sway, phase, out: WORK.from + out * HANG.out, in: WORK.to - HANG.takes - taken * HANG.in }
+      })
+      entries.push({ build, movers: build.movers, plumes, puffs: [], beacons, sways, playing })
+      if (build.movers.length || beacons.length || sways.length) remesh()
     },
 
-    /** Take away the movers and plumes of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away what moves, smokes, blinks and sways of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return
-      const moved = entries.some((e) => e.build.meshes === meshes && e.movers.length)
+      const moved = entries.some((e) => e.build.meshes === meshes && (e.movers.length || e.beacons.length || e.sways.length))
       entries = kept
       if (moved) remesh()
     },
 
     /**
-     * `dt` is the real seconds since the last frame, 0 while paused, and `time` the time of day (0–1): the movers work
-     * and the chimneys smoke only through the working day.
+     * `dt` is the real seconds since the last frame, 0 while paused, `time` the time of day (0–1) and `glow` what glows
+     * then: the movers work, the chimneys smoke and the washing hangs out only through the working day, and the beacons
+     * blink as the lamps glow.
      */
-    update(dt: number, time: number) {
+    update(dt: number, time: number, glow?: Glow) {
       t += dt
       const was = working
       working = time >= WORK.from && time < WORK.to
@@ -364,12 +488,16 @@ export function createMovers() {
       // A build that has played out keeps only what its Stage has.
       let changed = false
       for (const e of entries) {
-        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? 0
-        if (!e.playing || e.playing.pose(e.build, first)) continue
+        if (!e.playing || e.playing.pose(e.build, 0)) continue
         const fate = (i: number): Fate => e.build.bricks[i].fate
         const kept = e.movers.filter((v) => fate(v.brick) !== 'goes')
         if (kept.length < e.movers.length) [e.movers, changed] = [kept, true]
         e.plumes = e.plumes.filter((p) => fate(p.plume.brick) !== 'goes')
+        const [beacons, sways] = [
+          e.beacons.filter((b) => fate(b.beacon.brick) !== 'goes'),
+          e.sways.filter((s) => fate(s.sway.brick) !== 'goes'),
+        ]
+        if (beacons.length < e.beacons.length || sways.length < e.sways.length) [e.beacons, e.sways, changed] = [beacons, sways, true]
         e.playing = undefined
       }
       if (changed) remesh()
@@ -419,6 +547,43 @@ export function createMovers() {
       smoke.count = n
       smoke.instanceMatrix.needsUpdate = true
       fades.needsUpdate = true
+
+      // Beacons: each in its place, flashing on its own beat, lit only as the lamps are.
+      lens.emissiveIntensity = (glow?.lamps ?? 0) * BLINK.bright
+      if (beacons) {
+        let i = 0
+        q.identity()
+        for (const e of entries) {
+          for (const { beacon, phase } of e.beacons) {
+            const pose = e.playing?.pose(e.build, beacon.brick) ?? { scale: 1, lift: 0 }
+            at.copy(beacon.at).y += pose.lift
+            beacons.setMatrixAt(i, m.compose(at, q, scale.setScalar(Math.max(0.001, pose.scale) * beacon.r)))
+            const s = (t / BLINK.every + phase) % 1
+            flashes.setX(i++, s < BLINK.hold ? 1 : BLINK.rest + (1 - BLINK.rest) * Math.exp(-(s - BLINK.hold) * BLINK.fade))
+          }
+        }
+        beacons.instanceMatrix.needsUpdate = true
+        flashes.needsUpdate = true
+      }
+
+      // Swaying things: hung out through the working day, each swinging on the wind about its line.
+      const counted = new Map<SwayKind, number>()
+      for (const e of entries) {
+        for (const { sway, phase, out, in: taken } of e.sways) {
+          const mesh = swaying.get(sway.kind)!
+          const i = counted.get(sway.kind) ?? 0
+          counted.set(sway.kind, i + 1)
+          const pose = e.playing?.pose(e.build, sway.brick) ?? { scale: 1, lift: 0 }
+          const hung = Math.max(0, Math.min(1, (time - out) / HANG.takes, (taken - time) / HANG.takes))
+          const { swing, rate } = SWAYS[sway.kind]
+          const gust = 0.65 + 0.35 * Math.sin(t * 0.31 + phase * 1.7)
+          tilt.setFromAxisAngle(across, swing * gust * (0.35 + Math.sin(t * rate + phase)))
+          q.setFromAxisAngle(up, sway.ry).multiply(tilt)
+          at.copy(sway.at).y += pose.lift
+          mesh.setMatrixAt(i, m.compose(at, q, scale.setScalar(Math.max(0.001, pose.scale * hung))))
+        }
+      }
+      for (const mesh of swaying.values()) mesh.instanceMatrix.needsUpdate = true
     },
   }
 }
