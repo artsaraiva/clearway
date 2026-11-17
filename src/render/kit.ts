@@ -93,8 +93,8 @@ const PAPER = new THREE.LatheGeometry(
   10,
 )
 const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
-// A bicycle's wheel: a thin tyre round an axle across it, ten-sided, as bicycles stand by the hundred.
-const WHEEL = new THREE.TorusGeometry(1, 0.1, 3, 10).rotateY(Math.PI / 2)
+// A bicycle's wheel: a thin tyre round an axle across it, eight-sided, as bicycles stand by the hundred.
+const WHEEL = new THREE.TorusGeometry(1, 0.1, 3, 8).rotateY(Math.PI / 2)
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
@@ -1126,7 +1126,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     vending(x: number, y: number, h: number, ry: number) {
       const body = pick(VENDING.bodies)
-      local(box(1.2, 2.2, 0.9, 0.08, 0.03), body, x, y, ry, 0, 0, h)
+      local(cuboid(1.2, 2.2, 0.9), body, x, y, ry, 0, 0, h) // plain, as they stand by the hundred
       local(cuboid(1.0, 1.2, 0.06), { material: glass, tint: windows[0] }, x, y, ry, 0, 0.45, h + 0.82)
       local(cuboid(0.86, 0.22, 0.06), VENDING.slot, x, y, ry, 0, 0.45, h + 0.22)
       shadow(x, y, h, 1.8, 1.5, false, ry)
