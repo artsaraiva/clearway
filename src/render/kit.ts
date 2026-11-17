@@ -384,6 +384,16 @@ export function createKit(rand: () => number, materials: Materials) {
     beacons.push({ at: new THREE.Vector3(x, h, -y), r, colour, brick: bricks.length })
   }
   /**
+   * Something that hangs from a line through `(x, y)`, `h` above the road, and sways in the wind (#155): laundry on a
+   * pole or a futon over a railing, the line running along `ry` (0 along x, as a front facing `ry` runs), out of the
+   * building on the side a front facing `ry` looks, painted as `more` has it. A futon's cover, unless given, is drawn
+   * from where it hangs, so the kit's stream is untouched. `./movers` draws it, riding the next brick closed.
+   */
+  const sway = (kind: SwayKind, x: number, y: number, h: number, ry: number, more: Pick<Sway, 'paint'> = {}) => {
+    const paint = more.paint ?? (kind === 'futon' ? FUTONS[spot(x, y) % FUTONS.length] : undefined)
+    sways.push({ kind, at: new THREE.Vector3(x, h, -y), ry, ...(paint ? { paint } : {}), brick: bricks.length })
+  }
+  /**
    * The mark of a helipad painted on a roof at `(x, y)`, `h` above the road (#155): a dark green disc with a yellow ring
    * `r` m across its outside, and an H inside, joining the next brick.
    */
@@ -714,25 +724,9 @@ export function createKit(rand: () => number, materials: Materials) {
               add(BUSH, LEAVES.round[Math.floor(kind * 5)], px, py, at + 1.05, kind * TAU, 0.5, 0.48, 0.5)
             }
           }
-          if (wash < washing) {
-            const [lx, ly] = to(mx, my, ry, 0, 1.25)
-            sways.push({
-              kind: 'laundry',
-              at: new THREE.Vector3(lx, at + 2.75, -ly),
-              ry: ry + (kind < 0.5 ? 0 : Math.PI),
-              brick: bricks.length,
-            })
-          }
-          if (airing < futons) {
-            const [lx, ly] = to(mx, my, ry, -side * 1.2, 1.45)
-            sways.push({
-              kind: 'futon',
-              at: new THREE.Vector3(lx, at + 1.24, -ly),
-              ry,
-              paint: FUTONS[Math.floor(kind * FUTONS.length)],
-              brick: bricks.length,
-            })
-          }
+          if (wash < washing) sway('laundry', ...to(mx, my, ry, 0, 1.25), at + 2.75, ry + (kind < 0.5 ? 0 : Math.PI))
+          if (airing < futons)
+            sway('futon', ...to(mx, my, ry, -side * 1.2, 1.45), at + 1.24, ry, { paint: FUTONS[Math.floor(kind * FUTONS.length)] })
         }
       }
       if (stage === 3) {
@@ -1186,15 +1180,7 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('tree', x, y, h)
     },
 
-    /**
-     * Something that hangs from a line through `(x, y)`, `h` above the road, and sways in the wind (#155): laundry on a
-     * pole or a futon over a railing, the line running along `ry` (0 along x, as a front facing `ry` runs), painted as
-     * `more` has it. `./movers` draws it, riding the next brick closed.
-     */
-    sway(kind: SwayKind, x: number, y: number, h: number, ry: number, more: Pick<Sway, 'paint'> = {}) {
-      sways.push({ kind, at: new THREE.Vector3(x, h, -y), ry, ...more, brick: bricks.length })
-    },
-
+    sway,
     beacon,
     helipad,
 
