@@ -734,6 +734,9 @@ export function createKit(rand: () => number, materials: Materials) {
      * - Stage 2: an eave over the ground floor on some.
      * - Stage 3: an eave on every house of two storeys or more, a pale cornice under the roof, and a window box of
      *   flowers under each upper window.
+     * Its details (#156) draw from where it stands: an AC unit by the door on one house in four at Stage 1, half at
+     * Stage 2 and three in four at Stage 3, with a second on the eave of some; washing under the top floor's eaves on
+     * some houses of two storeys or more from Stage 2, more at Stage 3.
      */
     townhouse(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, stage = 2) {
       const wall = storeys * 3 + 0.6
@@ -770,8 +773,11 @@ export function createKit(rand: () => number, materials: Materials) {
      * edges in an O, a U, an L or a bar, as one brick: one wall colour, with a row of windows a storey, lit or dark one
      * by one, on every face not against another wing, and a cap on each wing. The caller gives each Stage its floors.
      * - Stage 1: plain, with no water tank.
-     * - Stage 2: a water tank on the first wing.
-     * - Stage 3: a balcony slab along every face at each floor, and a plant room beside the water tank.
+     * - Stage 2: a water tank on the first wing, and an open walkway along the face each wing walks (`walks`), with a
+     *   door between each two windows (#156).
+     * - Stage 3: a balcony slab along every other face at each floor, with washing and futons hung out in some bays, and
+     *   a plant room beside the water tank.
+     * A few AC units (#156), more with each Stage, stand on its walls, walkways and balconies.
      */
     apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = []) {
       const colour = pick(COURTYARD.walls)

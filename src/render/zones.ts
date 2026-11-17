@@ -40,7 +40,8 @@ const TREE_ROOM = 2.4
 const HOUSES = { lot: 15.2, margin: 2.8, gap: 0.4, least: 7, clear: 0.6, yard: 1.2, most: 10.5 }
 // Medium-density residential is terraces on half its Tiles and courtyards on the other half, the same on every Block
 // of a Tile. Terraces: rows of houses 4.4 to 6.8 m wide and 8 to 10 m deep along every edge, their fronts 2.2 m in from
-// it, and up to four trees in the yards behind.
+// it, and up to four trees in the yards behind; steel stairs up the end walls of about half the row ends where there
+// is room and no bike rack stands (#156).
 const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4, stairs: 0.45 } as const
 // Courtyards: lots at most 42 m on a side, 3.2 m in from the Block's bounding box, built over all but 1.6 m of the lot
 // on every side and 1.5 m in from the Block's edge, at least 9 m across, in wings 7.5 to 9 m deep and 4 to 7 storeys
@@ -401,7 +402,11 @@ function houses(g: ZoneGround) {
 /**
  * Medium-density residential, terraces: rows of narrow houses that share their walls, one to three storeys at Stage 2,
  * along every edge, with yards behind. Each house stands a storey lower at Stage 1 (one at least) and a storey higher
- * at Stage 3, with the finish its Stage gives it (the kit's `townhouse`).
+ * at Stage 3, with the finish its Stage gives it (the kit's `townhouse`, which also hangs its AC units and washing).
+ * Its details (#156), each drawn from where it stands:
+ * - Stage 2: a covered bike rack and a vending machine at the first row's end with room (`cornerStore`), and steel
+ *   stairs up the end wall of some others to a door on the upper floor of an end house of two storeys or more.
+ * - Stage 3: a second machine and more bicycles there, and a second rack and machine at the next row's end with room.
  */
 function terraces(g: ZoneGround) {
   const { kit } = g
@@ -495,7 +500,12 @@ function cornerStore(g: ZoneGround, taken: RowLot[], corner: RowLot, from: numbe
  * Medium-density residential, courtyards: on each lot an apartment building round a court with a tree, an O or a U,
  * where the lot is large enough; an L where it is not, and a bar on a narrow lot. It stands two floors lower at Stage
  * 1 (three at least) and two higher at Stage 3, with the finish its Stage gives it (the kit's `apartment`). The court's
- * tree grows with the Stage, and at Stage 3 a hedge runs round the court's lawn.
+ * tree grows with the Stage, and at Stage 3 a hedge runs round the court's lawn. Its details (#156), each drawn from
+ * where it stands:
+ * - Stage 2: an open walkway along one long face of each wing (`walksOf`, drawn by the kit's `apartment`, which also
+ *   hangs its AC units and washing), steel stairs at a free end of each where there is room, and a covered bike rack
+ *   and a vending machine against an outside wall.
+ * - Stage 3: a second machine and more bicycles.
  */
 function courtyards(g: ZoneGround) {
   const { kit } = g
@@ -545,7 +555,7 @@ function courtyards(g: ZoneGround) {
       for (const end of draw() < 0.5 ? [1, -1] : [-1, 1]) {
         const s = stairAt(wing, face, end)
         const lot = { x: s.x, y: s.y, w: STAIR.long + 0.3, d: STAIR.wide + 0.3, ry: s.ry, onRoad: false }
-        if (walkwayEnd(b.wings, k, face, end) || !stands(g, s.x, s.y, lot.w, lot.d, 0.6, s.ry) || taken.some((o) => overlap(o, lot)))
+        if (walkwayBlocked(b.wings, k, face, end) || !stands(g, s.x, s.y, lot.w, lot.d, 0.6, s.ry) || taken.some((o) => overlap(o, lot)))
           continue
         taken.push(lot)
         kit.staged(
@@ -623,7 +633,7 @@ function walksOf(wings: Bounds[], northWest: boolean): Walks {
 }
 
 /** Whether the walkway along face `face` of wing `k` runs into another wing at its end `end`, where no stair may meet it. */
-function walkwayEnd(wings: Bounds[], k: number, face: number, end: number): boolean {
+function walkwayBlocked(wings: Bounds[], k: number, face: number, end: number): boolean {
   const [len, mx, my] = faceOf(wings[k], face)
   const [nx, ny] = FACES[face]
   const [u, v] = [end * (len / 2 - 0.3), WALKWAY.deep / 2]
