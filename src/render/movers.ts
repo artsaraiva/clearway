@@ -51,6 +51,17 @@ export interface Plume {
   brick: number
 }
 
+/**
+ * A flag (#154) flying from the top of its pole at `at`, in Three coordinates, in `colour`, lowered to `low` m above
+ * the road and furled for the night. It rides its pole's brick at `brick`.
+ */
+export interface Flag {
+  at: THREE.Vector3
+  low: number
+  colour: string
+  brick: number
+}
+
 /** The movers' share of the working day (`WORK`) left free. */
 const SLACK = 0.2
 /** Real seconds of work in a day. */
@@ -66,6 +77,9 @@ const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model
 // carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
 // its colour.
 const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+// Flags (#154): a flag's size (m), how far its free end swings (m), how many waves run along it and how fast (rad/s),
+// and the share of the day it takes to raise or lower one, at the start and the end of the working day.
+const FLAGS = { long: 2.3, high: 1.45, swing: 0.32, waves: 1.3, rate: 7, raise: 0.02 }
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
@@ -180,6 +194,15 @@ function ropes(): THREE.BufferGeometry {
   return merged([-1.9, 1.9].map((z) => part(0.05, 1, 0.05, -0.3 * 1.25, 0, z * 1.25, '#4a525c')))
 }
 
+/** A flag (#154), flying along +x from its pole at x = 0, its top edge on y = 0 and its face to +z. */
+const flag = () => new THREE.PlaneGeometry(FLAGS.long, FLAGS.high, 8, 2).translate(FLAGS.long / 2, -FLAGS.high / 2, 0)
+
+/** How far up its pole a flag flies at the time of day `time` (0–1): raised as the working day starts, lowered as it ends. */
+function hoisted(time: number): number {
+  const t = (time - WORK.from + 1) % 1 // since the working day began
+  return Math.max(0, Math.min(1, t / FLAGS.raise, (WORK.to - WORK.from + FLAGS.raise - t) / FLAGS.raise))
+}
+
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
 function along(line: Polyline, s: number): { x: number; y: number; heading: number } {
   const { pts, cum } = line
@@ -210,10 +233,11 @@ interface Puff {
   dz: number
 }
 
-/** The movers and plumes of one build, the reveal it may be playing on, and its plumes' puffs. */
+/** The movers, plumes and flags of one build, the reveal it may be playing on, and its plumes' puffs. */
 interface Entry {
   build: Build
   movers: Mover[]
+  flags: Flag[]
   plumes: { plume: Plume; next: number; draw: () => number }[]
   puffs: Puff[]
   playing?: Poses
@@ -235,6 +259,37 @@ export function createMovers() {
   const meshes = new Map<MoverKind, THREE.InstancedMesh>()
   const rope = ropes()
   let hung: THREE.InstancedMesh | null = null // the ropes of every mover that hangs
+  // Flags (#154), every one in the City in one mesh: each vertex swings across its flag, more toward the free end, on
+  // waves that run out from the pole, each flag on a phase of its own; a wave's crest catches the light and its trough
+  // falls in shade. Its shadow flutters with it.
+  const wave = { value: 0 }
+  const flutters = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    const k = (n: number) => n.toFixed(4)
+    shader.uniforms.wave = wave
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float phase;\nuniform float wave;\nvarying float vRipple;')
+      .replace(
+        '#include <begin_vertex>',
+        [
+          '#include <begin_vertex>',
+          `float reach = position.x / ${k(FLAGS.long)};`,
+          `float swell = phase + wave - reach * ${k(FLAGS.waves * Math.PI * 2)};`,
+          `transformed.z += ${k(FLAGS.swing)} * reach * sin(swell);`,
+          'vRipple = 0.18 * reach * cos(swell);',
+        ].join('\n\t'),
+      )
+  }
+  const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide })
+  cloth.onBeforeCompile = (shader) => {
+    flutters(shader)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
+  }
+  const clothShadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
+  clothShadow.onBeforeCompile = flutters
+  const cut = flag()
+  let flags: THREE.InstancedMesh | null = null
   let entries: Entry[] = []
   let work = 0 // s worked: a whole number of shifts outside the working day
   let working = false
@@ -287,6 +342,24 @@ export function createMovers() {
       group.remove(hung)
       hung.dispose()
       hung = null
+    }
+    if (flags) {
+      group.remove(flags)
+      flags.dispose()
+      flags.geometry.dispose()
+      flags = null
+    }
+    const flying = entries.flatMap((e) => e.flags)
+    if (flying.length) {
+      // Each flag's phase, from where it flies, and its colour, which stay until the next remesh.
+      const phase = new THREE.InstancedBufferAttribute(new Float32Array(flying.map((f) => mulberry32(spot(f.at.x, -f.at.z))() * 7)), 1)
+      flags = new THREE.InstancedMesh(cut.clone().setAttribute('phase', phase), cloth, flying.length)
+      flags.name = 'flags'
+      flags.castShadow = flags.receiveShadow = true
+      flags.customDepthMaterial = clothShadow
+      flags.frustumCulled = false
+      flying.forEach((f, i) => flags!.setColorAt(i, new THREE.Color(f.colour)))
+      group.add(flags)
     }
     const hanging = entries.reduce((n, e) => n + e.movers.filter((v) => v.hang).length, 0)
     if (hanging) {
@@ -392,20 +465,20 @@ export function createMovers() {
 
     /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length) return
+      if (!build.movers.length && !build.plumes.length && !build.flags.length) return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
         return { plume, next: draw() * SMOKE.every, draw }
       })
-      entries.push({ build, movers: build.movers, plumes, puffs: [], playing })
-      if (build.movers.length) remesh()
+      entries.push({ build, movers: build.movers, flags: build.flags, plumes, puffs: [], playing })
+      if (build.movers.length || build.flags.length) remesh()
     },
 
-    /** Take away the movers and plumes of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away the movers, plumes and flags of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return
-      const moved = entries.some((e) => e.build.meshes === meshes && e.movers.length)
+      const moved = entries.some((e) => e.build.meshes === meshes && (e.movers.length || e.flags.length))
       entries = kept
       if (moved) remesh()
     },
@@ -425,12 +498,14 @@ export function createMovers() {
       // A build that has played out keeps only what its Stage has.
       let changed = false
       for (const e of entries) {
-        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? 0
+        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? e.flags[0]?.brick ?? 0
         if (!e.playing || e.playing.pose(e.build, first)) continue
         const fate = (i: number): Fate => e.build.bricks[i].fate
         const kept = e.movers.filter((v) => fate(v.brick) !== 'goes')
         if (kept.length < e.movers.length) [e.movers, changed] = [kept, true]
         e.plumes = e.plumes.filter((p) => fate(p.plume.brick) !== 'goes')
+        const flown = e.flags.filter((f) => fate(f.brick) !== 'goes')
+        if (flown.length < e.flags.length) [e.flags, changed] = [flown, true]
         e.playing = undefined
       }
       if (changed) remesh()
@@ -460,6 +535,26 @@ export function createMovers() {
       }
       for (const mesh of meshes.values()) mesh.instanceMatrix.needsUpdate = true
       if (hung) hung.instanceMatrix.needsUpdate = true
+
+      // Flags: up their poles through the working day, downwind, and growing with their poles' bricks.
+      if (flags) {
+        wave.value = (wave.value + dt * FLAGS.rate) % (Math.PI * 2000)
+        const raised = hoisted(time)
+        q.setFromAxisAngle(up, Math.atan2(WIND.y, WIND.x))
+        let k = 0
+        for (const e of entries) {
+          for (const f of e.flags) {
+            const pose = e.playing?.pose(e.build, f.brick) ?? { scale: 1, lift: 0 }
+            const s = Math.max(0.001, pose.scale)
+            const foot = e.build.bricks[f.brick].at // what its pole grows out of
+            const y = f.low + (f.at.y - f.low) * raised
+            at.set(foot.x + (f.at.x - foot.x) * s, foot.y + (y - foot.y) * s + pose.lift, foot.z + (f.at.z - foot.z) * s)
+            m.compose(at, q, scale.set(s * (0.06 + 0.94 * raised), s, s))
+            flags.setMatrixAt(k++, m)
+          }
+        }
+        flags.instanceMatrix.needsUpdate = true
+      }
 
       // Smoke: each standing chimney puffs while the working day runs, and its puffs rise, swell and fade.
       let n = 0

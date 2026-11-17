@@ -154,16 +154,10 @@ export function createReveal(materials: Materials, pool = 140) {
     return moving
   }
   const moving = new Map<THREE.Material, THREE.Material>(
-    [
-      materials.solid,
-      materials.glass,
-      materials.bulb,
-      materials.beacon,
-      materials.cloth,
-      materials.water,
-      materials.roundShadow,
-      materials.squareShadow,
-    ].map((m) => [m, copy(m)]),
+    [materials.solid, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map((m) => [
+      m,
+      copy(m),
+    ]),
   )
   const depth = copy(new THREE.MeshDepthMaterial())
 
@@ -214,7 +208,7 @@ export function createReveal(materials: Materials, pool = 140) {
     for (const mesh of next.meshes) {
       const original = [...moving].find(([, m]) => m === mesh.material)
       if (original) mesh.material = original[0]
-      mesh.customDepthMaterial = (mesh.material as THREE.Material).userData.depth // a cloth's, which moves as it does
+      mesh.customDepthMaterial = undefined
       mesh.frustumCulled = true
     }
   }

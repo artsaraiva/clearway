@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
 import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
-import { WIND, WORK, type Glow } from './day'
-import type { Mover, MoverKind, Plume } from './movers'
+import type { Glow } from './day'
+import type { Flag, Mover, MoverKind, Plume } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -68,12 +68,14 @@ const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: [
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
-// Office details (#154): a cooling unit's fans, a helipad's pad and its marks, and flags' poles, finials and cloths.
+// Office details (#154): a cooling unit's fans, a helipad's pad and its marks, and a flagpole and its finial.
 const FAN = '#5b6570'
 const HELIPAD = { pad: '#68727f', mark: '#f4f1ea', ring: '#f0c75e' }
-const FLAG = { pole: '#e9eef2', finial: '#f0c75e', cloths: ['#2fb39a', '#f0b43c', '#5cc0d6', '#a58ad8', '#79c86a', '#ff9ab8', '#fbf8f2'] }
+const FLAG = { pole: '#e9eef2', finial: '#f0c75e' }
+/** A lamp's light: warm, and as bright as the time of day has the lamps. */
+const LAMP = new THREE.Color('#ffd08a')
 /**
- * Beacons (#154), white or amber and never red: how much brighter than the lamps they light, and how each kind
+ * Beacons (#154), white or amber and never red: how bright they light beside the lamps, and how each kind
  * blinks, flashes a second and the share of each flash it is lit: a white strobe on a spire, an amber lamp on a roof.
  */
 const BEACON = {
@@ -81,8 +83,6 @@ const BEACON = {
   white: { colour: '#ffffff', rate: 0.6, duty: 0.22 },
   amber: { colour: '#ffb54a', rate: 0.5, duty: 0.5 },
 }
-/** Cloth in the wind (#154): how fast its waves run (rad/s), and the share of the day it takes to raise or lower a flag. */
-const CLOTH = { rate: 7, raise: 0.02 }
 /**
  * A window cleaners' cradle (#154): how far down a face it works at most and how far it goes between stops (m), how
  * long it waits under its arms and at each stop on the way down (s, a range from which each stop draws its own), and,
@@ -90,8 +90,8 @@ const CLOTH = { rate: 7, raise: 0.02 }
  * ropes are (m). A lap fits in the working day.
  */
 const GONDOLA = { drop: 26, every: 6.4, waits: { top: 5, floor: [1.6, 2.6] }, reach: 0.85, ropes: 2.4, rope: 0.375 }
-/** A flag (#154): its pole's height, its size and how far it swings at its free end (m), and its waves along it. */
-const FLAGPOLE = { tall: 8.5, long: 2.3, high: 1.45, swing: 0.32, waves: 1.3 }
+/** A flagpole (#154): how tall it stands, and how far above the road its flag is lowered to for the night (m). */
+const FLAGPOLE = { tall: 8.5, low: 3 }
 const LEAVES = {
   round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
   sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
@@ -221,62 +221,31 @@ export function createMaterials() {
     const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
     return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
   }
-  const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
-  // Beacons (#154): lit with the lamps, in their vertex colour (white or amber, never red), each blinking on its own
-  // beat, as its vertex attribute `flash` has it: flashes a second, when in its cycle (0–1), and the share of the
-  // cycle it is lit.
+  // Lamps and beacons (#154) share one material, so that beacons add no draw calls. Each vertex lights in its own colour
+  // (a lamp's warm one, a beacon's white or amber, never red), and blinks on its own beat, as its attribute `flash` has
+  // it: flashes a second, when in its cycle (0–1), and the share of the cycle it is lit. A lamp is lit throughout. By
+  // day all of them are the bulb's pale colour.
   const blink = { value: 0 } // s the world has run
-  const beacon = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0 })
-  beacon.onBeforeCompile = (shader) => {
+  const bulb = new THREE.MeshStandardMaterial({
+    color: '#fff4dc',
+    vertexColors: true,
+    roughness: 0.4,
+    emissive: '#ffffff',
+    emissiveIntensity: 0,
+  })
+  bulb.onBeforeCompile = (shader) => {
     shader.uniforms.blink = blink
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 flash;\nvarying vec3 vFlash;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvFlash = flash;')
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float blink;\nvarying vec3 vFlash;')
+      .replace('#include <color_fragment>', '') // the vertex colour is the light's alone
       .replace(
         '#include <emissivemap_fragment>',
         '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * step(fract(blink * vFlash.x + vFlash.y), vFlash.z);',
       )
   }
-  // Cloth that flutters in the wind (#154): each vertex swings along its attribute `flutter`'s xyz, as far as that is
-  // long, on a wave whose phase is its w, and moves by its attribute `rest` as the cloth is taken in for the night.
-  const [wave, hoist] = [{ value: 0 }, { value: 1 }]
-  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })
-  /**
-   * Move a shader's vertices as the cloth's are, so that its shadow moves with it. The cloth moves before anything else
-   * moves it: a Rebuild's bricks (`./reveal`) scale the cloth as it flutters.
-   */
-  const flutters = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-    Object.assign(shader.uniforms, { wave, hoist })
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nattribute vec4 flutter;\nattribute vec3 rest;\nuniform float wave;\nuniform float hoist;',
-      )
-      .replace(
-        '#include <begin_vertex>',
-        [
-          'vec3 clothed = position + flutter.xyz * sin(flutter.w - wave) * hoist + rest * (1.0 - hoist);',
-          '#define position clothed',
-          '#include <begin_vertex>',
-          '#undef position',
-        ].join('\n'),
-      )
-  }
-  cloth.onBeforeCompile = (shader) => {
-    flutters(shader)
-    // Each wave's crest catches the light and its trough falls in shade.
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
-      .replace('vec3 clothed', 'vRipple = length(flutter.xyz) > 0.0 ? 0.18 * cos(flutter.w - wave) : 0.0;\nvec3 clothed')
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
-  }
-  const clothShadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
-  clothShadow.onBeforeCompile = flutters
-  cloth.userData.depth = clothShadow // the shadow a mesh of it casts, which `./scenery` gives it
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
@@ -320,8 +289,6 @@ export function createMaterials() {
     /** The tint that makes `glass` the colour `color`, as an office tower's curtain wall is. */
     glassOf: shade,
     bulb,
-    beacon,
-    cloth,
     water,
     roundShadow,
     squareShadow,
@@ -329,18 +296,10 @@ export function createMaterials() {
     setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
-      beacon.emissiveIntensity = lamps * BEACON.glow
     },
-    /**
-     * Run the beacons' blinking and the cloth's flutter on by `dt` real seconds (0 while paused), and fly the flags at
-     * the time of day `time` (0–1): up through the working day, taken in for the night.
-     */
-    advance(dt: number, time: number) {
+    /** Run the beacons' blinking on by `dt` real seconds, 0 while paused. */
+    advance(dt: number) {
       blink.value += dt
-      wave.value = (wave.value + dt * CLOTH.rate) % (Math.PI * 2000)
-      const { from, to } = WORK
-      const t = (time - from + 1) % 1 // since the working day began
-      hoist.value = Math.max(0, Math.min(1, t / CLOTH.raise, (to - from + CLOTH.raise - t) / CLOTH.raise))
     },
   }
 }
@@ -353,12 +312,13 @@ export function createMaterials() {
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, unlit, glassOf, bulb, beacon, cloth, water, roundShadow, squareShadow } = materials
+  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
   const movers: Mover[] = []
   const plumes: Plume[] = []
+  const flags: Flag[] = []
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -382,6 +342,7 @@ export function createKit(rand: () => number, materials: Materials) {
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
+    if (look === bulb) return lit(geo, LAMP, [0, 0, 1])
     if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
@@ -435,13 +396,16 @@ export function createKit(rand: () => number, materials: Materials) {
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
   const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
+  /** A light in place on the bulb's material, lit in `colour` and blinking as `flash` has it (#154). */
+  const lit = (geo: THREE.BufferGeometry, colour: THREE.Color, flash: number[]) => {
+    const beat = new Float32Array(geo.attributes.position.count * 3)
+    for (let i = 0; i < beat.length; i += 3) beat.set(flash, i)
+    parts.push({ geometry: tint(geo, colour).setAttribute('flash', new THREE.BufferAttribute(beat, 3)), material: bulb, brick: -1 })
+  }
   /** A beacon of radius `r` at `(x, y)`, `h` above the road (#154): white or amber, blinking from `phase` (0–1) of its beat. */
   const light = (x: number, y: number, h: number, r: number, kind: 'white' | 'amber', phase: number) => {
     const { colour, rate, duty } = BEACON[kind]
-    const geo = tint(BEAD.clone().scale(r, r, r).translate(x, h, -y), colour)
-    const flash = new Float32Array(geo.attributes.position.count * 3)
-    for (let i = 0; i < flash.length; i += 3) flash.set([rate, phase, duty], i)
-    parts.push({ geometry: geo.setAttribute('flash', new THREE.BufferAttribute(flash, 3)), material: beacon, brick: -1 })
+    lit(BEAD.clone().scale(r, r, r).translate(x, h, -y), new THREE.Color(colour).multiplyScalar(BEACON.glow), [rate, phase, duty])
   }
   /** A helipad's marks, radius `r`, on a roof at `(x, y)`, `h` above the road (#154): a dark pad, a yellow ring and a white H. */
   const helipadMark = (x: number, y: number, h: number, r: number) => {
@@ -1172,30 +1136,14 @@ export function createKit(rand: () => number, materials: Materials) {
     beacon: light,
 
     /**
-     * A flagpole at `(x, y)`, `h` above the road, with a flag of colour `colour` flying downwind from its top, as one
-     * brick that pops in like a tree (#154). The flag flutters on the wind, its waves starting `phase` (rad) along, and
-     * is taken in for the night (the materials' `advance`). Pole and flag stand oversized a little, as the props do.
+     * A flagpole at `(x, y)`, `h` above the road, flying a flag in `colour` (`./movers`), as one brick that pops in like
+     * a tree (#154). Pole and flag stand oversized a little, as the props do.
      */
-    flag(x: number, y: number, h: number, colour: string, phase: number) {
-      const { tall, long, high, swing, waves } = FLAGPOLE
+    flag(x: number, y: number, h: number, colour: string) {
+      const { tall, low } = FLAGPOLE
       add(THIN, FLAG.pole, x, y, h, 0, 0.09, tall, 0.09)
       add(BEAD, FLAG.finial, x, y, h + tall + 0.08, 0, 0.16, 0.16, 0.16)
-      const geo = new THREE.PlaneGeometry(1, 1, 8, 2).toNonIndexed()
-      const pos = geo.attributes.position
-      const [flutter, rest] = [new Float32Array(pos.count * 4), new Float32Array(pos.count * 3)]
-      const len = Math.hypot(WIND.x, WIND.y)
-      const [wx, wy] = [WIND.x / len, WIND.y / len]
-      const top = h + tall - 0.12
-      for (let i = 0; i < pos.count; i++) {
-        const [a, b] = [(pos.getX(i) + 0.5) * long, (pos.getY(i) - 0.5) * high] // along from the pole, and down from the top
-        const k = a / long
-        pos.setXYZ(i, x + wx * a, top + b, -(y + wy * a))
-        flutter.set([wy * swing * k, 0, wx * swing * k, phase - k * waves * TAU], i * 4)
-        rest.set([-wx * a * 0.94, -(tall - high - 1.6), wy * a * 0.94], i * 3) // lowered, and furled against the pole
-      }
-      geo.computeVertexNormals()
-      geo.setAttribute('flutter', new THREE.BufferAttribute(flutter, 4)).setAttribute('rest', new THREE.BufferAttribute(rest, 3))
-      parts.push({ geometry: tint(geo, colour), material: cloth, brick: -1 })
+      flags.push({ at: new THREE.Vector3(x, h + tall - 0.12, -y), low: h + low, colour, brick: bricks.length }) // the brick about to close
       brick('tree', x, y, h)
     },
 
@@ -1310,16 +1258,16 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * Everything built, as parts tagged with their bricks, the movers and the chimneys' plumes. Every shape must be in a
+     * Everything built, as parts tagged with their bricks, the movers, the chimneys' plumes and the flags. Every shape must be in a
      * brick by now. The kit is spent after this.
      */
-    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[] } {
+    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[]; flags: Flag[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
-      return { parts, bricks, movers, plumes }
+      return { parts, bricks, movers, plumes, flags }
     },
   }
 }

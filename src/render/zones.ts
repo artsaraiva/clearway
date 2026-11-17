@@ -551,7 +551,7 @@ function flags(g: ZoneGround, x: number, y: number, w: number, d: number) {
     const poles = [-1, 0, 1].map((k) => ({ x: x + fx * out - fy * k * FLAGS.apart, y: y + fy * out + fx * k * FLAGS.apart }))
     if (!poles.every(room)) continue
     poles.forEach((p, k) =>
-      kit.from(first, () => kit.flag(p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)], k * 2.1), spot(p.x, p.y)),
+      kit.from(first, () => kit.flag(p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)]), spot(p.x, p.y)),
     )
     return
   }
