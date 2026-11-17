@@ -31,7 +31,7 @@ const REPEAT = { paving: 2.4, roof: 2 }
  * much paler the parapet is, how much darker the shadow, and how much darker and greyer the roof inside, so that a roof
  * reads as a roof from the whole City framed.
  */
-const PARAPET = { wide: 0.45, shadow: 0.7, pale: 1.12, lee: 0.3, inside: 0.86, grey: 0.3 }
+const PARAPET = { wide: 0.45, shadow: 0.7, pale: 1.12, lee: 0.3, inside: 0.9, grey: 0.15 }
 /** The share of a pattern's windows lit at night, as the kit's panes are; the rest stay dark. */
 const LIT = 0.7
 const SIZE = 128 // texels on a layer's side
