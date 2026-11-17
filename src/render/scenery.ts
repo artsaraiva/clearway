@@ -7,9 +7,10 @@ import type { Sim } from '../sim/sim'
 import type { Point } from '../sim/spec'
 import { cellAt } from '../sim/tiles'
 import { block, pavement, wide } from './blocks'
-import type { Field } from './field'
+import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
+import { standPoles, stringWires, type LineEnd } from './poles'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -100,8 +101,11 @@ export function createScenery(
   zoneOf: (cell: Cell) => Zone | undefined,
   stageOf: (cell: Cell) => number,
 ) {
-  /** The pieces laid, in order, each with the meshes of the build that laid it. Pieces laid together share them. */
-  const laid: { piece: Bounds; meshes: THREE.Mesh[] }[] = []
+  /**
+   * The pieces laid, in order, each with the meshes of the build that laid it (pieces laid together share them) and the
+   * poles at the ends of its Tile's lines of utility poles, which the wires across its seams hang from.
+   */
+  const laid: { piece: Bounds; meshes: THREE.Mesh[]; ends: LineEnd[] }[] = []
   const others = (pieces: Bounds[]) => laid.map((l) => l.piece).filter((p) => !pieces.some((q) => sameBounds(p, q)))
 
   /**
@@ -139,10 +143,21 @@ export function createScenery(
     const blocks = field.outlines(0, pieces).map(block).filter(wide)
     yield
 
+    // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
+    const poles = createKit(mulberry32(0), materials)
+    for (const piece of pieces) {
+      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery)
+      const entry = laid.find((l) => sameBounds(l.piece, piece))
+      if (entry) entry.ends = ends
+    }
+    take(poles, -1)
+    yield
+
     for (const [i, b] of blocks.entries()) {
       const kit = createKit(mulberry32(blockSeed(scenery, b)), materials)
       const cell = cellAt(middle(b))
       kit.stages(stages ?? { from: stageOf(cell), to: stageOf(cell) })
+      kit.ground((x, y, clear) => field.sample(x, y) >= clear && inside(b.loop, x, y))
       pavement(kit, b)
       fillBlock(kit, b, { net, spec, scenery, field, zone: zoneOf(cell) })
       take(kit, i)
@@ -172,7 +187,7 @@ export function createScenery(
   /** Start a build of `pieces` as the last pieces laid. */
   const append = (sim: Sim, pieces: Bounds[], tagged: boolean) => {
     const [before, meshes] = [laid.map((l) => l.piece), [] as THREE.Mesh[]]
-    laid.push(...pieces.map((piece) => ({ piece, meshes })))
+    laid.push(...pieces.map((piece) => ({ piece, meshes, ends: [] })))
     return build(sim, pieces, tagged, before, meshes)
   }
 
@@ -185,7 +200,7 @@ export function createScenery(
     const at = laid.findIndex((l) => sameBounds(l.piece, piece))
     const old = laid[at].meshes
     const meshes: THREE.Mesh[] = []
-    laid[at] = { piece, meshes }
+    laid[at] = { piece, meshes, ends: [] }
     const before = laid.slice(0, at).map((l) => l.piece)
     return { old, building: build(sim, [piece], true, before, meshes, relay, stages) }
   }
@@ -232,6 +247,30 @@ export function createScenery(
       const [{ meshes }] = laid.splice(at, 1)
       field.lift([piece], others([piece]))
       return meshes
+    },
+
+    /**
+     * The wires across the seams between the pieces laid, but for `except`'s, as one mesh: one span from each line's last
+     * pole to the next Tile's, on each Road two pieces share. Null if there are none. Built from the poles as they
+     * stand, so it is right whatever was laid, swapped or taken off since.
+     * ponytail: every seam's wires are strung again each time, two tubes a seam, which is nothing at a few dozen
+     * Tiles and a few ms at several hundred. Keep each piece's seams in a mesh of its own and string only the ones a
+     * change touches if a big City's Rebuild hitches.
+     */
+    seams(except?: Bounds | null): THREE.Mesh | null {
+      const kit = createKit(mulberry32(0), materials)
+      const byRoad = new Map<string, LineEnd[]>()
+      for (const { piece, ends } of laid) {
+        if (except && sameBounds(piece, except)) continue
+        for (const end of ends) byRoad.set(end.road, [...(byRoad.get(end.road) ?? []), end])
+      }
+      for (const [a, b] of byRoad.values()) if (b) stringWires(kit, a.post, b.post)
+      const { parts } = kit.done()
+      if (!parts.length) return null
+      const mesh = new THREE.Mesh(mergeGeometries(parts.map((p) => p.geometry))!, materials.solid)
+      for (const p of parts) p.geometry.dispose()
+      mesh.castShadow = mesh.receiveShadow = true
+      return mesh
     },
 
     /** Free the meshes of a build that is out of the scene. Their materials are the kit's, which stay. */

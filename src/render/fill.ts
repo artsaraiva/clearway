@@ -1,7 +1,7 @@
 import type { Cell, Zone } from '../city/city'
 import { mulberry32 } from '../sim/demand'
 import { middle, pointAt, type Bounds, type Vec } from '../sim/geometry'
-import type { Network } from '../sim/network'
+import type { Lane, Network } from '../sim/network'
 import type { NetworkSpec } from '../sim/spec'
 import { CELL, cellAt } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
@@ -13,7 +13,7 @@ import { LOOKS } from './zones'
 
 const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
 // m along an avenue and in from the kerb, and the trees' size.
-const STREET_TREES = { spacing: 13.6, inset: 3.4, size: 0.55 }
+export const STREET_TREES = { spacing: 13.6, inset: 3.4, size: 0.55 }
 const CORNER = 0.32 // of a cell, east or west and north or south of its centre: the middle of one of its corners
 
 /** What a Block's fill reads besides the Block itself. */
@@ -54,6 +54,22 @@ function seededAvenue(seed: number, pts: Vec[], chance: number): boolean {
   return mulberry32(Math.imul(seed ^ (across ? 0x5bd1e995 : 0x1b873593), 0x9e3779b1) ^ Math.imul(line, 0x85ebca6b))() < chance
 }
 
+/** Whether the Road a lane belongs to is an avenue, lined with street trees: authored as one, or drawn by the seed. */
+export function avenue(scenery: Scenery, lane: Lane): boolean {
+  if (!('road' in lane.owner)) return false
+  if (scenery.avenues.includes(lane.owner.road)) return true
+  return !!scenery.seeded && seededAvenue(scenery.seed, lane.line.pts, scenery.seeded.avenue)
+}
+
+/** Where a Block's lamps stand: near each corner of its bounding box that lies on it. */
+export function lampSpots(block: Block, field: Field): Vec[] {
+  const spots: Vec[] = []
+  for (const x of [block.x0 + 2, block.x1 - 2]) {
+    for (const y of [block.y0 + 2, block.y1 - 2]) if (field.sample(x, y) >= 0.5 && inside(block.loop, x, y)) spots.push({ x, y })
+  }
+  return spots
+}
+
 /** A number in [0, 1) the seed draws for the Tile on `cell`: the same for each of its Blocks, whenever they are built. */
 function tileDraw(seed: number, cell: Cell): number {
   return mulberry32(Math.imul(seed ^ 0x27d4eb2f ^ Math.imul(cell.x, 0x85ebca6b), 0x9e3779b1) ^ Math.imul(cell.y, 0xc2b2ae35))()
@@ -78,9 +94,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const roundabout = net.junctions.find((j) => j.type === 'roundabout' && inside(block.loop, j.at.x, j.at.y))
   if (roundabout) return island(kit, field, block, roundabout.at)
 
-  for (const x of [block.x0 + 2, block.x1 - 2]) {
-    for (const y of [block.y0 + 2, block.y1 - 2]) if (field.sample(x, y) >= 0.5 && inside(block.loop, x, y)) kit.lamp(x, y, KERB)
-  }
+  for (const { x, y } of lampSpots(block, field)) kit.lamp(x, y, KERB)
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
@@ -107,9 +121,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   // and what is built keeps clear of them.
   const street: Vec[] = []
   for (const lane of net.lanes) {
-    if (!('road' in lane.owner) || lane.index !== 0) continue
-    if (!scenery.avenues.includes(lane.owner.road) && !(scenery.seeded && seededAvenue(scenery.seed, lane.line.pts, scenery.seeded.avenue)))
-      continue
+    if (!('road' in lane.owner) || lane.index !== 0 || !avenue(scenery, lane)) continue
     const side = (spec.roads[lane.owner.road].laneWidth ?? spec.roadDefaults.laneWidth) / 2 + STREET_TREES.inset
     for (let s = STREET_TREES.spacing / 2; s < lane.length; s += STREET_TREES.spacing) {
       const p = pointAt(lane.line, s)

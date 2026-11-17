@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
 import type { Bounds } from '../sim/geometry'
+import { KERB } from './blocks'
 import type { Glow } from './day'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
@@ -59,6 +60,11 @@ const LEAVES = {
   pine: ['#379e62', '#43ac6b', '#2e9358'],
 }
 
+// Petals fallen round a sakura (#148): how many lie round a tree of size 0.8 and how far they reach for its size, the
+// most round any tree, their colours, and the disc each is.
+const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1', '#ffe3ec'] }
+const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
+
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // smoother, for a round tower's glass
@@ -88,7 +94,7 @@ export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
 
 /** What a brick is, which decides when and how it comes in during a Rebuild. */
-export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree'
+export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree' | 'pole' | 'wire'
 
 /**
  * What becomes of a brick as its Tile reaches another Stage: it stands throughout, it goes (the old Stage's), or it
@@ -156,7 +162,8 @@ export function createMaterials() {
   }
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
-  // Contact shadows: a blurred dark decal under every building and tree.
+  // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
+  const SHADE = '52,44,150'
   const decal = (map: THREE.Texture, opacity: number) =>
     new THREE.MeshBasicMaterial({
       map,
@@ -170,9 +177,9 @@ export function createMaterials() {
   const roundShadow = decal(
     canvasTexture(128, 128, (g) => {
       const fade = g.createRadialGradient(64, 64, 0, 64, 64, 64)
-      fade.addColorStop(0, 'rgba(25,35,50,0.6)')
-      fade.addColorStop(0.5, 'rgba(25,35,50,0.28)')
-      fade.addColorStop(1, 'rgba(25,35,50,0)')
+      fade.addColorStop(0, `rgba(${SHADE},0.6)`)
+      fade.addColorStop(0.5, `rgba(${SHADE},0.28)`)
+      fade.addColorStop(1, `rgba(${SHADE},0)`)
       g.fillStyle = fade
       g.fillRect(0, 0, 128, 128)
     }),
@@ -181,7 +188,7 @@ export function createMaterials() {
   const squareShadow = decal(
     canvasTexture(128, 128, (g) => {
       g.filter = 'blur(12px)'
-      g.fillStyle = 'rgba(25,35,50,0.75)'
+      g.fillStyle = `rgba(${SHADE},0.75)`
       g.fillRect(28, 28, 72, 72)
     }),
     0.8,
@@ -225,6 +232,8 @@ export function createKit(rand: () => number, materials: Materials) {
   let stages: Stages = { from: 2, to: 2 }
   let fate: Fate = 'stays'
   let lot = -1
+  /** Whether `(x, y)` lies on the Block being built, at least `clear` m in from its edge. Nothing lies loose until told. */
+  let onBlock = (_x: number, _y: number, _clear: number) => false
   /**
    * Run `fn` on a random stream of its own, seeded `seed`, its bricks taking the fate `as`. The kit's own stream gave
    * the seed, one draw however much `fn` draws, so nothing built after it changes with what it built.
@@ -314,6 +323,11 @@ export function createKit(rand: () => number, materials: Materials) {
       stages = s
     },
 
+    /** Say where loose things on the ground, such as fallen petals, may lie: `on(x, y, clear)`, on the Block `clear` m in from its edge. */
+    ground(on: (x: number, y: number, clear: number) => boolean) {
+      onBlock = on
+    },
+
     /** The bricks closed from now on stand on lot `n` of the Block (-1: on none). */
     lot(n: number) {
       lot = n
@@ -342,7 +356,12 @@ export function createKit(rand: () => number, materials: Materials) {
       own(seed, 'comes', () => fn(stages.to))
     },
 
-    /** A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. */
+    /**
+     * A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. A sakura
+     * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
+     * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
+     * Block's edge, so that none hangs over the pavement beyond the lawn.
+     */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
@@ -365,6 +384,16 @@ export function createKit(rand: () => number, materials: Materials) {
             k * 0.9,
             k,
           )
+        }
+      }
+      if (kind === 'sakura') {
+        const fall = mulberry32(Math.imul(Math.round(x * 100), 0x9e3779b1) ^ Math.round(y * 100))
+        const clear = h > KERB + 0.1 ? 2.4 : 0.5
+        const n = Math.min(PETALS.most, Math.round(PETALS.count * (s / 0.8) ** 2))
+        for (let i = 0; i < n; i++) {
+          const [a, r, colour, turn] = [fall() * TAU, Math.sqrt(fall()) * s * PETALS.reach, Math.floor(fall() * 3), fall() * TAU]
+          const [px, py] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
+          if (onBlock(px, py, clear)) add(PETAL, PETALS.colours[colour], px, py, h + 0.08, turn)
         }
       }
       shadow(x, y, h, s * 6.8, s * 6.8, true)

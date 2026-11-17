@@ -21,13 +21,17 @@ const STARTS: Record<BrickKind, [at: number, spread: number]> = {
   lamp: [0.3, 0],
   building: [0.45, 1.5],
   tree: [0.6, 1.5],
+  // A Tile's utility poles and wires (#148) belong to no Block: they count from the start of the Reveal, the poles once
+  // the Blocks near them have landed and each wire just after the poles it hangs from.
+  pole: [3.2, 2.4],
+  wire: [3.9, 2.4],
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
-const POPS = new Set<BrickKind>(['lamp', 'tree']) // these grow in; everything else drops
-// What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement and the lamps. The rest of what
+const POPS = new Set<BrickKind>(['lamp', 'tree', 'pole', 'wire']) // these grow in; everything else drops
+// What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement, the lamps and the utility poles. The rest of what
 // stands on its Blocks comes in again at once, its kinds starting in this share of a Rebuild's time, since no slab
 // lands first.
-const STANDING = new Set<BrickKind>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp'])
+const STANDING = new Set<BrickKind>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp', 'pole', 'wire'])
 const REZONED_PACE = 0.4
 // A Stage-up changes its Tile's lots one at a time, in a random order, over `spread` s. On each lot what the new Stage
 // brings falls in as a Rebuild's bricks do (trees pop in), its ground first, its building `after` s later and its trees
