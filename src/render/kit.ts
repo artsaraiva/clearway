@@ -67,7 +67,8 @@ const BARN = {
 const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
 // Green details (#152): a bench's wooden slats and its iron ends; a picnic blanket's colours, its gingham's pale stripe,
-// the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and the tint of its glass.
+// the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and its glass, painted
+// pale as the greenhouses' film is: the kit's glass would add a mesh to every green build, which never draws it.
 const BENCH = { wood: '#c49a6c', iron: '#6f7986' }
 const PICNIC = { blankets: ['#ffadc8', '#f6d36a', '#7fbf9d', '#c7b8f0', '#f0b43c'], stripe: '#fbf8f2', basket: '#c49a6c', lid: '#a1714c' }
 const BUTT = { body: '#4f8a6e', lid: '#3d6d57' }
@@ -1092,7 +1093,7 @@ export function createKit(rand: () => number, materials: Materials) {
         local(cuboid(0.07, 1, 0.07), BENCH.iron, x, y, ry, lx, -0.3, h)
         local(cuboid(0.08, 0.05, 0.56), BENCH.iron, x, y, ry, lx, 0.02, h + 0.66)
       }
-      shadow(x, y, h, 2.6, 1.2, false, ry)
+      shadow(x, y, h, 2.8, 1.4, true, ry) // round, as the trees' are: a meadow then draws no other shadow
       brick('building', x, y, h)
     },
 
@@ -1137,13 +1138,12 @@ export function createKit(rand: () => number, materials: Materials) {
     coldFrames(x: number, y: number, h: number, ry: number, w: number) {
       const n = Math.max(1, Math.round(w / 1.3))
       const each = w / n
-      const glazed: Look = { material: glass, tint: glassOf(FRAME.glass), glow: 0 }
       for (let k = 0; k < n; k++) {
         const lx = -w / 2 + (k + 0.5) * each
         local(cuboid(each - 0.08, 0.24, 1.1), FRAME.base, x, y, ry, lx, 0, h)
-        add(LIGHT, glazed, ...to(x, y, ry, lx, 0), h + 0.24, ry, each - 0.14, 1, 1.1)
+        add(LIGHT, FRAME.glass, ...to(x, y, ry, lx, 0), h + 0.24, ry, each - 0.14, 1, 1.1)
       }
-      shadow(x, y, h, w + 0.6, 1.6, false, ry)
+      shadow(x, y, h, w + 1, 2, true, ry) // round, as a scarecrow's or a water butt's: allotments draw no other shadow
       brick('building', x, y, h)
     },
 
