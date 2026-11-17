@@ -458,7 +458,8 @@ interface Entry {
  * work done, a clock that runs only through the working day and while the world runs, so a mover built again (by a
  * Swap, a Rezoning or a Stage-up) carries on from where it was. A mover arrives with its brick in the build's reveal,
  * and leaves with its build. Each chimney smokes while the working day runs, once its brick stands, its puffs one
- * instanced mesh of soft spheres that fade as they rise.
+ * instanced mesh of soft spheres that fade as they rise. The pools of light (#174) are laid once, and moved only while
+ * their lights still arrive.
  * ponytail: every instance is placed each frame, parked or not, which is nothing at a few hundred. Skip the parked
  * ones if a City ever holds thousands.
  */
@@ -631,7 +632,7 @@ export function createMovers() {
     pooled.instanceMatrix.needsUpdate = true
   }
 
-  /** New instanced meshes for the movers, beacons and swaying things there are now. */
+  /** New instanced meshes for the movers, flags, beacons, swaying things and pools of light there are now. */
   const remesh = () => {
     for (const mesh of meshes.values()) {
       group.remove(mesh)
@@ -826,7 +827,7 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers, plumes, beacons and swaying things of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes, flags, beacons, swaying things and pools of light of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
       if (
         !build.movers.length &&
@@ -862,7 +863,7 @@ export function createMovers() {
       if (build.movers.length || build.flags.length || beacons.length || sways.length || build.pools.length) remesh()
     },
 
-    /** Take away what moves, smokes, blinks, flies and sways of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away what moves, smokes, blinks, flies, sways and lights the ground of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return

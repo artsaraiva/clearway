@@ -93,7 +93,8 @@ export type Building = Generator<void, Build>
 /**
  * Give every geometry of one material each vertex attribute that any of them has, zero where it had none, so that they
  * merge: on a Tile built to the level of finish only what wears a pattern carries `pattern` (#174). A build with no
- * pattern carries none, and its vertices read none.
+ * pattern carries none, and its vertices read none: WebGL reads an attribute a geometry lacks as zero, and nothing in
+ * the game sets another default (three would only for a ShaderMaterial's `defaultAttributeValues`).
  */
 function wearAlike(geometries: THREE.BufferGeometry[]) {
   const sizes = new Map<string, number>()
