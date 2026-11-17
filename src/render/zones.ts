@@ -140,13 +140,13 @@ const FRONT = {
   cloths: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
 } as const
 // Shops to the level of finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
-// noodle shops; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
+// noodle shops, one in eight; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
 // widest on a Road where none is that wide, and the area (m²) from which a Block
 // has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
 // far out from the fronts shoppers walk (m), how long they stop at each (s), and their coats, the cars' colours.
 const SHOP_PLAN = {
   forms: ['flat', 'facade', 'flat', 'setback'] as ShopForm[],
-  noodle: 0.2,
+  noodle: 0.12,
   scenes: ['greengrocer', 'florist', 'capsules', 'stall'] as ShopScene[],
   wide: 8,
   second: 2500,
@@ -1069,7 +1069,7 @@ function flags(g: ZoneGround, x: number, y: number, w: number, d: number) {
 /**
  * Shops: low shops shoulder to shoulder along every edge, each with its front, and trees behind. Every shop is one
  * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, the kit's `shop`) as its lot's
- * plan has it: a front colour and a form that differ from its neighbour's, and one shop in five a noodle shop whose
+ * plan has it: a front colour and a form that differ from its neighbour's, and one shop in eight a noodle shop whose
  * vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of 2,500 m²
  * or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a Road
  * from Stage 2, stopping at each.
@@ -1198,8 +1198,8 @@ function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, pavin
   const tree = at((l.w / 2 - 1.6) * (spot(l.x, l.y) % 2 ? 1 : -1), back)
   kit.tree(tree.x, tree.y, KERB, GROW[stage - 1] * 0.6, 'round')
   if (stage < from) return
-  const court = at(0, SHOP_PLAN.paved / 2 - 0.5)
-  kit.paving(court.x, court.y, KERB, l.w, l.d + SHOP_PLAN.paved - 1, l.ry, paving)
+  const court = at(0, SHOP_PLAN.paved / 2)
+  kit.paving(court.x, court.y, KERB, l.w, l.d + SHOP_PLAN.paved, l.ry, paving)
   const stall = at(0, l.d / 2 - 1.3)
   foodStall(kit, stall.x, stall.y, l.ry)
   for (const k of [-1, 1]) {

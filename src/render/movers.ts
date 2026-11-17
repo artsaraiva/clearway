@@ -148,7 +148,7 @@ const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
 // Steam (#175), from a noodle shop's vent or a food stall's pot: puffs as smoke's, but quicker, smaller and fainter, and
 // slower on the wind.
-const STEAM = { every: 0.35, lasts: 2.4, rise: 1.3, wind: 0.35, from: 0.3, to: 1.15, fade: 0.7 }
+const STEAM = { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, from: 0.3, to: 1.15, fade: 0.7 }
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
 // to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
 // pole and how far its free end swings (m); and how many waves run along it.

@@ -143,8 +143,6 @@ const POOL = {
   },
   strengths: { lamp: 1, cream: 0.85, amber: 0.8, vending: 0.7, window: 0.6, sign: 0.75, arcade: 0.85, string: 0.7, pole: 0.8, stall: 0.85 },
 }
-/** The kinds of light that leave a pool of light (#174). */
-export type PoolKind = keyof typeof POOL.colours
 // Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
 // with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
 // standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
@@ -170,14 +168,14 @@ const SHOPFRONT = {
     ['#5cc0d6', '#a58ad8', '#fbf8f2', '#ff9ab8'],
     ['#79c86a', '#2fb39a', '#f6d36a', '#fbf8f2'],
   ],
-  lit: { board: 0.33, marks: 1.6, strip: 1.2, string: 1.5, arcade: 0.32, awning: 0.22 },
+  lit: { board: 0.33, marks: 1.6, strip: 1.2, string: 1.5, arcade: 0.48, awning: 0.3 },
 }
 // Crates at a shop's back door, and the pots of plants by its front (#175).
 const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
 /** m a setback shop's upper storeys stand back from its front, behind a balcony (#175). */
 const SETBACK = 1.6
 /** How deep a shop's arcade reaches over the pavement, m out from its front (#175): short of the banners. */
-export const ARCADE = 1.45
+const ARCADE = 1.45
 // The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
 const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
 // A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
