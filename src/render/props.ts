@@ -24,6 +24,15 @@ const BOARD = { face: '#2f3440', frame: '#a1714c', chalk: '#fbf8f2' }
 const TAU = Math.PI * 2
 
 /**
+ * A timber crate of produce at `(lx, ly)` in the frame of something at `(x, y)` facing `ry`, its foot `z` above the road,
+ * heaped `heap` m, its produce's colour from `draw`.
+ */
+function crate(kit: Kit, x: number, y: number, ry: number, lx: number, ly: number, z: number, heap: number, draw: () => number) {
+  kit.put(kit.cuboid(0.58, 0.3, 0.42), WOOD.pale, x, y, ry, lx, ly, z)
+  kit.put(kit.cuboid(0.52, heap, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, ly, z + 0.3)
+}
+
+/**
  * A stand of three timber steps `len` long, stepping up to the shop front behind it, its middle at `(x, y)` and its
  * front facing `ry`, with what each step carries laid by `fill(lx, ly, z)` at each place along it, `pitch` m apart.
  */
@@ -47,12 +56,7 @@ export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: num
     kit.put(kit.cuboid(0.62, 0.16, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, ly, z),
   )
   kit.put(kit.cuboid(0.7, 0.5, 0.05), BOARD.chalk, x, y, ry, len / 2 - 0.4, 0.68, KERB + 0.6)
-  if (stage === 3)
-    for (let i = 0; i < 4; i++) {
-      const lx = -len / 2 + 0.5 + i * 0.7
-      kit.put(kit.cuboid(0.58, 0.3, 0.42), WOOD.pale, x, y, ry, lx, 1.05, KERB)
-      kit.put(kit.cuboid(0.52, 0.1, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, 1.05, KERB + 0.3)
-    }
+  if (stage === 3) for (let i = 0; i < 4; i++) crate(kit, x, y, ry, -len / 2 + 0.5 + i * 0.7, 1.05, KERB, 0.1, draw)
   kit.shadow(x, y, KERB, len + 0.6, 1.8, false, ry)
   kit.brick('building', x, y, KERB)
 }
@@ -189,10 +193,8 @@ export function produce(kit: Kit, x: number, y: number, ry: number) {
       [-0.32, 0],
       [0.32, 0],
       [0, 0.32],
-    ]) {
-      kit.put(kit.cuboid(0.58, 0.3, 0.42), WOOD.pale, x, y, ry, lx, 0, KERB + z)
-      kit.put(kit.cuboid(0.52, 0.08, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, 0, KERB + z + 0.3)
-    }
+    ])
+      crate(kit, x, y, ry, lx, 0, KERB + z, 0.08, draw)
   })
   kit.brick('building', x, y, KERB)
 }

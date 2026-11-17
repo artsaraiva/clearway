@@ -176,8 +176,13 @@ const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
 const SETBACK = 1.6
 /** How deep a shop's arcade reaches over the pavement, m out from its front (#175): short of the banners. */
 const ARCADE = 1.45
-// The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
-const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
+/** The bulb's own colour, cream. */
+const CREAM = '#fff4dc'
+/** The bulb's tint that paints and lights it `colour`: the colour over the bulb's own cream. */
+const bulbTint = (colour: string) => {
+  const [c, cream] = [new THREE.Color(colour), new THREE.Color(CREAM)]
+  return new THREE.Color(c.r / cream.r, c.g / cream.g, c.b / cream.b)
+}
 // A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
 const PAPER = new THREE.LatheGeometry(
   [
@@ -481,7 +486,7 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
   // brightly it lights, and a tinted bulb glows in its own colour (#153): a paper lantern's cream burns whiter than a
   // lit window, and its amber deeper.
   const bulb = new THREE.MeshStandardMaterial({
-    color: '#fff4dc',
+    color: CREAM,
     vertexColors: true,
     roughness: 0.4,
     emissive: '#ffd08a',
@@ -653,11 +658,14 @@ export function createKit(rand: () => number, materials: Materials) {
     fn()
     closing = was
   }
-  const CREAM = new THREE.Color('#fff4dc') // the bulb's own colour
   /** The bulb painted `colour` by day and lit in it at night, `glow` as bright as a lamp: #153's amber, #175's signs. */
-  const lit = (colour: string, glow: number): Look => {
-    const c = new THREE.Color(colour)
-    return { material: bulb, tint: new THREE.Color(c.r / CREAM.r, c.g / CREAM.g, c.b / CREAM.b), glow }
+  const lit = (colour: string, glow: number): Look => ({ material: bulb, tint: bulbTint(colour), glow })
+  /**
+   * Steam rising from `(x, y)`, `h` above the road, as from a noodle shop's vent or a food stall's pot (#175): small
+   * puffs that `./movers` lets rise through the working day, riding the next brick closed.
+   */
+  const steam = (x: number, y: number, h: number) => {
+    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, steam: true })
   }
   /** A pot plant `s` m tall at `(x, y)`, `h` above the road (#175): a pot from `draw`'s colours under a bush of leaves. */
   const pot = (x: number, y: number, h: number, s: number, draw: () => number) => {
@@ -906,13 +914,7 @@ export function createKit(rand: () => number, materials: Materials) {
     /** Dev only (#175): how much deeper what stands on a Block is laid than built, for a comparison. 1 unless set. */
     deeper: materials.finish.deeper ?? 1,
 
-    /**
-     * Steam rising from `(x, y)`, `h` above the road, as from a noodle shop's vent or a food stall's pot (#175): small
-     * puffs that `./movers` lets rise through the working day, riding the next brick closed.
-     */
-    steam(x: number, y: number, h: number) {
-      plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, steam: true })
-    },
+    steam,
 
     /** Build at Stage `s.to`, or, when `s.from` differs, a Tile's Stage-up from one to the other. Stage 2 unless told. */
     stages(s: Stages) {
@@ -1482,7 +1484,7 @@ export function createKit(rand: () => number, materials: Materials) {
         local(cuboid(w + 0.02, 0.16, ARCADE), lit(SHOPFRONT.arcade, SHOPFRONT.lit.arcade), x, y, ry, 0, fv + ARCADE / 2, h + 3.44)
         signboard(board, true, w + 0.02, 0.5, fv + ARCADE, h + 3.04, 2 + (seed % 3))
         for (const k of [-1, 1]) local(cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), fv + ARCADE - 0.12, h)
-        local(cuboid(w * 0.8, 0.05, 0.16), lit('#fff4dc', SHOPFRONT.lit.strip), x, y, ry, 0, fv + ARCADE * 0.5, h + 3.39)
+        local(cuboid(w * 0.8, 0.05, 0.16), lit(CREAM, SHOPFRONT.lit.strip), x, y, ry, 0, fv + ARCADE * 0.5, h + 3.39)
       }
       if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, fv + 0.04, h + 3.7)
 
@@ -1543,7 +1545,7 @@ export function createKit(rand: () => number, materials: Materials) {
         put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof, 0.18, 1.6, 0.18)
         put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof + 1.6, 0.3, 0.14, 0.3)
         const [px, py] = to(x, y, ry, u, v)
-        if (stage >= 2) plumes.push({ at: new THREE.Vector3(px, roof + 1.8, -py), brick: bricks.length, steam: true })
+        if (stage >= 2) steam(px, py, roof + 1.8)
       }
       const billboarded = onRoad && form !== 'facade' && (stage === 3 || (stage === 2 && roofSign))
       if (billboarded) {
@@ -2228,7 +2230,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     lantern(x: number, y: number, h: number, amber: boolean) {
       const paper: Look = amber
-        ? { material: bulb, tint: AMBER, glow: LANTERN.glows.amber }
+        ? lit(LANTERN.amber, LANTERN.glows.amber)
         : { material: bulb, tint: new THREE.Color(1, 1, 1), glow: LANTERN.glows.cream }
       add(PAPER, paper, x, y, h)
       for (const at of [h + 0.46, h - 0.54]) add(CAP, LANTERN.caps, x, y, at, 0, 0.22, 0.08, 0.22)

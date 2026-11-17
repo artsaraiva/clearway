@@ -11,6 +11,10 @@ export const CITY = [
 ] // prettier-ignore
 
 export const VIEWPORT = { width: 1440, height: 900 }
+/** The metres of road plane across the canvas at Street, one Tile filling the screen, and at Close, one Block (`lookAt`). */
+export const METRES = { street: 110, close: 40 }
+/** Where a Zone's Street and Close shots look unless it has points of its own: the Tile at (2, 0), and a Block of it. */
+export const DEFAULT_POINTS = { street: [{ x: 200, y: 0 }], close: [{ x: 225, y: -25 }] }
 
 /**
  * Headless Google Chrome on the GPU (Metal on a Mac), 1440 × 900 at 2×. Its frame times match a visible browser's,
@@ -104,8 +108,7 @@ export function frameAll() {
 
 /**
  * In the page: fly to the sim point `(x, y)` (m; a Tile is 100 m) from the camera's heading and zoom until `metres` of
- * road plane run across the canvas's width: about 110 for Street, one Tile filling the screen, and 40 for Close, one
- * Block.
+ * road plane run across the canvas's width (`METRES`).
  */
 export function lookAt({ x, y, metres }) {
   const c = window.clearway

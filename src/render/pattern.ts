@@ -125,6 +125,13 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
     g.fillRect(x, S - y - h, w, h)
   }
   const plain = (g: CanvasRenderingContext2D) => fill(g, [128, 0, 0], 0, 0, S, S)
+  /** A ground floor's wall: panels 0.75 m wide, a plinth and a line under the eaves. */
+  const wall = (g: CanvasRenderingContext2D) => {
+    plain(g)
+    for (let x = 0; x < S; x += S / 4) fill(g, [112, 0, 0], x, 0, 2, S)
+    fill(g, [100, 0, 0], 0, 0, S, 8)
+    fill(g, [110, 0, 0], 0, S - 8, S, 3)
+  }
   /** A window `w` by `h` texels, its foot `y` up, centred across the layer: a pale frame, two sliding panes and a sill. */
   const window = (g: CanvasRenderingContext2D, w: number, h: number, y: number, frame: number) => {
     const x = (S - w) / 2
@@ -166,20 +173,14 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       fill(g, [100, 0, 0], 0, 0, S, 4)
       window(g, 56, 58, 37, 5)
     },
-    // A ground floor's wall: panels 0.75 m wide, a plinth, a line under the eaves and a high window 0.9 m wide.
+    // A ground floor's wall and a high window 0.9 m wide.
     (g) => {
-      plain(g)
-      for (let x = 0; x < S; x += S / 4) fill(g, [112, 0, 0], x, 0, 2, S)
-      fill(g, [100, 0, 0], 0, 0, S, 8)
-      fill(g, [110, 0, 0], 0, S - 8, S, 3)
+      wall(g)
       window(g, 30, 20, 80, 3)
     },
     // Its middle bay at the back: a service door with a lit pane in it, under a little hood.
     (g) => {
-      plain(g)
-      for (let x = 0; x < S; x += S / 4) fill(g, [112, 0, 0], x, 0, 2, S)
-      fill(g, [100, 0, 0], 0, 0, S, 8)
-      fill(g, [110, 0, 0], 0, S - 8, S, 3)
+      wall(g)
       const [w, h] = [34, 72]
       const x = (S - w) / 2
       fill(g, [128, 0, 255], x - 3, 8, w + 6, h + 3)

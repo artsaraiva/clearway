@@ -1093,16 +1093,15 @@ function shops(g: ZoneGround) {
     const scene = scenes.get(i)
     // The end away from the vending machines, whose end is `shopFront`'s first draw.
     const door = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
+    g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
     if (scene?.kind === 'stall') {
       kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving))
-      g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
       continue
     }
     const plan = { front: FRONT.cloths[front], form: SHOP_PLAN.forms[form], noodle, door, onRoad: l.onRoad }
     kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
     const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_PLAN.paved / 2)
     kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_PLAN.paved, l.ry, paving), spot(l.x, l.y) + 2)
-    g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
     if (scene) sceneFront(g, l, door, scene)
     else if (l.onRoad) shopFront(g, l, door)
     else seamFront(g, l, door)

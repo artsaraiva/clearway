@@ -18,7 +18,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { buildCity, frameAll, launch, lookAt, open, stageAll, turnCamera, zonesFrom } from './city.mjs'
+import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, turnCamera, zonesFrom } from './city.mjs'
 import { closeAll, ROOT, serve } from './serve.mjs'
 
 const TIMES = { morning: 0, noon: 0.25, afternoon: 0.4, dusk: 0.5, night: 0.75 }
@@ -37,8 +37,6 @@ const POINTS = {
     ],
   },
 }
-const DEFAULT_POINTS = { street: [{ x: 200, y: 0 }], close: [{ x: 225, y: -25 }] }
-const METRES = { street: 110, close: 40 }
 const COLUMN = 640
 const GAP = 8
 

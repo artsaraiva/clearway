@@ -9,7 +9,7 @@
 // and street, one Tile filling the screen (#173); --times takes noon and night. --query adds dev parameters to the
 // game's URL on both sides, such as `finish=none`.
 import { parseArgs } from 'node:util'
-import { buildCity, launch, lookAt, open, stageAll, zonesFrom } from './city.mjs'
+import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, zonesFrom } from './city.mjs'
 import { closeAll, serve } from './serve.mjs'
 
 const { values, positionals } = parseArgs({
@@ -31,7 +31,7 @@ const DAY = { noon: 0.25, night: 0.75 }
 const times = values.times.split(',')
 if (times.some((t) => !(t in DAY))) throw new Error('--times takes noon and night')
 // Street: one Tile filling the screen, as `npm run shots` frames it.
-const STREET = { x: 200, y: 0, metres: 110 }
+const STREET = { ...DEFAULT_POINTS.street[0], metres: METRES.street }
 
 /**
  * In the page, after the camera is placed: one frame's draw calls and triangles at the time of day `day`, then the ms per
@@ -109,12 +109,7 @@ try {
         for (const stage of stages) {
           await stageAll(page, stage)
           for (const view of views) {
-            if (view === 'street') await page.evaluate(lookAt, STREET)
-            else
-              await page.evaluate(() => {
-                window.clearway.view.camera.frameCity()
-                for (let i = 0; i < 12; i++) window.clearway.frame(0.1)
-              })
+            await (view === 'street' ? page.evaluate(lookAt, STREET) : page.evaluate(frameAll))
             for (const time of times) {
               const r = await page.evaluate(measure, DAY[time])
               const key = `${zone} ${stage} ${view} ${time}`
