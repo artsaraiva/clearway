@@ -93,6 +93,27 @@ const BARN = {
 // post, cloth head and shirts (the cars' colours).
 const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
+// Shop details (#153): nobori banners' poles, and paper lanterns (the bulb's cream, and an amber). The banners' cloths
+// and their lettering are `./movers`'; the vending machines and bicycles are #156's.
+const NOBORI = { pole: '#c4ccd4' }
+// A cream lantern glows at twice a lamp's strength, so it burns whiter than the lit window behind it, and an amber one
+// at a third of it, so it keeps its colour.
+const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0.33 } }
+// The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
+const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
+// A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
+const PAPER = new THREE.LatheGeometry(
+  [
+    [0.2, -0.5],
+    [0.31, -0.36],
+    [0.36, -0.12],
+    [0.36, 0.12],
+    [0.31, 0.36],
+    [0.2, 0.5],
+  ].map(([r, y]) => new THREE.Vector2(r, y)),
+  10,
+)
+const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
 // Green details (#152): a bench's wooden slats and its iron ends; a picnic blanket's colours, its gingham's pale stripe,
 // the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and its glass, painted
 // pale as the greenhouses' film is: the kit's glass would add a mesh to every green build, which never draws it.
@@ -178,8 +199,8 @@ export const FACES = [
 
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
- * The kit's glass is tinted white unless a tint is given, and takes `glow`, how brightly it lights at night: 1 unless
- * given, so that a curtain wall can be lit floor by floor.
+ * The kit's glass and bulb are tinted white unless a tint is given, and take `glow`, how brightly they light at night:
+ * 1 unless given, so that a curtain wall can be lit floor by floor, and a paper lantern brighter or dimmer than a lamp.
  */
 export type Look = string | THREE.Material | { material: THREE.Material; tint: THREE.Color; glow?: number }
 
@@ -292,7 +313,24 @@ export function createMaterials() {
     const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
     return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
   }
-  const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
+  // One bulb for every lamp, tinted white unless a tint is given. Like the glass, each vertex's `glow` scales how
+  // brightly it lights, and a tinted bulb glows in its own colour (#153): a paper lantern's cream burns whiter than a
+  // lit window, and its amber deeper.
+  const bulb = new THREE.MeshStandardMaterial({
+    color: '#fff4dc',
+    vertexColors: true,
+    roughness: 0.4,
+    emissive: '#ffd08a',
+    emissiveIntensity: 0,
+  })
+  bulb.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float glow;\nvarying float vGlow;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGlow = glow;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vGlow;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vGlow;')
+  }
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
@@ -382,7 +420,7 @@ export function createKit(rand: () => number, materials: Materials) {
     ;[rand, fate] = [outer, was]
   }
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
-  /** Give every vertex of a geometry of the glass the glow `glow`. */
+  /** Give every vertex of a geometry of the glass or the bulb the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
@@ -390,8 +428,10 @@ export function createKit(rand: () => number, materials: Materials) {
     if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
-      parts.push({ geometry: look.material === glass ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
-    } else parts.push({ geometry: look === glass ? glowing(tint(geo, '#ffffff'), 1) : geo, material: look, brick: -1 })
+      const lit = look.material === glass || look.material === bulb
+      parts.push({ geometry: lit ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
+    } else if (look === glass || look === bulb) parts.push({ geometry: glowing(tint(geo, '#ffffff'), 1), material: look, brick: -1 })
+    else parts.push({ geometry: geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
@@ -523,9 +563,12 @@ export function createKit(rand: () => number, materials: Materials) {
     put(cuboid(0.07, 0.72, 0.5), frame, x, y, ry, 0.48, 0, h + r) // the fork and the handlebar
     put(cuboid(0.36, 0.26, 0.38), BIKES.steel, x, y, ry, 0.72, 0, h + r + 0.42) // the basket
   }
-  /** `count` bicycles side by side `gap` m apart, centred on `(x, y)` along `ry`'s right, each facing out to its front (#156). They join the next brick. */
-  const row = (x: number, y: number, h: number, ry: number, count: number, gap: number) => {
-    for (let k = 0; k < count; k++) bicycle(...to(x, y, ry, (k - (count - 1) / 2) * gap, 0), h, ry + Math.PI / 2)
+  /**
+   * `count` bicycles side by side `gap` m apart, centred on `(x, y)` along `ry`'s right, each facing out to its front
+   * (#156), or turned `slant` off square to it (#153). They join the next brick.
+   */
+  const row = (x: number, y: number, h: number, ry: number, count: number, gap: number, slant = 0) => {
+    for (let k = 0; k < count; k++) bicycle(...to(x, y, ry, (k - (count - 1) / 2) * gap, 0), h, ry + Math.PI / 2 + slant)
   }
   /**
    * Steel outside stairs (#156), centred on `(x, y)`, their flights running along their front `ry`: two flights a
@@ -1541,11 +1584,11 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * `count` bicycles standing side by side `gap` m apart, centred on `(x, y)`, the row along `ry`'s right and each
-     * bicycle facing out to its front, as one brick (#156): parked against a wall, by a shop or a house. Frames in the
-     * cars' colours, a little large as the props are.
+     * bicycle facing out to its front, or turned `slant` off square to it as a shop's row is (#153), as one brick (#156):
+     * parked against a wall, by a shop or a house. Frames in the cars' colours, a little large as the props are.
      */
-    bicycles(x: number, y: number, h: number, ry: number, count: number, gap = BIKE_RACK.per) {
-      row(x, y, h, ry, count, gap)
+    bicycles(x: number, y: number, h: number, ry: number, count: number, gap = BIKE_RACK.per, slant = 0) {
+      row(x, y, h, ry, count, gap, slant)
       shadow(x, y, h, count * gap + 0.6, 2.4, false, ry)
       brick('building', x, y, h)
     },
@@ -1578,6 +1621,33 @@ export function createKit(rand: () => number, materials: Materials) {
     surface(x: number, y: number, h: number, w: number, d: number, ry: number, look: Look = PLAY.ground) {
       add(cuboid(w, 0.1, d), look, x, y, h, ry)
       brick('ground', x, y, h)
+    },
+
+    /**
+     * A nobori banner at `(x, y)`, its cloth facing `ry` (0 north, π/2 west) and hung to the right of its pole from a rod
+     * across its top, as one brick (#153): the pole and rod stand still, and the cloth, a tall narrow one in `colour`
+     * with a pale band of lettering down it, flutters in the wind and is furled for the night as a flag is (`./movers`).
+     * Oversized a little, as the props are.
+     */
+    nobori(x: number, y: number, h: number, ry: number, colour: string) {
+      add(cuboid(0.07, 3.7, 0.07), NOBORI.pole, x, y, h)
+      local(cuboid(0.8, 0.05, 0.05), NOBORI.pole, x, y, ry, 0.4, 0, h + 3.5)
+      flags.push({ kind: 'nobori', at: new THREE.Vector3(x, h + 3.48, -y), low: h + 3.48, colour, ry, brick: bricks.length }) // the brick about to close
+      brick('tree', x, y, h)
+    },
+
+    /**
+     * A paper lantern hung on a short cord at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or
+     * amber, lit at dusk as the lamps are, with dark caps, a metre tall and oversized as the props are.
+     */
+    lantern(x: number, y: number, h: number, amber: boolean) {
+      const paper: Look = amber
+        ? { material: bulb, tint: AMBER, glow: LANTERN.glows.amber }
+        : { material: bulb, tint: new THREE.Color(1, 1, 1), glow: LANTERN.glows.cream }
+      add(PAPER, paper, x, y, h)
+      for (const at of [h + 0.46, h - 0.54]) add(CAP, LANTERN.caps, x, y, at, 0, 0.22, 0.08, 0.22)
+      add(cuboid(0.03, 0.5, 0.03), LANTERN.caps, x, y, h + 0.54) // its cord
+      brick('lamp', x, y, h)
     },
 
     /**

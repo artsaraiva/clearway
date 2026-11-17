@@ -52,13 +52,13 @@ export interface Plume {
   brick: number
 }
 
-/** The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave. */
-export type FlagKind = 'flag'
+/** The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, or a shop's nobori banner (#153). */
+export type FlagKind = 'flag' | 'nobori'
 
 /**
  * Something that flies from the top of a pole at `at`, in Three coordinates, and flutters in the wind (#154): a flag.
- * It flies downwind in `colour`, is lowered to `low` m above the road and furled for the night, and rides its pole's
- * brick at `brick`.
+ * It flies downwind in `colour`, or turned `ry` as the kit turns a shape if it hangs from a rod as a nobori does (#153),
+ * is lowered to `low` m above the road and furled for the night, and rides its pole's brick at `brick`.
  */
 export interface Flag {
   kind: FlagKind
@@ -66,6 +66,7 @@ export interface Flag {
   low: number
   colour: string
   brick: number
+  ry?: number
 }
 
 /** A beacon's colour (#155): white or amber, never the Jam's red. */
@@ -125,10 +126,11 @@ const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 // its colour.
 const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
-// to +z, white for the colour each takes; how far it reaches from the pole and how far its free end swings (m); and how
-// many waves run along it.
+// to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
+// pole and how far its free end swings (m); and how many waves run along it.
 const FLAGS: Record<FlagKind, { model: () => THREE.BufferGeometry; reach: number; swing: number; waves: number }> = {
   flag: { model: () => new THREE.PlaneGeometry(2.3, 1.45, 8, 2).translate(1.15, -0.725, 0), reach: 2.3, swing: 0.32, waves: 1.3 },
+  nobori: { model: nobori, reach: 0.76, swing: 0.2, waves: 0.6 }, // #153
 }
 // How fast every flying thing's waves run (rad/s), and the share of the day it takes to raise or lower one, at the
 // start and the end of the working day.
@@ -261,6 +263,34 @@ function futon(): THREE.BufferGeometry {
 /** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
 const painted = (geo: THREE.BufferGeometry, share: number) =>
   geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
+
+/** Have a material paint each vertex its instance's colour as its `painted` share has it (#156). */
+const takesPaint = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
+    '#include <color_vertex>',
+    `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
+#endif`,
+  )
+}
+
+/**
+ * A nobori banner's cloth (#153), flying along +x from its pole as the flags do, its top edge on the rod across the
+ * pole's top: 0.72 m wide and 2.4 m tall, oversized as the props are. The cloth takes the paint, and a pale band of
+ * lettering down its middle keeps its own colour.
+ */
+function nobori(): THREE.BufferGeometry {
+  const cloth = (x0: number, x1: number, y0: number, y1: number, colour: string, share: number) =>
+    painted(tint(new THREE.PlaneGeometry(x1 - x0, y1 - y0).translate((x0 + x1) / 2, (y0 + y1) / 2, 0), colour), share)
+  return merged([
+    cloth(0.04, 0.29, -2.4, 0, '#ffffff', 1),
+    cloth(0.29, 0.51, -0.3, 0, '#ffffff', 1),
+    cloth(0.29, 0.51, -2.1, -0.3, '#fbf8f2', 0), // the lettering
+    cloth(0.29, 0.51, -2.4, -2.1, '#ffffff', 1),
+    cloth(0.51, 0.76, -2.4, 0, '#ffffff', 1),
+  ])
+}
 
 /**
  * A short line of washing (#156), hanging from a pole 2.6 m along x at y = 0, for a balcony's bay or a house's upper
@@ -449,10 +479,11 @@ export function createMovers() {
   }
   const flyers = new Map(
     (Object.keys(FLAGS) as FlagKind[]).map((kind) => {
-      const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide })
+      const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })
       cloth.customProgramCacheKey = () => `flag ${kind}`
       cloth.onBeforeCompile = (shader) => {
         flutters(kind)(shader)
+        takesPaint(shader)
         shader.fragmentShader = shader.fragmentShader
           .replace('#include <common>', '#include <common>\nvarying float vRipple;')
           .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
@@ -460,7 +491,8 @@ export function createMovers() {
       const shadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
       shadow.customProgramCacheKey = () => `flag shadow ${kind}`
       shadow.onBeforeCompile = flutters(kind)
-      return [kind, { model: FLAGS[kind].model(), cloth, shadow }]
+      const model = FLAGS[kind].model()
+      return [kind, { model: model.getAttribute('painted') ? model : painted(tint(model, '#ffffff'), 1), cloth, shadow }]
     }),
   )
   const flown = new Map<FlagKind, THREE.InstancedMesh>()
@@ -529,15 +561,7 @@ export function createMovers() {
     }),
   )
   const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
-  hanging.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
-      '#include <color_vertex>',
-      `#include <color_vertex>
-#ifdef USE_INSTANCING_COLOR
-\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
-#endif`,
-    )
-  }
+  hanging.onBeforeCompile = takesPaint
   const swaying = new Map<SwayKind, THREE.InstancedMesh>()
 
   /** New instanced meshes for the movers, beacons and swaying things there are now. */
@@ -821,11 +845,11 @@ export function createMovers() {
       }
       if (strung) strung.instanceMatrix.needsUpdate = true
 
-      // Flags: up their poles through the working day, downwind, and growing with their poles' bricks.
+      // Flags: up their poles through the working day, downwind or as their rods turn them, and growing with their poles' bricks.
       wave.value = (wave.value + dt * FLUTTER.rate) % (Math.PI * 2000)
       if (flown.size) {
         const raised = hoisted(time)
-        q.setFromAxisAngle(up, Math.atan2(WIND.y, WIND.x))
+        const downwind = Math.atan2(WIND.y, WIND.x)
         const counted = new Map<FlagKind, number>()
         for (const e of entries) {
           for (const f of e.flags) {
@@ -837,7 +861,7 @@ export function createMovers() {
             const foot = e.build.bricks[f.brick].at // what its pole grows out of
             const y = f.low + (f.at.y - f.low) * raised
             at.set(foot.x + (f.at.x - foot.x) * s, foot.y + (y - foot.y) * s + pose.lift, foot.z + (f.at.z - foot.z) * s)
-            m.compose(at, q, scale.set(s * (0.06 + 0.94 * raised), s, s))
+            m.compose(at, q.setFromAxisAngle(up, f.ry ?? downwind), scale.set(s * (0.06 + 0.94 * raised), s, s))
             mesh.setMatrixAt(k, m)
           }
         }
