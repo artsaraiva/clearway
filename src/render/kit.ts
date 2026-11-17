@@ -127,7 +127,10 @@ const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // sm
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
-const DISC = new THREE.CylinderGeometry(1, 1, 1, 12).rotateX(Math.PI / 2) // a wheel or a fan's grille, its axis along z
+// A flat disc facing -z, the way the kit's frames face at no turn: a fan's grille or one side of a wheel (#156).
+const DISC = new THREE.CircleGeometry(1, 8).rotateY(Math.PI)
+// A sheet hanging down from its top edge's middle, facing -z: a towel or a shirt on the cloth, drawn from both sides.
+const SHEET = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0)
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /** The faces of a box, as the way each looks: north, south, east and west. */
@@ -271,7 +274,7 @@ export function createMaterials() {
   // is gathered into that point as `out` falls to 0. Moved here rather than placed each frame, so a City's thousands of
   // pieces cost no time on the CPU and ride their buildings' bricks.
   const wind = { time: { value: 0 }, out: { value: 1 } }
-  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })
+  const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })
   cloth.onBeforeCompile = (shader) => {
     shader.uniforms.windTime = wind.time
     shader.uniforms.windOut = wind.out
@@ -480,7 +483,7 @@ export function createKit(rand: () => number, materials: Materials) {
    */
   const airCon = (x: number, y: number, h: number, ry: number) => {
     put(cuboid(1.05, 0.74, 0.44), AIRCON.body, x, y, ry, 0, 0.24, h)
-    put(DISC, AIRCON.grille, x, y, ry, -0.17, 0.47, h + 0.37, 0.26, 0.26, 0.03)
+    put(DISC, AIRCON.grille, x, y, ry, -0.17, 0.47, h + 0.37, 0.26, 0.26, 1)
   }
   /**
    * The cloth's look for a piece in `colour` hung from `(x, y)`, `h` above the road, before a wall facing `ry`: it swings
@@ -507,7 +510,7 @@ export function createKit(rand: () => number, materials: Materials) {
       if (at + w > len / 2 - 0.05) break
       if (rand() < 0.8) {
         const [px, py] = to(x, y, ry, at + w / 2, out)
-        put(cuboid(w, drop, 0.05), hung(pick(WASHING), px, py, h, ry, WIND.washing), x, y, ry, at + w / 2, out, h - drop)
+        put(SHEET, hung(pick(WASHING), px, py, h, ry, WIND.washing), x, y, ry, at + w / 2, out, h - 0.03, w, drop, 1)
       }
       at += w + range(0.06, 0.2)
     }
@@ -523,13 +526,14 @@ export function createKit(rand: () => number, materials: Materials) {
   const bicycle = (x: number, y: number, h: number, ry: number) => {
     const frame = pick(BIKES.frames)
     const r = 0.38
-    for (const lx of [-0.6, 0.6]) put(DISC, BIKES.tyre, x, y, ry, lx, 0, h + r, r, r, 0.07)
-    put(cuboid(1.2, 0.07, 0.07), frame, x, y, ry, -0.05, 0, h + r - 0.03) // the chain stay
-    put(cuboid(0.85, 0.07, 0.07), frame, x, y, ry, 0.05, 0, h + 0.82) // the top tube
-    put(cuboid(0.07, 0.6, 0.07), frame, x, y, ry, -0.32, 0, h + r) // the seat tube
-    put(cuboid(0.07, 0.7, 0.07), frame, x, y, ry, 0.48, 0, h + r) // the fork
-    put(cuboid(0.3, 0.07, 0.15), BIKES.tyre, x, y, ry, -0.32, 0, h + r + 0.6) // the saddle
-    put(cuboid(0.06, 0.05, 0.56), BIKES.tyre, x, y, ry, 0.48, 0, h + r + 0.72) // the handlebar
+    // Each wheel a disc on either side, so it shows from both, at a few dozen triangles a bicycle: they come by the hundred.
+    for (const lx of [-0.6, 0.6]) {
+      put(DISC, BIKES.tyre, x, y, ry, lx, 0.04, h + r, r, r, 1)
+      put(DISC, BIKES.tyre, x, y, ry + Math.PI, -lx, 0.04, h + r, r, r, 1)
+    }
+    put(cuboid(0.95, 0.07, 0.07), frame, x, y, ry, 0.05, 0, h + 0.82) // the top tube
+    put(cuboid(0.07, 0.62, 0.07), frame, x, y, ry, -0.32, 0, h + r) // the seat tube, its saddle on top
+    put(cuboid(0.07, 0.72, 0.5), frame, x, y, ry, 0.48, 0, h + r) // the fork and the handlebar
     put(cuboid(0.36, 0.26, 0.38), BIKES.steel, x, y, ry, 0.72, 0, h + r + 0.42) // the basket
   }
   /**
@@ -1370,7 +1374,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     vendingMachine(x: number, y: number, h: number, ry: number) {
       const { wide: W, deep: D } = VENDING_MACHINE
-      put(box(W, 2, D, 0.08, 0.04), pick(VENDING.paints), x, y, ry, 0, 0, h)
+      put(cuboid(W, 2, D), pick(VENDING.paints), x, y, ry, 0, 0, h) // plain: machines come by the hundred
       put(cuboid(W - 0.18, 1.2, 0.05), bulb, x, y, ry, 0, D / 2, h + 0.68)
       put(cuboid(W - 0.18, 0.12, 0.06), VENDING.trim, x, y, ry, 0, D / 2, h + 0.5)
       put(cuboid(W - 0.4, 0.22, 0.06), VENDING.trim, x, y, ry, 0, D / 2, h + 0.16)
