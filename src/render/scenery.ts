@@ -227,6 +227,7 @@ export function createScenery(
       for (const g of geometries) g.dispose()
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = !material.transparent
+      if (material === materials.close) mesh.customDepthMaterial = materials.closeDepth
       mesh.receiveShadow = true
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)

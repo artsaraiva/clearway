@@ -465,8 +465,7 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
   // of its pixels as it fades: no blending, so nothing has to be sorted, and only this program carries the discard.
   const close = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
   const closeFade = { value: 1 }
-  close.onBeforeCompile = (shader, renderer) => {
-    solid.onBeforeCompile(shader, renderer)
+  const dither = (shader: THREE.WebGLProgramParametersWithUniforms) => {
     shader.uniforms.closeFade = closeFade
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float closeFade;').replace(
       '#include <clipping_planes_fragment>',
@@ -474,7 +473,16 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
 if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= closeFade) discard;`,
     )
   }
+  close.onBeforeCompile = (shader, renderer) => {
+    solid.onBeforeCompile(shader, renderer)
+    dither(shader)
+  }
   close.customProgramCacheKey = () => `close ${solid.customProgramCacheKey()}`
+  // The shadow `close` casts, dropping the same share of the shadow map's texels as it fades, so that a prop's shadow
+  // fades with it.
+  const closeDepth = new THREE.MeshDepthMaterial()
+  closeDepth.onBeforeCompile = dither
+  closeDepth.customProgramCacheKey = () => 'close depth'
   // One glass for every window, so that windows add no draw calls. Its vertex colour tints it: white for the glass
   // itself, or the ratio to a paler or a darker glass. A darker tint lights its windows less (the glow goes with the
   // square of the tint's green, up to full), and each vertex's `glow` scales how brightly it lights.
@@ -556,6 +564,8 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
   return {
     solid,
     close,
+    /** What a mesh of `close` casts its shadow with (its `customDepthMaterial`): it fades as `close` does. */
+    closeDepth,
     glass,
     /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
     windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
