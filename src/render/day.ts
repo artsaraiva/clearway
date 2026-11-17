@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { Bounds } from '../sim/geometry'
 import { centre } from './slab'
 
-const DAY = 180 // real seconds per day
+export const DAY = 180 // real seconds per day
 const START = 0 // the day opens in the morning
 const LIGHT_DISTANCE = 500 // m from the slab's centre to the light, at least
 const MIN_REACH = 250 // m: the shadow map never covers less than this either side of the slab's centre
@@ -129,6 +129,11 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
     lights: [fill, light, light.target],
 
     fit,
+
+    /** The time of day shown, 0–1 (0 morning, 0.25 noon, 0.5 dusk, 0.75 night). */
+    get time() {
+      return clock
+    },
 
     /** Move the clock on by `dt` real seconds and show the time it reaches. */
     update(dt: number): Glow {

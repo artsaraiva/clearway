@@ -1,8 +1,9 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
-import type { Bounds } from '../sim/geometry'
+import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import type { Glow } from './day'
+import type { Mover, MoverKind } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -54,6 +55,10 @@ const BARN = {
   dome: '#9aa7b2',
   straw: '#e8cf7f',
 }
+// Farm details (#149): a kei truck's white paint, its chassis and tyres, and the crates of a harvest; a scarecrow's
+// post, cloth head and shirts (the cars' colours).
+const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
+const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
@@ -95,8 +100,17 @@ export type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
 export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
 
-/** What a brick is, which decides when and how it comes in during a Rebuild. */
-export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree' | 'pole' | 'wire'
+/**
+ * What a brick is, which decides when and how it comes in during a Rebuild. A mover's brick has no shapes: the mover
+ * (`./movers`) is drawn apart, and takes the brick's place as it pops in.
+ */
+export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree' | 'pole' | 'wire' | 'mover'
+
+/**
+ * A seed drawn from where something stands, for a detail on a random stream of its own (#148, #149): the same spot
+ * gives the same detail, and nothing else on its Block draws differently for it.
+ */
+export const spot = (x: number, y: number) => (Math.imul(Math.round(x * 100), 0x9e3779b1) ^ Math.round(y * 100)) >>> 0
 
 /**
  * What becomes of a brick as its Tile reaches another Stage: it stands throughout, it goes (the old Stage's), or it
@@ -229,6 +243,7 @@ export function createKit(rand: () => number, materials: Materials) {
 
   const parts: Part[] = []
   const bricks: Brick[] = []
+  const movers: Mover[] = []
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -336,23 +351,22 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own. In a
-     * Stage-up it stays if both Stages have it, and comes or goes if only one does.
+     * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own: seeded
+     * `seed`, such as a `spot`, or else by one draw from the kit's stream. In a Stage-up it stays if both Stages have it,
+     * and comes or goes if only one does.
      */
-    from(first: number, fn: () => void) {
-      const seed = (rand() * 4294967296) >>> 0
+    from(first: number, fn: () => void, seed = (rand() * 4294967296) >>> 0) {
       const [low, high] = [Math.min(stages.from, stages.to), Math.max(stages.from, stages.to)]
       if (first > high) return
       own(seed, first <= low ? 'stays' : stages.to > stages.from ? 'comes' : 'goes', fn)
     },
 
     /**
-     * Something that changes with the Stage, built by `fn(stage)` on a random stream of its own, so that it draws alike
-     * at every Stage until it draws what only its Stage has: each Stage builds the same thing, better. In a Stage-up the
-     * old Stage's goes and the new Stage's comes.
+     * Something that changes with the Stage, built by `fn(stage)` on a random stream of its own (seeded as `from`'s), so
+     * that it draws alike at every Stage until it draws what only its Stage has: each Stage builds the same thing,
+     * better. In a Stage-up the old Stage's goes and the new Stage's comes.
      */
-    staged(fn: (stage: number) => void) {
-      const seed = (rand() * 4294967296) >>> 0
+    staged(fn: (stage: number) => void, seed = (rand() * 4294967296) >>> 0) {
       if (stages.from === stages.to) return own(seed, 'stays', () => fn(stages.to))
       own(seed, 'goes', () => fn(stages.from))
       own(seed, 'comes', () => fn(stages.to))
@@ -389,7 +403,7 @@ export function createKit(rand: () => number, materials: Materials) {
         }
       }
       if (kind === 'sakura') {
-        const fall = mulberry32(Math.imul(Math.round(x * 100), 0x9e3779b1) ^ Math.round(y * 100))
+        const fall = mulberry32(spot(x, y))
         const clear = h > KERB + 0.1 ? 2.4 : 0.5
         const n = Math.min(PETALS.most, Math.round(PETALS.count * (s / 0.8) ** 2))
         for (let i = 0; i < n; i++) {
@@ -917,6 +931,67 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('building', x, y, h)
     },
 
+    /**
+     * A detail that moves on its own (`./movers`), working the closed `loop` a stretch at a time from stop `first` of
+     * `stops`, `h` above the road: a brick of its own with no shapes, standing where the loop starts.
+     */
+    mover(kind: MoverKind, loop: Polyline, stops: number[], first: number, h: number) {
+      movers.push({ kind, loop, stops, first, h, brick: bricks.length })
+      bricks.push({ kind: 'mover', at: new THREE.Vector3(loop.pts[0].x, h, -loop.pts[0].y), dust: 0, fate, lot })
+    },
+
+    /**
+     * A kei truck parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#149): a white cab and a
+     * flat bed with low gates, oversized as the cars are. Its bed carries two crates at Stage 2 and is full at Stage 3.
+     */
+    keiTruck(x: number, y: number, h: number, ry: number, stage = 2) {
+      const [paint, crates] = [TRUCK.paint, stage === 3 ? 6 : 2]
+      local(cuboid(1.7, 0.36, 4), TRUCK.chassis, x, y, ry, 0, 0, h + 0.28)
+      for (const lx of [-0.82, 0.82]) for (const ly of [-1.3, 1.25]) local(cuboid(0.32, 0.62, 0.62), TRUCK.tyre, x, y, ry, lx, ly, h)
+      local(box(1.85, 1.36, 1.25, 0.22, 0.08), paint, x, y, ry, 0, 1.4, h + 0.62)
+      const panes = { material: glass, tint: windows[2] }
+      local(cuboid(1.7, 0.56, 0.06), panes, x, y, ry, 0, 2.04, h + 1.28)
+      for (const lx of [-0.93, 0.93]) local(cuboid(0.06, 0.5, 0.64), panes, x, y, ry, lx, 1.5, h + 1.3)
+      local(cuboid(1.85, 0.12, 2.75), paint, x, y, ry, 0, -0.6, h + 0.64)
+      local(cuboid(1.85, 0.62, 0.08), paint, x, y, ry, 0, 0.74, h + 0.76) // the guard behind the cab
+      local(cuboid(1.85, 0.36, 0.08), paint, x, y, ry, 0, -1.94, h + 0.76)
+      for (const lx of [-0.89, 0.89]) local(cuboid(0.08, 0.36, 2.75), paint, x, y, ry, lx, -0.6, h + 0.76)
+      for (let k = 0; k < crates; k++) {
+        const [lx, ly] = [k % 2 ? 0.42 : -0.42, 0.36 - Math.floor(k / 2) * 0.66]
+        local(cuboid(0.74, 0.44, 0.58), pick(TRUCK.crates), x, y, ry, lx, ly, h + 0.76)
+      }
+      shadow(x, y, h, 2.8, 5.2, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * Crates stacked on the ground at `(x, y)`, `count` of them two to a layer, turned `ry`, as one brick: a farmyard's
+     * harvest waiting to go.
+     */
+    crates(x: number, y: number, h: number, ry: number, count: number) {
+      for (let k = 0; k < count; k++)
+        local(cuboid(0.74, 0.44, 0.58), pick(TRUCK.crates), x, y, ry, k % 2 ? 0.4 : -0.4, 0, h + Math.floor(k / 2) * 0.46)
+      shadow(x, y, h, 2.2, 1.6, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A scarecrow standing at `(x, y)`, its arms turned `ry`, as one brick that pops in like a tree (#149): a post with
+     * outstretched arms in a bright shirt, a cloth head and a straw hat, oversized a little so it reads from afar.
+     */
+    scarecrow(x: number, y: number, h: number, ry: number) {
+      const shirt = pick(SCARECROW.shirts)
+      add(cuboid(0.16, 2.6, 0.16), SCARECROW.post, x, y, h)
+      add(cuboid(2.3, 0.14, 0.14), SCARECROW.post, x, y, h + 1.86, ry)
+      add(cuboid(1.8, 0.32, 0.34), shirt, x, y, h + 1.74, ry)
+      add(cuboid(0.86, 0.96, 0.46), shirt, x, y, h + 1.04, ry)
+      add(SPHERE, SCARECROW.head, x, y, h + 2.42, 0, 0.32, 0.36, 0.32)
+      add(CYLINDER, BARN.straw, x, y, h + 2.62, 0, 0.72, 0.06, 0.72)
+      add(CONE, BARN.straw, x, y, h + 2.66, 0, 0.36, 0.4, 0.36)
+      shadow(x, y, h, 2, 2, true)
+      brick('tree', x, y, h)
+    },
+
     /** A street lamp, as one brick. */
     lamp(x: number, y: number, h: number) {
       add(CYLINDER, '#7d8794', x, y, h, 0, 0.14, 5, 0.14)
@@ -933,14 +1008,14 @@ export function createKit(rand: () => number, materials: Materials) {
       add(SPHERE, look, x, y, h, 0, r, r, r)
     },
 
-    /** Everything built, as parts tagged with their bricks. Every shape must be in a brick by now. The kit is spent after this. */
-    done(): { parts: Part[]; bricks: Brick[] } {
+    /** Everything built, as parts tagged with their bricks, and the movers. Every shape must be in a brick by now. The kit is spent after this. */
+    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
-      return { parts, bricks }
+      return { parts, bricks, movers }
     },
   }
 }
