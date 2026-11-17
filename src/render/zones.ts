@@ -1186,7 +1186,7 @@ function sceneFront(g: ZoneGround, l: RowLot, door: number, scene: { kind: ShopS
 
 /**
  * A food stall's court on lot `l` (#175), at Stage `stage`: the lot left open and paved, a bench at its back facing the
- * street and a tree in a back corner from Stage 1, and from Stage `from` the food stall near the front, planters along
+ * Road and a tree in a back corner from Stage 1, and from Stage `from` the food stall near the front, planters along
  * the court's sides, and at Stage 3 a table under a parasol.
  */
 function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, paving: string) {

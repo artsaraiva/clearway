@@ -290,8 +290,8 @@ export type TreeKind = keyof typeof LEAVES
 export type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
 
 /**
- * A shop's form (#175): a flat roof inside a parapet, a false front raised over the street carrying its signboard, or
- * upper storeys set back behind a balcony over the ground floor.
+ * A shop's form (#175): a flat roof inside a parapet, a false front raised over the roof's front edge carrying its
+ * signboard, or upper storeys set back behind a balcony over the ground floor.
  */
 export type ShopForm = 'flat' | 'facade' | 'setback'
 
@@ -1372,7 +1372,7 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A shop at Stage `plan.stage`, as one brick: `w` along its street and `d` deep, its front facing `ry`, built to the
+     * A shop at Stage `plan.stage`, as one brick: `w` along its front and `d` deep, its front facing `ry`, built to the
      * level of finish (#175) as its lot plans it. A ground floor in its front's colour under pale storeys, the walls and
      * roof wearing surface pattern where the kit builds patterned (#174): panels and high windows on the ground floor's
      * back and ends, a service door in the middle of its back, siding and a window in every bay of each upper storey all
@@ -1506,7 +1506,7 @@ export function createKit(rand: () => number, materials: Materials) {
       const roof = top + 0.5 // the lid's top
       const [ft, bk] = [tv + td / 2, tv - td / 2] // the roof's front and back edges, out of the front
 
-      // The parapet, or on a false front a wall raised over the street with the signboard on it.
+      // The parapet, or on a false front a wall raised over the roof's front edge with the signboard on it.
       const P = { wide: 0.26, tall: 0.42 }
       if (form === 'facade') {
         local(cuboid(tw, 1.6, 0.3), storeys > 1 ? upper : front, x, y, ry, 0, ft - 0.15, roof)
