@@ -55,7 +55,7 @@ export interface Beacon {
 }
 
 /** The kinds of thing that hangs and sways in the wind, each with its own model. */
-export type SwayKind = 'laundry' | 'futon'
+export type SwayKind = 'laundry' | 'futon' | 'washing'
 
 /**
  * Something that hangs from a line and sways in the wind (#155): laundry on a pole, a futon over a railing. It hangs
@@ -109,6 +109,7 @@ const BEACONS: Record<BeaconColour, string> = { white: '#fff3e2', amber: '#ffb24
 const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.BufferGeometry }> = {
   laundry: { swing: 0.2, rate: 2.4, model: laundry },
   futon: { swing: 0.04, rate: 1.6, model: futon },
+  washing: { swing: 0.24, rate: 2.4, model: washing }, // #156
 }
 // Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
 // moment, and takes this share of the day to come or go.
@@ -219,6 +220,28 @@ function futon(): THREE.BufferGeometry {
     part(1.7, 0.14, 0.42, 0, 0, 0, PAINT), // over the rail
     part(1.7, 1.05, 0.14, 0, -1, -0.24, PAINT), // hanging out
     part(1.7, 0.55, 0.14, 0, -0.5, 0.24, PAINT), // and in
+  ])
+}
+
+/** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
+const painted = (geo: THREE.BufferGeometry, share: number) =>
+  geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
+
+/**
+ * A short line of washing (#156), hanging from a pole 2.6 m along x at y = 0, for a balcony's bay or a house's upper
+ * floor, oversized a little as the moving details are: a towel and a hand towel in the paint each line takes, and a pink
+ * shirt and a mint towel that keep their colours, so a line reads bright against pale walls.
+ */
+function washing(): THREE.BufferGeometry {
+  const keep = (w: number, h: number, x: number, y: number, colour: string) => painted(part(w, h, 0.05, x, y, 0, colour), 0)
+  const take = (w: number, h: number, x: number, y: number) => painted(part(w, h, 0.05, x, y, 0, '#ffffff'), 1)
+  return merged([
+    painted(tint(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6).rotateZ(Math.PI / 2), '#c4ccd4'), 0),
+    take(0.55, 0.95, -0.95, -0.97), // a towel
+    keep(0.5, 0.72, -0.22, -0.88, '#ff9cbb'), // a shirt
+    keep(0.8, 0.24, -0.22, -0.3, '#ff9cbb'),
+    keep(0.48, 0.82, 0.5, -0.84, '#64cb9f'), // a towel
+    take(0.38, 0.58, 1.02, -0.6), // a hand towel
   ])
 }
 
@@ -385,8 +408,24 @@ export function createMovers() {
   }
   let beacons: THREE.InstancedMesh | null = null
   let flashes = new THREE.InstancedBufferAttribute(new Float32Array(0), 1)
-  // Swaying things (#155): one instanced mesh per kind.
-  const swayModels = new Map((Object.keys(SWAYS) as SwayKind[]).map((k) => [k, SWAYS[k].model()]))
+  // Swaying things (#155): one instanced mesh per kind. A model's parts take its instance's paint as their `painted`
+  // share has it (#156): all of them unless the model says otherwise.
+  const swayModels = new Map(
+    (Object.keys(SWAYS) as SwayKind[]).map((k) => {
+      const model = SWAYS[k].model()
+      return [k, model.getAttribute('painted') ? model : painted(model, 1)]
+    }),
+  )
+  const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  hanging.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
+      '#include <color_vertex>',
+      `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
+#endif`,
+    )
+  }
   const swaying = new Map<SwayKind, THREE.InstancedMesh>()
 
   /** New instanced meshes for the movers, beacons and swaying things there are now. */
@@ -418,7 +457,7 @@ export function createMovers() {
     for (const [kind, model] of swayModels) {
       const hung = entries.flatMap((e) => e.sways.filter((s) => s.sway.kind === kind))
       if (!hung.length) continue
-      const mesh = new THREE.InstancedMesh(model, material, hung.length)
+      const mesh = new THREE.InstancedMesh(model, hanging, hung.length)
       mesh.name = kind
       mesh.receiveShadow = true // too fine to cast a shadow worth its cost, a thousand at a time
       mesh.frustumCulled = false

@@ -4,7 +4,21 @@ import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geomet
 import { cellAt, cellBounds } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
-import { CONTAINER, shedDoors, spot, type Kit, type OfficeStyle } from './kit'
+import {
+  BIKE_RACK,
+  CONTAINER,
+  FACES,
+  shedDoors,
+  spot,
+  STAIR,
+  stairAt,
+  VENDING_MACHINE,
+  WALL_STAIR,
+  WALKWAY,
+  type Kit,
+  type OfficeStyle,
+  type Walks,
+} from './kit'
 import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
 
 // What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
@@ -26,8 +40,9 @@ const TREE_ROOM = 2.4
 const HOUSES = { lot: 15.2, margin: 2.8, gap: 0.4, least: 7, clear: 0.6, yard: 1.2, most: 10.5 }
 // Medium-density residential is terraces on half its Tiles and courtyards on the other half, the same on every Block
 // of a Tile. Terraces: rows of houses 4.4 to 6.8 m wide and 8 to 10 m deep along every edge, their fronts 2.2 m in from
-// it, and up to four trees in the yards behind.
-const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4 } as const
+// it, and up to four trees in the yards behind; steel stairs up the end walls of about half the row ends where there
+// is room and no bike rack stands (#156).
+const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4, stairs: 0.45 } as const
 // Courtyards: lots at most 42 m on a side, 3.2 m in from the Block's bounding box, built over all but 1.6 m of the lot
 // on every side and 1.5 m in from the Block's edge, at least 9 m across, in wings 7.5 to 9 m deep and 4 to 7 storeys
 // tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L,
@@ -339,8 +354,8 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
   return lots
 }
 
-/** Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`). */
-function yards(g: ZoneGround, lots: RowLot[], count: number) {
+/** Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`): where they stand. */
+function yards(g: ZoneGround, lots: RowLot[], count: number): Vec[] {
   const { kit, block, field } = g
   const planted: Vec[] = []
   for (let tries = 0; tries < count * 12 && planted.length < count; tries++) {
@@ -352,6 +367,7 @@ function yards(g: ZoneGround, lots: RowLot[], count: number) {
     kit.staged((stage) => kit.tree(x, y, KERB, GROW[stage - 1] * size, kind))
     planted.push({ x, y })
   }
+  return planted
 }
 
 /**
@@ -396,7 +412,11 @@ function houses(g: ZoneGround) {
 /**
  * Medium-density residential, terraces: rows of narrow houses that share their walls, one to three storeys at Stage 2,
  * along every edge, with yards behind. Each house stands a storey lower at Stage 1 (one at least) and a storey higher
- * at Stage 3, with the finish its Stage gives it (the kit's `townhouse`).
+ * at Stage 3, with the finish its Stage gives it (the kit's `townhouse`, which also hangs its AC units and washing).
+ * Its details (#156), each drawn from where it stands:
+ * - Stage 2: a covered bike rack and a vending machine at the first row's end with room (`cornerStore`), and steel
+ *   stairs up the end wall of some others to a door on the upper floor of an end house of two storeys or more.
+ * - Stage 3: a second machine and more bicycles there, and a second rack and machine at the next row's end with room.
  */
 function terraces(g: ZoneGround) {
   const { kit } = g
@@ -406,23 +426,100 @@ function terraces(g: ZoneGround) {
     () => kit.range(...TERRACES.deep),
     () => kit.range(...TERRACES.wide),
   )
-  for (const [i, l] of lots.entries()) {
+  const storeys = lots.map((l, i) => {
     kit.lot(i)
-    const storeys = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
-    kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(storeys, stage), stage))
+    const s = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
+    kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(s, stage), stage))
+    return s
+  })
+  kit.lot(-1)
+  const trees = yards(g, lots, TERRACES.trees)
+  const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3))]
+  // A corner by a row's end (#156), beyond its end wall from its front back: one from Stage 2, a second from Stage 3.
+  let from = 2
+  for (const l of lots) {
+    for (const s of from > 3 ? [] : [1, -1]) {
+      const [u0, u1] = [l.w / 2 + 0.1, l.w / 2 + 0.3 + CORNER.wide]
+      const c = turned(l.x, l.y, l.ry, (s * (u0 + u1)) / 2, l.d / 2 - CORNER.long / 2)
+      const ry = l.ry - (s * Math.PI) / 2 // facing out of the end wall, the corner's rack along it
+      if (cornerStore(g, taken, { x: c.x, y: c.y, w: CORNER.long, d: u1 - u0, ry, onRoad: false }, from, -s)) from++
+    }
+  }
+  // Steel stairs up some other row ends (#156), to a door on the upper floor of an end house of two storeys or more.
+  const { landing } = STAIR
+  const [W, rise] = [WALL_STAIR.wide, 3.04]
+  const L = rise * WALL_STAIR.run + landing
+  for (const [i, l] of lots.entries()) {
+    for (const s of [1, -1]) {
+      const c = turned(l.x, l.y, l.ry, s * (l.w / 2 + 0.05 + W / 2), l.d / 2 - 0.2 - L / 2)
+      const ry = l.ry - (s * Math.PI) / 2 // the wall at its back, its flight along the house's depth
+      const stair = { x: c.x, y: c.y, w: L, d: W + 0.1, ry, onRoad: false }
+      if (mulberry32(spot(c.x, c.y))() > TERRACES.stairs) continue
+      if (!stands(g, c.x, c.y, L, W, 0.6, ry) || taken.some((o) => overlap(o, stair))) continue
+      taken.push(stair)
+      kit.lot(i)
+      kit.staged(
+        (stage) => {
+          if (stage > 1 && TERRACE_STOREYS(storeys[i], stage) > 1) kit.wallStairs(c.x, c.y, KERB, ry, rise, -s)
+        },
+        spot(c.x, c.y + 1),
+      )
+    }
   }
   kit.lot(-1)
-  yards(g, lots, TERRACES.trees)
+}
+
+/** A square `side` m across round a point, as a row lot. */
+const around =
+  (side: number) =>
+  ({ x, y }: Vec): RowLot => ({ x, y, w: side, d: side, ry: 0, onRoad: false })
+
+// Medium-density details (#156): a corner where a covered bike rack stands with vending machines beside it, against a
+// wall: m along the wall and out from it, and the bicycles in the rack at Stages 2 and 3.
+const CORNER = { long: BIKE_RACK.long + 0.3 + 2 * VENDING_MACHINE.wide + 0.25, wide: BIKE_RACK.deep + 0.2, bikes: [0, 4, 7] }
+
+/**
+ * A covered bike rack with vending machines beside it in the corner `corner` (#156), its length along a wall behind it
+ * and its front facing `corner.ry`, if it stands on the Block clear of everything `taken`, which it then takes: whether
+ * it did. The machines stand at the corner's end `toward` (1: its right, -1: its left) and the rack at the other, all
+ * facing out from the wall. From Stage `from` (2 or 3), a rack and one machine, and at Stage 3 a second machine and
+ * more bicycles. Each is drawn from where it stands.
+ */
+function cornerStore(g: ZoneGround, taken: RowLot[], corner: RowLot, from: number, toward: number): boolean {
+  if (!stands(g, corner.x, corner.y, corner.w, corner.d, 0.6, corner.ry) || taken.some((o) => overlap(o, corner))) return false
+  taken.push(corner)
+  const { kit } = g
+  const { x, y, ry } = corner
+  const [L, W] = [CORNER.long, CORNER.wide]
+  const { wide: VW, deep: VD } = VENDING_MACHINE
+  const rack = turned(x, y, ry, -toward * (L / 2 - BIKE_RACK.long / 2 - 0.1), 0)
+  kit.staged(
+    (stage) => {
+      if (stage >= from) kit.bikeRack(rack.x, rack.y, KERB, ry, BIKE_RACK.long, CORNER.bikes[stage - 1])
+    },
+    spot(rack.x, rack.y),
+  )
+  for (let k = 0; k < 2; k++) {
+    const m = turned(x, y, ry, toward * (L / 2 - 0.1 - VW / 2 - k * (VW + 0.05)), -W / 2 + 0.1 + VD / 2)
+    kit.from(k ? 3 : from, () => kit.vendingMachine(m.x, m.y, KERB, ry), spot(m.x, m.y))
+  }
+  return true
 }
 
 /**
  * Medium-density residential, courtyards: on each lot an apartment building round a court with a tree, an O or a U,
  * where the lot is large enough; an L where it is not, and a bar on a narrow lot. It stands two floors lower at Stage
  * 1 (three at least) and two higher at Stage 3, with the finish its Stage gives it (the kit's `apartment`). The court's
- * tree grows with the Stage, and at Stage 3 a hedge runs round the court's lawn.
+ * tree grows with the Stage, and at Stage 3 a hedge runs round the court's lawn. Its details (#156), each drawn from
+ * where it stands:
+ * - Stage 2: an open walkway along one long face of each wing (`walksOf`, drawn by the kit's `apartment`, which also
+ *   hangs its AC units and washing), steel stairs at a free end of each where there is room, and a covered bike rack
+ *   and a vending machine against an outside wall.
+ * - Stage 3: a second machine and more bicycles.
  */
 function courtyards(g: ZoneGround) {
   const { kit } = g
+  const built: { lot: number; x: number; y: number; wings: Bounds[]; floors: number; walks: Walks }[] = []
   for (const [i, lot] of lotsOf(g, COURTYARDS.margin, COURTYARDS.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w0, d0] = [lot.x1 - lot.x0 - 2 * COURTYARDS.gap, lot.y1 - lot.y0 - 2 * COURTYARDS.gap]
@@ -452,10 +549,109 @@ function courtyards(g: ZoneGround) {
       const [from, to] = top ? [y0, y1 - deep] : [y0 + deep, y1]
       wings = [top ? north : south, left ? { x0, y0: from, x1: x0 + deep, y1: to } : { x0: x1 - deep, y0: from, x1, y1: to }]
     } else wings = [{ x0, y0, x1, y1 }]
-    kit.staged((stage) => kit.apartment(wings, KERB, COURT_FLOORS(floors, stage), stage))
+    const walks = walksOf(wings, mulberry32(spot(x, y))() < 0.5)
+    kit.staged((stage) => kit.apartment(wings, KERB, COURT_FLOORS(floors, stage), stage, walks))
+    built.push({ lot: i, x, y, wings, floors, walks })
+  }
+  // Then, once every building has taken its ground, each one's outside stairs and the corner where its bike rack and
+  // vending machines stand (#156), on its lot.
+  const taken: RowLot[] = [...g.lamps.map(around(1.4)), ...built.flatMap((b) => b.wings.map(wingLot))]
+  for (const b of built) {
+    kit.lot(b.lot)
+    const draw = mulberry32(spot(b.x, b.y + 1))
+    b.wings.forEach((wing, k) => {
+      const face = b.walks[k]
+      if (face < 0) return
+      for (const end of draw() < 0.5 ? [1, -1] : [-1, 1]) {
+        const s = stairAt(wing, face, end)
+        const lot = { x: s.x, y: s.y, w: STAIR.long + 0.3, d: STAIR.wide + 0.3, ry: s.ry, onRoad: false }
+        if (walkwayBlocked(b.wings, k, face, end) || !stands(g, s.x, s.y, lot.w, lot.d, 0.6, s.ry) || taken.some((o) => overlap(o, lot)))
+          continue
+        taken.push(lot)
+        kit.staged(
+          (stage) => {
+            if (stage > 1) kit.outsideStairs(s.x, s.y, s.ry, floorTops(COURT_FLOORS(b.floors, stage)))
+          },
+          spot(s.x, s.y),
+        )
+        break
+      }
+    })
+    // Its rack and machines along the first stretch of outside wall with room, looking along each face in turn.
+    const [x0, x1] = [Math.min(...b.wings.map((w) => w.x0)), Math.max(...b.wings.map((w) => w.x1))]
+    const [y0, y1] = [Math.min(...b.wings.map((w) => w.y0)), Math.max(...b.wings.map((w) => w.y1))]
+    const court = (px: number, py: number) => px > x0 && px < x1 && py > y0 && py < y1
+    const tries = b.wings.flatMap((wing) =>
+      FACES.flatMap(([nx, ny], face) => {
+        const [len, mx, my] = faceOf(wing, face)
+        if (court(mx + nx * 2, my + ny * 2) || len < CORNER.long + 1) return []
+        const room = len / 2 - CORNER.long / 2 - 0.5
+        return [0, room, -room].map((u) => ({
+          x: mx + ny * u + nx * (0.15 + CORNER.wide / 2),
+          y: my - nx * u + ny * (0.15 + CORNER.wide / 2),
+          ry: Math.atan2(-nx, ny),
+        }))
+      }),
+    )
+    for (let k = tries.length - 1; k > 0; k--) {
+      const j = Math.floor(draw() * (k + 1))
+      ;[tries[k], tries[j]] = [tries[j], tries[k]]
+    }
+    const toward = draw() < 0.5 ? 1 : -1
+    tries.some((t) => cornerStore(g, taken, { ...t, w: CORNER.long, d: CORNER.wide, onRoad: false }, 2, toward))
   }
   kit.lot(-1)
 }
+
+/** A wing as a row lot. */
+const wingLot = (w: Bounds): RowLot => ({
+  x: (w.x0 + w.x1) / 2,
+  y: (w.y0 + w.y1) / 2,
+  w: w.x1 - w.x0,
+  d: w.y1 - w.y0,
+  ry: 0,
+  onRoad: false,
+})
+
+/** Whether `(px, py)` lies on a wing of `wings` other than wing `self`. */
+const onWing = (wings: Bounds[], px: number, py: number, self: number) =>
+  wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
+
+/** Face `face` (of `FACES`) of a wing: how long it is, and its middle. */
+function faceOf(wing: Bounds, face: number): [len: number, x: number, y: number] {
+  const [nx, ny] = FACES[face]
+  const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
+  return [nx === 0 ? w : d, cx + (nx * w) / 2, cy + (ny * d) / 2]
+}
+
+/**
+ * Which face of each of an apartment building's wings its walkway runs along (#156): a long face, the north or west
+ * one if `northWest`, else the south or east one, or the other long face where that one's middle is against another
+ * wing, or none.
+ */
+function walksOf(wings: Bounds[], northWest: boolean): Walks {
+  return wings.map((wing, k) => {
+    const long = wing.x1 - wing.x0 >= wing.y1 - wing.y0
+    const faces = long ? [0, 1] : [3, 2] // north and south, or west and east
+    for (const face of northWest ? faces : faces.reverse()) {
+      const [, mx, my] = faceOf(wing, face)
+      const [nx, ny] = FACES[face]
+      if (!onWing(wings, mx + nx * 0.4, my + ny * 0.4, k)) return face
+    }
+    return -1
+  })
+}
+
+/** Whether the walkway along face `face` of wing `k` runs into another wing at its end `end`, where no stair may meet it. */
+function walkwayBlocked(wings: Bounds[], k: number, face: number, end: number): boolean {
+  const [len, mx, my] = faceOf(wings[k], face)
+  const [nx, ny] = FACES[face]
+  const [u, v] = [end * (len / 2 - 0.3), WALKWAY.deep / 2]
+  return onWing(wings, mx + ny * u + nx * v, my - nx * u + ny * v, k)
+}
+
+/** The heights above the road of the landings of a building's outside stairs, `floors` storeys tall: the ground, then each walkway. */
+const floorTops = (floors: number) => [KERB, ...Array.from({ length: floors - 1 }, (_, f) => KERB + 0.94 + (f + 1) * 3.2)]
 
 /**
  * High-density residential: a pale residential tower on each large lot, with room around it. It stands at 55% of its
