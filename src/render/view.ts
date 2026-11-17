@@ -12,6 +12,7 @@ import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from 
 import { createRouteInspector, createStageInspector, type InspectedTile } from './inspector'
 import { createMaterials, type Stages } from './kit'
 import { createLabels } from './labels'
+import { createMovers } from './movers'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
 import { createScenery, finish, type Build, type Building, type Scenery } from './scenery'
@@ -73,7 +74,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   // Before the reveals, which copy the materials it patches.
   const stageInspector = createStageInspector(materials)
   const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf, ground.stageOf)
-  const laid = pieces.flatMap((piece) => scenery.lay(sim, [piece]))
+  const laid = pieces.map((piece) => scenery.lay(sim, [piece]))
+  const movers = createMovers()
+  for (const build of laid) movers.add(build)
   let slab = slabNow()
   const rig = createCamera(canvas, slab) // the camera, and what moves it
   const day = createDay(canvas, slab)
@@ -108,8 +111,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
    */
   const playStageUp = (job: StageUp, quietly = false) => {
     const built = job.built ?? finish(job.begun!.building)
-    scene.remove(...job.begun!.old)
-    scenery.discard(job.begun!.old)
+    drop(job.begun!.old)
     scene.add(...built.meshes)
     let slot = playing.find((p) => !p.piece)
     if (!slot) {
@@ -124,6 +126,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       if (!quietly) onStageUp?.(job.piece, job.stages.to)
     }
     used.reveal.play(built, { plate() {}, done }, 'stage-up')
+    movers.add(built, used.reveal)
     if (quietly) used.reveal.settle()
   }
   /** Finish at once the build of the Stage-up begun, if any, which then plays in its turn. */
@@ -156,7 +159,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   const rezoning = createRezoning()
   const scene = new THREE.Scene().add(
     ...day.lights,
-    ...laid,
+    ...laid.flatMap((build) => build.meshes),
+    movers.group,
     under.mesh,
     roads.group,
     ...cars.meshes,
@@ -171,6 +175,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     rezoning.group,
   )
   if (seams) scene.add(seams)
+  /** Take a build's meshes out of the scene, and its movers with them. */
+  function drop(meshes: THREE.Mesh[]) {
+    scene.remove(...meshes)
+    scenery.discard(meshes)
+    movers.drop(meshes)
+  }
 
   // The canvas's size in CSS pixels, read only when it changes: reading it every frame would force a layout.
   let [width, height] = [0, 0]
@@ -297,11 +307,11 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       settleStageUps(piece)
       const { old, building } = scenery.rezone(sim, piece)
       const build = finish(building)
-      scene.remove(...old)
-      scenery.discard(old)
+      drop(old)
       scene.add(...build.meshes)
       // After `play`, which lands a Rezoning still playing, and that one's `done` lets go of its piece.
       regrow.play(build, { plate() {}, done: () => (regrowing = null) }, 'rezone')
+      movers.add(build, regrow)
       regrowing = piece
     },
 
@@ -348,10 +358,6 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       if ('swapped' in relaid) settleStageUps(relaid.swapped)
       if ('removed' in relaid) settleStageUps(relaid.removed)
       buildAtOnce()
-      const drop = (meshes: THREE.Mesh[]) => {
-        scene.remove(...meshes)
-        scenery.discard(meshes)
-      }
       let build: Build | null = null
       /** The Tile a Swap replaced, which stands until the new road plate lands on it. */
       let old: THREE.Mesh[] = []
@@ -406,7 +412,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
           }
         },
       }
-      if (build) return reveal.play(build, moments)
+      if (build) {
+        reveal.play(build, moments)
+        return movers.add(build, reveal)
+      }
       moments.plate()
       moments.done()
     },
@@ -453,6 +462,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       route.update(inspected)
       stageInspector.update(real)
       const glow = day.update(dt)
+      movers.update(dt, day.time)
       materials.setGlow(glow)
       cars.setGlow(glow)
       emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)

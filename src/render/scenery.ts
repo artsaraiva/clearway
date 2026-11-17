@@ -11,6 +11,7 @@ import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { standPoles, stringWires, type LineEnd } from './poles'
+import type { Mover } from './movers'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -68,6 +69,8 @@ export interface Build {
   /** One mesh per material. In a build for the Rebuild animation, each vertex carries its brick's index as attribute `brick`. */
   meshes: THREE.Mesh[]
   bricks: BuiltBrick[]
+  /** What moves on its own, each riding one of `bricks` (`./movers`). */
+  movers: Mover[]
   /** The middle of each Block built. */
   blocks: { middle: Vec }[]
   pieces: Bounds[]
@@ -131,10 +134,12 @@ export function createScenery(
 
     const parts: Part[] = []
     const bricks: BuiltBrick[] = []
+    const movers: Mover[] = []
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
       for (const part of done.parts) parts.push({ ...part, brick: part.brick + bricks.length })
+      for (const mover of done.movers) movers.push({ ...mover, brick: mover.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
     const slab = createKit(mulberry32(0), materials)
@@ -181,7 +186,7 @@ export function createScenery(
       meshes.push(mesh)
       yield
     }
-    return { meshes, bricks, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
+    return { meshes, bricks, movers, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
   }
 
   /** Start a build of `pieces` as the last pieces laid. */
@@ -206,9 +211,9 @@ export function createScenery(
   }
 
   return {
-    /** Lay `pieces` under `sim`'s network, all at once. Returns their meshes. */
-    lay(sim: Sim, pieces: Bounds[]): THREE.Mesh[] {
-      return finish(append(sim, pieces, false)).meshes
+    /** Lay `pieces` under `sim`'s network, all at once. */
+    lay(sim: Sim, pieces: Bounds[]): Build {
+      return finish(append(sim, pieces, false))
     },
 
     /**

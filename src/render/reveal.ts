@@ -21,13 +21,14 @@ const STARTS: Record<BrickKind, [at: number, spread: number]> = {
   lamp: [0.3, 0],
   building: [0.45, 1.5],
   tree: [0.6, 1.5],
+  mover: [0.9, 1.5], // once the fields it works have landed (#149)
   // A Tile's utility poles and wires (#148) belong to no Block: they count from the start of the Reveal, the poles once
   // the Blocks near them have landed and each wire just after the poles it hangs from.
   pole: [3.2, 2.4],
   wire: [3.9, 2.4],
 }
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
-const POPS = new Set<BrickKind>(['lamp', 'tree', 'pole', 'wire']) // these grow in; everything else drops
+const POPS = new Set<BrickKind>(['lamp', 'tree', 'pole', 'wire', 'mover']) // these grow in; everything else drops
 // What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement, the lamps and the utility poles. The rest of what
 // stands on its Blocks comes in again at once, its kinds starting in this share of a Rebuild's time, since no slab
 // lands first.
@@ -107,7 +108,7 @@ function stagedUp({ bricks }: Build): Float32Array {
   const moment = new Map(
     lots.map((lot, i) => [lot, (lots.length > 1 ? i / (lots.length - 1) : 0) * STAGE_UP.spread + Math.random() * JITTER]),
   )
-  const order = (b: BuiltBrick) => (b.kind === 'building' ? 1 : b.kind === 'tree' ? 2 : 0)
+  const order = (b: BuiltBrick) => (b.kind === 'building' ? 1 : b.kind === 'tree' || b.kind === 'mover' ? 2 : 0)
   const delays = bricks.map((b) => (b.fate === 'comes' ? moment.get(lotOf(b))! + order(b) * STAGE_UP.after : -Infinity))
   const struck = new Map<string, number>()
   bricks.forEach((b, i) => {
@@ -325,6 +326,13 @@ export function createReveal(materials: Materials, pool = 140) {
         next.bricks.forEach((b, i) => b.fate === 'goes' && data.set([1, 1, 1, 0], 8 * i + 4))
       }
       plateAt = Math.max(0, ...next.bricks.flatMap((b, i) => (b.kind === 'plate' ? [delays[i] + DURATION / 2] : [])))
+    },
+
+    /** How brick `i` of `of` stands now, its scale and lift, as the movers riding it take them; null if `of` is not assembling. */
+    pose(of: Build, i: number): { scale: number; lift: number } | null {
+      if (of !== build) return null
+      const data = transforms.value.image.data as Float32Array
+      return { scale: data[8 * i + 4], lift: data[8 * i + 7] }
     },
 
     /** Land the build still assembling at once, without celebrating, as when its piece is about to be built again. */
