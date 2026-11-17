@@ -27,8 +27,8 @@ const game = run.game
 // large Cities keep the page blank too long.
 while (!game.sim.prewarmed) game.step()
 // Dev only: `?finish=none` builds the Zones built to the level of finish without their surface pattern and light
-// pools, `?finish=pattern` or `?finish=pools` with one of them (#174), for a sheet or a bench of each.
-const finish = import.meta.env.DEV && params.get('finish')
+// pools, and `?finish=pattern` or `?finish=pools` with only the one named (#174), for a sheet or a bench of each.
+const finish = import.meta.env.DEV ? params.get('finish')?.split(',') : undefined
 const view = createView(
   canvas,
   game.sim,
@@ -38,7 +38,7 @@ const view = createView(
     zoneOf: (cell) => game.city.tileAt(cell)?.zone,
     stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
   },
-  finish ? { pattern: finish === 'pattern', pools: finish === 'pools' } : undefined,
+  finish && { pattern: finish.includes('pattern'), pools: finish.includes('pools') },
 )
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))

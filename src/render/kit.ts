@@ -124,8 +124,8 @@ const POOL = {
   lamp: 4,
   least: 2.4,
   lantern: 3,
-  front: { vending: 0.95, window: 1.25 },
-  deep: { vending: 1.9, window: 2.3 },
+  front: { vending: 0.75, window: 1.25 },
+  deep: { vending: 1.7, window: 2.3 },
   colours: { lamp: '#ffbe6a', cream: '#ffd49a', amber: '#f6a848', vending: '#ffe2b0', window: '#ffb870' },
   strengths: { lamp: 1, cream: 0.85, amber: 0.8, vending: 0.7, window: 0.65 },
 }

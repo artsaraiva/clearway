@@ -139,7 +139,7 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       for (let row = 0; row < 4; row++) {
         for (let k = -1; k < 4; k++) {
           const x = k * t + (row % 2) * (t / 2)
-          fill(g, [110, 0, 0], x, row * t, t, t)
+          fill(g, [104, 0, 0], x, row * t, t, t)
           fill(g, [Math.round(122 + draw() * 12), 0, 0], x + 1, row * t + 1, t - 2, t - 2)
         }
       }
@@ -233,7 +233,7 @@ export function createPatterns() {
     patch(shader: THREE.WebGLProgramParametersWithUniforms) {
       Object.assign(shader.uniforms, uniforms)
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec3 pattern;\nflat varying vec3 vPattern;\nvarying vec2 vPatternAt;')
+        .replace('#include <common>', '#include <common>\nattribute vec3 pattern;\nvarying vec3 vPattern;\nvarying vec2 vPatternAt;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvPattern = pattern;\n\tvPatternAt = uv;')
       shader.fragmentShader = shader.fragmentShader
         .replace(
@@ -241,7 +241,9 @@ export function createPatterns() {
           `#include <common>
 uniform highp sampler2DArray patternMap;
 uniform vec3 patternLight;
-flat varying vec3 vPattern;
+// Smooth, not flat: every vertex of a triangle carries the same pattern, and a flat varying makes ANGLE on Metal
+// rework every draw for GL's provoking vertex, 0.4 ms a frame on the 26-Tile City.
+varying vec3 vPattern;
 varying vec2 vPatternAt;
 float patternHash(vec3 p) {
   p = fract(p * 0.1031);
@@ -261,7 +263,7 @@ vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);
 if (patternKind > 0.5) {
   float layer = patternKind - 1.0;
-  if (patternKind == ${f(PATTERN.back)}) layer = floor(patternAt.x) == floor(vPattern.y * 0.5) ? ${f(DOOR)} : ${f(PATTERN.wall - 1)};
+  if (patternKind == ${f(PATTERN.back)}) layer = floor(patternAt.x) == floor(floor(vPattern.y + 0.5) * 0.5) ? ${f(DOOR)} : ${f(PATTERN.wall - 1)};
   vec3 worn = textureGrad(patternMap, vec3(patternAt, layer), patternDx, patternDy).rgb;
   float shade = worn.r * 2.0;
   if (patternKind == ${f(PATTERN.roof)}) {
