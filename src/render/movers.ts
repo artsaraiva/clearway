@@ -10,7 +10,7 @@ import { tint } from './shapes'
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
 // stretch: it sets out each morning and stops for the night once it has worked the day's stretches. A chimney's smoke
-// (#150) rises through the same working day.
+// (#150) rises through the same working day, and cloths (#153) flutter in its wind.
 
 /** The kinds of mover, each with its own model. */
 export type MoverKind = 'tractor' | 'truck' | 'forklift'
@@ -36,6 +36,22 @@ export interface Mover {
   brick: number
 }
 
+/** The kinds of cloth that flutter in the wind (#153), each with its own model: a shop's nobori banner. */
+export type ClothKind = 'nobori'
+
+/**
+ * A cloth that flutters in the wind (#153), as a Block's fill hangs it, riding the brick of its build at `brick`: its
+ * model stands at `at`, in Three coordinates, turned `ry` about the vertical as the kit turns a shape.
+ */
+export interface Cloth {
+  kind: ClothKind
+  at: THREE.Vector3
+  ry: number
+  /** The colour its model's painted parts take. */
+  paint: string
+  brick: number
+}
+
 /** A chimney's smoke (#150): puffs rise from `at`, its top, in Three coordinates, once the brick at `brick` stands. */
 export interface Plume {
   at: THREE.Vector3
@@ -56,6 +72,10 @@ const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model
 // carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
 // its colour.
 const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [0.55, -0.35], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+// The wind in the cloths (#153): how far a cloth's free corner ripples out of its plane (m), how fast the ripples run
+// (rad/s) and how many there are along it and up it (rad/m), the slower swing of the whole cloth (m, rad/s), and the s
+// the wind takes to rise in the morning and to drop at dusk.
+const WIND = { ripple: 0.13, rate: 5.4, along: 4.4, up: 1.4, swing: 0.12, swingRate: 1.6, ease: 3 }
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
@@ -140,6 +160,97 @@ function forklift(): THREE.BufferGeometry {
   return merged(parts).translate(-0.3, 0, 0).scale(1.3, 1.3, 1.3)
 }
 
+/**
+ * A nobori banner's cloth (#153), hung to the right of a pole standing at the origin, across +x and facing ±z: 0.72 m
+ * wide and 2.4 m tall with its foot 1.08 m up, oversized as the props are. The cloth takes the paint, and a pale band
+ * of lettering down its middle keeps its own colour. Held along the pole and by the rod across its top, it sways most
+ * at its free bottom corner.
+ */
+function nobori(): THREE.BufferGeometry {
+  const [X0, W, Y0, H, ROWS] = [0.04, 0.72, 1.08, 2.4, 8]
+  const COLS = [0, 0.25, 0.47, 0.72] // the middle column carries the lettering
+  const [white, letters] = [new THREE.Color('#ffffff'), new THREE.Color('#fbf8f2')]
+  const [pos, col, sway, paint]: number[][] = [[], [], [], []]
+  for (let i = 0; i < COLS.length - 1; i++) {
+    for (let j = 0; j < ROWS; j++) {
+      const lettering = i === 1 && j > 0 && j < ROWS - 1
+      const [u0, u1, v0, v1] = [COLS[i], COLS[i + 1], (j * H) / ROWS, ((j + 1) * H) / ROWS]
+      for (const [u, v] of [
+        [u0, v0],
+        [u1, v0],
+        [u1, v1],
+        [u0, v0],
+        [u1, v1],
+        [u0, v1],
+      ]) {
+        const c = lettering ? letters : white
+        pos.push(X0 + u, Y0 + v, 0)
+        col.push(c.r, c.g, c.b)
+        sway.push((u / W) * (1 - 0.65 * (v / H)))
+        paint.push(lettering ? 0 : 1)
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute(
+    'normal',
+    new THREE.Float32BufferAttribute(
+      pos.map((_, k) => (k % 3 === 2 ? 1 : 0)),
+      3,
+    ),
+  )
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+  g.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 1))
+  g.setAttribute('paint', new THREE.Float32BufferAttribute(paint, 1))
+  return g
+}
+const CLOTHS: Record<ClothKind, () => THREE.BufferGeometry> = { nobori }
+
+/**
+ * Make `material` flutter a cloth in the wind (#153): each vertex stands out of the cloth's plane by ripples that run
+ * along it and a slower swing of the whole, scaled by its `sway` and by the wind, each cloth in a phase of its own from
+ * where it stands. Its `paint` (0 to 1) says how much of the instance's colour it takes.
+ */
+function flutter<M extends THREE.Material>(material: M, wind: { time: { value: number }; strength: { value: number } }): M {
+  const n = (v: number) => v.toFixed(3)
+  const wave = `
+uniform float windTime;
+uniform float windStrength;
+attribute float sway;
+attribute float paint;
+// How far a cloth stands out of its plane at p, and how steeply along and up it.
+vec3 flutter(vec3 p) {
+  float phase = instanceMatrix[3].x * 0.71 + instanceMatrix[3].z * 0.53;
+  float a = windTime * ${n(WIND.rate)} - p.x * ${n(WIND.along)} + p.y * ${n(WIND.up)} + phase;
+  float k = windStrength * sway;
+  float out_ = k * (${n(WIND.ripple)} * sin(a) + ${n(WIND.swing)} * sin(windTime * ${n(WIND.swingRate)} + phase * 1.7));
+  float slope = k * ${n(WIND.ripple)} * cos(a);
+  return vec3(out_, -slope * ${n(WIND.along)}, slope * ${n(WIND.up)});
+}`
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.windTime = wind.time
+    shader.uniforms.windStrength = wind.strength
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${wave}`)
+      .replace(
+        '#include <beginnormal_vertex>',
+        '#include <beginnormal_vertex>\n\tvec3 w = flutter(position);\n\tobjectNormal = normalize(vec3(-w.y, -w.z, 1.0));',
+      )
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\ttransformed.z += flutter(position).x;')
+      .replace(
+        '#include <color_vertex>',
+        `#ifdef USE_COLOR
+\tvColor = vec4(color, 1.0);
+\t#ifdef USE_INSTANCING_COLOR
+\t\tvColor.rgb *= mix(vec3(1.0), instanceColor.rgb, paint);
+\t#endif
+#endif`,
+      )
+  }
+  return material
+}
+
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
 function along(line: Polyline, s: number): { x: number; y: number; heading: number } {
   const { pts, cum } = line
@@ -170,10 +281,11 @@ interface Puff {
   dz: number
 }
 
-/** The movers and plumes of one build, the reveal it may be playing on, and its plumes' puffs. */
+/** The movers, plumes and cloths of one build, the reveal it may be playing on, and its plumes' puffs. */
 interface Entry {
   build: Build
   movers: Mover[]
+  cloths: Cloth[]
   plumes: { plume: Plume; next: number; draw: () => number }[]
   puffs: Puff[]
   playing?: Poses
@@ -184,7 +296,9 @@ interface Entry {
  * work done, a clock that runs only through the working day and while the world runs, so a mover built again (by a
  * Swap, a Rezoning or a Stage-up) carries on from where it was. A mover arrives with its brick in the build's reveal,
  * and leaves with its build. Each chimney smokes while the working day runs, once its brick stands, its puffs one
- * instanced mesh of soft spheres that fade as they rise.
+ * instanced mesh of soft spheres that fade as they rise. Cloths (#153) arrive and leave as movers do, and flutter in a
+ * wind that rises through the working day, drops at dusk so that they hang still by night, and stops while the world
+ * is paused.
  * ponytail: every instance is placed each frame, parked or not, which is nothing at a few hundred. Skip the parked
  * ones if a City ever holds thousands.
  */
@@ -227,6 +341,15 @@ export function createMovers() {
       .replace('#include <common>', '#include <common>\nvarying float vFade;')
       .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.a *= vFade;')
   }
+  // The cloths (#153): one instanced mesh per kind, still but for the wind, which rises through the working day and
+  // blows only while the world runs. Its strength runs from 0 to 1.
+  const wind = { time: { value: 0 }, strength: { value: 0 } }
+  const cloth = flutter(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide }), wind)
+  const clothDepth = flutter(new THREE.MeshDepthMaterial(), wind)
+  const clothModels = new Map((Object.keys(CLOTHS) as ClothKind[]).map((k) => [k, CLOTHS[k]()]))
+  const clothMeshes = new Map<ClothKind, THREE.InstancedMesh>()
+  let hung = false // whether every cloth that is not arriving stands where it hangs
+
   const smoke = new THREE.InstancedMesh(ball, haze, PUFFS)
   smoke.name = 'smoke'
   smoke.count = 0
@@ -261,6 +384,28 @@ export function createMovers() {
         mesh.setColorAt(i, v.paint ? new THREE.Color(v.paint) : white)
       }
     }
+  }
+
+  /** New instanced meshes for the cloths there are now, each in its paint. */
+  const rehang = () => {
+    for (const mesh of clothMeshes.values()) {
+      group.remove(mesh)
+      mesh.dispose()
+    }
+    clothMeshes.clear()
+    for (const [kind, model] of clothModels) {
+      const all = entries.flatMap((e) => e.cloths.filter((c) => c.kind === kind))
+      if (!all.length) continue
+      const mesh = new THREE.InstancedMesh(model, cloth, all.length)
+      mesh.name = kind
+      mesh.castShadow = mesh.receiveShadow = true
+      mesh.customDepthMaterial = clothDepth
+      mesh.frustumCulled = false
+      all.forEach((c, i) => mesh.setColorAt(i, new THREE.Color(c.paint)))
+      clothMeshes.set(kind, mesh)
+      group.add(mesh)
+    }
+    hung = false
   }
 
   /** How far along `v`'s loop it drives from stop `from` to the stop `count` stops on, going round as often as that takes. */
@@ -329,24 +474,25 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes and cloths of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length) return
+      if (!build.movers.length && !build.plumes.length && !build.cloths.length) return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
         return { plume, next: draw() * SMOKE.every, draw }
       })
-      entries.push({ build, movers: build.movers, plumes, puffs: [], playing })
+      entries.push({ build, movers: build.movers, cloths: build.cloths, plumes, puffs: [], playing })
       if (build.movers.length) remesh()
+      if (build.cloths.length) rehang()
     },
 
-    /** Take away the movers and plumes of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away the movers, plumes and cloths of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
-      const kept = entries.filter((e) => e.build.meshes !== meshes)
-      if (kept.length === entries.length) return
-      const moved = entries.some((e) => e.build.meshes === meshes && e.movers.length)
-      entries = kept
-      if (moved) remesh()
+      const gone = entries.filter((e) => e.build.meshes === meshes)
+      if (!gone.length) return
+      entries = entries.filter((e) => e.build.meshes !== meshes)
+      if (gone.some((e) => e.movers.length)) remesh()
+      if (gone.some((e) => e.cloths.length)) rehang()
     },
 
     /**
@@ -362,17 +508,21 @@ export function createMovers() {
       if (was && !working) work = Math.ceil(work / SHIFT - 1e-6) * SHIFT
       if (working) work += dt
       // A build that has played out keeps only what its Stage has.
-      let changed = false
+      let [changed, rehung] = [false, false]
       for (const e of entries) {
-        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? 0
+        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? e.cloths[0]?.brick ?? 0
         if (!e.playing || e.playing.pose(e.build, first)) continue
         const fate = (i: number): Fate => e.build.bricks[i].fate
         const kept = e.movers.filter((v) => fate(v.brick) !== 'goes')
         if (kept.length < e.movers.length) [e.movers, changed] = [kept, true]
+        const hanging = e.cloths.filter((c) => fate(c.brick) !== 'goes')
+        if (hanging.length < e.cloths.length) [e.cloths, rehung] = [hanging, true]
         e.plumes = e.plumes.filter((p) => fate(p.plume.brick) !== 'goes')
         e.playing = undefined
+        hung = false
       }
       if (changed) remesh()
+      if (rehung) rehang()
       const counts = new Map<MoverKind, number>()
       for (const e of entries) {
         for (const v of e.movers) {
@@ -390,6 +540,25 @@ export function createMovers() {
         }
       }
       for (const mesh of meshes.values()) mesh.instanceMatrix.needsUpdate = true
+
+      // Cloths: each stands where it hangs, or as its brick arrives, and flutters in the wind.
+      wind.time.value += dt
+      wind.strength.value = Math.min(1, Math.max(0, wind.strength.value + (working ? dt : -dt) / WIND.ease))
+      const hangs = new Map<ClothKind, number>()
+      for (const e of entries) {
+        for (const c of e.cloths) {
+          const mesh = clothMeshes.get(c.kind)
+          if (!mesh) continue
+          const i = hangs.get(c.kind) ?? 0
+          hangs.set(c.kind, i + 1)
+          if (hung && !e.playing) continue
+          const pose = e.playing?.pose(e.build, c.brick) ?? { scale: 1, lift: 0 }
+          m.compose(at.set(c.at.x, c.at.y + pose.lift, c.at.z), q.setFromAxisAngle(up, c.ry), scale.setScalar(Math.max(0.001, pose.scale)))
+          mesh.setMatrixAt(i, m)
+          mesh.instanceMatrix.needsUpdate = true
+        }
+      }
+      hung = true
 
       // Smoke: each standing chimney puffs while the working day runs, and its puffs rise, swell and fade.
       let n = 0

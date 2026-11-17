@@ -61,6 +61,26 @@ const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
 // to three trees in the yards behind.
 const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
+// Shop details (#153), before the fronts that face a Road: the share of shops with each from Stages 1, 2 and 3 (one
+// roll a shop for each detail, so a shop keeps its details as it grows), and the share of those with a vending machine
+// that have a second at Stage 3. Parked bicycles stand `gap` m apart, turned `slant` off square to the front; banners
+// stand `banner` m out from the front and lanterns hang `lantern` m out under the awning. On the pavement, details keep
+// `edge` m in from the Block's edge and `room` m from a lamp's post or a street tree's trunk. The banners' cloths are
+// the shops' own colours.
+const FRONT = {
+  vending: [0.15, 0.35, 0.5],
+  second: 0.5,
+  nobori: [0, 0.35, 0.55],
+  lanterns: [0, 0.35, 0.6],
+  bikes: [0, 0.3, 0.5],
+  gap: 0.7,
+  slant: 0.4,
+  banner: 1.8,
+  lantern: 1.3,
+  edge: 0.55,
+  room: 1.4,
+  cloths: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
+} as const
 // Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
 // a shed over all but 2.5 m of the lot on every side, 1.5 m in from the Block's edge and at least 9 m across. On some
 // Blocks the first shed has a chimney.
@@ -518,9 +538,88 @@ function shops(g: ZoneGround) {
     kit.lot(i)
     const storeys = kit.chance(0.45) ? 1 : 2
     kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, SHOP_STOREYS(storeys, stage), l.onRoad, stage))
+    if (l.onRoad) shopFront(g, l)
   }
   kit.lot(-1)
   yards(g, lots, SHOPS.trees)
+}
+
+/**
+ * The details before shop `l`'s front (#153), each drawn from where the shop stands, so that nothing else on the Block
+ * changes: a vending machine or two at one end, a row of bicycles at the other, nobori banners at the pavement's edge
+ * between them, and paper lanterns under the awning. Each stands from the Stage its roll gives it (`FRONT`), and more
+ * come at Stage 3: a second vending machine on half the fronts with one, two more bicycles, a third banner and two
+ * more lanterns. What stands on the pavement keeps on the Block, 0.6 m in from its edge, and clear of the lamps at its
+ * corners and the street trees.
+ */
+function shopFront(g: ZoneGround, l: RowLot) {
+  const { kit, field } = g
+  const draw = mulberry32(spot(l.x, l.y))
+  const half = l.w / 2
+  /** Where the point `u` m along the front from its middle and `o` m out from it lies on the map. */
+  const at = (u: number, o: number) => turned(l.x, l.y, l.ry, u, l.d / 2 + o)
+  const others = [...g.lamps, ...g.street]
+  /** Whether the pavement `o` m out from the front at each of `us` along it is clear. */
+  const clear = (o: number, ...us: number[]) =>
+    us.every((u) => {
+      const p = at(u, o)
+      return field.sample(p.x, p.y) >= FRONT.edge && !others.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < FRONT.room)
+    })
+  /** The Stage from which a detail stands, by a roll against its shares of the shops from Stages 1, 2 and 3; 0 for none. */
+  const first = (shares: readonly number[]) => {
+    const roll = draw()
+    return shares.findIndex((s) => roll < s) + 1
+  }
+  const side = draw() < 0.5 ? 1 : -1 // the end the vending machines stand at; the bicycles take the other
+  const [vending, banners, lanterns, bikes] = [first(FRONT.vending), first(FRONT.nobori), first(FRONT.lanterns), first(FRONT.bikes)]
+  const [second, count, cloth, amber] = [
+    draw() < FRONT.second,
+    2 + Math.floor(draw() * 3),
+    FRONT.cloths[Math.floor(draw() * FRONT.cloths.length)],
+    draw() < 0.5,
+  ]
+  /** Build `fn` at `p` from Stage `stage`, on a stream of its own from where it stands. */
+  const from = (stage: number, p: Vec, fn: (p: Vec) => void) => stage && kit.from(stage, () => fn(p), spot(p.x, p.y))
+  let [left, right] = [-half + 0.3, half - 0.3] // the stretch of the front left for the banners
+  if (vending) {
+    // Backed up to the front at its end, and a second beside it at Stage 3.
+    const [u, v] = [side * (half - 0.85), side * (half - 2.15)]
+    if (clear(0.5, u - 0.6, u + 0.6) && clear(1, u)) {
+      from(vending, at(u, 0.5), (p) => kit.vending(p.x, p.y, KERB, l.ry))
+      if (second && clear(0.5, v - 0.6, v + 0.6)) from(3, at(v, 0.5), (p) => kit.vending(p.x, p.y, KERB, l.ry))
+      ;[left, right] = side > 0 ? [left, v - 0.8] : [v + 0.8, right]
+    }
+  }
+  if (bikes) {
+    // A row from the other end, nosed in to the front, and two more bicycles on its end at Stage 3.
+    const [start, step] = [-side * (half - 0.55), side * FRONT.gap]
+    const end = (n: number) => start + step * (n - 1)
+    if (clear(0.85, start, end(count)) && clear(1.7, start, end(count))) {
+      from(bikes, at(start, 0.85), (p) => kit.bicycles(p.x, p.y, KERB, l.ry, count, step, FRONT.slant))
+      const more = clear(0.85, end(count + 2)) && clear(1.7, end(count + 2))
+      if (more) from(3, at(end(count + 1), 0.85), (p) => kit.bicycles(p.x, p.y, KERB, l.ry, 2, step, FRONT.slant))
+      const last = end(more ? count + 2 : count) + step
+      ;[left, right] = side > 0 ? [last, right] : [left, last]
+    }
+  }
+  if (banners) {
+    // Up to three along what is left of the front, at the pavement's edge, each cloth hung to the right of its pole.
+    const n = Math.min(3, Math.floor((right - left) / 1.3))
+    for (let k = 0; k < n; k++) {
+      const u = left + ((k + 0.5) * (right - left)) / n - 0.4
+      if (clear(FRONT.banner, u, u + 0.8)) from(k < 2 ? banners : 3, at(u, FRONT.banner), (p) => kit.nobori(p.x, p.y, KERB, l.ry, cloth))
+    }
+  }
+  if (lanterns) {
+    // Two hung under the awning's span, and two more between them at Stage 3.
+    for (const [t, stage] of [
+      [-0.3, lanterns],
+      [0.3, lanterns],
+      [-0.1, 3],
+      [0.1, 3],
+    ])
+      from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => kit.lantern(p.x, p.y, KERB + 2.2, amber))
+  }
 }
 
 /** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies on the map, as the kit's `local` places it. */

@@ -3,7 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import type { Glow } from './day'
-import type { Mover, MoverKind, Plume } from './movers'
+import type { Cloth, ClothKind, Mover, MoverKind, Plume } from './movers'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -66,6 +66,20 @@ const BARN = {
 // post, cloth head and shirts (the cars' colours).
 const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
+// Shop details (#153): vending machines' bodies, nobori banners' poles, paper lanterns (the bulb's cream, and an amber),
+// and bicycles' frames, in the cars' colours, their tyres and baskets.
+const VENDING = { bodies: ['#f4f6f8', '#fbf8f2', '#2fb39a', '#f0b43c', '#79c86a'], slot: '#4a525c' }
+const NOBORI = { pole: '#c4ccd4' } // the cloths and their lettering are `./movers`'
+const LANTERN = { amber: '#f6b04a', caps: '#4a525c' }
+// The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
+const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
+const BICYCLE = {
+  frames: ['#ffffff', '#db6982', '#ffc52d', '#64cb9f', '#bc9ef2', '#e9eef2', '#ff9cbb'],
+  dark: '#3a404a',
+  basket: '#c4ccd4',
+}
+// A bicycle's wheel: a thin tyre round an axle across it, ten-sided, as bicycles stand by the hundred.
+const WHEEL = new THREE.TorusGeometry(1, 0.1, 3, 10).rotateY(Math.PI / 2)
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
@@ -193,7 +207,21 @@ export function createMaterials() {
     const [c, base] = [new THREE.Color(hex), new THREE.Color(GLASS)]
     return new THREE.Color(c.r / base.r, c.g / base.g, c.b / base.b)
   }
-  const bulb = new THREE.MeshStandardMaterial({ color: '#fff4dc', roughness: 0.4, emissive: '#ffd08a', emissiveIntensity: 0 })
+  // One bulb for every lamp, tinted white unless a tint is given: a tinted bulb glows in its own colour, as a paper
+  // lantern's amber does (#153).
+  const bulb = new THREE.MeshStandardMaterial({
+    color: '#fff4dc',
+    vertexColors: true,
+    roughness: 0.4,
+    emissive: '#ffd08a',
+    emissiveIntensity: 0,
+  })
+  bulb.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb;',
+    )
+  }
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
@@ -262,6 +290,7 @@ export function createKit(rand: () => number, materials: Materials) {
   const bricks: Brick[] = []
   const movers: Mover[] = []
   const plumes: Plume[] = []
+  const cloths: Cloth[] = []
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -289,7 +318,8 @@ export function createKit(rand: () => number, materials: Materials) {
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       parts.push({ geometry: look.material === glass ? glowing(tinted, look.glow ?? 1) : tinted, material: look.material, brick: -1 })
-    } else parts.push({ geometry: look === glass ? glowing(tint(geo, '#ffffff'), 1) : geo, material: look, brick: -1 })
+    } else if (look === glass) parts.push({ geometry: glowing(tint(geo, '#ffffff'), 1), material: look, brick: -1 })
+    else parts.push({ geometry: look === bulb ? tint(geo, '#ffffff') : geo, material: look, brick: -1 })
   }
   /** Add a copy of a shape standing at `(x, y)`, `h` above the road, turned `ry` and scaled. */
   const add = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry = 0, sx = 1, sy = 1, sz = 1) => {
@@ -336,6 +366,10 @@ export function createKit(rand: () => number, materials: Materials) {
   /** Add a shape at `(lx, ly)` in the frame of a building at `(x, y)` whose front faces `ry`, turned with it, `h` above the road. */
   const local = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, ry: number, lx: number, ly: number, h: number, sx = 1) =>
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
+  /** Hang a cloth that flutters (see `cloth` below), riding the brick closed next. */
+  const hang = (kind: ClothKind, x: number, y: number, h: number, ry: number, paint: string) => {
+    cloths.push({ kind, at: new THREE.Vector3(x, h, -y), ry, paint, brick: bricks.length })
+  }
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
   const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
 
@@ -968,6 +1002,12 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
+     * A cloth of kind `kind` that flutters in the wind (`./movers`, #153), hung at `(x, y)`, `h` above the road, turned
+     * `ry` as a shape is, in `paint`. It rides the brick closed next, which must hold what it hangs from.
+     */
+    cloth: hang,
+
+    /**
      * A kei truck parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#149): a white cab and a
      * flat bed with low gates, oversized as the cars are. Its bed carries two crates at Stage 2 and is full at Stage 3.
      */
@@ -1061,6 +1101,68 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('tree', x, y, h)
     },
 
+    /**
+     * A vending machine standing at `(x, y)`, its face toward `ry` (0 north, π/2 west), as one brick (#153): a body
+     * 1.2 m wide and 2.2 m tall, oversized a little as the props are, with a face of lit glass that glows at night.
+     */
+    vending(x: number, y: number, h: number, ry: number) {
+      const body = pick(VENDING.bodies)
+      local(box(1.2, 2.2, 0.9, 0.08, 0.03), body, x, y, ry, 0, 0, h)
+      local(cuboid(1.0, 1.2, 0.06), { material: glass, tint: windows[0] }, x, y, ry, 0, 0.45, h + 0.82)
+      local(cuboid(0.86, 0.22, 0.06), VENDING.slot, x, y, ry, 0, 0.45, h + 0.22)
+      shadow(x, y, h, 1.8, 1.5, false, ry)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A nobori banner at `(x, y)`, its cloth facing `ry` (0 north, π/2 west) and hung to the right of its pole from a rod
+     * across its top, as one brick (#153): the pole and rod stand still, and the cloth, a tall narrow one in `colour`
+     * with a pale band of lettering down it, flutters in the wind (`./movers`). Oversized a little, as the props are.
+     */
+    nobori(x: number, y: number, h: number, ry: number, colour: string) {
+      add(cuboid(0.07, 3.7, 0.07), NOBORI.pole, x, y, h)
+      local(cuboid(0.8, 0.05, 0.05), NOBORI.pole, x, y, ry, 0.4, 0, h + 3.5)
+      hang('nobori', x, y, h, ry, colour)
+      brick('tree', x, y, h)
+    },
+
+    /**
+     * A paper lantern hung at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or amber, lit at dusk
+     * as the lamps are, with dark caps, a metre tall and oversized as the props are.
+     */
+    lantern(x: number, y: number, h: number, amber: boolean) {
+      const paper: Look = amber ? { material: bulb, tint: AMBER } : bulb
+      add(SPHERE, paper, x, y, h, 0, 0.36, 0.5, 0.36)
+      add(CYLINDER, LANTERN.caps, x, y, h + 0.44, 0, 0.19, 0.08, 0.19)
+      add(CYLINDER, LANTERN.caps, x, y, h - 0.52, 0, 0.19, 0.08, 0.19)
+      add(cuboid(0.03, 0.3, 0.03), LANTERN.caps, x, y, h + 0.5)
+      brick('lamp', x, y, h)
+    },
+
+    /**
+     * Bicycles parked in a row from `(x, y)`, `count` of them `gap` m apart to the right of a wall's front that faces
+     * `ry` (0 north, π/2 west), or to the left for a negative `gap`, each nosed in toward the wall and turned `slant`
+     * off square to it, as one brick (#153): a step-through town bicycle with a basket, oversized a little, its frame in
+     * one of the cars' colours.
+     */
+    bicycles(x: number, y: number, h: number, ry: number, count: number, gap: number, slant: number) {
+      const S = 1.1
+      for (let k = 0; k < count; k++) {
+        const [bx, by] = to(x, y, ry, k * gap, 0)
+        const r = ry + Math.PI + slant
+        const at = (lx: number, ly: number) => to(bx, by, r, lx * S, ly * S)
+        const frame = pick(BICYCLE.frames)
+        for (const ly of [-0.55, 0.55]) add(WHEEL, BICYCLE.dark, ...at(0, ly), h + 0.33 * S, r, 0.33 * S, 0.33 * S, 0.33 * S)
+        add(cuboid(0.06 * S, 0.06 * S, 1.0 * S), frame, ...at(0, 0), h + 0.36 * S, r)
+        add(cuboid(0.05 * S, 0.5 * S, 0.05 * S), frame, ...at(0, -0.22), h + 0.4 * S, r)
+        add(cuboid(0.05 * S, 0.62 * S, 0.05 * S), frame, ...at(0, 0.44), h + 0.36 * S, r)
+        add(cuboid(0.14 * S, 0.06 * S, 0.26 * S), BICYCLE.dark, ...at(0, -0.24), h + 0.9 * S, r)
+        add(cuboid(0.56 * S, 0.04 * S, 0.04 * S), BICYCLE.dark, ...at(0, 0.44), h + 0.98 * S, r)
+        add(cuboid(0.34 * S, 0.24 * S, 0.28 * S), BICYCLE.basket, ...at(0, 0.66), h + 0.7 * S, r)
+      }
+      brick('building', x, y, h)
+    },
+
     /** A street lamp, as one brick. */
     lamp(x: number, y: number, h: number) {
       add(CYLINDER, '#7d8794', x, y, h, 0, 0.14, 5, 0.14)
@@ -1078,16 +1180,16 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * Everything built, as parts tagged with their bricks, the movers and the chimneys' plumes. Every shape must be in a
-     * brick by now. The kit is spent after this.
+     * Everything built, as parts tagged with their bricks, the movers, the chimneys' plumes and the cloths that flutter.
+     * Every shape must be in a brick by now. The kit is spent after this.
      */
-    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[] } {
+    done(): { parts: Part[]; bricks: Brick[]; movers: Mover[]; plumes: Plume[]; cloths: Cloth[] } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values()]) g.dispose()
       boxes.clear()
       cuboids.clear()
       gables.clear()
-      return { parts, bricks, movers, plumes }
+      return { parts, bricks, movers, plumes, cloths }
     },
   }
 }
