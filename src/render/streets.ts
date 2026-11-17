@@ -243,24 +243,33 @@ export function dressStreet(
 
 /**
  * Manhole covers and patches of newer tarmac on the road plate of the cell `cell` bounds (#175), as one brick: along the
- * middle of each Road lane on it, kept off its ends, where the zebras and give-way paint lie, each drawn from where it
- * lies.
+ * middle of each Road lane, kept off its ends, where the zebras and give-way paint lie, each drawn from where its lane
+ * lies. Only the marks lying wholly on the cell are laid, so that the two Tiles a Road runs between mark their halves of
+ * it alike, and none spills onto the next Tile, whatever its Zone.
  */
 export function markPlate(kit: Kit, cell: Bounds, net: Network) {
   let marked = false
   for (const lane of net.lanes) {
     if (!('road' in lane.owner) || lane.length < 2 * PLATE.ends + 4) continue
+    const [a, b] = [pointAt(lane.line, 0), pointAt(lane.line, lane.length)]
+    if (Math.max(a.x, b.x) < cell.x0 || Math.min(a.x, b.x) > cell.x1 || Math.max(a.y, b.y) < cell.y0 || Math.min(a.y, b.y) > cell.y1)
+      continue
     const mid = pointAt(lane.line, lane.length / 2)
-    if (mid.x < cell.x0 + 1 || mid.x > cell.x1 - 1 || mid.y < cell.y0 + 1 || mid.y > cell.y1 - 1) continue
     const draw = mulberry32(spot(mid.x, mid.y))
     for (let s = PLATE.ends + draw() * PLATE.every; s < lane.length - PLATE.ends; s += PLATE.every * (0.7 + draw() * 0.6)) {
       const p = pointAt(lane.line, s)
       const side = (draw() - 0.5) * 1.6 // m left of the lane's middle
       const [x, y] = [p.x - Math.sin(p.heading) * side, p.y + Math.cos(p.heading) * side]
-      if (draw() < 0.6) {
+      // Every mark draws alike on both Tiles, so that the next is the same on each, whichever of them lays it.
+      const manhole = draw() < 0.6
+      const [w, d] = manhole ? [1, 1] : [2.2 + draw() * 1.8, 1.6 + draw() * 1.2]
+      const [c, n] = [Math.abs(Math.cos(p.heading)), Math.abs(Math.sin(p.heading))]
+      const [reachX, reachY] = [(c * w + n * d) / 2, (n * w + c * d) / 2] // how far it reaches either way along x and y
+      if (x - reachX < cell.x0 || x + reachX > cell.x1 || y - reachY < cell.y0 || y + reachY > cell.y1) continue
+      if (manhole) {
         kit.add(FLAT_DISC, PLATE.rim, x, y, PLATE.y, 0, 0.5, 1, 0.5)
         kit.add(FLAT_DISC, PLATE.manhole, x, y, PLATE.y + 0.004, 0, 0.42, 1, 0.42)
-      } else kit.add(kit.cuboid(2.2 + draw() * 1.8, 0.01, 1.6 + draw() * 1.2), PLATE.patch, x, y, PLATE.y - 0.008, p.heading)
+      } else kit.add(kit.cuboid(w, 0.01, d), PLATE.patch, x, y, PLATE.y - 0.008, p.heading)
       marked = true
     }
   }
