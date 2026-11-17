@@ -93,6 +93,21 @@ const BARN = {
 // post, cloth head and shirts (the cars' colours).
 const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
+// Green details (#152): a bench's wooden slats and its iron ends; a picnic blanket's colours, its gingham's pale stripe,
+// the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and its glass, painted
+// pale as the greenhouses' film is: the kit's glass would add a mesh to every green build, which never draws it.
+const BENCH = { wood: '#c49a6c', iron: '#6f7986' }
+const PICNIC = { blankets: ['#ffadc8', '#f6d36a', '#7fbf9d', '#c7b8f0', '#f0b43c'], stripe: '#fbf8f2', basket: '#c49a6c', lid: '#a1714c' }
+const BUTT = { body: '#4f8a6e', lid: '#3d6d57' }
+const FRAME = { base: '#f4f1ea', glass: '#d6ece6' }
+/** A cold frame's glass (#152): a box 1 m across, 1 m deep and 0.36 m tall at its back, its top sloping to 0.14 m at its front (-z). */
+const LIGHT = (() => {
+  const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0).toNonIndexed()
+  const pos = g.attributes.position
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0.5) pos.setY(i, pos.getZ(i) < 0 ? 0.14 : 0.36)
+  g.computeVertexNormals()
+  return g
+})()
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
 const LEAVES = {
@@ -566,6 +581,11 @@ export function createKit(rand: () => number, materials: Materials) {
     /** Say where loose things on the ground, such as fallen petals, may lie: `on(x, y, clear)`, on the Block `clear` m in from its edge. */
     ground(on: (x: number, y: number, clear: number) => boolean) {
       onBlock = on
+    },
+
+    /** Whether a loose thing may lie at `(x, y)`, on the Block at least `clear` m in from its edge (`ground`). */
+    onGround(x: number, y: number, clear: number) {
+      return onBlock(x, y, clear)
     },
 
     /** The bricks closed from now on stand on lot `n` of the Block (-1: on none). */
@@ -1386,6 +1406,72 @@ export function createKit(rand: () => number, materials: Materials) {
       add(CONE, BARN.straw, x, y, h + 2.66, 0, 0.36, 0.4, 0.36)
       shadow(x, y, h, 2, 2, true)
       brick('tree', x, y, h)
+    },
+
+    /**
+     * A park bench at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick that drops in (#152): wooden
+     * slats on iron ends, 2 m long, oversized a little as the props are.
+     */
+    bench(x: number, y: number, h: number, ry: number) {
+      local(cuboid(2, 0.08, 0.56), BENCH.wood, x, y, ry, 0, 0.02, h + 0.44)
+      for (const lift of [0.62, 0.84]) local(cuboid(2, 0.14, 0.05), BENCH.wood, x, y, ry, 0, -0.28, h + lift)
+      for (const lx of [-0.86, 0.86]) {
+        local(cuboid(0.08, 0.44, 0.5), BENCH.iron, x, y, ry, lx, 0.02, h)
+        local(cuboid(0.07, 1, 0.07), BENCH.iron, x, y, ry, lx, -0.3, h)
+        local(cuboid(0.08, 0.05, 0.56), BENCH.iron, x, y, ry, lx, 0.02, h + 0.66)
+      }
+      shadow(x, y, h, 2.8, 1.4, true, ry) // round, as the trees' are: a meadow then draws no other shadow
+      brick('building', x, y, h)
+    },
+
+    /**
+     * A picnic blanket laid at `(x, y)`, turned `ry`, as one brick (#152): gingham in one of the blankets' colours, with
+     * a basket on it if `basket`, and a parasol over it in another colour if `parasol`. Oversized a little.
+     */
+    blanket(x: number, y: number, h: number, ry: number, basket: boolean, parasol: boolean) {
+      const [colour, shade] = [pick(PICNIC.blankets), pick(PICNIC.blankets)]
+      add(cuboid(2.6, 0.04, 2), colour, x, y, h, ry)
+      for (const k of [-1, 0, 1]) {
+        local(cuboid(0.18, 0.012, 2), PICNIC.stripe, x, y, ry, k * 0.78, 0, h + 0.04)
+        local(cuboid(2.6, 0.012, 0.18), PICNIC.stripe, x, y, ry, 0, k * 0.6, h + 0.04)
+      }
+      if (basket) {
+        local(cuboid(0.62, 0.36, 0.42), PICNIC.basket, x, y, ry, 0.72, 0.5, h + 0.04)
+        local(cuboid(0.66, 0.05, 0.46), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.4)
+        for (const k of [-1, 1]) local(cuboid(0.04, 0.26, 0.04), PICNIC.lid, x, y, ry, 0.72 + k * 0.24, 0.5, h + 0.45)
+        local(cuboid(0.52, 0.04, 0.04), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.71)
+      }
+      if (parasol) {
+        const [px, py] = to(x, y, ry, -0.95, 0.7)
+        add(cuboid(0.06, 2.3, 0.06), BENCH.iron, px, py, h)
+        add(CONE, shade, px, py, h + 1.95, 0, 1.4, 0.5, 1.4)
+        shadow(px, py, h, 3, 3, true)
+      }
+      brick('ground', x, y, h)
+    },
+
+    /** A water butt at `(x, y)`, as one brick that drops in (#152): a green barrel under a darker lid, oversized a little. */
+    waterButt(x: number, y: number, h: number) {
+      add(CYLINDER, BUTT.body, x, y, h, 0, 0.42, 1.1, 0.42)
+      add(CYLINDER, BUTT.lid, x, y, h + 1.1, 0, 0.45, 0.07, 0.45)
+      shadow(x, y, h, 1.3, 1.3, true)
+      brick('building', x, y, h)
+    },
+
+    /**
+     * Cold frames in a row `w` m long at `(x, y)`, their fronts facing `ry`, as one brick that drops in (#152): glass
+     * lights 1.1 m deep, sloping down to the front, on a low painted base, one to every 1.3 m or so.
+     */
+    coldFrames(x: number, y: number, h: number, ry: number, w: number) {
+      const n = Math.max(1, Math.round(w / 1.3))
+      const each = w / n
+      for (let k = 0; k < n; k++) {
+        const lx = -w / 2 + (k + 0.5) * each
+        local(cuboid(each - 0.08, 0.24, 1.1), FRAME.base, x, y, ry, lx, 0, h)
+        add(LIGHT, FRAME.glass, ...to(x, y, ry, lx, 0), h + 0.24, ry, each - 0.14, 1, 1.1)
+      }
+      shadow(x, y, h, w + 1, 2, true, ry) // round, as a scarecrow's or a water butt's: allotments draw no other shadow
+      brick('building', x, y, h)
     },
 
     /** A street lamp, as one brick. */

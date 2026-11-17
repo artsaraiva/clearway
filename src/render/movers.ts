@@ -13,7 +13,7 @@ import { tint } from './shapes'
 // (#150) rises through the same working day.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -49,12 +49,25 @@ const SHIFT = (WORK.to - WORK.from) * DAY
 // Washing and futons (#156) are hung out as the working day starts and taken in before it ends, each over this share of
 // the day's clock (about 2 s).
 const HANG = 0.012
-// Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, and its model.
-const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model: () => THREE.BufferGeometry }> = {
+// Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, and its model. One that flies (#152) rises
+// `fly.up` m off its path between stops, easing up and down over `fly.ease` m at each end of a stretch, and one with
+// wings beats them `beat` times a second in flight and rests them nearly closed (`WINGS`).
+interface Kind {
+  speed: number
+  bob: number
+  rate: number
+  model: () => THREE.BufferGeometry
+  fly?: { up: number; ease: number }
+  beat?: number
+}
+const KINDS: Record<MoverKind, Kind> = {
   tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor },
   truck: { speed: 2.2, bob: 0.02, rate: 11, model: truck },
   forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift },
+  butterfly: { speed: 1.4, bob: 0.28, rate: 4.5, model: butterfly, fly: { up: 0.9, ease: 1.6 }, beat: 7 },
 }
+// How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
+const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 // Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s) and how the wind
 // carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
 // its colour.
@@ -143,6 +156,36 @@ function forklift(): THREE.BufferGeometry {
   return merged(parts).translate(-0.3, 0, 0).scale(1.3, 1.3, 1.3)
 }
 
+/**
+ * A butterfly (#152), facing +x and centred on its body, its wings flat along z: a dark body and four white wings with
+ * dark tips, for the paint each takes, about 0.85 m across, oversized so that it reads close up. Its wings beat in the
+ * vertex shader (`createMovers`), about the body, by the angle each instance's `wing` gives.
+ */
+function butterfly(): THREE.BufferGeometry {
+  const [WING, DARK] = ['#ffffff', '#4a525c']
+  /** A flat polygon in the xz plane, fanned from its first point, mirrored to -z if `mirror`. */
+  const flat = (pts: [number, number][], y: number, color: string, mirror: boolean) => {
+    const v: number[] = []
+    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i], pts[i + 1]]) v.push(x, y, mirror ? -z : z)
+    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+    g.computeVertexNormals()
+    return tint(g, color)
+  }
+  // The right wings' outlines (m, x forward and z out from the body): the forewing, its dark tip, and the hindwing.
+  // prettier-ignore
+  const [fore, tip, hind]: [number, number][][] = [
+    [[0.09, 0.03], [-0.03, 0.03], [0.02, 0.3], [0.17, 0.27]],
+    [[0.08, 0.24], [0.03, 0.3], [0.16, 0.27]],
+    [[-0.02, 0.03], [-0.15, 0.04], [-0.17, 0.19], [-0.04, 0.21]],
+  ]
+  const parts = [part(0.3, 0.06, 0.06, -0.02, -0.03, 0, DARK).deleteAttribute('uv')]
+  for (const mirror of [false, true]) parts.push(flat(fore, 0, WING, mirror), flat(tip, 0.004, DARK, mirror), flat(hind, 0, WING, mirror))
+  return merged(parts).scale(1.4, 1.4, 1.4)
+}
+
+/** 0 to 1 eased in and out. */
+const smooth = (k: number) => k * k * (3 - 2 * k)
+
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
 function along(line: Polyline, s: number): { x: number; y: number; heading: number } {
   const { pts, cum } = line
@@ -194,6 +237,26 @@ interface Entry {
 export function createMovers() {
   const group = new THREE.Group()
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  // Wings (#152): each vertex off the body turns up about it by its instance's `wing`, the left wing and the right
+  // mirrored, and its normal with it.
+  const winged = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide })
+  winged.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float wing;')
+      .replace(
+        '#include <beginnormal_vertex>',
+        `#include <beginnormal_vertex>
+\tfloat wSide = position.z > 0.035 ? 1.0 : (position.z < -0.035 ? -1.0 : 0.0);
+\tfloat wC = cos(wing * abs(wSide));
+\tfloat wS = sin(wing * abs(wSide));
+\tobjectNormal = vec3(objectNormal.x, objectNormal.y * wC + wSide * objectNormal.z * wS, -wSide * objectNormal.y * wS + objectNormal.z * wC);`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+\ttransformed = vec3(transformed.x, transformed.y * wC + wSide * transformed.z * wS, -wSide * transformed.y * wS + transformed.z * wC);`,
+      )
+  }
   const models = new Map((Object.keys(KINDS) as MoverKind[]).map((k) => [k, KINDS[k].model()]))
   const meshes = new Map<MoverKind, THREE.InstancedMesh>()
   let entries: Entry[] = []
@@ -242,14 +305,19 @@ export function createMovers() {
     for (const mesh of meshes.values()) {
       group.remove(mesh)
       mesh.dispose()
+      if (mesh.geometry !== models.get(mesh.name as MoverKind)) mesh.geometry.dispose()
     }
     meshes.clear()
     for (const [kind, model] of models) {
       const count = entries.reduce((n, e) => n + e.movers.filter((v) => v.kind === kind).length, 0)
       if (!count) continue
-      const mesh = new THREE.InstancedMesh(model, material, count)
+      // A winged kind's model carries each instance's wing angle, so it takes a copy of its own.
+      const beats = KINDS[kind].beat !== undefined
+      const geometry = beats ? model.clone().setAttribute('wing', new THREE.InstancedBufferAttribute(new Float32Array(count), 1)) : model
+      const mesh = new THREE.InstancedMesh(geometry, beats ? winged : material, count)
       mesh.name = kind
-      mesh.castShadow = mesh.receiveShadow = true
+      mesh.castShadow = !beats // a wing's shadow would not beat with it
+      mesh.receiveShadow = true
       mesh.frustumCulled = false // instances move; the mesh's own bounds mean nothing
       meshes.set(kind, mesh)
       group.add(mesh)
@@ -283,6 +351,16 @@ export function createMovers() {
    * as that takes (a forklift's, many times), and never more than the shift has time for, so that it always ends the
    * day at a stop.
    */
+  /**
+   * A phase of its own for each mover's bob and wingbeat (rad), from where its loop starts and the stop it sets out
+   * from: an instance's index shifts whenever movers come or go, and a phase from it would jump (#152).
+   */
+  const phases = new WeakMap<Mover, number>()
+  const phaseOf = (v: Mover) => {
+    let phase = phases.get(v)
+    if (phase === undefined) phases.set(v, (phase = mulberry32(spot(v.loop.pts[0].x, v.loop.pts[0].y) + v.first)() * Math.PI * 2))
+    return phase
+  }
   const perDay = new WeakMap<Mover, number>()
   const stretches = (v: Mover) => {
     let count = perDay.get(v)
@@ -313,14 +391,15 @@ export function createMovers() {
       const reach = reachOf(v, from, 1)
       if (left * speed < reach) {
         const p = along(loop, (stops[from] + left * speed) % loop.length)
-        return { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working }
+        const off = Math.min(left * speed, reach - left * speed) // m from the nearer end of the stretch
+        return { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working, off }
       }
       left -= reach / speed
       from = (from + 1) % n
     }
     // At stop `from`, facing as it came in: a stop at the loop's start is its end too.
     const p = along(loop, stops[from] || loop.length)
-    return { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false }
+    return { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false, off: 0 }
   }
 
   /** Whether brick `i` of entry `e`'s build stands at rest, in its place and at full size. */
@@ -396,14 +475,30 @@ export function createMovers() {
           counts.set(v.kind, i + 1)
           const pose = e.playing?.pose(e.build, v.brick) ?? { scale: 1, lift: 0 }
           const p = place(v)
-          const { bob, rate } = KINDS[v.kind]
-          const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + i)) : 0
+          const { bob, rate, fly, beat } = KINDS[v.kind]
+          // In flight, risen off its path, eased up from a stop and down onto the next.
+          const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
+          const phase = phaseOf(v)
+          const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
           q.setFromAxisAngle(up, p.heading)
-          m.compose(at.set(p.x, v.h + pose.lift + hop, -p.y), q, scale.setScalar(Math.max(0.001, pose.scale)))
+          m.compose(at.set(p.x, v.h + pose.lift + rise + hop, -p.y), q, scale.setScalar(Math.max(0.001, pose.scale)))
           mesh.setMatrixAt(i, m)
+          if (beat !== undefined) {
+            const wing = mesh.geometry.getAttribute('wing') as THREE.InstancedBufferAttribute
+            const angle = p.moving
+              ? WINGS.open + WINGS.sweep * Math.sin(t * beat * Math.PI * 2 + phase)
+              : working
+                ? WINGS.rest + WINGS.fan * Math.sin(t * 1.3 + phase)
+                : WINGS.night
+            wing.setX(i, angle)
+          }
         }
       }
-      for (const mesh of meshes.values()) mesh.instanceMatrix.needsUpdate = true
+      for (const mesh of meshes.values()) {
+        mesh.instanceMatrix.needsUpdate = true
+        const wing = mesh.geometry.getAttribute('wing')
+        if (wing) wing.needsUpdate = true
+      }
 
       // Smoke: each standing chimney puffs while the working day runs, and its puffs rise, swell and fade.
       let n = 0
