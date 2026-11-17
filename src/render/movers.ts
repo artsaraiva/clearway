@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
-import { DAY, WIND, WORK } from './day'
+import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
 import { tint } from './shapes'
@@ -10,7 +10,8 @@ import { tint } from './shapes'
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
 // stretch: it sets out each morning and stops for the night once it has worked the day's stretches. A chimney's smoke
-// (#150) rises through the same working day.
+// (#150) rises through the same working day, washing and futons (#155) hang out through it and sway in the wind, and
+// beacons (#155) blink at night.
 
 /** The kinds of mover, each with its own model. */
 export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola'
@@ -51,14 +52,47 @@ export interface Plume {
   brick: number
 }
 
+/** The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave. */
+export type FlagKind = 'flag'
+
 /**
- * A flag (#154) flying from the top of its pole at `at`, in Three coordinates, in `colour`, lowered to `low` m above
- * the road and furled for the night. It rides its pole's brick at `brick`.
+ * Something that flies from the top of a pole at `at`, in Three coordinates, and flutters in the wind (#154): a flag.
+ * It flies downwind in `colour`, is lowered to `low` m above the road and furled for the night, and rides its pole's
+ * brick at `brick`.
  */
 export interface Flag {
+  kind: FlagKind
   at: THREE.Vector3
   low: number
   colour: string
+  brick: number
+}
+
+/** A beacon's colour (#155): white or amber, never the Jam's red. */
+export type BeaconColour = 'white' | 'amber'
+
+/** A beacon (#155): a bulb of radius `r` at `at`, in Three coordinates, riding the brick at `brick`, that blinks at night. */
+export interface Beacon {
+  at: THREE.Vector3
+  r: number
+  colour: BeaconColour
+  brick: number
+}
+
+/** The kinds of thing that hangs and sways in the wind, each with its own model. */
+export type SwayKind = 'laundry' | 'futon' | 'washing'
+
+/**
+ * Something that hangs from a line and sways in the wind (#155): laundry on a pole, a futon over a railing. It hangs
+ * from `at`, in Three coordinates, on a line turned `ry` as the kit turns a shape (0 along x, as a front facing north
+ * runs), out of the building on the side a front facing `ry` looks, riding the brick at `brick`.
+ */
+export interface Sway {
+  kind: SwayKind
+  at: THREE.Vector3
+  ry: number
+  /** The colour its model's white parts take. White unless given. */
+  paint?: string
   brick: number
 }
 
@@ -90,12 +124,31 @@ const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 // carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
 // its colour.
 const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
-// Flags (#154): a flag's size (m), how far its free end swings (m), how many waves run along it and how fast (rad/s),
-// and the share of the day it takes to raise or lower one, at the start and the end of the working day.
-const FLAGS = { long: 2.3, high: 1.45, swing: 0.32, waves: 1.3, rate: 7, raise: 0.02 }
+// Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
+// to +z, white for the colour each takes; how far it reaches from the pole and how far its free end swings (m); and how
+// many waves run along it.
+const FLAGS: Record<FlagKind, { model: () => THREE.BufferGeometry; reach: number; swing: number; waves: number }> = {
+  flag: { model: () => new THREE.PlaneGeometry(2.3, 1.45, 8, 2).translate(1.15, -0.725, 0), reach: 2.3, swing: 0.32, waves: 1.3 },
+}
+// How fast every flying thing's waves run (rad/s), and the share of the day it takes to raise or lower one, at the
+// start and the end of the working day.
+const FLUTTER = { rate: 7, raise: 0.02 }
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
+// Beacons (#155): s between flashes, the share of that the flash holds before it fades, how fast it fades, how dimly it
+// glows between flashes, and how bright a flash is for the lamps' glow; the colours, white or amber.
+const BLINK = { every: 2, hold: 0.4, fade: 14, rest: 0.04, bright: 1 }
+const BEACONS: Record<BeaconColour, string> = { white: '#fff3e2', amber: '#ffb24a' }
+// Swaying (#155): per kind, how far it swings each way (rad), how fast (rad/s), and its model.
+const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.BufferGeometry }> = {
+  laundry: { swing: 0.2, rate: 2.4, model: laundry },
+  futon: { swing: 0.04, rate: 1.6, model: futon },
+  washing: { swing: 0.24, rate: 2.4, model: washing }, // #156
+}
+// Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
+// moment, and takes this share of the day to come or go.
+const HANG = { out: 0.05, in: 0.06, takes: 0.004 }
 
 /** A box `w` by `h` by `d` centred on `(x, z)` with its bottom at `y`, painted. */
 const part = (w: number, h: number, d: number, x: number, y: number, z: number, color: string) =>
@@ -178,6 +231,56 @@ function forklift(): THREE.BufferGeometry {
 }
 
 /**
+ * A line of washing (#155), hanging from a pole along x at y = 0, oversized a little as the moving details are: towels
+ * and shirts in pale colours, out of the building along -z.
+ */
+function laundry(): THREE.BufferGeometry {
+  const parts = [tint(new THREE.CylinderGeometry(0.045, 0.045, 3.9, 6).rotateZ(Math.PI / 2), '#c4ccd4')]
+  const CLOTHS = ['#ffffff', '#fbd2dd', '#fbe3a2', '#d6efe6']
+  ;[-1.38, -0.46, 0.46, 1.38].forEach((x, i) => {
+    if (i % 2)
+      parts.push(part(0.66, 0.82, 0.05, x, -0.98, 0, CLOTHS[i]), part(1.1, 0.28, 0.05, x, -0.34, 0, CLOTHS[i])) // a shirt
+    else parts.push(part(0.76, 1.05 - 0.15 * (i / 2), 0.05, x, -1.05 + 0.15 * (i / 2), 0, CLOTHS[i])) // a towel
+  })
+  return merged(parts)
+}
+
+/**
+ * A futon aired over a railing whose top runs along x at y = 0 (#155): a thick quilt folded over it, most of it hanging
+ * out of the building along -z. White, for the cover each takes.
+ */
+function futon(): THREE.BufferGeometry {
+  const PAINT = '#ffffff'
+  return merged([
+    part(1.7, 0.14, 0.42, 0, 0, 0, PAINT), // over the rail
+    part(1.7, 1.05, 0.14, 0, -1, -0.24, PAINT), // hanging out
+    part(1.7, 0.55, 0.14, 0, -0.5, 0.24, PAINT), // and in
+  ])
+}
+
+/** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
+const painted = (geo: THREE.BufferGeometry, share: number) =>
+  geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
+
+/**
+ * A short line of washing (#156), hanging from a pole 2.6 m along x at y = 0, for a balcony's bay or a house's upper
+ * floor, oversized a little as the moving details are: a towel and a hand towel in the paint each line takes, and a pink
+ * shirt and a mint towel that keep their colours, so a line reads bright against pale walls.
+ */
+function washing(): THREE.BufferGeometry {
+  const keep = (w: number, h: number, x: number, y: number, colour: string) => painted(part(w, h, 0.05, x, y, 0, colour), 0)
+  const take = (w: number, h: number, x: number, y: number) => painted(part(w, h, 0.05, x, y, 0, '#ffffff'), 1)
+  return merged([
+    painted(tint(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6).rotateZ(Math.PI / 2), '#c4ccd4'), 0),
+    take(0.55, 0.95, -0.95, -0.97), // a towel
+    keep(0.5, 0.72, -0.22, -0.88, '#ff9cbb'), // a shirt
+    keep(0.8, 0.24, -0.22, -0.3, '#ff9cbb'),
+    keep(0.48, 0.82, 0.5, -0.84, '#64cb9f'), // a towel
+    take(0.38, 0.58, 1.02, -0.6), // a hand towel
+  ])
+}
+
+/**
  * A butterfly (#152), facing +x and centred on its body, its wings flat along z: a dark body and four white wings with
  * dark tips, for the paint each takes, about 0.85 m across, oversized so that it reads close up. Its wings beat in the
  * vertex shader (`createMovers`), about the body, by the angle each instance's `wing` gives.
@@ -237,13 +340,10 @@ function ropes(): THREE.BufferGeometry {
   return merged([-1.9, 1.9].map((z) => part(0.05, 1, 0.05, -0.3 * 1.25, 0, z * 1.25, '#4a525c')))
 }
 
-/** A flag (#154), flying along +x from its pole at x = 0, its top edge on y = 0 and its face to +z. */
-const flag = () => new THREE.PlaneGeometry(FLAGS.long, FLAGS.high, 8, 2).translate(FLAGS.long / 2, -FLAGS.high / 2, 0)
-
 /** How far up its pole a flag flies at the time of day `time` (0–1): raised as the working day starts, lowered as it ends. */
 function hoisted(time: number): number {
   const t = (time - WORK.from + 1) % 1 // since the working day began
-  return Math.max(0, Math.min(1, t / FLAGS.raise, (WORK.to - WORK.from + FLAGS.raise - t) / FLAGS.raise))
+  return Math.max(0, Math.min(1, t / FLUTTER.raise, (WORK.to - WORK.from + FLUTTER.raise - t) / FLUTTER.raise))
 }
 
 /** Where `s` m along `line` lies, and the way it heads there: the segment found by halving, as a loop has hundreds. */
@@ -276,13 +376,17 @@ interface Puff {
   dz: number
 }
 
-/** The movers, plumes and flags of one build, the reveal it may be playing on, and its plumes' puffs. */
+/** The movers, plumes, flags, beacons and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
 interface Entry {
   build: Build
   movers: Mover[]
   flags: Flag[]
   plumes: { plume: Plume; next: number; draw: () => number }[]
   puffs: Puff[]
+  /** Each beacon, and where it is in its blink (0–1) when the run starts. */
+  beacons: { beacon: Beacon; phase: number }[]
+  /** Each swaying thing, where it is in its swing when the run starts, and when (the day's clock) it is hung out and taken in. */
+  sways: { sway: Sway; phase: number; out: number; in: number }[]
   playing?: Poses
 }
 
@@ -321,12 +425,13 @@ export function createMovers() {
   const models = new Map((Object.keys(KINDS) as MoverKind[]).map((k) => [k, KINDS[k].model()]))
   const meshes = new Map<MoverKind, THREE.InstancedMesh>()
   const rope = ropes()
-  let hung: THREE.InstancedMesh | null = null // the ropes of every mover that hangs
-  // Flags (#154), every one in the City in one mesh: each vertex swings across its flag, more toward the free end, on
-  // waves that run out from the pole, each flag on a phase of its own; a wave's crest catches the light and its trough
-  // falls in shade. Its shadow flutters with it.
+  let strung: THREE.InstancedMesh | null = null // the ropes of every mover that hangs
+  // Flying things (#154), one mesh per kind for the whole City: each vertex swings across its flag, more toward the free
+  // end, on waves that run out from the pole, each flag on a phase of its own; a wave's crest catches the light and its
+  // trough falls in shade. Its shadow flutters with it.
   const wave = { value: 0 }
-  const flutters = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+  const flutters = (kind: FlagKind) => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    const { reach, swing, waves } = FLAGS[kind]
     const k = (n: number) => n.toFixed(4)
     shader.uniforms.wave = wave
     shader.vertexShader = shader.vertexShader
@@ -335,34 +440,42 @@ export function createMovers() {
         '#include <begin_vertex>',
         [
           '#include <begin_vertex>',
-          `float reach = position.x / ${k(FLAGS.long)};`,
-          `float swell = phase + wave - reach * ${k(FLAGS.waves * Math.PI * 2)};`,
-          `transformed.z += ${k(FLAGS.swing)} * reach * sin(swell);`,
+          `float reach = position.x / ${k(reach)};`,
+          `float swell = phase + wave - reach * ${k(waves * Math.PI * 2)};`,
+          `transformed.z += ${k(swing)} * reach * sin(swell);`,
           'vRipple = 0.18 * reach * cos(swell);',
         ].join('\n\t'),
       )
   }
-  const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide })
-  cloth.onBeforeCompile = (shader) => {
-    flutters(shader)
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vRipple;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
-  }
-  const clothShadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
-  clothShadow.onBeforeCompile = flutters
-  const cut = flag()
-  let flags: THREE.InstancedMesh | null = null
+  const flyers = new Map(
+    (Object.keys(FLAGS) as FlagKind[]).map((kind) => {
+      const cloth = new THREE.MeshStandardMaterial({ roughness: 0.8, side: THREE.DoubleSide })
+      cloth.customProgramCacheKey = () => `flag ${kind}`
+      cloth.onBeforeCompile = (shader) => {
+        flutters(kind)(shader)
+        shader.fragmentShader = shader.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying float vRipple;')
+          .replace('#include <color_fragment>', '#include <color_fragment>\n\tdiffuseColor.rgb *= 1.0 + vRipple;')
+      }
+      const shadow = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide })
+      shadow.customProgramCacheKey = () => `flag shadow ${kind}`
+      shadow.onBeforeCompile = flutters(kind)
+      return [kind, { model: FLAGS[kind].model(), cloth, shadow }]
+    }),
+  )
+  const flown = new Map<FlagKind, THREE.InstancedMesh>()
   let entries: Entry[] = []
   let work = 0 // s worked: a whole number of shifts outside the working day
   let working = false
   let t = 0 // s run, for the bob and the smoke
-  const [m, q, at, scale, up, white] = [
+  const [m, q, tilt, at, scale, up, across, white] = [
     new THREE.Matrix4(),
+    new THREE.Quaternion(),
     new THREE.Quaternion(),
     new THREE.Vector3(),
     new THREE.Vector3(),
     new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(1, 0, 0),
     new THREE.Color('#ffffff'),
   ]
 
@@ -394,43 +507,107 @@ export function createMovers() {
   smoke.renderOrder = 3
   group.add(smoke)
 
-  /** New instanced meshes for the movers there are now. */
+  // Beacons (#155): one instanced mesh of bulbs in their colours, each lit by its own share of the material's glow.
+  const bulb = new THREE.IcosahedronGeometry(1, 1)
+  const lens = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.35, emissive: '#ffffff', emissiveIntensity: 0 })
+  lens.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float flash;\nvarying float vFlash;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvFlash = flash;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vFlash;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vFlash;')
+  }
+  let beacons: THREE.InstancedMesh | null = null
+  let flashes = new THREE.InstancedBufferAttribute(new Float32Array(0), 1)
+  // Swaying things (#155): one instanced mesh per kind. A model's parts take its instance's paint as their `painted`
+  // share has it (#156): all of them unless the model says otherwise.
+  const swayModels = new Map(
+    (Object.keys(SWAYS) as SwayKind[]).map((k) => {
+      const model = SWAYS[k].model()
+      return [k, model.getAttribute('painted') ? model : painted(model, 1)]
+    }),
+  )
+  const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  hanging.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
+      '#include <color_vertex>',
+      `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
+#endif`,
+    )
+  }
+  const swaying = new Map<SwayKind, THREE.InstancedMesh>()
+
+  /** New instanced meshes for the movers, beacons and swaying things there are now. */
   const remesh = () => {
     for (const mesh of meshes.values()) {
       group.remove(mesh)
       mesh.dispose()
       if (mesh.geometry !== models.get(mesh.name as MoverKind)) mesh.geometry.dispose()
     }
+    for (const mesh of [...swaying.values(), ...(beacons ? [beacons] : [])]) {
+      group.remove(mesh)
+      mesh.dispose()
+    }
+    beacons?.geometry.dispose() // its own copy of the bulb, carrying its flashes
     meshes.clear()
-    if (hung) {
-      group.remove(hung)
-      hung.dispose()
-      hung = null
+    if (strung) {
+      group.remove(strung)
+      strung.dispose()
+      strung = null
     }
-    if (flags) {
-      group.remove(flags)
-      flags.dispose()
-      flags.geometry.dispose()
-      flags = null
+    for (const mesh of flown.values()) {
+      group.remove(mesh)
+      mesh.dispose()
+      mesh.geometry.dispose() // its own copy of the model, carrying its phases
     }
-    const flying = entries.flatMap((e) => e.flags)
-    if (flying.length) {
+    flown.clear()
+    for (const [kind, { model, cloth, shadow }] of flyers) {
+      const flying = entries.flatMap((e) => e.flags.filter((f) => f.kind === kind))
+      if (!flying.length) continue
       // Each flag's phase, from where it flies, and its colour, which stay until the next remesh.
       const phase = new THREE.InstancedBufferAttribute(new Float32Array(flying.map((f) => mulberry32(spot(f.at.x, -f.at.z))() * 7)), 1)
-      flags = new THREE.InstancedMesh(cut.clone().setAttribute('phase', phase), cloth, flying.length)
-      flags.name = 'flags'
-      flags.castShadow = flags.receiveShadow = true
-      flags.customDepthMaterial = clothShadow
-      flags.frustumCulled = false
-      flying.forEach((f, i) => flags!.setColorAt(i, new THREE.Color(f.colour)))
-      group.add(flags)
+      const mesh = new THREE.InstancedMesh(model.clone().setAttribute('phase', phase), cloth, flying.length)
+      mesh.name = `${kind}s`
+      mesh.castShadow = mesh.receiveShadow = true
+      mesh.customDepthMaterial = shadow
+      mesh.frustumCulled = false
+      flying.forEach((f, i) => mesh.setColorAt(i, new THREE.Color(f.colour)))
+      flown.set(kind, mesh)
+      group.add(mesh)
     }
-    const hanging = entries.reduce((n, e) => n + e.movers.filter((v) => v.hang).length, 0)
-    if (hanging) {
-      hung = new THREE.InstancedMesh(rope, material, hanging)
-      hung.name = 'ropes'
-      hung.frustumCulled = false
-      group.add(hung)
+    const ropes = entries.reduce((n, e) => n + e.movers.filter((v) => v.hang).length, 0)
+    if (ropes) {
+      strung = new THREE.InstancedMesh(rope, material, ropes)
+      strung.name = 'ropes'
+      strung.frustumCulled = false
+      group.add(strung)
+    }
+    swaying.clear()
+    beacons = null
+    const lights = entries.flatMap((e) => e.beacons)
+    if (lights.length) {
+      flashes = new THREE.InstancedBufferAttribute(new Float32Array(lights.length), 1)
+      const geometry = bulb.clone()
+      geometry.setAttribute('flash', flashes)
+      beacons = new THREE.InstancedMesh(geometry, lens, lights.length)
+      beacons.name = 'beacon'
+      beacons.frustumCulled = false
+      lights.forEach((b, i) => beacons!.setColorAt(i, new THREE.Color(BEACONS[b.beacon.colour])))
+      group.add(beacons)
+    }
+    for (const [kind, model] of swayModels) {
+      const hung = entries.flatMap((e) => e.sways.filter((s) => s.sway.kind === kind))
+      if (!hung.length) continue
+      const mesh = new THREE.InstancedMesh(model, hanging, hung.length)
+      mesh.name = kind
+      mesh.receiveShadow = true // too fine to cast a shadow worth its cost, a thousand at a time
+      mesh.frustumCulled = false
+      hung.forEach((s, i) => mesh.setColorAt(i, s.sway.paint ? new THREE.Color(s.sway.paint) : white))
+      swaying.set(kind, mesh)
+      group.add(mesh)
     }
     for (const [kind, model] of models) {
       const count = entries.reduce((n, e) => n + e.movers.filter((v) => v.kind === kind).length, 0)
@@ -542,31 +719,40 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes, beacons and swaying things of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length && !build.flags.length) return
+      if (!build.movers.length && !build.plumes.length && !build.flags.length && !build.beacons.length && !build.sways.length) return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
         return { plume, next: draw() * SMOKE.every, draw }
       })
-      entries.push({ build, movers: build.movers, flags: build.flags, plumes, puffs: [], playing })
-      if (build.movers.length || build.flags.length) remesh()
+      const beacons = build.beacons.map((beacon) => ({ beacon, phase: mulberry32(spot(beacon.at.x, -beacon.at.z))() }))
+      const sways = build.sways.map((sway) => {
+        const draw = mulberry32(spot(sway.at.x, -sway.at.z) ^ Math.round(sway.at.y * 100))
+        const [phase, out, taken] = [draw() * Math.PI * 2, draw(), draw()]
+        return { sway, phase, out: WORK.from + out * HANG.out, in: WORK.to - HANG.takes - taken * HANG.in }
+      })
+      entries.push({ build, movers: build.movers, flags: build.flags, plumes, puffs: [], beacons, sways, playing })
+      if (build.movers.length || build.flags.length || beacons.length || sways.length) remesh()
     },
 
-    /** Take away the movers, plumes and flags of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away what moves, smokes, blinks, flies and sways of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return
-      const moved = entries.some((e) => e.build.meshes === meshes && (e.movers.length || e.flags.length))
+      const moved = entries.some(
+        (e) => e.build.meshes === meshes && (e.movers.length || e.flags.length || e.beacons.length || e.sways.length),
+      )
       entries = kept
       if (moved) remesh()
     },
 
     /**
-     * `dt` is the real seconds since the last frame, 0 while paused, and `time` the time of day (0–1): the movers work
-     * and the chimneys smoke only through the working day.
+     * `dt` is the real seconds since the last frame, 0 while paused, `time` the time of day (0–1) and `glow` what glows
+     * then: the movers work, the chimneys smoke and the washing hangs out only through the working day, and the beacons
+     * blink as the lamps glow.
      */
-    update(dt: number, time: number) {
+    update(dt: number, time: number, glow?: Glow) {
       t += dt
       const was = working
       working = time >= WORK.from && time < WORK.to
@@ -577,14 +763,18 @@ export function createMovers() {
       // A build that has played out keeps only what its Stage has.
       let changed = false
       for (const e of entries) {
-        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? e.flags[0]?.brick ?? 0
-        if (!e.playing || e.playing.pose(e.build, first)) continue
+        if (!e.playing || e.playing.pose(e.build, 0)) continue
         const fate = (i: number): Fate => e.build.bricks[i].fate
         const kept = e.movers.filter((v) => fate(v.brick) !== 'goes')
         if (kept.length < e.movers.length) [e.movers, changed] = [kept, true]
         e.plumes = e.plumes.filter((p) => fate(p.plume.brick) !== 'goes')
         const flown = e.flags.filter((f) => fate(f.brick) !== 'goes')
         if (flown.length < e.flags.length) [e.flags, changed] = [flown, true]
+        const [beacons, sways] = [
+          e.beacons.filter((b) => fate(b.beacon.brick) !== 'goes'),
+          e.sways.filter((s) => fate(s.sway.brick) !== 'goes'),
+        ]
+        if (beacons.length < e.beacons.length || sways.length < e.sways.length) [e.beacons, e.sways, changed] = [beacons, sways, true]
         e.playing = undefined
       }
       if (changed) remesh()
@@ -617,10 +807,10 @@ export function createMovers() {
             wing.setX(i, angle)
           }
           // Its ropes, from its stirrups up to the arm it hangs from.
-          if (v.hang && hung) {
+          if (v.hang && strung) {
             const foot = v.h + p.up + pose.lift + 1.5
             m.compose(at.set(p.x, foot, -p.y), q, scale.set(size, Math.max(0.001, (v.hang + v.h - foot) * size), size))
-            hung.setMatrixAt(roped++, m)
+            strung.setMatrixAt(roped++, m)
           }
         }
       }
@@ -629,26 +819,29 @@ export function createMovers() {
         const wing = mesh.geometry.getAttribute('wing')
         if (wing) wing.needsUpdate = true
       }
-      if (hung) hung.instanceMatrix.needsUpdate = true
+      if (strung) strung.instanceMatrix.needsUpdate = true
 
       // Flags: up their poles through the working day, downwind, and growing with their poles' bricks.
-      if (flags) {
-        wave.value = (wave.value + dt * FLAGS.rate) % (Math.PI * 2000)
+      wave.value = (wave.value + dt * FLUTTER.rate) % (Math.PI * 2000)
+      if (flown.size) {
         const raised = hoisted(time)
         q.setFromAxisAngle(up, Math.atan2(WIND.y, WIND.x))
-        let k = 0
+        const counted = new Map<FlagKind, number>()
         for (const e of entries) {
           for (const f of e.flags) {
+            const mesh = flown.get(f.kind)!
+            const k = counted.get(f.kind) ?? 0
+            counted.set(f.kind, k + 1)
             const pose = e.playing?.pose(e.build, f.brick) ?? { scale: 1, lift: 0 }
             const s = Math.max(0.001, pose.scale)
             const foot = e.build.bricks[f.brick].at // what its pole grows out of
             const y = f.low + (f.at.y - f.low) * raised
             at.set(foot.x + (f.at.x - foot.x) * s, foot.y + (y - foot.y) * s + pose.lift, foot.z + (f.at.z - foot.z) * s)
             m.compose(at, q, scale.set(s * (0.06 + 0.94 * raised), s, s))
-            flags.setMatrixAt(k++, m)
+            mesh.setMatrixAt(k, m)
           }
         }
-        flags.instanceMatrix.needsUpdate = true
+        for (const mesh of flown.values()) mesh.instanceMatrix.needsUpdate = true
       }
 
       // Smoke: each standing chimney puffs while the working day runs, and its puffs rise, swell and fade.
@@ -679,6 +872,43 @@ export function createMovers() {
       smoke.count = n
       smoke.instanceMatrix.needsUpdate = true
       fades.needsUpdate = true
+
+      // Beacons: each in its place, flashing on its own beat, lit only as the lamps are.
+      lens.emissiveIntensity = (glow?.lamps ?? 0) * BLINK.bright
+      if (beacons) {
+        let i = 0
+        q.identity()
+        for (const e of entries) {
+          for (const { beacon, phase } of e.beacons) {
+            const pose = e.playing?.pose(e.build, beacon.brick) ?? { scale: 1, lift: 0 }
+            at.copy(beacon.at).y += pose.lift
+            beacons.setMatrixAt(i, m.compose(at, q, scale.setScalar(Math.max(0.001, pose.scale) * beacon.r)))
+            const s = (t / BLINK.every + phase) % 1
+            flashes.setX(i++, s < BLINK.hold ? 1 : BLINK.rest + (1 - BLINK.rest) * Math.exp(-(s - BLINK.hold) * BLINK.fade))
+          }
+        }
+        beacons.instanceMatrix.needsUpdate = true
+        flashes.needsUpdate = true
+      }
+
+      // Swaying things: hung out through the working day, each swinging on the wind about its line.
+      const counted = new Map<SwayKind, number>()
+      for (const e of entries) {
+        for (const { sway, phase, out, in: taken } of e.sways) {
+          const mesh = swaying.get(sway.kind)!
+          const i = counted.get(sway.kind) ?? 0
+          counted.set(sway.kind, i + 1)
+          const pose = e.playing?.pose(e.build, sway.brick) ?? { scale: 1, lift: 0 }
+          const hung = Math.max(0, Math.min(1, (time - out) / HANG.takes, (taken - time) / HANG.takes))
+          const { swing, rate } = SWAYS[sway.kind]
+          const gust = 0.65 + 0.35 * Math.sin(t * 0.31 + phase * 1.7)
+          tilt.setFromAxisAngle(across, swing * gust * (0.35 + Math.sin(t * rate + phase)))
+          q.setFromAxisAngle(up, sway.ry).multiply(tilt)
+          at.copy(sway.at).y += pose.lift
+          mesh.setMatrixAt(i, m.compose(at, q, scale.setScalar(Math.max(0.001, pose.scale * hung))))
+        }
+      }
+      for (const mesh of swaying.values()) mesh.instanceMatrix.needsUpdate = true
     },
   }
 }
