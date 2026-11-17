@@ -140,6 +140,18 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     if (waiting[0]?.begun && sameBounds(waiting[0].piece, piece)) playStageUp(waiting.shift()!, true)
     for (let i = waiting.length - 1; i >= 0; i--) if (sameBounds(waiting[i].piece, piece)) waiting.splice(i, 1)
   }
+  /** The piece a Rebuild is assembling, whose seams wait for it to land. */
+  let assembling: Bounds | null = null
+  /** The wires across the seams between Tiles, strung again whenever a Tile lands or is taken off. */
+  let seams = scenery.seams()
+  const restring = () => {
+    if (seams) {
+      scene.remove(seams)
+      seams.geometry.dispose()
+    }
+    seams = scenery.seams(assembling)
+    if (seams) scene.add(seams)
+  }
   const hand = createHand()
   const rezoning = createRezoning()
   const scene = new THREE.Scene().add(
@@ -158,6 +170,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
     hand.group,
     rezoning.group,
   )
+  if (seams) scene.add(seams)
 
   // The canvas's size in CSS pixels, read only when it changes: reading it every frame would force a layout.
   let [width, height] = [0, 0]
@@ -355,6 +368,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
         build = finish(scenery.add(rebuilt, [relaid.placed]))
       }
       if (build) scene.add(...build.meshes)
+      // The seams of the piece assembling wait for its poles to land.
+      assembling = 'placed' in relaid ? relaid.placed : 'swapped' in relaid ? relaid.swapped : null
+      restring()
       const paint = createRoads(rebuilt.net, rebuilt.spec)
       const grown = slabNow()
       if (!sameBounds(grown, slab)) {
@@ -384,6 +400,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
         done() {
           if (build) walkers.add(rebuilt.net, field, build.pieces)
           sky.fit(grown)
+          if (build && assembling && sameBounds(assembling, build.pieces[0])) {
+            assembling = null
+            restring()
+          }
         },
       }
       if (build) return reveal.play(build, moments)
