@@ -11,7 +11,7 @@ import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { standPoles, stringWires, type LineEnd } from './poles'
-import type { Beacon, Mover, Plume, Sway } from './movers'
+import type { Beacon, Flag, Mover, Plume, Sway } from './movers'
 import { laySlab } from './slab'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -77,6 +77,8 @@ export interface Build {
   beacons: Beacon[]
   /** What hangs and sways in the wind, each riding its building's brick (`./movers`). */
   sways: Sway[]
+  /** The flags, each riding its pole's brick (`./movers`). */
+  flags: Flag[]
   /** The middle of each Block built. */
   blocks: { middle: Vec }[]
   pieces: Bounds[]
@@ -144,6 +146,7 @@ export function createScenery(
     const plumes: Plume[] = []
     const beacons: Beacon[] = []
     const sways: Sway[] = []
+    const flags: Flag[] = []
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
@@ -152,6 +155,7 @@ export function createScenery(
       for (const plume of done.plumes) plumes.push({ ...plume, brick: plume.brick + bricks.length })
       for (const beacon of done.beacons) beacons.push({ ...beacon, brick: beacon.brick + bricks.length })
       for (const sway of done.sways) sways.push({ ...sway, brick: sway.brick + bricks.length })
+      for (const flag of done.flags) flags.push({ ...flag, brick: flag.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
     const slab = createKit(mulberry32(0), materials)
@@ -198,7 +202,7 @@ export function createScenery(
       meshes.push(mesh)
       yield
     }
-    return { meshes, bricks, movers, plumes, beacons, sways, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
+    return { meshes, bricks, movers, plumes, beacons, sways, flags, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
   }
 
   /** Start a build of `pieces` as the last pieces laid. */

@@ -99,7 +99,7 @@ export function tower(kit: Kit, field: Field, block: Block, x: number, y: number
   kit.drum(CORAL, x, y, base + 51.2, 2.88, 2.88, 2)
   kit.drum(kit.glass, x, y, base + 51.52, 2.96, 2.96, 1.2)
   kit.drum(CREAM, x, y, base + 57.2, 0.28, 0.28, 12.8)
-  kit.ball(kit.bulb, x, y, base + 70, 0.52)
+  kit.beacon(x, y, base + 70, 0.62) // white, blinking at night (#154)
   kit.shadow(x, y, base, 20, 20, true)
   kit.brick('building', x, y, KERB, 3)
 
