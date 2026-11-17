@@ -27,4 +27,6 @@ These test seams are pre-agreed with the user and form the complete list:
 
 Assert outcomes only: jammed, cleared, legal, refused, a price, yen, a Stage. Verify everything else (`src/render`, `src/ui`, visuals, feel, tuning) by running the game.
 
+Visual-style PR evidence comes from `scripts/visual/`: `npm run shots -- <zones>` for the Stage sheets, `npm run bench:visual -- <zones> --against origin/main` for the 1,000-car frame time. Usage heads each script.
+
 Write the test first when the rule is clear up front. When the behavior is still being explored, build it, playtest it, then lock it in with a test.
