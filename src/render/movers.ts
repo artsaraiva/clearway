@@ -42,6 +42,26 @@ export interface Plume {
   brick: number
 }
 
+/** The kinds of thing that hangs from a line and sways in the wind (#157), each with its own model. */
+export type SwayKind = 'laundry' | 'futon'
+
+/**
+ * Something hung from a line that sways in the wind (#157), riding the brick at `brick`, the line's or the rail's: it
+ * swings about the line, out through the working day, and is taken in at night.
+ */
+export interface Sway {
+  kind: SwayKind
+  /** Its hinge, the middle of its top edge on the line, in Three coordinates. */
+  at: THREE.Vector3
+  /** The way the line runs, turned as the kit turns things: 0 along x (east–west). */
+  ry: number
+  /** m along the line and m it hangs: the model's 1 by 1 unless given. */
+  size?: [number, number]
+  /** The colour its model's white parts take. White unless given. */
+  paint?: string
+  brick: number
+}
+
 /** The time of day (0–1, as the day's clock) at which the movers set out and stop work, and their share of work left free. */
 const WORK = { from: 0.02, to: 0.5, slack: 0.2 }
 /** Real seconds of work in a day. */
@@ -52,10 +72,28 @@ const KINDS: Record<MoverKind, { speed: number; bob: number; rate: number; model
   truck: { speed: 2.2, bob: 0.02, rate: 11, model: truck },
   forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift },
 }
-// Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s) and how the wind
-// carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
-// its colour.
-const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [0.55, -0.35], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+/** The light wind that carries the smoke and leans what hangs on a line (#150, #157): m/s along Three's x and z. */
+export const WIND = [0.55, -0.35] as const
+// Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s), its radius as it
+// leaves the chimney and as it fades (m), how opaque it starts, and its colour.
+const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+// What hangs on a line (#157), per kind: how far it leans with the wind and swings either side of that (rad), how fast
+// it swings (rad/s, each piece drawing its own from the range), and its model, 1 m along the line, hanging 1 m from
+// its hinge on the line (a futon is folded over it), white for its paint.
+const SWAYS: Record<SwayKind, { lean: number; swing: number; rate: [number, number]; model: () => THREE.BufferGeometry }> = {
+  laundry: {
+    lean: 0.14,
+    swing: 0.16,
+    rate: [1.8, 2.7],
+    model: () => tint(new THREE.BoxGeometry(1, 1, 0.04).translate(0, -0.5, 0), '#ffffff'),
+  },
+  futon: {
+    lean: 0.04,
+    swing: 0.045,
+    rate: [1.1, 1.5],
+    model: () => tint(new THREE.BoxGeometry(1, 1, 0.26).translate(0, -0.42, 0), '#ffffff'),
+  },
+}
 // ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
 // chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
@@ -170,13 +208,46 @@ interface Puff {
   dz: number
 }
 
-/** The movers and plumes of one build, the reveal it may be playing on, and its plumes' puffs. */
+/** The movers, plumes and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
 interface Entry {
   build: Build
   movers: Mover[]
   plumes: { plume: Plume; next: number; draw: () => number }[]
   puffs: Puff[]
+  sways: Sway[]
   playing?: Poses
+}
+
+/**
+ * Turn each vertex of a hung thing about its line, the model's x through its hinge, by the angle its instance's `swing`
+ * (lean, swing, rate, phase) gives at `windTime`, in a gust that comes and goes (#157). The material's shader and its
+ * shadow's both do it.
+ */
+function swaying(material: THREE.Material, wind: { value: number }) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.windTime = wind
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+attribute vec4 swing;
+uniform float windTime;
+float swayAngle() {
+  return swing.x + swing.y * sin(windTime * swing.z + swing.w) * (0.7 + 0.3 * sin(windTime * 0.31 + swing.w * 1.7));
+}
+vec3 swayed(vec3 v, float a) {
+  float c = cos(a), s = sin(a);
+  return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c);
+}`,
+      )
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\ttransformed = swayed(transformed, swayAngle());')
+    if (shader.vertexShader.includes('#include <beginnormal_vertex>'))
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <beginnormal_vertex>',
+        '#include <beginnormal_vertex>\n\tobjectNormal = swayed(objectNormal, swayAngle());',
+      )
+  }
+  return material
 }
 
 /**
@@ -233,6 +304,71 @@ export function createMovers() {
   smoke.frustumCulled = false
   smoke.renderOrder = 3
   group.add(smoke)
+
+  // What hangs on a line (#157): one instanced mesh per kind, swung in its shader by the wind clock, which runs with
+  // the world, so nothing moves while the game is paused. Its instances are placed when they come and go and while their
+  // build plays, and not otherwise.
+  const wind = { value: 0 }
+  const cloth = swaying(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), wind)
+  const clothDepth = swaying(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), wind)
+  const hung = new Map((Object.keys(SWAYS) as SwayKind[]).map((k) => [k, SWAYS[k].model()]))
+  const hangs = new Map<SwayKind, THREE.InstancedMesh>()
+  let placed = false // whether every swaying thing stands where its build has it
+
+  /** New instanced meshes for the things hung there are now, each swinging on its own. */
+  const rehang = () => {
+    for (const mesh of hangs.values()) {
+      group.remove(mesh)
+      mesh.geometry.dispose()
+      mesh.dispose()
+    }
+    hangs.clear()
+    for (const [kind, model] of hung) {
+      const all = entries.flatMap((e) => e.sways.filter((s) => s.kind === kind))
+      if (!all.length) continue
+      const { lean, swing, rate } = SWAYS[kind]
+      const swings = new Float32Array(all.length * 4)
+      all.forEach((s, i) => {
+        // It leans with the wind as far as the wind blows across its line, and swings at its own rate and phase.
+        const draw = mulberry32(spot(s.at.x, s.at.z))
+        const across = (-Math.sin(s.ry) * WIND[0] - Math.cos(s.ry) * WIND[1]) / Math.hypot(...WIND)
+        swings.set([lean * across, swing * (0.8 + 0.4 * draw()), rate[0] + draw() * (rate[1] - rate[0]), draw() * Math.PI * 2], i * 4)
+      })
+      const geometry = model.clone()
+      geometry.setAttribute('swing', new THREE.InstancedBufferAttribute(swings, 4))
+      const mesh = new THREE.InstancedMesh(geometry, cloth, all.length)
+      mesh.name = kind
+      mesh.castShadow = mesh.receiveShadow = true
+      mesh.customDepthMaterial = clothDepth
+      mesh.frustumCulled = false
+      mesh.visible = working
+      all.forEach((s, i) => mesh.setColorAt(i, s.paint ? new THREE.Color(s.paint) : white))
+      hangs.set(kind, mesh)
+      group.add(mesh)
+    }
+    placed = false
+  }
+
+  /** Stand every swaying thing where its build has it, popping in with its brick while the build plays. */
+  const hang = () => {
+    const counts = new Map<SwayKind, number>()
+    for (const e of entries) {
+      for (const s of e.sways) {
+        const mesh = hangs.get(s.kind)
+        if (!mesh) continue
+        const i = counts.get(s.kind) ?? 0
+        counts.set(s.kind, i + 1)
+        const pose = e.playing?.pose(e.build, s.brick) ?? { scale: 1, lift: 0 }
+        const k = Math.max(0.001, pose.scale)
+        const [w, tall] = s.size ?? [1, 1]
+        q.setFromAxisAngle(up, s.ry)
+        m.compose(at.set(s.at.x, s.at.y + pose.lift, s.at.z), q, scale.set(w * k, tall * k, k))
+        mesh.setMatrixAt(i, m)
+      }
+    }
+    for (const mesh of hangs.values()) mesh.instanceMatrix.needsUpdate = true
+    placed = !entries.some((e) => e.playing && e.sways.length)
+  }
 
   /** New instanced meshes for the movers there are now. */
   const remesh = () => {
@@ -329,29 +465,31 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers and plumes of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes and swaying things of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length) return
+      if (!build.movers.length && !build.plumes.length && !build.sways.length) return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
         return { plume, next: draw() * SMOKE.every, draw }
       })
-      entries.push({ build, movers: build.movers, plumes, puffs: [], playing })
+      entries.push({ build, movers: build.movers, plumes, puffs: [], sways: build.sways, playing })
       if (build.movers.length) remesh()
+      if (build.sways.length) rehang()
     },
 
-    /** Take away the movers and plumes of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away the movers, plumes and swaying things of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return
-      const moved = entries.some((e) => e.build.meshes === meshes && e.movers.length)
+      const gone = entries.filter((e) => e.build.meshes === meshes)
       entries = kept
-      if (moved) remesh()
+      if (gone.some((e) => e.movers.length)) remesh()
+      if (gone.some((e) => e.sways.length)) rehang()
     },
 
     /**
-     * `dt` is the real seconds since the last frame, 0 while paused, and `time` the time of day (0–1): the movers work
-     * and the chimneys smoke only through the working day.
+     * `dt` is the real seconds since the last frame, 0 while paused, and `time` the time of day (0–1): the movers work,
+     * the chimneys smoke and the laundry hangs out only through the working day.
      */
     update(dt: number, time: number) {
       t += dt
@@ -362,17 +500,24 @@ export function createMovers() {
       if (was && !working) work = Math.ceil(work / SHIFT - 1e-6) * SHIFT
       if (working) work += dt
       // A build that has played out keeps only what its Stage has.
-      let changed = false
+      let [changed, rehung] = [false, false]
       for (const e of entries) {
-        const first = e.movers[0]?.brick ?? e.plumes[0]?.plume.brick ?? 0
-        if (!e.playing || e.playing.pose(e.build, first)) continue
+        if (!e.playing || e.playing.pose(e.build, 0)) continue
         const fate = (i: number): Fate => e.build.bricks[i].fate
         const kept = e.movers.filter((v) => fate(v.brick) !== 'goes')
         if (kept.length < e.movers.length) [e.movers, changed] = [kept, true]
         e.plumes = e.plumes.filter((p) => fate(p.plume.brick) !== 'goes')
+        const hanging = e.sways.filter((s) => fate(s.brick) !== 'goes')
+        if (hanging.length < e.sways.length) [e.sways, rehung] = [hanging, true]
         e.playing = undefined
+        placed = false
       }
       if (changed) remesh()
+      if (rehung) rehang()
+      // What hangs on a line swings with the wind through the working day, and is taken in for the night.
+      wind.value += dt
+      for (const mesh of hangs.values()) mesh.visible = working
+      if (!placed) hang()
       const counts = new Map<MoverKind, number>()
       for (const e of entries) {
         for (const v of e.movers) {
@@ -408,7 +553,7 @@ export function createMovers() {
           if (n >= PUFFS) break
           const age = Math.max(0, t - f.born)
           const k = age / SMOKE.lasts
-          const [wx, wz] = SMOKE.wind
+          const [wx, wz] = WIND
           at.set(f.x + (wx + f.dx) * age, f.y + SMOKE.rise * age * (1 - 0.3 * k), f.z + (wz + f.dz) * age)
           m.compose(at, q, scale.setScalar(SMOKE.from + (SMOKE.to - SMOKE.from) * Math.sqrt(k)))
           smoke.setMatrixAt(n, m)
