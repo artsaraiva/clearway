@@ -293,9 +293,9 @@ const BUTTERFLIES = {
   wave: 3.4,
   paints: ['#ffffff', '#f6d36a', '#fbe3a2', '#ffadc8', '#c7b8f0', '#f0b43c'],
 }
-// Picnic blankets on a meadow's open grass (#152): one from Stage 2 and more at Stage 3 on a Block of this many m² a
-// blanket; how far each keeps from trees, beds and the rest (m).
-const PICNICS = { area: 750, most: 3, room: 4 }
+// Picnic blankets on a meadow's open grass (#152): one from Stage 2, a second at Stage 3 and a third then on a Block of
+// at least `big` m²; how far each keeps from trees, beds and the rest (m).
+const PICNICS = { big: 2500, room: 4 }
 // Allotments' details (#152): the share of worked plots under cold frames from Stage 2 and from Stage 3, and a
 // scarecrow from Stage 1 on this share of Blocks (from Stage 2 on the rest), a second at Stage 3 on a Block of this
 // many plots.
@@ -549,7 +549,7 @@ function meadowDetails(
     }
   }
   // Picnic blankets: the first from Stage 2, the rest at Stage 3, each where it lands on open grass.
-  const blankets = Math.min(PICNICS.most, Math.max(1, Math.floor(area(block.loop) / PICNICS.area)))
+  const blankets = area(block.loop) >= PICNICS.big ? 3 : 2
   const lay = mulberry32(spot(block.x0, block.y0))
   for (let k = 0, tries = 0; k < blankets && tries < 60; tries++) {
     const p = { x: block.x0 + lay() * (block.x1 - block.x0), y: block.y0 + lay() * (block.y1 - block.y0) }
