@@ -4,17 +4,17 @@ import { cellAt, cellBounds } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { Kit, OfficeStyle } from './kit'
-import { allotments, farm, meadow, park, plaza, site } from './landmarks'
+import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
 
 // What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
 // shapes, its palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look
 // reads the Block, the ground it must leave free, the kit's random stream and one draw for its Tile, and nothing of
 // where the Block lies in the City, so a Zone builds alike at the City's middle and at its edge.
 //
-// Low-density residential and offices build at their Tile's Stage (#138), through the kit's `staged` and `from`: every
-// lot draws alike at every Stage, and each Stage builds the same lot, better. Every lot takes the same draws from the
-// Block's stream whatever its Stage, so no lot changes with what another lot's Stage builds. The other Zones look the
-// same at every Stage until #141 gives them three looks.
+// Every Zone builds at its Tile's Stage (#138, #141), through the kit's `staged` and `from`: every lot draws alike at
+// every Stage, and each Stage builds the same lot, better. Every lot takes the same draws from the Block's stream
+// whatever its Stage, so no lot changes with what another lot's Stage builds. Stage 2 is the look #130 and #136 ported;
+// Stage 1 is humbler and Stage 3 goes beyond it, and no Stage builds another kind of building.
 
 /** m a building keeps clear of a street tree, beyond its trunk. */
 const TREE_ROOM = 2.4
@@ -49,6 +49,12 @@ const FLOORS = [
 ] as const
 // How big a lot left to a tree grows at each Stage, as a share of a full tree.
 const SAPLING = [0.5, 0.75, 1]
+// The storeys a terraced house, a shop, a courtyard building and a residential tower stand at each Stage, from the
+// storeys it draws, which are its Stage 2 storeys.
+const TERRACE_STOREYS = (s: number, stage: number) => [Math.max(1, s - 1), s, s + 1][stage - 1]
+const SHOP_STOREYS = (s: number, stage: number) => [1, s, s + 1][stage - 1]
+const COURT_FLOORS = (f: number, stage: number) => [Math.max(3, f - 2), f, f + 2][stage - 1]
+const TOWER_FLOORS = (f: number, stage: number) => Math.round(f * [0.55, 1, 1.25][stage - 1])
 const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
 const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
@@ -298,7 +304,7 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
   return lots
 }
 
-/** Up to `count` trees in the yards behind the rows `lots`, where there is room. */
+/** Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`). */
 function yards(g: ZoneGround, lots: RowLot[], count: number) {
   const { kit, block, field } = g
   const planted: Vec[] = []
@@ -307,7 +313,8 @@ function yards(g: ZoneGround, lots: RowLot[], count: number) {
     if (field.sample(x, y) < 4 || !inside(block.loop, x, y)) continue
     if (lots.some((l) => near(l, x, y, 2.6)) || planted.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue
     if (!stands(g, x, y, 3, 3, 2)) continue
-    kit.tree(x, y, KERB, kit.range(0.55, 0.85), kit.chance(0.25) ? 'sakura' : 'round')
+    const [size, kind] = [kit.range(0.55, 0.85), kit.chance(0.25) ? 'sakura' : 'round'] as const
+    kit.staged((stage) => kit.tree(x, y, KERB, GROW[stage - 1] * size, kind))
     planted.push({ x, y })
   }
 }
@@ -352,8 +359,9 @@ function houses(g: ZoneGround) {
 }
 
 /**
- * Medium-density residential, terraces: rows of narrow houses that share their walls, one to three storeys, along
- * every edge, with yards behind.
+ * Medium-density residential, terraces: rows of narrow houses that share their walls, one to three storeys at Stage 2,
+ * along every edge, with yards behind. Each house stands a storey lower at Stage 1 (one at least) and a storey higher
+ * at Stage 3, with the finish its Stage gives it (the kit's `townhouse`).
  */
 function terraces(g: ZoneGround) {
   const { kit } = g
@@ -363,22 +371,30 @@ function terraces(g: ZoneGround) {
     () => kit.range(...TERRACES.deep),
     () => kit.range(...TERRACES.wide),
   )
-  for (const l of lots) kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3)
+  for (const [i, l] of lots.entries()) {
+    kit.lot(i)
+    const storeys = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
+    kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(storeys, stage), stage))
+  }
+  kit.lot(-1)
   yards(g, lots, TERRACES.trees)
 }
 
 /**
  * Medium-density residential, courtyards: on each lot an apartment building round a court with a tree, an O or a U,
- * where the lot is large enough; an L where it is not, and a bar on a narrow lot.
+ * where the lot is large enough; an L where it is not, and a bar on a narrow lot. It stands two floors lower at Stage
+ * 1 (three at least) and two higher at Stage 3, with the finish its Stage gives it (the kit's `apartment`). The court's
+ * tree grows with the Stage, and at Stage 3 a hedge runs round the court's lawn.
  */
 function courtyards(g: ZoneGround) {
   const { kit } = g
-  for (const lot of lotsOf(g, COURTYARDS.margin, COURTYARDS.lot)) {
+  for (const [i, lot] of lotsOf(g, COURTYARDS.margin, COURTYARDS.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w0, d0] = [lot.x1 - lot.x0 - 2 * COURTYARDS.gap, lot.y1 - lot.y0 - 2 * COURTYARDS.gap]
     const room = fit(g, x, y, w0, d0, COURTYARDS.clear, COURTYARDS.least, 5, 2)
     if (!room) continue
     const { w, d } = room
+    kit.lot(i)
     const [x0, y0, x1, y1] = [x - w / 2, y - d / 2, x + w / 2, y + d / 2]
     const deep = kit.range(...COURTYARDS.wing)
     const floors = Math.round(kit.range(...COURTYARDS.floors))
@@ -390,28 +406,39 @@ function courtyards(g: ZoneGround) {
     if (Math.min(w, d) >= 2 * deep + COURTYARDS.court) {
       wings = [north, south, { x0, y0: y0 + deep, x1: x0 + deep, y1: y1 - deep }, { x0: x1 - deep, y0: y0 + deep, x1, y1: y1 - deep }]
       if (kit.chance(0.4)) wings.splice(Math.floor(kit.range(0, 4)), 1)
-      kit.lawn(x, y, KERB, w - 2 * deep, d - 2 * deep)
-      kit.tree(x, y, KERB + 0.16, kit.range(0.7, 0.95), kit.chance(0.3) ? 'sakura' : 'round')
+      const [cw, cd] = [w - 2 * deep, d - 2 * deep]
+      kit.lawn(x, y, KERB, cw, cd)
+      kit.brick('ground', x, y, KERB)
+      const [size, kind] = [kit.range(0.7, 0.95), kit.chance(0.3) ? 'sakura' : 'round'] as const
+      kit.staged((stage) => kit.tree(x, y, KERB + 0.16, GROW[stage - 1] * size, kind))
+      kit.from(3, () => kit.hedge(x, y, KERB + 0.16, cw - 1.2, cd - 1.2, Math.floor(kit.range(0, 4))))
     } else if (Math.min(w, d) >= deep + 6) {
       const [top, left] = [kit.chance(0.5), kit.chance(0.5)]
       const [from, to] = top ? [y0, y1 - deep] : [y0 + deep, y1]
       wings = [top ? north : south, left ? { x0, y0: from, x1: x0 + deep, y1: to } : { x0: x1 - deep, y0: from, x1, y1: to }]
     } else wings = [{ x0, y0, x1, y1 }]
-    kit.apartment(wings, KERB, floors)
+    kit.staged((stage) => kit.apartment(wings, KERB, COURT_FLOORS(floors, stage), stage))
   }
+  kit.lot(-1)
 }
 
-/** High-density residential: a pale residential tower on each large lot, with room around it. */
+/**
+ * High-density residential: a pale residential tower on each large lot, with room around it. It stands at 55% of its
+ * floors at Stage 1 and 125% at Stage 3, with the finish its Stage gives it (the kit's `residentialTower`).
+ */
 function towers(g: ZoneGround) {
   const { kit } = g
   const { podium, most, gap } = TOWERS
-  for (const lot of lotsOf(g, TOWERS.margin, TOWERS.lot)) {
+  for (const [i, lot] of lotsOf(g, TOWERS.margin, TOWERS.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w, d] = [Math.min(most[0], lot.x1 - lot.x0 - 2 * gap), Math.min(most[1], lot.y1 - lot.y0 - 2 * gap)]
     const base = fit(g, x, y, w + 2 * podium, d + 2 * podium, TOWERS.clear, TOWERS.least + 2 * podium, 2.5, 2)
     if (!base) continue
-    kit.residentialTower(x, y, KERB, base.w - 2 * podium, base.d - 2 * podium, Math.round(kit.range(...TOWERS.floors)))
+    kit.lot(i)
+    const floors = Math.round(kit.range(...TOWERS.floors))
+    kit.staged((stage) => kit.residentialTower(x, y, KERB, base.w - 2 * podium, base.d - 2 * podium, TOWER_FLOORS(floors, stage), stage))
   }
+  kit.lot(-1)
 }
 
 /**
@@ -449,7 +476,11 @@ function offices(g: ZoneGround) {
   kit.lot(-1)
 }
 
-/** Shops: low shops shoulder to shoulder along every edge, each with an awning where it faces a Road, and trees behind. */
+/**
+ * Shops: low shops shoulder to shoulder along every edge, each with an awning where it faces a Road, and trees behind.
+ * Every shop is one storey at Stage 1 and a storey higher at Stage 3, with the finish its Stage gives it (the kit's
+ * `shop`).
+ */
 function shops(g: ZoneGround) {
   const { kit } = g
   const lots = rows(
@@ -458,22 +489,35 @@ function shops(g: ZoneGround) {
     () => kit.range(...SHOPS.deep),
     () => kit.range(...SHOPS.wide),
   )
-  for (const l of lots) kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, kit.chance(0.45) ? 1 : 2, l.onRoad)
+  for (const [i, l] of lots.entries()) {
+    kit.lot(i)
+    const storeys = kit.chance(0.45) ? 1 : 2
+    kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, SHOP_STOREYS(storeys, stage), l.onRoad, stage))
+  }
+  kit.lot(-1)
   yards(g, lots, SHOPS.trees)
 }
 
-/** Industrial: wide, low sheds with sawtooth roofs on big lots with yards between them, and now and then a chimney. */
+/**
+ * Industrial: wide, low sheds with sawtooth roofs on big lots with yards between them, and now and then a chimney, each
+ * with the size and finish its Stage gives it (the kit's `warehouse`).
+ */
 function industrial(g: ZoneGround) {
   const { kit } = g
   let chimney = kit.chance(SHEDS.chimney)
   const area = (l: Bounds) => (l.x1 - l.x0) * (l.y1 - l.y0)
-  for (const lot of lotsOf(g, SHEDS.margin, SHEDS.lot).sort((a, b) => area(b) - area(a))) {
+  for (const [i, lot] of lotsOf(g, SHEDS.margin, SHEDS.lot)
+    .sort((a, b) => area(b) - area(a))
+    .entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const shed = fit(g, x, y, lot.x1 - lot.x0 - 2 * SHEDS.gap, lot.y1 - lot.y0 - 2 * SHEDS.gap, SHEDS.clear, SHEDS.least, 3, 3)
     if (!shed) continue
-    kit.warehouse(x, y, KERB, shed.w, shed.d, chimney)
+    kit.lot(i)
+    const first = chimney
+    kit.staged((stage) => kit.warehouse(x, y, KERB, shed.w, shed.d, first, stage))
     chimney = false
   }
+  kit.lot(-1)
 }
 
 /** Parks: a park with a pond and trees, or on a small Block now and then a plaza with a fountain. */
