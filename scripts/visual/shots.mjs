@@ -14,6 +14,11 @@
 // given). --turns 1 shoots the default heading alone. --run lets the world run that many seconds at each time of day
 // before its shots, so moving details stand mid-work and chimneys smoke; without it they stand where they rest.
 // --query adds dev parameters to the game's URL, such as `finish=none`.
+//
+// A comparison is two runs into two folders, their sheets set side by side: for the packed Tile of #175, as built and
+// laid deeper, `npm run shots -- shops --views street --stages 2,3 --turns 1 --times noon,night --run 20 --out
+// <dir>/asbuilt`, then the same with `--query deeper --out <dir>/deeper`; each folder's `shops-<time>-street.jpg` is a
+// column.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
