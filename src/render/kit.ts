@@ -316,12 +316,29 @@ export interface ShopPlan {
   /** Whether its front faces a Road, rather than the seam with the next Tile: only a Road's has signs above its roof. */
   onRoad: boolean
   /** The end of its front its door is at: 1 its right, -1 its left (as `local`'s x runs). */
-  door: number
+  door: 1 | -1
   /** Its ground floor's colour, picked so that no shop shares its neighbour's. */
   front: string
   form: ShopForm
   /** Whether its vent steams, as a noodle shop's does, from Stage 2. */
   noodle: boolean
+}
+/**
+ * Where the parts of a shop's front `w` m wide lie along it (#175), its door at end `door` (as `ShopPlan`'s), each m
+ * from the front's middle as `local`'s x runs: the door's middle; the window's middle and its length (`glazed`), from
+ * 0.35 m in from the other end to short of the door's frame; and a pot plant either side of the door. `clear` is how far
+ * the front runs in from the window's end before the door's frame. The kit's `shop` and the Zone laying the pavement
+ * before it (`./zones`) both read it.
+ */
+export function frontOf(w: number, door: 1 | -1) {
+  const [a, b] = [-door * (w / 2 - 0.35), door * (w / 2 - 2.25)]
+  return {
+    door: door * (w / 2 - 1.15),
+    window: (a + b) / 2,
+    glazed: Math.abs(b - a),
+    pots: [door * (w / 2 - 0.15), door * (w / 2 - 2.2)],
+    clear: w - 2.1,
+  }
 }
 /** A gap in a hedge (#157): on side `side` (0 east, 1 north, 2 west, 3 south), `wide` m across and `at` m along it from its middle. */
 export interface Gap {
@@ -1437,7 +1454,8 @@ export function createKit(rand: () => number, materials: Materials) {
       cladded(box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry, { back: PATTERN.back, sides: PATTERN.wall, storey: 3.8 }, seed)
 
       // The door at one end, its glass lit at night, under a noren of three panels with a crest on a rod.
-      const ud = door * (w / 2 - 1.15)
+      const layout = frontOf(w, door)
+      const ud = layout.door
       local(cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, ud, fv + 0.01, h)
       local(cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, ud, fv + 0.03, h + 0.04)
       local(cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, ud, fv + 0.04, h + 0.04)
@@ -1446,9 +1464,8 @@ export function createKit(rand: () => number, materials: Materials) {
       local(cuboid(0.22, 0.22, 0.05), pale(noren) ? SHOPFRONT.marks.dark : SHOPFRONT.marks.pale, x, y, ry, ud, fv + 0.21, h + 1.86)
 
       // The shop window over the rest of the front, narrower at Stage 1, framed and silled, with goods on its sill.
-      const [a, b] = [-door * (w / 2 - 0.35), door * (w / 2 - 2.25)]
-      const ww = Math.abs(b - a) * (stage === 1 ? 0.72 : 1)
-      const uw = (a + b) / 2
+      const ww = layout.glazed * (stage === 1 ? 0.72 : 1)
+      const uw = layout.window
       local(cuboid(ww, 2, 0.12), glazing, x, y, ry, uw, fv + 0.02, h + 0.8)
       local(cuboid(ww + 0.16, 0.08, 0.3), SHOPFRONT.trim, x, y, ry, uw, fv + 0.1, h + 0.72)
       local(cuboid(ww + 0.16, 0.1, 0.16), SHOPFRONT.trim, x, y, ry, uw, fv + 0.04, h + 2.8)

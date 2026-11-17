@@ -9,6 +9,7 @@ import {
   BIKE_RACK,
   CONTAINER,
   FACES,
+  frontOf,
   shedDoors,
   spot,
   STAIR,
@@ -1091,8 +1092,8 @@ function shops(g: ZoneGround) {
     form = SHOP_PLAN.forms[drawn] === SHOP_PLAN.forms[form] ? (drawn + 1) % SHOP_PLAN.forms.length : drawn
     const noodle = plans() < SHOP_PLAN.noodle
     const scene = scenes.get(i)
-    // The end away from the vending machines, whose end is `shopFront`'s first draw.
-    const door = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
+    // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
+    const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
     g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
     if (scene?.kind === 'stall') {
       kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving))
@@ -1152,19 +1153,13 @@ function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<numbe
   return scenes
 }
 
-/** Where a shop's window runs along its front, from its outer end to the door's frame (as the kit's `shop` lays it): its middle and length. */
-const windowOf = (l: RowLot, door: number) => {
-  const [a, b] = [-door * (l.w / 2 - 0.35), door * (l.w / 2 - 2.25)]
-  return { u: (a + b) / 2, len: Math.abs(b - a) }
-}
-
 /**
  * A scene before shop `l`'s front (#175), from its Stage: a greengrocer's or a florist's stand, or a row of capsule
  * machines, along its window, and pot plants by its door. Before that Stage the front has the pots and a menu board.
  */
-function sceneFront(g: ZoneGround, l: RowLot, door: number, scene: { kind: ShopScene; from: number }) {
+function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopScene; from: number }) {
   const { kit } = g
-  const { u, len } = windowOf(l, door)
+  const { window: u, glazed: len } = frontOf(l.w, door)
   const at = (lu: number, o: number) => turned(l.x, l.y, l.ry, lu, l.d / 2 + o)
   const build = { greengrocer, florist, capsules }[scene.kind as Exclude<ShopScene, 'stall'>]
   const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
@@ -1203,8 +1198,8 @@ function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, pavin
 }
 
 /** Pot plants either side of shop `l`'s door, Close-only, from Stage 1 (#175). */
-function doorPots(g: ZoneGround, l: RowLot, door: number) {
-  const spots = [l.w / 2 - 0.15, l.w / 2 - 2.2].map((t) => turned(l.x, l.y, l.ry, door * t, l.d / 2 + 0.35))
+function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1) {
+  const spots = frontOf(l.w, door).pots.map((u) => turned(l.x, l.y, l.ry, u, l.d / 2 + 0.35))
   g.kit.from(
     1,
     () =>
@@ -1217,7 +1212,7 @@ function doorPots(g: ZoneGround, l: RowLot, door: number) {
 }
 
 /** Before a shop's front that faces the seam with the next Tile (#175): pot plants by its door and, on half, a menu board. */
-function seamFront(g: ZoneGround, l: RowLot, door: number) {
+function seamFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   doorPots(g, l, door)
   const q = turned(l.x, l.y, l.ry, -door * (l.w / 2 - 2.6), l.d / 2 + 0.6)
   if (spot(q.x, q.y) % 2) g.kit.from(1, () => menuBoard(g.kit, q.x, q.y, l.ry), spot(q.x, q.y))
@@ -1273,7 +1268,7 @@ function shoppers(g: ZoneGround, lots: RowLot[]) {
  * vending machine has a menu board on the pavement. What stands on the pavement keeps on the Block, 0.6 m in from its
  * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Close-only.
  */
-function shopFront(g: ZoneGround, l: RowLot, door: number) {
+function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const { kit, field } = g
   const draw = mulberry32(spot(l.x, l.y))
   const half = l.w / 2
@@ -1291,7 +1286,8 @@ function shopFront(g: ZoneGround, l: RowLot, door: number) {
     const roll = draw()
     return shares.findIndex((s) => roll < s) + 1
   }
-  const side = draw() < 0.5 ? 1 : -1 // the end the vending machines stand at, away from the door (`shops`)
+  draw() // the door's end, which `shops` drew from where the shop stands, as this stream's first draw
+  const side = -door // the end the vending machines stand at
   const [vending, banners, lanterns, bikes] = [first(FRONT.vending), first(FRONT.nobori), first(FRONT.lanterns), first(FRONT.bikes)]
   const [second, count, cloth, amber, wares] = [
     draw() < FRONT.second,
@@ -1304,7 +1300,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: number) {
   const from = (stage: number, p: Vec, fn: (p: Vec) => void) => stage && kit.from(stage, () => fn(p), spot(p.x, p.y))
   /** Along the front, `t` m in from the vending machines' end. */
   const u = (t: number) => side * (half - t)
-  const doorFrame = l.w - 2.1 // where the door's frame begins, in from that end
+  const doorFrame = frontOf(l.w, door).clear // where the door's frame begins, in from that end
   let free = 0.3 // where the stretch left for the banners begins, in from that end
   if (vending) {
     // Backed up to the front at its end, and a second beside it at Stage 3.
