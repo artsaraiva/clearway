@@ -499,12 +499,13 @@ export function createKit(rand: () => number, materials: Materials) {
     },
   })
   /**
-   * Washing on a pole `len` long, `h` above the road, `out` m from a wall at `(x, y)` that faces `ry` (#156): a pole on
-   * two brackets and a few towels and shirts hung from it, in the kit's stream. It joins the next brick.
+   * Washing on a pole `len` long, `h` above the road, `out` m from a wall at `(x, y)` that faces `ry` (#156): a pole,
+   * on two brackets from the wall if `brackets` (under a balcony's slab it hangs from hooks too small to draw), and a
+   * few towels and shirts hung from it, in the kit's stream. It joins the next brick.
    */
-  const washing = (x: number, y: number, h: number, ry: number, len: number, out: number) => {
+  const washing = (x: number, y: number, h: number, ry: number, len: number, out: number, brackets: boolean) => {
     put(cuboid(len, 0.05, 0.05), STEEL.pole, x, y, ry, 0, out, h)
-    for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, (k * (len - 0.1)) / 2, out / 2, h)
+    if (brackets) for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, (k * (len - 0.1)) / 2, out / 2, h)
     for (let at = -len / 2 + 0.1; at < len / 2 - 0.4;) {
       const [w, drop] = [range(0.45, 0.7), range(0.6, 1.05)]
       if (at + w > len / 2 - 0.05) break
@@ -766,7 +767,7 @@ export function createKit(rand: () => number, materials: Materials) {
         // Under the ground floor's window, or beside the door of a house one window wide.
         if (ac < [0.25, 0.5, 0.75][stage - 1]) airCon(...wall(across === 2 ? -w * 0.23 : -1.3), h + 0.02, ry)
         if (stage === 3 && storeys > 1 && high < 0.45) airCon(...wall(across === 2 ? 0 : 1.3), h + 3.34, ry)
-        if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, w - 0.9, 0.7)
+        if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, w - 0.9, 0.7, true)
       })
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
@@ -844,7 +845,7 @@ export function createKit(rand: () => number, materials: Materials) {
                 const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
                 const r = rand()
                 if (blind(fx, fy)) continue
-                if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 2.6, 0.62)
+                if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 2.6, 0.62, false)
                 else if (r < 0.33) futon(fx, fy, h + 1.76 + f * 3.2, ry, range(1.3, 1.7), 1.05)
               }
             }
