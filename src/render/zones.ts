@@ -185,6 +185,11 @@ export interface ZoneGround {
 export interface Look {
   /** Whether the seed may stand its coral tower landmark on a Tile of this Zone. */
   landmarks: boolean
+  /**
+   * Whether it is built to the level of finish (#173): wearing surface pattern and leaving pools of light at night
+   * (the kit's `finish`). Shops alone, since the prototype (#174).
+   */
+  finish?: boolean
   fill(ground: ZoneGround): void
 }
 
@@ -194,7 +199,7 @@ export const LOOKS: Record<Zone['id'], Look> = {
   'medium-density': { landmarks: false, fill: (g) => (g.tileDraw < 0.5 ? terraces(g) : courtyards(g)) },
   'high-density': { landmarks: true, fill: towers },
   offices: { landmarks: true, fill: offices },
-  shops: { landmarks: false, fill: shops },
+  shops: { landmarks: false, finish: true, fill: shops },
   industrial: { landmarks: false, fill: industrial },
   parks: { landmarks: false, fill: parks },
   green: {

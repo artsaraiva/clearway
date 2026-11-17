@@ -29,9 +29,12 @@ export function wide({ loop }: Block): boolean {
   return Math.abs(twice) / perimeter >= SLIVER
 }
 
-/** A Block's pavement as one brick: a bevelled slab raised from its outline. A roundabout's island is one too. */
+/**
+ * A Block's pavement as one brick: a bevelled slab raised from its outline, paved where the kit builds patterned
+ * (#174). A roundabout's island is one too.
+ */
 export function pavement(kit: Kit, b: Block) {
   const { x, y } = middle(b)
-  kit.push(raised(b.loop, KERB, BEVEL), PAVEMENT)
+  kit.pavement(raised(b.loop, KERB, BEVEL), PAVEMENT)
   kit.brick('block', x, y, 0, 3)
 }

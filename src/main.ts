@@ -26,12 +26,20 @@ const game = run.game
 // Tiles and 480 ms for 40 on an M4 Pro. Draw the slab first and spread the Pre-warm over frames, as a Rebuild does, if
 // large Cities keep the page blank too long.
 while (!game.sim.prewarmed) game.step()
-const view = createView(canvas, game.sim, {
-  pieces: game.city.tiles.map((t) => cellBounds(t.cell)),
-  scenery: { theme: 'city', seed: game.seed, landmarks: [], blocks: [], streets: {}, avenues: [], seeded: SEEDED },
-  zoneOf: (cell) => game.city.tileAt(cell)?.zone,
-  stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
-})
+// Dev only: `?finish=none` builds the Zones built to the level of finish without their surface pattern and light
+// pools, `?finish=pattern` or `?finish=pools` with one of them (#174), for a sheet or a bench of each.
+const finish = import.meta.env.DEV && params.get('finish')
+const view = createView(
+  canvas,
+  game.sim,
+  {
+    pieces: game.city.tiles.map((t) => cellBounds(t.cell)),
+    scenery: { theme: 'city', seed: game.seed, landmarks: [], blocks: [], streets: {}, avenues: [], seeded: SEEDED },
+    zoneOf: (cell) => game.city.tileAt(cell)?.zone,
+    stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
+  },
+  finish ? { pattern: finish === 'pattern', pools: finish === 'pools' } : undefined,
+)
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
 const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, game, view, run)

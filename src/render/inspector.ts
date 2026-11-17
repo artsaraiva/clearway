@@ -91,7 +91,7 @@ const UNLIT_TINT = /* glsl */ `outgoingLight = mix(outgoingLight, stageTint, sta
  * from its next. The buildings keep their own colours, and so does every unzoned Tile. It is drawn by the scenery's
  * own material, `solid`, which it patches, so it adds no geometry and no draw call, and a Tile's piece takes it as it
  * is built, swapped, rezoned or staged up. Create it before anything copies `solid`, as a reveal does, so that the
- * copies draw it too.
+ * copies draw it too, and after `createMaterials` has laid the surface pattern's patch on it, which it keeps.
  */
 export function createStageInspector({ solid }: Materials) {
   const uniforms = {
@@ -101,7 +101,9 @@ export function createStageInspector({ solid }: Materials) {
     stageTints: { value: STAGE_TINTS.map((c) => new THREE.Color(c)) },
     stageHeld: { value: new THREE.Color(HELD_BACK) },
   }
-  solid.onBeforeCompile = (shader) => {
+  const own = solid.onBeforeCompile.bind(solid) // the surface pattern's patch (#174), which comes first
+  solid.onBeforeCompile = (shader, renderer) => {
+    own(shader, renderer)
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vStageAt;')

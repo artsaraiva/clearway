@@ -10,7 +10,7 @@ import { createJamEmotion } from './emotion'
 import { createField } from './field'
 import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from './hand'
 import { createRouteInspector, createStageInspector, type InspectedTile } from './inspector'
-import { createMaterials, type Stages } from './kit'
+import { createMaterials, type Finish, type Stages } from './kit'
 import { createLabels } from './labels'
 import { createMovers } from './movers'
 import { createReveal } from './reveal'
@@ -57,8 +57,10 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
 /**
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
  * the Blocks' field and the lighting follow the City as it grows, and the camera goes wherever the player takes it.
+ * `finishing` says whether the Zones built to the level of finish wear their surface pattern and light pools (#174): both,
+ * unless a sheet turns one off to show the Zone without it.
  */
-export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) {
+export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
@@ -70,7 +72,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   /** The slab so far as a rectangle: its road plate and grass rim. */
   const slabNow = () => slabBounds(extent(pieces))
   const field = createField()
-  const materials = createMaterials()
+  const materials = createMaterials(finishing)
   // Before the reveals, which copy the materials it patches.
   const stageInspector = createStageInspector(materials)
   const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf, ground.stageOf)
