@@ -20,6 +20,8 @@ export const PATTERN = {
   wall: 4,
   /** `wall` with a service door in its middle bay. */
   back: 5,
+  /** Coloured paving (#175): bricks in a basket weave, in m on the map over `REPEAT.paving`. */
+  bricks: 6,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -86,8 +88,11 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
   return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
 }
 
-/** Lay paving joints over the faces of a geometry in place (Three coordinates) that look up, in m on the map. */
-export function pave(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+/**
+ * Lay paving joints, or `kind`'s other paving, over the faces of a geometry in place (Three coordinates) that look up, in
+ * m on the map.
+ */
+export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
   const uv = new Float32Array(pos.count * 2)
@@ -95,7 +100,7 @@ export function pave(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   for (let i = 0; i < pos.count; i++) {
     if (nor.getY(i) < 0.9) continue
     uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
-    worn[3 * i] = PATTERN.paving + 0.5
+    worn[3 * i] = kind + 0.5
   }
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
@@ -131,7 +136,8 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
     fill(g, [92, 0, 0], x - frame - 3, y - frame - 6, w + 2 * frame + 6, 3) // its shadow
   }
   return [
-    // Paving: 0.6 m slabs in a running bond, each a shade of its own, with darker joints.
+    // Paving: 0.6 m slabs in a running bond, each a shade of its own, with darker joints, dark enough to read from
+    // Street (#175).
     (g) => {
       const draw = stream(7)
       plain(g)
@@ -139,8 +145,8 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       for (let row = 0; row < 4; row++) {
         for (let k = -1; k < 4; k++) {
           const x = k * t + (row % 2) * (t / 2)
-          fill(g, [104, 0, 0], x, row * t, t, t)
-          fill(g, [Math.round(122 + draw() * 12), 0, 0], x + 1, row * t + 1, t - 2, t - 2)
+          fill(g, [88, 0, 0], x, row * t, t, t)
+          fill(g, [Math.round(116 + draw() * 22), 0, 0], x + 1.5, row * t + 1.5, t - 3, t - 3)
         }
       }
     },
@@ -182,6 +188,22 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       fill(g, [128, 255, 0], x + 6, 8 + h - 26, w - 12, 18)
       fill(g, [128, 0, 255], x - 7, 8 + h + 5, w + 14, 4)
       fill(g, [88, 0, 0], x - 7, 8 + h + 1, w + 14, 4)
+    },
+    // Coloured paving (#175): 0.3 m squares of two bricks each, turned a quarter from square to square, every brick a
+    // shade of its own, with darker joints.
+    (g) => {
+      const draw = stream(11)
+      const t = S / 8
+      for (let row = 0; row < 8; row++) {
+        for (let k = 0; k < 8; k++) {
+          fill(g, [84, 0, 0], k * t, row * t, t, t)
+          for (const half of [0, 1]) {
+            const shade = [Math.round(112 + draw() * 30), 0, 0]
+            if ((row + k) % 2) fill(g, shade, k * t + 1, row * t + half * (t / 2) + 1, t - 2, t / 2 - 2)
+            else fill(g, shade, k * t + half * (t / 2) + 1, row * t + 1, t / 2 - 2, t - 2)
+          }
+        }
+      }
     },
   ]
 }

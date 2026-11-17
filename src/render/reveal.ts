@@ -154,10 +154,9 @@ export function createReveal(materials: Materials, pool = 140) {
     return moving
   }
   const moving = new Map<THREE.Material, THREE.Material>(
-    [materials.solid, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map((m) => [
-      m,
-      copy(m),
-    ]),
+    [materials.solid, materials.close, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map(
+      (m) => [m, copy(m)],
+    ),
   )
   const depth = copy(new THREE.MeshDepthMaterial())
 

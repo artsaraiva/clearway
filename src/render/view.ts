@@ -466,6 +466,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       const glow = day.update(dt)
       movers.update(dt, day.time, glow)
       materials.setGlow(glow)
+      materials.setZoom(rig.camera.zoom)
       cars.setGlow(glow)
       emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
       walkers.update(dt)

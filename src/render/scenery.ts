@@ -13,6 +13,7 @@ import { createKit, type Brick, type Kit, type Materials, type Part, type Stages
 import { standPoles, stringWires, type LineEnd } from './poles'
 import type { Beacon, Flag, Mover, Plume, Pool, Sway } from './movers'
 import { laySlab } from './slab'
+import { markPlate } from './streets'
 import { LOOKS } from './zones'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -187,7 +188,12 @@ export function createScenery(
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
     const poles = createKit(mulberry32(0), materials)
     for (const piece of pieces) {
-      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery)
+      // A Tile built to the level of finish has street lights and marks on its road plate (#175).
+      const zone = zoneOf(cellAt(middle(piece)))
+      const finished = !!(zone && LOOKS[zone.id].finish)
+      poles.finish(finished)
+      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, finished)
+      if (finished) markPlate(poles, piece, net)
       const entry = laid.find((l) => sameBounds(l.piece, piece))
       if (entry) entry.ends = ends
     }

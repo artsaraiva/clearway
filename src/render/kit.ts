@@ -120,15 +120,63 @@ const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0
 // Light pools (#174), warm on the ground at night: under a lamp, as far as the pavement goes round its post, up to
 // `lamp` m and at least `least`; under a paper lantern, `lantern` m across; before a vending machine's lit front and a
 // shop's lit window, `front` m out from it and `deep` m deep. Each pool's colour, the strength of its light in it.
+// Since #175 a shop's front leaves a pool out to the kerb, brighter once its signboard lights (Stage 2) and brighter
+// still under an arcade (Stage 3); a roof terrace's string lights, a street light on a pole, a food stall and a row of
+// capsule machines leave their own.
 const POOL = {
   lamp: 4,
   least: 2.4,
   lantern: 3,
   front: { vending: 0.75, window: 1.25 },
   deep: { vending: 1.7, window: 2.3 },
-  colours: { lamp: '#ffbe6a', cream: '#ffd49a', amber: '#f6a848', vending: '#ffe2b0', window: '#ffb870' },
-  strengths: { lamp: 1, cream: 0.85, amber: 0.8, vending: 0.7, window: 0.65 },
+  colours: {
+    lamp: '#ffbe6a',
+    cream: '#ffd49a',
+    amber: '#f6a848',
+    vending: '#ffe2b0',
+    window: '#ffb870',
+    sign: '#ffc27a',
+    arcade: '#ffcf8f',
+    string: '#ffc46e',
+    pole: '#ffd08f',
+    stall: '#f8b25a',
+  },
+  strengths: { lamp: 1, cream: 0.85, amber: 0.8, vending: 0.7, window: 0.6, sign: 0.75, arcade: 0.85, string: 0.7, pole: 0.8, stall: 0.85 },
 }
+/** The kinds of light that leave a pool of light (#174). */
+export type PoolKind = keyof typeof POOL.colours
+// Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
+// with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
+// standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
+// flat roof, AC condensers, a panel water tank on a steel stand, a billboard on two posts, and at Stage 3 a timber
+// terrace with tables, a parasol and string lights. A Stage 3 front on a Road lies under the row's arcade: a pale roof
+// on steel posts with a lit fascia.
+const SHOPFRONT = {
+  door: { wide: 1.5, tall: 2.3, frames: ['#4a525c', '#a1714c', '#fbf8f2', '#4a525c'] },
+  noren: ['#3f4a5e', '#fbf8f2', '#8a5a3c', '#55705f', '#6c5a8a', '#3f4a5e'],
+  trim: '#fbf8f2',
+  marks: { pale: '#fbf8f2', dark: '#2f3440' },
+  boards: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6', '#fbf8f2', '#2f3440', '#fff1c7'],
+  parapet: '#efe6d8',
+  steel: '#9aa3ad',
+  tank: '#dde6ec',
+  deck: '#c49a6c',
+  arcade: '#f4f1ea',
+  balcony: '#e6e2da',
+  goods: [
+    ['#f6d36a', '#ffadc8', '#fbf8f2', '#79c86a'],
+    ['#e8925e', '#f0b43c', '#fbe3a2', '#c49a6c'],
+    ['#5cc0d6', '#a58ad8', '#fbf8f2', '#ff9ab8'],
+    ['#79c86a', '#2fb39a', '#f6d36a', '#fbf8f2'],
+  ],
+  lit: { board: 0.33, marks: 1.6, strip: 1.2, string: 1.5 },
+}
+// Crates at a shop's back door, and the pots of plants by its front (#175).
+const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
+/** m a setback shop's upper storeys stand back from its front, behind a balcony (#175). */
+const SETBACK = 1.6
+/** How deep a shop's arcade reaches over the pavement, m out from its front (#175): short of the banners. */
+export const ARCADE = 1.45
 // The bulb's tint that paints and lights it amber: the amber over the bulb's own cream.
 const AMBER = ((a, c) => new THREE.Color(a.r / c.r, a.g / c.g, a.b / c.b))(new THREE.Color(LANTERN.amber), new THREE.Color('#fff4dc'))
 // A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
@@ -211,6 +259,7 @@ const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for 
 const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial
 const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // smoother, for a round tower's glass
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
+const CONE8 = new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0) // a parasol (#175), laid by the hundred
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
 const POT = new THREE.CylinderGeometry(1, 0.75, 1, 8).translate(0, 0.5, 0) // a pot plant's pot (#157)
@@ -220,6 +269,8 @@ const DISC = new THREE.CylinderGeometry(1, 1, 1, 32) // centred on its middle, u
 const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helipad's painted ring, 1 m out
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
+/** Shapes the kit lays, for the builders beside it (`./props`), each standing on y = 0 but the plane and the disc. */
+export const SHAPES = { thin: THIN, cylinder: CYLINDER, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC, plane: PLANE }
 /** The faces of a box, as the way each looks: north, south, east and west. */
 export const FACES = [
   [0, 1],
@@ -238,6 +289,28 @@ export type Look = string | THREE.Material | { material: THREE.Material; tint: T
 export type TreeKind = keyof typeof LEAVES
 /** An office tower: a framed curtain wall, fins up its faces, tiers set back, or round. */
 export type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
+
+/**
+ * A shop's form (#175): a flat roof inside a parapet, a false front raised over the street carrying its signboard, or
+ * upper storeys set back behind a balcony over the ground floor.
+ */
+export type ShopForm = 'flat' | 'facade' | 'setback'
+
+/** What a shop's lot gives it, the same at every Stage but `storeys` and `stage` (#175). */
+export interface ShopPlan {
+  /** Its storeys at the Stage built. */
+  storeys: number
+  stage: number
+  /** Whether its front faces a Road, rather than the seam with the next Tile: only a Road's has signs above its roof. */
+  onRoad: boolean
+  /** The end of its front its door is at: 1 its right, -1 its left (as `local`'s x runs). */
+  door: number
+  /** Its ground floor's colour, picked so that no shop shares its neighbour's. */
+  front: string
+  form: ShopForm
+  /** Whether its vent steams, as a noodle shop's does, from Stage 2. */
+  noodle: boolean
+}
 /** A gap in a hedge (#157): on side `side` (0 east, 1 north, 2 west, 3 south), `wide` m across and `at` m along it from its middle. */
 export interface Gap {
   side: number
@@ -335,17 +408,41 @@ export interface Part {
 export interface Finish {
   pattern: boolean
   pools: boolean
+  /**
+   * Dev only (#175): how much deeper than built the Zones built to the level of finish lay what stands on their Blocks,
+   * for the user to compare a packed Tile with the open one. 1 unless given; lanes, Roads and the sim never change.
+   */
+  deeper?: number
 }
+
+// Close-only props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which they
+// stand whole. Street, one Tile filling the screen, is about 4; the whole City framed is under 1.
+const CLOSE_ZOOM = { from: 2.2, to: 3.2 }
 
 /**
  * The materials of the static scenery, shared by every Block so that all of them merge into one mesh per material.
  * Slab, Blocks and walls take their colours on `solid`, which lays the surface pattern over them (`./pattern`) unless
- * `finish` turns it off.
+ * `finish` turns it off. Close-only props take theirs on `close`, `solid` drawn apart so that it can fade them out as the
+ * camera leaves Street, and hide them beyond it.
  */
 export function createMaterials(finish: Finish = { pattern: true, pools: true }) {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
   const patterns = finish.pattern ? createPatterns() : null
   if (patterns) solid.onBeforeCompile = patterns.patch
+  // `solid`'s patches, read as it compiles so that it takes the Stage Inspector's too, then a dither that drops a share
+  // of its pixels as it fades: no blending, so nothing has to be sorted, and only this program carries the discard.
+  const close = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
+  const closeFade = { value: 1 }
+  close.onBeforeCompile = (shader, renderer) => {
+    solid.onBeforeCompile(shader, renderer)
+    shader.uniforms.closeFade = closeFade
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float closeFade;').replace(
+      '#include <clipping_planes_fragment>',
+      `#include <clipping_planes_fragment>
+if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= closeFade) discard;`,
+    )
+  }
+  close.customProgramCacheKey = () => `close ${solid.customProgramCacheKey()}`
   // One glass for every window, so that windows add no draw calls. Its vertex colour tints it: white for the glass
   // itself, or the ratio to a paler or a darker glass. A darker tint lights its windows less (the glow goes with the
   // square of the tint's green, up to full), and each vertex's `glow` scales how brightly it lights.
@@ -426,6 +523,7 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
 
   return {
     solid,
+    close,
     glass,
     /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
     windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
@@ -445,6 +543,14 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
       bulb.emissiveIntensity = lamps
       patterns?.setGlow(windows)
     },
+    /**
+     * Show the Close-only props as the camera's zoom has them: whole from Street inward, fading out as the camera leaves
+     * it, as the clouds fade in, and not drawn at all farther out, where most Tiles are on screen.
+     */
+    setZoom(zoom: number) {
+      closeFade.value = THREE.MathUtils.clamp((zoom - CLOSE_ZOOM.from) / (CLOSE_ZOOM.to - CLOSE_ZOOM.from), 0, 1)
+      close.visible = closeFade.value > 0
+    },
   }
 }
 
@@ -456,7 +562,7 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
 export function createKit(rand: () => number, materials: Materials) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, close, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -466,8 +572,9 @@ export function createKit(rand: () => number, materials: Materials) {
   const sways: Sway[] = []
   const flags: Flag[] = []
   const pools: Pool[] = []
-  // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`).
-  let [patterned, pooled] = [false, false]
+  // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
+  // Close-only prop, painted on `close` (`closeOnly`).
+  let [patterned, pooled, closing] = [false, false, false]
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -491,7 +598,7 @@ export function createKit(rand: () => number, materials: Materials) {
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: solid, brick: -1 })
+    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: closing ? close : solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       const lit = look.material === glass || look.material === bulb
@@ -532,6 +639,24 @@ export function createKit(rand: () => number, materials: Materials) {
     const colour = new THREE.Color(POOL.colours[kind]).multiplyScalar(POOL.strengths[kind])
     pools.push({ at: new THREE.Vector3(x, h + 0.06, -y), w, d, ry, colour, brick: bricks.length })
   }
+  /** Build what `fn` adds as Close-only props, painted on `close`, which hides them beyond Street (#175). */
+  const closeOnly = (fn: () => void) => {
+    const was = closing
+    closing = true
+    fn()
+    closing = was
+  }
+  const CREAM = new THREE.Color('#fff4dc') // the bulb's own colour
+  /** The bulb painted `colour` by day and lit in it at night, `glow` as bright as a lamp: #153's amber, #175's signs. */
+  const lit = (colour: string, glow: number): Look => {
+    const c = new THREE.Color(colour)
+    return { material: bulb, tint: new THREE.Color(c.r / CREAM.r, c.g / CREAM.g, c.b / CREAM.b), glow }
+  }
+  /** A pot plant `s` m tall at `(x, y)`, `h` above the road (#175): a pot from `draw`'s colours under a bush of leaves. */
+  const pot = (x: number, y: number, h: number, s: number, draw: () => number) => {
+    add(POT, HOME.pots[Math.floor(draw() * HOME.pots.length)], x, y, h, 0, s * 0.42, s * 0.55, s * 0.42)
+    add(BUSH, LEAVES.round[Math.floor(draw() * LEAVES.round.length)], x, y, h + s * 0.78, draw() * TAU, s * 0.5, s * 0.42, s * 0.5)
+  }
   /** Close the shapes added since the last brick into one, which lands on `(x, y)`, `h` above the road. */
   const brick = (kind: BrickKind, x: number, y: number, h: number, dust = 0) => {
     if (open === parts.length) return
@@ -549,7 +674,7 @@ export function createKit(rand: () => number, materials: Materials) {
   }
   /** A contact shadow under a footprint `w` by `d`, round or square, turned `ry`. */
   const shadow = (x: number, y: number, h: number, w: number, d: number, round = false, ry = 0) =>
-    add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d)
+    closing || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Close-only prop
   // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion), each cut once per size.
   const cuboids = new Map<string, THREE.BufferGeometry>()
   const cuboid = (w: number, h: number, d: number) => {
@@ -753,6 +878,7 @@ export function createKit(rand: () => number, materials: Materials) {
   return {
     add,
     push,
+    put,
     brick,
     box,
     cuboid,
@@ -763,6 +889,28 @@ export function createKit(rand: () => number, materials: Materials) {
     range,
     pick,
     chance: (p: number) => rand() < p,
+    closeOnly,
+    lit,
+    pot,
+    /**
+     * A pool of light on the ground at `(x, y)`, `h` above the road, `w` by `d` and turned `ry`, in the colour and
+     * strength of `kind`'s light, where the kit builds with pools (#174): it rides the next brick closed.
+     */
+    pool,
+    /** Whether what the kit builds now wears surface pattern (#174), as the Zones built to the level of finish do. */
+    get finished() {
+      return patterned || pooled
+    },
+    /** Dev only (#175): how much deeper what stands on a Block is laid than built, for a comparison. 1 unless set. */
+    deeper: materials.finish.deeper ?? 1,
+
+    /**
+     * Steam rising from `(x, y)`, `h` above the road, as from a noodle shop's vent or a food stall's pot (#175): small
+     * puffs that `./movers` lets rise through the working day, riding the next brick closed.
+     */
+    steam(x: number, y: number, h: number) {
+      plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, steam: true })
+    },
 
     /** Build at Stage `s.to`, or, when `s.from` differs, a Tile's Stage-up from one to the other. Stage 2 unless told. */
     stages(s: Stages) {
@@ -780,6 +928,18 @@ export function createKit(rand: () => number, materials: Materials) {
     /** A Block's pavement, raised from its outline (`./blocks`), with paving joints where the kit builds patterned. */
     pavement(geo: THREE.BufferGeometry, look: Look) {
       push(patterned ? pave(geo) : geo, look)
+    },
+
+    /**
+     * Coloured paving on the pavement, `w` by `d` centred on `(x, y)`, `h` above the road and turned `ry`, as one brick
+     * (#175): bricks in a basket weave in `colour` where the kit builds patterned, as before a row of shop fronts.
+     */
+    paving(x: number, y: number, h: number, w: number, d: number, ry: number, colour: string) {
+      const g = PLANE.toNonIndexed().applyMatrix4(
+        m.compose(new THREE.Vector3(x, h + 0.012, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(w, 1, d)),
+      )
+      push(patterned ? pave(g, PATTERN.bricks) : g, colour)
+      brick('ground', x, y, h)
     },
 
     /** Say where loose things on the ground, such as fallen petals, may lie: `on(x, y, clear)`, on the Block `clear` m in from its edge. */
@@ -1213,72 +1373,232 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A shop at Stage `stage`, as one brick: `w` along its street and `d` deep, its front facing `ry`, `storeys` high,
-     * as many as the caller gives its Stage. A ground floor in a bold colour with a lit shop window, under pale storeys
-     * with windows or none. Facing a Road (`onRoad`) rather than a seam between Tiles, it has a striped awning. Its
-     * colours and which signs it would have are drawn before anything a Stage changes:
-     * - Stage 1: a narrower shop window and no signs.
-     * - Stage 2: on some, a sign on the roof or one hung by the door.
-     * - Stage 3: both signs on every shop facing a Road, and a pale cornice over the ground floor.
-     *
-     * Built to the level of finish (`finish`, #174), its walls and roof wear surface pattern: panels and a high window in
-     * every bay of the ground floor's back and ends and a service door in the middle of its back, siding and a window in
-     * every bay of each upper storey all round, in place of the front's windows, and tile rows inside a parapet on the
-     * roof. Its lit window throws a pool of light on the pavement before it.
+     * A shop at Stage `plan.stage`, as one brick: `w` along its street and `d` deep, its front facing `ry`, built to the
+     * level of finish (#175) as its lot plans it. A ground floor in its front's colour under pale storeys, the walls and
+     * roof wearing surface pattern where the kit builds patterned (#174): panels and high windows on the ground floor's
+     * back and ends, a service door in the middle of its back, siding and a window in every bay of each upper storey all
+     * round, and tile rows inside a stone parapet on its flat roof. Its front: a glass door in a frame under a noren, a
+     * shop window showing goods over a sill, a signboard over a striped awning, and on a Road a tall sign standing out
+     * from the wall and a billboard on the roof. Its roof: AC condensers, a panel water tank and, on some, a terrace. At
+     * its back: gas cylinders, a pipe, crates and an AC unit, which are Close-only. Its colours and which signs it would
+     * have are drawn before anything a Stage changes:
+     * - Stage 1: one storey, a narrower shop window, a signboard unlit, one condenser.
+     * - Stage 2: its storeys; the signboard lit; on a Road, on some, a tall sign and a billboard; on some, a water tank.
+     * - Stage 3: a storey more and a pale cornice over the ground floor; on a Road, both signs and an arcade over the
+     *   pavement in place of the awning; more tanks, and a timber terrace with tables, a parasol and string lights on
+     *   some roofs.
+     * Its lit front throws a pool of light on the pavement before it, out to the kerb, and a terrace's string lights one
+     * on the terrace.
      */
-    shop(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, onRoad: boolean, stage = 2) {
-      const [front, upper, colour, roofSign, hung] = [pick(SHOP.fronts), pick(SHOP.uppers), pick(SHOP.fronts), rand() < 0.45, rand() < 0.45]
-      const [signColour, hungColour] = [pick(SHOP.fronts), pick(SHOP.fronts)]
-      const seed = spot(x, y) // which patterned windows light, so that the kit's stream is untouched
-      cladded(box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry, { back: PATTERN.back, sides: PATTERN.wall, storey: 3.8 }, seed)
-      const glazed = w * (stage === 1 ? 0.6 : 0.8)
-      local(cuboid(glazed, 2.4, 0.3), { material: glass, tint: windows[0] }, x, y, ry, 0, d / 2, h + 0.3)
-      pool('window', ...to(x, y, ry, 0, d / 2 + POOL.front.window), h, glazed + 1.2, POOL.deep.window, ry)
-      if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, d / 2 + 0.04, h + 3.7)
-      let top = h + 3.8
-      if (storeys > 1) {
-        const tall = (storeys - 1) * 3.1
-        const storey = PATTERN.storey
-        cladded(
-          box(w - 0.3, tall, d - 0.6, 0.24, 0.1),
-          upper,
-          x,
-          y,
-          top,
-          ry,
-          { front: storey, back: storey, sides: storey, storey: 3.1 },
-          seed + 1,
-        )
-        const across = Math.max(1, Math.floor(w / 3))
-        for (let s = 0; s < storeys - 1 && !patterned; s++) {
-          for (let k = 0; k < across; k++)
-            local(cuboid(1.3, 1.4, 0.3), pane(0.7), x, y, ry, (k - (across - 1) / 2) * (w / across), (d - 0.6) / 2, top + 0.9 + s * 3.1)
-        }
-        top += tall
+    shop(x: number, y: number, h: number, w: number, d: number, ry: number, plan: ShopPlan) {
+      const { storeys, stage, onRoad, door, front, form, noodle } = plan
+      const [upper, stripe, roofSign, hung, board, billboard, tall] = [
+        pick(SHOP.uppers),
+        pick(SHOP.fronts),
+        rand() < 0.45,
+        rand() < 0.45,
+        pick(SHOPFRONT.boards),
+        pick(SHOPFRONT.boards),
+        pick(SHOP.fronts),
+      ]
+      const [frame, noren, goods, tank, terrace, parasol] = [
+        pick(SHOPFRONT.door.frames),
+        pick(SHOPFRONT.noren),
+        pick(SHOPFRONT.goods),
+        rand(),
+        rand() < 0.45,
+        pick(SHOP.fronts),
+      ]
+      const seed = spot(x, y) // which patterned windows light, and the small things' draws, so the kit's stream is untouched
+      const draw = mulberry32(seed + 5)
+      const fv = d / 2 // the front's face
+      const glazing: Look = { material: glass, tint: windows[0] }
+      const arcade = stage === 3 && onRoad
+      // Marks for lettering on a board: pale and lit on a dark board, dark on a pale one.
+      const pale = (colour: string) => {
+        const c = new THREE.Color(colour)
+        return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.42
       }
-      cladded(box(w + 0.1, 0.5, d + 0.1, 0.26, 0.08), storeys > 1 ? upper : front, x, y, top, ry, { top: PATTERN.roof }, seed + 2)
-      if (onRoad) {
-        if (stage === 3 || (stage === 2 && roofSign)) local(cuboid(w * 0.6, 1.8, 0.3), signColour, x, y, ry, 0, d / 2 - 1.2, top + 0.5)
+      const markOf = (colour: string, on: boolean): Look =>
+        pale(colour) ? SHOPFRONT.marks.dark : on ? lit(SHOPFRONT.marks.pale, SHOPFRONT.lit.marks) : SHOPFRONT.marks.pale
+      const boardOf = (colour: string, on: boolean): Look => (on ? lit(colour, SHOPFRONT.lit.board) : colour)
+      /** A board `bw` by `bh` on a face at `v`, its foot `z`, with `n` marks across it. */
+      const signboard = (colour: string, on: boolean, bw: number, bh: number, v: number, z: number, n: number) => {
+        local(cuboid(bw, bh, 0.14), boardOf(colour, on), x, y, ry, 0, v, z)
+        const size = Math.min(bh * 0.62, 0.5)
+        for (let k = 0; k < n; k++)
+          local(cuboid(size, size, 0.04), markOf(colour, on), x, y, ry, (k - (n - 1) / 2) * size * 1.45, v + 0.08, z + (bh - size) / 2)
+      }
+
+      cladded(box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry, { back: PATTERN.back, sides: PATTERN.wall, storey: 3.8 }, seed)
+
+      // The door at one end, its glass lit at night, under a noren of three panels with a crest on a rod.
+      const ud = door * (w / 2 - 1.15)
+      local(cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, ud, fv + 0.01, h)
+      local(cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, ud, fv + 0.03, h + 0.04)
+      local(cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, ud, fv + 0.04, h + 0.04)
+      local(cuboid(1.66, 0.05, 0.05), frame, x, y, ry, ud, fv + 0.2, h + 2.36)
+      for (const k of [-1, 0, 1]) local(cuboid(0.47, 0.8, 0.03), noren, x, y, ry, ud + k * 0.5, fv + 0.2, h + 1.56)
+      local(cuboid(0.22, 0.22, 0.05), pale(noren) ? SHOPFRONT.marks.dark : SHOPFRONT.marks.pale, x, y, ry, ud, fv + 0.21, h + 1.86)
+
+      // The shop window over the rest of the front, narrower at Stage 1, framed and silled, with goods on its sill.
+      const [a, b] = [-door * (w / 2 - 0.35), door * (w / 2 - 2.25)]
+      const ww = Math.abs(b - a) * (stage === 1 ? 0.72 : 1)
+      const uw = (a + b) / 2
+      local(cuboid(ww, 2, 0.12), glazing, x, y, ry, uw, fv + 0.02, h + 0.8)
+      local(cuboid(ww + 0.16, 0.08, 0.3), SHOPFRONT.trim, x, y, ry, uw, fv + 0.1, h + 0.72)
+      local(cuboid(ww + 0.16, 0.1, 0.16), SHOPFRONT.trim, x, y, ry, uw, fv + 0.04, h + 2.8)
+      const bars = Math.max(1, Math.round(ww / 1.7))
+      for (let k = 1; k < bars; k++) local(cuboid(0.06, 2, 0.16), frame, x, y, ry, uw - ww / 2 + (k * ww) / bars, fv + 0.04, h + 0.8)
+      closeOnly(() => {
+        for (let u = uw - ww / 2 + 0.3; u < uw + ww / 2 - 0.25; u += 0.42 + draw() * 0.2) {
+          const tall = 0.18 + draw() * 0.3
+          local(cuboid(0.3, tall, 0.2), goods[Math.floor(draw() * goods.length)], x, y, ry, u, fv + 0.15, h + 0.76)
+        }
+      })
+
+      // Over the ground floor: a signboard over the awning, or at Stage 3 on a Road the arcade with the board on its
+      // fascia. A false front carries its board above the roof instead.
+      if (form !== 'facade' && !arcade)
+        signboard(board, stage >= 2, w * 0.88, stage === 1 ? 0.4 : 0.48, fv + 0.07, h + 3.28, 2 + (seed % 3))
+      if (!arcade) {
         const span = w * 0.86
         const stripes = Math.max(3, Math.round(span / 1.2))
         for (let i = 0; i < stripes; i++)
-          local(
-            AWNING,
-            i % 2 ? SHOP.stripe : colour,
-            x,
-            y,
-            ry,
-            -span / 2 + (i + 0.5) * (span / stripes),
-            d / 2 + 0.85,
-            h + 3,
-            span / stripes,
-          )
-        if (stage === 3 || (stage === 2 && hung)) local(cuboid(0.24, 2.4, 1.1), hungColour, x, y, ry, w / 2 - 0.5, d / 2 + 0.55, h + 4.2)
+          local(AWNING, i % 2 ? SHOP.stripe : stripe, x, y, ry, -span / 2 + (i + 0.5) * (span / stripes), fv + 0.85, h + 3, span / stripes)
+      } else {
+        local(cuboid(w + 0.02, 0.16, ARCADE), SHOPFRONT.arcade, x, y, ry, 0, fv + ARCADE / 2, h + 3.44)
+        signboard(board, true, w + 0.02, 0.5, fv + ARCADE, h + 3.04, 2 + (seed % 3))
+        for (const k of [-1, 1]) local(cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), fv + ARCADE - 0.12, h)
+        local(cuboid(w * 0.8, 0.05, 0.16), lit('#fff4dc', SHOPFRONT.lit.strip), x, y, ry, 0, fv + ARCADE * 0.5, h + 3.39)
       }
+      if (stage === 3) local(cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, fv + 0.04, h + 3.7)
+
+      // Upper storeys, set back behind a balcony on a setback shop, and the roof's lid over the top one.
+      let top = h + 3.8
+      let [tw, td, tv] = [w + 0.1, d + 0.1, 0] // the lid's footprint and how far out of the front its middle lies
+      if (storeys > 1) {
+        const tallness = (storeys - 1) * 3.1
+        const back = form === 'setback' ? SETBACK : 0
+        const storey = PATTERN.storey
+        const cladding = { front: storey, back: storey, sides: storey, storey: 3.1 }
+        cladded(box(w - 0.3, tallness, d - 0.6 - back, 0.24, 0.1), upper, ...to(x, y, ry, 0, -back / 2), top, ry, cladding, seed + 1)
+        if (back) {
+          local(cuboid(w - 0.1, 0.1, back + 0.3), SHOPFRONT.balcony, x, y, ry, 0, fv - (back + 0.3) / 2, top)
+          local(cuboid(w - 0.1, 0.9, 0.12), upper, x, y, ry, 0, fv - 0.1, top + 0.1)
+          closeOnly(() => {
+            for (const k of [-0.3, 0.3]) pot(...to(x, y, ry, k * w, fv - 0.55), top + 0.1, 0.32, draw)
+          })
+        }
+        top += tallness
+        ;[tw, td, tv] = back ? [w - 0.2, d - 0.5 - back, -back / 2] : [w + 0.1, d + 0.1, 0]
+      }
+      cladded(cuboid(tw, 0.5, td), storeys > 1 ? upper : front, ...to(x, y, ry, 0, tv), top, ry, { top: PATTERN.roof }, seed + 2)
+      const roof = top + 0.5 // the lid's top
+      const [ft, bk] = [tv + td / 2, tv - td / 2] // the roof's front and back edges, out of the front
+
+      // The parapet, or on a false front a wall raised over the street with the signboard on it.
+      const P = { wide: 0.26, tall: 0.42 }
+      if (form === 'facade') {
+        local(cuboid(tw, 1.6, 0.3), storeys > 1 ? upper : front, x, y, ry, 0, ft - 0.15, roof)
+        signboard(board, stage >= 2, tw * 0.8, 0.95, ft + 0.06, roof + 0.32, 2 + (seed % 3))
+      } else local(cuboid(tw, P.tall, P.wide), SHOPFRONT.parapet, x, y, ry, 0, ft - P.wide / 2, roof)
+      local(cuboid(tw, P.tall, P.wide), SHOPFRONT.parapet, x, y, ry, 0, bk + P.wide / 2, roof)
+      for (const k of [-1, 1])
+        local(cuboid(P.wide, P.tall, td - 2 * P.wide), SHOPFRONT.parapet, x, y, ry, k * (tw / 2 - P.wide / 2), tv, roof)
+
+      // On the roof: condensers along the back, a tank on its stand, a noodle shop's vent, a billboard and a terrace.
+      const units = Math.min(stage, Math.floor((tw - 1.2) / 1.25))
+      for (let k = 0; k < units; k++) {
+        const u = -door * (tw / 2 - 0.95 - k * 1.25)
+        local(cuboid(1, 0.72, 0.5), AIRCON.body, x, y, ry, u, bk + 0.75, roof)
+        put(FACING_DISC, AIRCON.grille, x, y, ry, u - 0.16, bk + 1.01, roof + 0.36, 0.24, 0.24, 1)
+      }
+      if (stage >= 2 && tank < (stage === 2 ? 0.55 : 0.8)) {
+        const [u, v] = [door * (tw / 2 - 1.25), bk + td * 0.42]
+        local(cuboid(1.6, 0.5, 1.6), SHOPFRONT.steel, x, y, ry, u, v, roof)
+        local(cuboid(1.5, 1.3, 1.5), SHOPFRONT.tank, x, y, ry, u, v, roof + 0.5)
+      }
+      if (noodle) {
+        const [u, v] = [door * (tw / 2 - 0.55), bk + 0.6]
+        put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof, 0.18, 1.6, 0.18)
+        put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof + 1.6, 0.3, 0.14, 0.3)
+        const [px, py] = to(x, y, ry, u, v)
+        if (stage >= 2) plumes.push({ at: new THREE.Vector3(px, roof + 1.8, -py), brick: bricks.length, steam: true })
+      }
+      const billboarded = onRoad && form !== 'facade' && (stage === 3 || (stage === 2 && roofSign))
+      if (billboarded) {
+        const bw = Math.min(tw * 0.62, 5.6)
+        const v = ft - 0.9
+        for (const k of [-1, 1]) local(cuboid(0.12, 2.9, 0.12), SHOPFRONT.steel, x, y, ry, k * bw * 0.36, v - 0.16, roof)
+        signboard(billboard, true, bw, 1.8, v, roof + 1.05, 3 + (seed % 2))
+      }
+      if (stage === 3 && terrace && storeys > 1 && td > 7) {
+        const [dw, dd] = [Math.min(tw * 0.5, 4.2), Math.min(td * 0.42, 4.4)]
+        const [u, v] = [-door * (tw / 2 - 0.35 - dw / 2), ft - (billboarded ? 1.7 : 0.45) - dd / 2]
+        local(cuboid(dw, 0.1, dd), SHOPFRONT.deck, x, y, ry, u, v, roof)
+        for (const [i, j] of [
+          [-0.22, -0.18],
+          [0.22, 0.2],
+        ]) {
+          local(cuboid(0.8, 0.05, 0.8), SHOPFRONT.trim, x, y, ry, u + i * dw, v + j * dd, roof + 0.82)
+          local(cuboid(0.08, 0.8, 0.08), SHOPFRONT.marks.dark, x, y, ry, u + i * dw, v + j * dd, roof + 0.05)
+        }
+        put(CONE8, parasol, x, y, ry, u - 0.22 * dw, v - 0.18 * dd, roof + 1.95, 1.3, 0.5, 1.3)
+        put(THIN, SHOPFRONT.marks.dark, x, y, ry, u - 0.22 * dw, v - 0.18 * dd, roof + 0.86, 0.04, 1.1, 0.04)
+        // String lights on four posts at the deck's corners, along its two long sides.
+        for (const i of [-1, 1])
+          for (const j of [-1, 1]) local(cuboid(0.07, 2.45, 0.07), SHOPFRONT.steel, x, y, ry, u + (i * dw) / 2, v + (j * dd) / 2, roof)
+        for (const j of [-1, 1]) {
+          local(cuboid(dw, 0.03, 0.03), SHOPFRONT.marks.dark, x, y, ry, u, v + (j * dd) / 2, roof + 2.38)
+          const n = Math.max(3, Math.round(dw / 0.6))
+          for (let k = 0; k < n; k++)
+            local(
+              cuboid(0.16, 0.16, 0.16),
+              lit('#fff1c7', SHOPFRONT.lit.string),
+              x,
+              y,
+              ry,
+              u - dw / 2 + ((k + 0.5) * dw) / n,
+              v + (j * dd) / 2,
+              roof + 2.2,
+            )
+        }
+        pool('string', ...to(x, y, ry, u, v), roof + 0.1, dw + 1.2, dd + 1.2, ry)
+      }
+
+      // A tall sign standing out from the wall at the window's end, on a Road: on the upper storey, or on the roof's
+      // front corner over a shop of one storey.
+      if (onRoad && (stage === 3 || (stage === 2 && hung))) {
+        const [us, z] = [-door * (w / 2 - 0.4), storeys > 1 ? h + 3.95 : roof]
+        local(cuboid(0.22, 2.7, 1.05), boardOf(tall, true), x, y, ry, us, fv + 0.3, z)
+        for (let k = 0; k < 3; k++) local(cuboid(0.26, 0.44, 0.62), markOf(tall, true), x, y, ry, us, fv + 0.36, z + 0.32 + k * 0.72)
+      }
+
+      // At the back, Close-only: gas cylinders, a pipe up the wall, crates from Stage 2, and an AC unit at Stage 3.
+      closeOnly(() => {
+        for (const k of [0, 1]) put(THIN, '#b6c3cc', x, y, ry, door * (w / 2 - 0.6 - k * 0.44), -fv - 0.26, h, 0.18, 1.15, 0.18)
+        local(cuboid(0.1, 3.6, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 0.45), -fv - 0.07, h)
+        local(cuboid(1.4, 0.1, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 1.1), -fv - 0.07, h + 3.2)
+        if (stage >= 2)
+          for (let k = 0; k < 3; k++)
+            local(
+              cuboid(0.48, 0.3, 0.36),
+              CRATES[Math.floor(draw() * CRATES.length)],
+              x,
+              y,
+              ry,
+              -door * (w / 2 - 1.5),
+              -fv - 0.3,
+              h + k * 0.31,
+            )
+        if (stage === 3) airCon(...to(x, y, ry, door * (w / 2 - 2.4), -fv), h + 2.2, ry + Math.PI)
+      })
+
+      pool(stage === 1 ? 'window' : arcade ? 'arcade' : 'sign', ...to(x, y, ry, 0, fv + 1.15), h, w + 0.4, 2.2, ry)
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },
-
     /**
      * A shed at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under
      * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along the

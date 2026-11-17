@@ -8,7 +8,8 @@ import { dashes, mid, ribbons } from './ribbons'
 const PAINT_Y = 0.04
 const WHITE = 0xffffff
 const [CENTRE, DIVIDER] = [0.56, 0.3] // line widths, m
-const ZEBRA = { stripe: 1.1, pitch: 2.2, length: 4, setback: 1 } // m; `setback` is from the stop line to the stripes
+/** Zebra stripes, m: `setback` is from the stop line to the stripes, and `length` how far they run along the Road. */
+export const ZEBRA = { stripe: 1.1, pitch: 2.2, length: 4, setback: 1 }
 // Give-way triangles: `pitch` is the target spacing across a lane, `base` a triangle's share of its slot, and `setback`
 // the gap from the stop line to the row.
 const GIVE_WAY = { pitch: 1.75, base: 0.72, length: 2.4, setback: 0.5 }

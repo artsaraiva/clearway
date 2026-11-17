@@ -9,6 +9,7 @@ import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { bikeLane, island, park, plaza, site, tower, towerGround, verge } from './landmarks'
 import type { Scenery } from './scenery'
+import { dressStreet, type Footprint } from './streets'
 import { LOOKS } from './zones'
 
 const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
@@ -131,7 +132,10 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     }
   }
 
-  if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
+  const kept: Footprint[] = []
+  if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
+  // The streets round a Tile built to the level of finish (#175).
+  if (look?.finish && kit.finished) dressStreet(kit, block, field, net, spec, lamps, street, kept)
 }
