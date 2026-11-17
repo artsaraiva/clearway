@@ -15,6 +15,19 @@ export interface Block extends Bounds {
 /** A Block from an outline of the field. */
 export const block = (loop: Vec[]): Block => ({ loop, ...around(loop) })
 
+/** Twice the area inside an outline (m², the shoelace formula): positive if it runs counterclockwise. */
+export function twiceArea(loop: Vec[]): number {
+  let twice = 0
+  loop.forEach((p, i) => {
+    const q = loop[(i + 1) % loop.length]
+    twice += p.x * q.y - q.x * p.y
+  })
+  return twice
+}
+
+/** The area inside an outline, m². */
+export const area = (loop: Vec[]) => Math.abs(twiceArea(loop)) / 2
+
 /**
  * Whether an outline is wide enough to be a Block rather than a sliver: twice its area over its perimeter is its width,
  * on average. A seam between two pieces of slab can leave a sliver between a Road and the seam.

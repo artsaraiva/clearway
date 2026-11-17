@@ -2,7 +2,7 @@ import type { Zone } from '../city/city'
 import { mulberry32 } from '../sim/demand'
 import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
-import { KERB, type Block } from './blocks'
+import { area, KERB, twiceArea, type Block } from './blocks'
 import { WIND } from './day'
 import { inside, type Field } from './field'
 import {
@@ -13,6 +13,7 @@ import {
   spot,
   STAIR,
   stairAt,
+  to,
   VENDING_MACHINE,
   WALL_STAIR,
   WALKWAY,
@@ -395,12 +396,7 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
   for (const loop of g.field.outlines(margin, [g.block])) {
     if (loop.length < 4 || !inside(g.block.loop, loop[0].x, loop[0].y)) continue
     const line = sides(loop, 0.7)
-    let twice = 0
-    line.forEach((p, i) => {
-      const q = line[(i + 1) % line.length]
-      twice += p.x * q.y - q.x * p.y
-    })
-    const turn = twice > 0 ? 1 : -1 // counterclockwise, the outside is to the right of the way round
+    const turn = twiceArea(line) > 0 ? 1 : -1 // counterclockwise, the outside is to the right of the way round
     for (let i = 0; i < line.length; i++) {
       const [a, b] = [line[i], line[(i + 1) % line.length]]
       const len = Math.hypot(b.x - a.x, b.y - a.y)
@@ -1152,13 +1148,8 @@ function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<numbe
   const [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
   if (!fit.length) return scenes
   scenes.set(fit[at], { kind: first, from: 2 })
-  let twice = 0
-  g.block.loop.forEach((p, i) => {
-    const q = g.block.loop[(i + 1) % g.block.loop.length]
-    twice += p.x * q.y - q.x * p.y
-  })
   const rest = fit.filter((i) => Math.abs(i - fit[at]) > 1)
-  if (Math.abs(twice) / 2 >= SHOP_PLAN.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
+  if (area(g.block.loop) >= SHOP_PLAN.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
   return scenes
 }
 
@@ -1377,11 +1368,11 @@ function shopFront(g: ZoneGround, l: RowLot, door: number) {
   doorPots(g, l, door)
 }
 
-/** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies on the map, as the kit's `local` places it. */
-const turned = (x: number, y: number, ry: number, lx: number, ly: number): Vec => ({
-  x: x + lx * Math.cos(ry) - ly * Math.sin(ry),
-  y: y + lx * Math.sin(ry) + ly * Math.cos(ry),
-})
+/** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies, as the kit's `to` has it, as a point. */
+const turned = (x: number, y: number, ry: number, lx: number, ly: number): Vec => {
+  const [px, py] = to(x, y, ry, lx, ly)
+  return { x: px, y: py }
+}
 
 /**
  * A shed as `industrial` lays it (#150): its footprint `w` (east–west) by `d` centred on `(x, y)`, the way its long

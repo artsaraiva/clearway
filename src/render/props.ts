@@ -1,6 +1,6 @@
 import { mulberry32 } from '../sim/demand'
 import { KERB } from './blocks'
-import { SHAPES, spot, type Kit } from './kit'
+import { SHAPES, spot, to, type Kit } from './kit'
 
 // The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a focal
 // piece larger than a car, seen from Street: a greengrocer's stand spilling onto the pavement, a florist's, a row of
@@ -22,12 +22,6 @@ const CAPSULE = { bodies: ['#ff9ab8', '#5cc0d6', '#f0b43c', '#79c86a', '#a58ad8'
 const STALL = { cart: '#a1714c', counter: '#d8b98b', roofs: ['#55705f', '#3f4a5e', '#8a5a3c'], noren: '#f4ead2', stool: '#e8925e' }
 const BOARD = { face: '#2f3440', frame: '#a1714c', chalk: '#fbf8f2' }
 const TAU = Math.PI * 2
-
-/** Where `(lx, ly)` in the frame of something at `(x, y)` facing `ry` lies on the map: `lx` to its right, `ly` out of its front. */
-const at = (x: number, y: number, ry: number, lx: number, ly: number): [number, number] => [
-  x + lx * Math.cos(ry) - ly * Math.sin(ry),
-  y + lx * Math.sin(ry) + ly * Math.cos(ry),
-]
 
 /**
  * A stand of three timber steps `len` long, stepping up to the shop front behind it, its middle at `(x, y)` and its
@@ -71,12 +65,12 @@ export function florist(kit: Kit, x: number, y: number, ry: number, len: number,
   const draw = mulberry32(spot(x, y))
   stand(kit, x, y, ry, len, 0.62, (lx, ly, z) => {
     kit.put(kit.cuboid(0.34, 0.34, 0.3), BUCKET, x, y, ry, lx, ly, z)
-    const [bx, by] = at(x, y, ry, lx, ly)
+    const [bx, by] = to(x, y, ry, lx, ly)
     kit.add(SHAPES.bush, FLOWERS[Math.floor(draw() * FLOWERS.length)], bx, by, z + 0.5, draw() * TAU, 0.3, 0.26, 0.3)
   })
   if (stage === 3)
     for (let i = 0; i < 3; i++) {
-      const [px, py] = at(x, y, ry, -len / 2 + 0.6 + i * 1.1, 1.05)
+      const [px, py] = to(x, y, ry, -len / 2 + 0.6 + i * 1.1, 1.05)
       kit.add(SHAPES.pot, '#e9e4da', px, py, KERB, 0, 0.32, 0.5, 0.32)
       kit.add(SHAPES.sphere, LEAF, px, py, KERB + 1.05, 0, 0.42, 0.62, 0.42)
     }
@@ -102,7 +96,7 @@ export function capsules(kit: Kit, x: number, y: number, ry: number, len: number
     }
   }
   if (stage === 3) kit.put(kit.cuboid(len * 0.7, 0.5, 0.1), kit.lit('#ff9ab8', 0.33), x, y, ry, 0, -0.1, KERB + 2.08)
-  kit.pool('vending', ...at(x, y, ry, 0, 1), KERB, len + 1, 1.8, ry)
+  kit.pool('vending', ...to(x, y, ry, 0, 1), KERB, len + 1, 1.8, ry)
   kit.shadow(x, y, KERB, len + 0.6, 1.4, false, ry)
   kit.brick('building', x, y, KERB)
 }
@@ -123,16 +117,16 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   }
   kit.put(kit.cuboid(3.5, 0.12, 1.8), roof, x, y, ry, 0, 0.05, KERB + 2.7)
   for (const k of [-1, 0, 1]) kit.put(kit.cuboid(1.1, 0.5, 0.03), STALL.noren, x, y, ry, k * 1.15, 0.94, KERB + 2.2)
-  const [px, py] = at(x, y, ry, -0.7, -0.15)
+  const [px, py] = to(x, y, ry, -0.7, -0.15)
   kit.add(SHAPES.thin, '#9aa3ad', px, py, KERB + 1.35, 0, 0.32, 0.4, 0.32)
   kit.steam(px, py, KERB + 1.9)
   kit.closeOnly(() => {
     for (const lx of [-1, 0, 1]) kit.put(SHAPES.thin, STALL.stool, x, y, ry, lx * 0.95, 1.15, KERB, 0.2, 0.62, 0.2)
   })
-  kit.pool('stall', ...at(x, y, ry, 0, 0.6), KERB, 4.6, 3.6, ry)
+  kit.pool('stall', ...to(x, y, ry, 0, 0.6), KERB, 4.6, 3.6, ry)
   kit.shadow(x, y, KERB, 3.8, 2.2, false, ry)
   kit.brick('building', x, y, KERB)
-  kit.lantern(...at(x, y, ry, 1.5, 0.9), KERB + 2.05, true)
+  kit.lantern(...to(x, y, ry, 1.5, 0.9), KERB + 2.05, true)
 }
 
 /**
@@ -181,7 +175,7 @@ export function plantStand(kit: Kit, x: number, y: number, ry: number) {
     for (let k = 0; k < 2; k++) {
       const [ly, z] = [0.2 - k * 0.32, KERB + 0.35 + k * 0.35]
       kit.put(kit.cuboid(1.3, z - KERB, 0.32), WOOD.stand, x, y, ry, 0, ly, KERB)
-      for (const lx of [-0.42, 0, 0.42]) kit.pot(...at(x, y, ry, lx, ly), z, 0.42 + draw() * 0.18, draw)
+      for (const lx of [-0.42, 0, 0.42]) kit.pot(...to(x, y, ry, lx, ly), z, 0.42 + draw() * 0.18, draw)
     }
   })
   kit.brick('building', x, y, KERB)

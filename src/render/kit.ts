@@ -270,6 +270,14 @@ const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helip
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /** Shapes the kit lays, for the builders beside it (`./props`), each standing on y = 0 but the plane and the disc. */
 export const SHAPES = { thin: THIN, cylinder: CYLINDER, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC, plane: PLANE }
+/**
+ * Where `(lx, ly)` in the frame of something at `(x, y)` lies: `lx` to its right, `ly` out of its front, which faces
+ * `ry` (0 north, π/2 west). The kit places shapes by it, as do the builders beside it.
+ */
+export const to = (x: number, y: number, ry: number, lx: number, ly: number): [number, number] => [
+  x + lx * Math.cos(ry) - ly * Math.sin(ry),
+  y + lx * Math.sin(ry) + ly * Math.cos(ry),
+]
 /** The faces of a box, as the way each looks: north, south, east and west. */
 export const FACES = [
   [0, 1],
@@ -705,11 +713,6 @@ export function createKit(rand: () => number, materials: Materials) {
     }
     return panels.get(key)!
   }
-  /** Where `(lx, ly)` in the frame of a building at `(x, y)` lies: `lx` to its right, `ly` out of its front, which faces `ry` (0 north, π/2 west). */
-  const to = (x: number, y: number, ry: number, lx: number, ly: number): [number, number] => [
-    x + lx * Math.cos(ry) - ly * Math.sin(ry),
-    y + lx * Math.sin(ry) + ly * Math.cos(ry),
-  ]
   /** Add a shape at `(lx, ly)` in the frame of a building at `(x, y)` whose front faces `ry`, turned with it, `h` above the road. */
   const local = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, ry: number, lx: number, ly: number, h: number, sx = 1) =>
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)

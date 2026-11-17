@@ -3,9 +3,9 @@ import { mulberry32 } from '../sim/demand'
 import { pointAt, type Bounds, type Vec } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import type { NetworkSpec } from '../sim/spec'
-import { KERB, type Block } from './blocks'
+import { KERB, twiceArea, type Block } from './blocks'
 import { inside, type Field } from './field'
-import { SHAPES, spot, type Kit } from './kit'
+import { SHAPES, spot, to, type Kit } from './kit'
 import { ZEBRA } from './roads'
 
 // The streets round a Tile built to the level of finish (#173, #175; #176 takes them to every Tile). On each Block: a
@@ -44,12 +44,7 @@ export interface Footprint {
 
 /** A Block's outline, its inward direction at each point, and how far along it each point lies. */
 function walk(loop: Vec[]) {
-  let twice = 0
-  loop.forEach((p, i) => {
-    const q = loop[(i + 1) % loop.length]
-    twice += p.x * q.y - q.x * p.y
-  })
-  const turn = twice > 0 ? 1 : -1 // counterclockwise, the inside is to the left of the way round
+  const turn = twiceArea(loop) > 0 ? 1 : -1 // counterclockwise, the inside is to the left of the way round
   const n = loop.length
   const inward = loop.map((_, i) => {
     const [a, b] = [loop[(i + n - 1) % n], loop[(i + 1) % n]]
@@ -92,7 +87,7 @@ export function planter(kit: Kit, x: number, y: number, ry: number, len: number)
   const n = Math.max(2, Math.round(len / 0.9))
   for (let k = 0; k < n; k++) {
     const o = -len / 2 + ((k + 0.5) * len) / n
-    kit.add(SHAPES.bush, PLANTER.leaves[(spot(x, y) + k) % 3], x + o * Math.cos(ry), y + o * Math.sin(ry), KERB + 0.72, k, 0.48, 0.42, 0.42)
+    kit.add(SHAPES.bush, PLANTER.leaves[(spot(x, y) + k) % 3], ...to(x, y, ry, o, 0), KERB + 0.72, k, 0.48, 0.42, 0.42)
   }
   kit.shadow(x, y, KERB, len + 0.6, 1.2, false, ry)
   kit.brick('building', x, y, KERB)
@@ -101,7 +96,7 @@ export function planter(kit: Kit, x: number, y: number, ry: number, len: number)
 /** Two bollards across a run of pavement at `(x, y)`, along `ry`, as one brick (#175). */
 function bollards(kit: Kit, x: number, y: number, ry: number) {
   for (const o of [-0.7, 0.7]) {
-    const [bx, by] = [x + o * Math.cos(ry), y + o * Math.sin(ry)]
+    const [bx, by] = to(x, y, ry, o, 0)
     kit.add(SHAPES.thin, BOLLARD, bx, by, KERB, 0, 0.11, 0.82, 0.11)
     kit.add(SHAPES.thin, '#f4f6f8', bx, by, KERB + 0.62, 0, 0.115, 0.08, 0.115)
   }
