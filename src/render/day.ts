@@ -6,7 +6,8 @@ const DAY = 180 // real seconds per day
 const START = 0 // the day opens in the morning
 const LIGHT_DISTANCE = 500 // m from the slab's centre to the light, at least
 const MIN_REACH = 250 // m: the shadow map never covers less than this either side of the slab's centre
-const SHADOW = { bias: 0.5, normalBias: 0.16, radius: 3 } // m, m and texels, for a shadow map `MIN_REACH` either side
+// m, m and texels, for a shadow map `MIN_REACH` either side. The blur is one texel, so a shadow's edge is crisp (#148).
+const SHADOW = { bias: 0.5, normalBias: 0.16, radius: 1 }
 const LIGHTS_ON = 3 // lamp glow at which car lights are fully lit
 
 // The look is authored at these times of day (0–1 around the loop) and interpolated between them. One column per time:
@@ -16,21 +17,24 @@ const colors = (...hex: string[]) => hex.map((c) => new THREE.Color(c))
 // Noon, dusk and night carry the oversaturated palette picked in #104: a clear cyan noon, an orange and pink dusk, and
 // a deep blue night that stays bright. The lights move less than the sky, since they tint the road plate too.
 // The one directional light is the sun by day and the moon by night. Its strength is zero either side of each handover,
-// so the jump across the sky is never seen.
+// so the jump across the sky is never seen. Since #148 it is stronger, and warmer in the morning and the afternoon.
 const LIGHT = {
-  color: colors('#fff3e0', '#fffaf0', '#ffe0b3', '#fe9f6f', '#ff9c6e', '#a9c0ff', '#bfd0ff', '#a9c0ff', '#fff3e0'),
-  intensity: [2.6, 3, 2.9, 1.8, 0, 0, 1.7, 0, 0],
+  color: colors('#ffefd8', '#fffaf0', '#ffdeaf', '#fead7b', '#ff9c6e', '#a9c0ff', '#bfd0ff', '#a9c0ff', '#fff3e0'),
+  intensity: [2.99, 3.45, 3.48, 2.7, 0, 0, 2.55, 0, 0],
   azimuth: [-0.82, 0.1, 1.05, 1.76, 1.9, -1.2, 0.3, 1.2, -1],
   elevation: [0.9, 1.2, 0.66, 0.34, 0.15, 0.5, 1, 0.5, 0.3],
 }
-// The hemisphere light's fill from the sky and from the ground. Night is a bright moonlit blue, not dark. The fill is
-// strongest through each handover, where it lights the scene alone, so roads are no darker there than at dusk. (The
-// prototype's fill left them nearly black.) Dusk's low sun leaves most of the road plate in shadow, so its fill is
-// pink and raised, which keeps its roads legible.
+// The hemisphere light's fill from the sky and from the ground. A shadow shows the fill alone, so the fill's colour is
+// the shadow's colour: blue-violet at every time of day since #148, which coloured the #105 fill 70% of the way to it
+// (half at noon, so whites in the sun stay white) and its ground bounce 30%, so walls stay warm. Night is a bright
+// moonlit blue, not dark. The fill is set so that a road in shadow is never darker than one in #105's dusk shadow,
+// the darkest the game had and still read: dusk's fill is raised to match it, and noon's and the afternoon's
+// lowered to it, which gives the navy shadows. It is strongest through each handover, where it lights the scene
+// alone, so roads are no darker there than at dusk.
 const FILL = {
-  sky: colors('#d6ebff', '#d1edfb', '#cfe2ff', '#bd98c9', '#7686d6', '#7686d6', '#adbbf2', '#9aa8e0', '#b8c8ee'),
-  ground: colors('#efe6d2', '#f2ead9', '#f4dcc0', '#eaa48c', '#7a6f9c', '#5a5f9c', '#7780c2', '#8a84a8', '#c8b8b8'),
-  intensity: [1.25, 1.25, 1.1, 1.1, 2.2, 2.2, 1.75, 1.7, 1.45],
+  sky: colors('#a8beff', '#aec9fd', '#a4acf8', '#9c78d7', '#676bcc', '#5d6bcf', '#8697fb', '#7e89da', '#9dabef'),
+  ground: colors('#e1d5d9', '#e2d9e0', '#e6cbc8', '#de989b', '#756ba0', '#575da0', '#6f79c6', '#857fad', '#c1b1c0'),
+  intensity: [0.84, 0.72, 0.94, 1.62, 2.79, 2.86, 1.49, 1.7, 1.45],
 }
 // The sky gradient's stops: top, middle, bottom.
 const SKY = [
