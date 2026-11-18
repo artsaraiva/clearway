@@ -1090,28 +1090,40 @@ function offices(g: ZoneGround) {
   const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
   const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
-  let last: OfficeStyle | null = null
+  const styled: { lot: Bounds; style: OfficeStyle }[] = []
   for (const [i, body] of bodies.entries()) {
-    const tower = body && standBack(body, taken)
-    if (!tower) continue
-    const { x, y, w, d } = tower
+    if (!body) continue
     kit.lot(i)
-    let style = STYLES[Math.floor(plans() * STYLES.length)]
-    // Never its neighbour's: the lot cut before it, which lies beside it.
-    // ponytail: only that one neighbour is checked, so on a Block of four lots or more two lots side by side that were
-    // cut apart may share a style, at different sizes. Check every lot whose bounds touch this one's if a sheet shows it.
-    if (style === last) style = STYLES[(STYLES.indexOf(style) + 2) % STYLES.length]
-    if (kit.chance(0.06)) {
-      grove(g, lots[i], taken) // the odd lot left to trees
+    // Each lot draws from the kit's stream as it always has, whatever now stands on it, so that every lot after it keeps
+    // its draws: whether it is left to trees, its tower's own stream (or where its tree drew its seed), and the seed of
+    // its Stage 3 planters.
+    const odd = kit.chance(0.06)
+    const seed = (kit.range(0, 1) * 4294967296) >>> 0
+    if (odd) {
+      if (standBack(body, taken)) grove(g, lots[i], taken) // the odd lot left to trees
       continue
     }
-    last = style
+    const planted = (kit.range(0, 1) * 4294967296) >>> 0
+    const tower = standBack(body, taken)
+    if (!tower) continue
+    const { x, y, w, d } = tower
+    // Its style: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot beside
+    // it already has that style, one of the others by their shares, drawn from the plan.
+    const own = mulberry32(seed)
+    own()
+    own()
+    let style = STYLES[Math.floor(own() * STYLES.length)]
+    const near = new Set(styled.filter((s) => beside(s.lot, lots[i])).map((s) => s.style))
+    const others = STYLES.filter((s) => !near.has(s))
+    if (near.has(style) && others.length) style = others[Math.floor(plans() * others.length)]
+    styled.push({ lot: lots[i], style })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road.
     const entrance = FACES.map(([fx, fy], k) => ({ k, edge: field.sample(x + fx * (w / 2 + 3), y + fy * (d / 2 + 3)) })).sort(
       (a, b) => a.edge - b.edge,
     )[0].k
     kit.staged((stage) => {
       const [t, tall] = [kit.range(0, 1), kit.chance(SKYLINE.tall)]
+      kit.range(0, 1) // its style's draw, `style` above: still drawn, so that every draw after it stays
       const [low, high] = FLOORS[stage - 1][tall ? 'high' : 'low']
       const floors = Math.round(low + (high - low) * t)
       // The Block's first tower with a flat roof hangs its gondola (#154).
@@ -1119,8 +1131,8 @@ function offices(g: ZoneGround) {
       if (gondola) hung.add(stage)
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
       kit.officeTower(x, y, KERB, w, d, floors, style, stage, { gondola, plate, entrance })
-    })
-    officePlaza(g, tower, entrance, taken, paving)
+    }, seed)
+    officePlaza(g, tower, entrance, taken, paving, planted)
   }
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
@@ -1265,6 +1277,15 @@ function kerbAhead(g: ZoneGround, l: RowLot, along: number): number | null {
 const inBounds = (b: Bounds, l: Vec) => l.x > b.x0 && l.x < b.x1 && l.y > b.y0 && l.y < b.y1
 
 /**
+ * Whether lots `a` and `b` lie side by side (#177): within 1.5 m of each other one way, as lots cut apart touch or a
+ * street tree has moved an edge back, and sharing more than 1 m of side the other way, so not corner to corner.
+ */
+function beside(a: Bounds, b: Bounds): boolean {
+  const [gx, gy] = [Math.max(a.x0 - b.x1, b.x0 - a.x1), Math.max(a.y0 - b.y1, b.y0 - a.y1)] // gaps: below 0, an overlap
+  return (gx <= 1.5 && gy < -1) || (gy <= 1.5 && gx < -1)
+}
+
+/**
  * A scene's ground on one of the lots `open` that no tower fits (#177), facing the nearest edge of the Block: as large
  * as stands there, on the Block and clear of the lamps, at the lot's middle or moved in from that edge, and as `ok`
  * has it; null if none fits.
@@ -1382,9 +1403,10 @@ function alongEdge(
  * What stands on tower `t`'s plaza (#177), its door on face `entrance` (of `FACES`), each drawn from where it stands:
  * chequered paving in the Block's `paving` from Stage 1, out to the plinth's reach or the Block's edge; the flags of
  * #154 beside the canopy; from Stage 2 a sculpture, a clock or a fountain on the canopy's other side; and on the faces
- * either side of the door a bench, Close-only, from Stage 1 and planters by it from Stage 2, on what `taken` leaves.
+ * either side of the door a bench, Close-only, from Stage 1 and planters by it from Stage 2, on what `taken` leaves; at
+ * Stage 3 trees in planters at two corners, drawn from `planted`, as they always were.
  */
-function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], paving: string) {
+function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], paving: string, planted: number) {
   const { kit, field, block } = g
   const { x, y, w, d } = t
   // The paving, as far out as the Block lets it, clear of the kerbstone line.
@@ -1439,7 +1461,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
   kit.from(
     3,
     () => {
-      const flip = spot(x, y) % 2 ? 1 : -1
+      const flip = kit.chance(0.5) ? 1 : -1
       for (const k of [1, -1]) {
         const [px, py] = [x + k * (w / 2 + 2.2), y + k * flip * (d / 2 + 2.2)]
         if (!free({ x: px, y: py, w: 2.2, d: 2.2, ry: 0, onRoad: false })) continue
@@ -1447,7 +1469,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
         kit.tree(px, py, KERB + 0.7, kit.range(0.36, 0.44), 'round')
       }
     },
-    spot(x, y) + 3,
+    planted,
   )
 }
 
