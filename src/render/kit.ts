@@ -1091,9 +1091,9 @@ export function createKit(rand: () => number, materials: Materials) {
       put(geo, look, x, y, rf + (side < 0 ? Math.PI : 0), u * side, down, z, sx, sy, sz)
     if (aerialRoll < aerial.share[stage - 1]) {
       const [px, py] = to(x, y, rf, end * (half - 0.45), 0)
-      add(THIN, TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3, 0, 0.045, 2.7, 0.045)
-      for (const [k, len] of [1.4, 1.1, 0.8].entries())
-        add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.5 + k * 0.32, rf + turn * Math.PI)
+      add(cuboid(0.07, 2.7, 0.07), TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3) // plain boxes: aerials come by the hundred
+      for (const [k, len] of [1.4, 0.9].entries())
+        add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.6 + k * 0.4, rf + turn * Math.PI)
     }
     if (deckRoll < deck.share[stage - 1] && span > 2.2) {
       // Over the back slope by the ridge, at the end away from the aerial: a deck on posts behind a rail, and a pole.

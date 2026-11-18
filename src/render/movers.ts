@@ -322,9 +322,9 @@ function foodTruck(): THREE.BufferGeometry {
 }
 
 /**
- * A delivery scooter (#178), facing +x, centred under its middle and standing on y = 0, oversized as the cars are: two
- * wheels, a body in white for its paint under its seat, a leg shield and handlebars, a delivery box on its carrier, and
- * its rider in a jacket and a white helmet.
+ * A delivery scooter (#178), facing +x, centred under its middle and standing on y = 0, oversized more than the cars are,
+ * so that it reads from Street: two wheels, a body in white for its paint under its seat, a leg shield and handlebars, a
+ * delivery box on its carrier, and its rider in a jacket and a white helmet.
  */
 function scooter(): THREE.BufferGeometry {
   const [PAINT, TYRE, DARK, BOX, LEGS, JACKET, SKIN, HELMET] = [
@@ -352,7 +352,7 @@ function scooter(): THREE.BufferGeometry {
     part(0.5, 0.12, 0.12, 0.2, 1.42, -0.2, JACKET),
     part(0.24, 0.12, 0.26, -0.06, 1.74, 0, SKIN), // face
     part(0.34, 0.26, 0.34, -0.08, 1.84, 0, HELMET), // and helmet
-  ]).scale(1.25, 1.25, 1.25)
+  ]).scale(1.45, 1.45, 1.45)
 }
 
 /**
