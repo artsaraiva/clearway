@@ -101,7 +101,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
 
   const lamps = lampSpots(block, field)
   for (const { x, y } of lamps) kit.lamp(x, y, KERB)
-  const built = kit.mark() // what stands on the Block from here on, which the street furniture keeps off
+  const from = kit.mark() // what stands on the Block from here on, which the street furniture keeps off
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
@@ -140,7 +140,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const kept: Footprint[] = []
   if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
-  const stands = kit.dressed ? standing(block, field, kit.since(built)) : () => false
+  const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
   // The kerbside round every Tile (#175, #176), dressed as its street lights and road plate are (`./scenery`).
   if (kit.dressed) dressStreet(kit, block, field, net, spec, { lamps, trees: street, poles, stands, kept })

@@ -133,13 +133,13 @@ export function standing(block: Block, field: Field, built: Built): Stands {
     if (!r) continue
     for (let seg = 1; seg < loop.pts.length; seg++) {
       const [a, b] = [loop.pts[seg - 1], loop.pts[seg]]
-      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / (cell * 0.9)))
+      const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / step))
       for (let i = 0; i <= n; i++) {
         const [qx, qy] = [a.x + ((b.x - a.x) * i) / n, a.y + ((b.y - a.y) * i) / n]
         const k = at(qx, qy)
         if (k < 0 || !near[k]) continue
-        for (let dx = -r; dx <= r; dx += cell * 0.9)
-          for (let dy = -r; dy <= r; dy += cell * 0.9) if (dx * dx + dy * dy <= r * r) mark(qx + dx, qy + dy, 2)
+        for (let dx = -r; dx <= r; dx += step)
+          for (let dy = -r; dy <= r; dy += step) if (dx * dx + dy * dy <= r * r) mark(qx + dx, qy + dy, 2)
       }
     }
   }
