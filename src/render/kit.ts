@@ -89,6 +89,7 @@ const TERRACE_FINISH = {
   skylight: { share: [0, 0.22, 0.4], frame: '#fbf8f2', glow: 0.7 },
   pipe: '#c4ccd4',
   meter: { box: '#e9eef2', dial: '#4a525c' },
+  planter: '#c49a6c',
   ac: [0.3, 0.5, 0.7],
   corner: {
     shop: ['#2fb39a', '#f0b43c', '#79c86a', '#e8925e', '#a58ad8'],
@@ -249,12 +250,15 @@ const PAPER = new THREE.LatheGeometry(
 const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
 // An apartment block to the level of finish (#178): its roof's deck of sheets, sage green under a white parapet; how
 // steeply a mansard's skirt of tiles slopes (rad), in the tiles its plan gives it; the condensers on its roof at Stages 1
-// to 3; and how brightly the lights over its doors and at its stairs' landings glow, for the lamps' glow.
+// to 3; how brightly the lights over its doors and at its stairs' landings glow, for the lamps' glow; and the lamps on its
+// walkways' parapets, `lamp` m wide and tall and brighter, before the walkways' windows dimmed to `dim` of the windows' glow, so
+// that its walkways read as rows of dots at night with the whole City in frame.
 const APARTMENT_FINISH = {
   deck: '#9fb5a7',
   mansard: { tip: 0.9 },
   condensers: [2, 3, 5],
   light: 2,
+  walkway: { lamp: [1.2, 0.6], light: 3, dim: 0.3 },
   frame: '#4a525c',
   washing: [0, 0.12, 0.16], // of a walkway's bays at Stages 1 to 3
 }
@@ -926,7 +930,7 @@ export function createKit(rand: () => number, materials: Materials) {
     for (const lx of [-0.82, 0.82]) for (const ly of axles) local(cuboid(0.32, 0.62, 0.62), TRUCK.tyre, x, y, ry, lx, ly, h)
   }
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
-  const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
+  const pane = (share: number) => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
   /** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
   const cooler = (x: number, y: number, h: number, w: number, d: number) => {
     add(cuboid(w, 1.1, d), TOWER_FINISH.unit, x, y, h)
@@ -1187,7 +1191,7 @@ export function createKit(rand: () => number, materials: Materials) {
    * A terraced house's back and its ends that close a row (#178), on the kit's stream as the caller has it: a downpipe
    * at a back corner (and a gutter along the back eaves under a gable along the row) and one at the back of each end
    * wall; and, Close-only, a meter by the back door, pot plants beside it, an AC unit on the back wall on some and one
-   * high on an end wall on some, more with each Stage.
+   * high on an end wall on some, more with each Stage; and a planter of greens along the alley, seen from Street.
    */
   const terraceBack = (f: Footprint, h: number, wall: number, storeys: number, stage: number, roof: Pitched, ends: (1 | -1)[]) => {
     const { x, y, w, d, ry } = f
@@ -1199,8 +1203,8 @@ export function createKit(rand: () => number, materials: Materials) {
     for (const end of ends) local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, end * (w / 2 + 0.08), back + 0.35, h)
     const bays = Math.max(1, Math.round(w / TERRACE_FINISH.bay))
     const door = -w / 2 + (Math.floor(bays / 2) + 0.5) * (w / bays) // as the pattern lays the back door
+    const side = door + 0.85 < w / 2 - 0.4 ? 1 : -1 // the meter's side of the door, where it fits
     closeOnly(() => {
-      const side = door + 0.85 < w / 2 - 0.4 ? 1 : -1 // the meter's side of the door, where it fits
       local(cuboid(0.36, 0.46, 0.16), meter.box, x, y, ry, door + side * 0.85, back - 0.08, h + 1.15)
       put(FACING_DISC, meter.dial, x, y, ry + Math.PI, -(door + side * 0.85), -back + 0.17, h + 1.45, 0.08, 0.08, 1)
       for (const k of [0, 1]) pot(...to(x, y, ry, door - side * (0.75 + k * 0.5), back - 0.35), h, 0.55 + 0.2 * rand(), () => rand())
@@ -1208,6 +1212,13 @@ export function createKit(rand: () => number, materials: Materials) {
       for (const end of ends)
         if (storeys > 1 && high < ac[stage - 1]) airCon(...to(x, y, ry, end * (w / 2), back + d * 0.35), h + 3.42, ry - (end * Math.PI) / 2)
     })
+    // A planter of greens against the back wall, past the meter, or else past the pots and the AC unit on the door's
+    // other side, where it fits: the pot plants that line the alley as seen from Street.
+    const along = [door + side * 1.7, door - side * 2.85].find((u) => Math.abs(u) + 0.5 < w / 2 - 0.45)
+    if (along === undefined) return
+    local(cuboid(1, 0.4, 0.42), TERRACE_FINISH.planter, x, y, ry, along, back - 0.3, h)
+    for (const k of [-1, 1])
+      add(BUSH, pick(LEAVES.round), ...to(x, y, ry, along + k * 0.24, back - 0.3), h + 0.55, rand() * TAU, 0.34, 0.3, 0.3)
   }
   /**
    * A corner shop or a coin laundry in the ground floor of a terraced house at a row's end (#178), on the kit's stream
@@ -1757,8 +1768,9 @@ export function createKit(rand: () => number, materials: Materials) {
             if (blind(fx, fy)) continue
             for (let f = 0; f < floors; f++) {
               const look = pane(0.65) // drawn whether or not the front door takes its place
+              const dim = walk && f > 0 && finished() // behind a walkway's lamps
               if (f === 0 && k === 0 && face === door?.face && i === door.bay) frontDoor(fx, fy, ry)
-              else add(cuboid(1.5, 1.6, 0.3), look, fx, fy, h + 1.1 + f * 3.2, ry)
+              else add(cuboid(1.5, 1.6, 0.3), dim ? { ...look, glow: APARTMENT_FINISH.walkway.dim } : look, fx, fy, h + 1.1 + f * 3.2, ry)
             }
             if (walk) spots.push({ x: fx, y: fy, ry, slab: true })
             // Between this window and the next: a door onto the walkway at each floor, or a wall for an AC unit.
@@ -1767,9 +1779,13 @@ export function createKit(rand: () => number, materials: Materials) {
             if (walk)
               for (let f = 1; f < floors; f++) {
                 add(cuboid(0.95, 2.05, 0.16), TERRACE.door, gx, gy, h + 0.94 + f * 3.2, ry)
-                // A lamp beside each door, low enough to show over the parapet, so that a block's walkways read as rows of
-                // dots at night (#178).
-                if (finished()) put(cuboid(0.42, 0.42, 0.12), lit(CREAM, APARTMENT_FINISH.light), gx, gy, ry, 0.68, 0.08, h + 2.4 + f * 3.2)
+                // A lamp for each door on the walkway's parapet, on its outer face under the rail, where it shows from
+                // outside as the wall behind the parapet does not, so that a block's walkways read as rows of dots at night
+                // (#178).
+                const { lamp, light } = APARTMENT_FINISH.walkway
+                const { deep, parapet } = WALKWAY
+                const top = h + 0.94 + parapet + f * 3.2 // under the rail
+                if (finished()) put(cuboid(lamp[0], lamp[1], 0.1), lit(CREAM, light), gx, gy, ry, 0, deep + 0.05, top - lamp[1])
               }
             else spots.push({ x: gx, y: gy, ry, slab: balcony })
           }
