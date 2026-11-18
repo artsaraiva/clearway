@@ -327,7 +327,7 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
       kit.add(kit.cuboid(0.09, MIRROR.tall, 0.09), MIRROR.pole, p.x, p.y, KERB)
       kit.put(SHAPES.disc, MIRROR.pole, p.x, p.y, ry, 0, 0.08, KERB + MIRROR.tall - 0.1, MIRROR.r + 0.06, MIRROR.r + 0.06, 1)
       kit.put(SHAPES.disc, MIRROR.face, p.x, p.y, ry, 0, 0.1, KERB + MIRROR.tall - 0.1, MIRROR.r, MIRROR.r, 1)
-      kit.brick('lamp', p.x, p.y, KERB)
+      kit.brick('building', p.x, p.y, KERB) // as the rails' and the rest of the furniture's, so it arrives with them
     })
   }
 
