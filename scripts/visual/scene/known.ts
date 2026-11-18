@@ -72,13 +72,6 @@ export const KNOWN: Known[] = [
     why: 'a bathhouse or stairs graze a parking bay',
   },
   {
-    rule: 'neighbours-differ',
-    zone: 'medium-density',
-    what: /"terrace /,
-    owner: FOUND,
-    why: 'terraced houses side by side across a bend or a corner of the row',
-  },
-  {
     rule: 'paths-clear',
     zone: 'medium-density',
     what: /^scooter's path runs through townhouse/,
@@ -86,16 +79,6 @@ export const KNOWN: Known[] = [
     why: "the delivery scooter's path grazes a terraced house",
   },
   { rule: 'scenes', zone: 'medium-density', what: /^no scene/, owner: FOUND, why: 'some Blocks find no ground for a scene' },
-  // Offices (#177).
-  {
-    rule: 'keeps-clear',
-    zone: 'offices',
-    what: /sunkenCourt|^(officeTower|planter) on a taxi bay|^parked (on a door step|and officeTower)/,
-    owner: FOUND,
-    why: "a sunken court's rim under a kerbside planter or over a taxi bay; a tower or a planter on a taxi bay; a taxi before a door",
-  },
-  { rule: 'inside-block', zone: 'offices', what: /^officeTower/, owner: FOUND, why: "a tower stands over its Block's edge on seed 1" },
-  { rule: 'scenes', zone: 'offices', what: /^no scene/, owner: FOUND, why: 'a small Block that finds no ground for a scene' },
   // Shops (#175).
   {
     rule: 'keeps-clear',
@@ -112,7 +95,6 @@ export const KNOWN: Known[] = [
     why: "door pots, menu boards and stands crowd a scene's front and the door, and a vending machine stands before one on seed 5",
   },
   { rule: 'neighbours-differ', zone: 'shops', owner: FOUND, why: 'shops kept apart only from the lot cut before them' },
-  { rule: 'paths-clear', zone: 'shops', what: /^shopper/, owner: FOUND, why: "shoppers walk through a florist's or a greengrocer's stand" },
   { rule: 'scenes', zone: 'shops', owner: FOUND, why: 'shops Blocks without a scene, or with a stand smaller than a car' },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },

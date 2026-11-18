@@ -180,7 +180,8 @@ const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // as they were: its scenes, on ground reserved along a Road before any tower is laid, which every tower's plinth keeps
 // `clear` m from; its taxi bay; its plaza paving's colour; and a tower's style where its own is a neighbour's. A scene's
 // ground is `long` m along the Block's edge and `deep` m in from a line `in` m in from it, or at least `least`, `ends`
-// m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across; a
+// m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across (a
+// sculpture plaza down to `smallest` where nothing else fits); a
 // Block of `second` m² or more has a second at Stage 3. A taxi bay is `long` m along the kerb, room for two taxis, and
 // `deep` m, from `in` m in from the edge, `ends` m from its run's ends at least. Plaza paving reaches up to `plaza` m out
 // from a tower's plinth, `edge` m in from the Block's edge, clear of the kerbstone line. At Stage 3 a tower of `plate`
@@ -188,7 +189,7 @@ const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // take the cars' taxi's paints (`TAXI`).
 const OFFICE_FINISH = {
   scenes: ['court', 'sculpture', 'truck'] as OfficeScene[],
-  ground: { long: 12, deep: 7.5, in: 0.8, least: [8.5, 5.5], keep: 9, ends: 3 } as const,
+  ground: { long: 12, deep: 7.5, in: 0.8, least: [8.5, 5.5], smallest: [6, 4.5], keep: 9, ends: 3 } as const,
   clear: 1.4,
   second: 2500,
   taxi: { long: 11, deep: 2.5, in: 0.75, ends: 5 },
@@ -1877,8 +1878,9 @@ function offices(g: ZoneGround) {
     const others = STYLES.filter((s) => !near.has(s))
     if (near.has(style) && others.length) style = others[Math.floor(plans() * others.length)]
     styled.push({ lot: lots[i], style })
-    // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road.
-    const entrance = nearestFace(g, x, y, w / 2 + 3, d / 2 + 3)
+    // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road, where its canopy and the step
+    // before its door keep off a scene's ground and the taxi bay (#193).
+    const entrance = entranceOf(g, tower, taken)
     kit.staged((stage) => {
       const [t, tall] = [kit.range(0, 1), kit.chance(SKYLINE.tall)]
       kit.range(0, 1) // its style's draw, `style` above: still drawn, so that every draw after it stays
@@ -1960,10 +1962,7 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
  * clear of the lamps and the street trees, and where every tower of `bodies` that stands back from it keeps
  * `OFFICE_FINISH.ground.keep` m across, or what it had; a food truck's court only where a Road runs past the kerb its
  * truck turns in over, and a kind that finds no ground gives way to another.
- * ponytail: no smaller fall-back when no ground fits. Probed with every Layout at every rotation on each side of the
- * starting Crossroads, and on the 26-Tile City, only a Block that the seed's coral tower fills is left without a scene,
- * and the tower is its focal piece. Ceiling: a Block where even the least ground fits nowhere stands with no scene.
- * Upgrade: try a sculpture plaza down to 6 by 4.5 m before giving up.
+ * Where no kind finds ground, a sculpture plaza takes the smallest (#193).
  */
 function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[], open: Bounds[]): OfficeGround[] {
   const { ground } = OFFICE_FINISH
@@ -1980,12 +1979,16 @@ function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[]
     })
   }
   // A kind that finds no ground gives way to one the Block has not taken, as a food truck's court where no Road runs.
-  return placeScenes<OfficeScene, OfficeGround>(order, OFFICE_FINISH.scenes, (kind, out) => {
-    const room = { lampRoom: 1.2, clear: 0.5, ends: ground.ends }
+  const room = { lampRoom: 1.2, clear: 0.5, ends: ground.ends }
+  const out = placeScenes<OfficeScene, OfficeGround>(order, OFFICE_FINISH.scenes, (kind, out) => {
     const lot =
       inLot(g, open, ok(kind, out)) ?? alongEdge(g, draw, all, smaller([ground.long, ground.deep], ground.least), room, ok(kind, out))
     return lot && { ground: lot, entry: kind === 'truck' ? truckEntry(g, lot) : null }
   })
+  if (out.length) return out
+  // Where none fits, a sculpture plaza on the least ground it stands on: its sculpture is as tall as on any (#193).
+  const least = alongEdge(g, draw, all, [ground.smallest], room, ok('sculpture', out))
+  return least ? [{ kind: 'sculpture', ground: least, from: 2, entry: null }] : []
 }
 
 /** A Block's scene (#177, #178): its kind, its ground, and the Stage it stands from. */
@@ -2083,6 +2086,23 @@ const facesRoad = (r: Run) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy
 function nearestFace({ field }: ZoneGround, x: number, y: number, ax: number, ay: number): number {
   const edge = (k: number) => field.sample(x + FACES[k][0] * ax, y + FACES[k][1] * ay)
   return [1, 2, 3].reduce((best, k) => (edge(k) < edge(best) ? k : best), 0)
+}
+
+/**
+ * The face of `FACES` tower `t` opens its door on (#177): the nearest the Block's edge (`nearestFace`) whose lobby, from
+ * the plinth's face out past the canopy's posts and the step before the door, stands on the Block clear of `taken`
+ * (#193); else the nearest whose lobby stands on the Block; else the nearest.
+ */
+function entranceOf({ field }: ZoneGround, t: Body, taken: RowLot[]): number {
+  const edge = (k: number) => field.sample(t.x + FACES[k][0] * (t.w / 2 + 3), t.y + FACES[k][1] * (t.d / 2 + 3))
+  const order = [0, 1, 2, 3].sort((a, b) => edge(a) - edge(b))
+  const lobby = (k: number): RowLot => {
+    const { ry, half } = boxFace(k, t.w, t.d)
+    return { ...turned(t.x, t.y, ry, 0, half + 0.8 + 1.15), w: LOBBY.wide + 0.2, d: 2.3, ry, onRoad: false }
+  }
+  const on = (k: number) => corners(lobby(k), 0).every((p) => field.sample(p.x, p.y) > 0.2)
+  const clear = (k: number) => !taken.some((o) => overlap(o, lobby(k), 0))
+  return order.find((k) => on(k) && clear(k)) ?? order.find(on) ?? order[0]
 }
 
 /** Whether the middle of `l` lies within `b`. */
@@ -2185,7 +2205,7 @@ function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies:
   const { long, deep, ends } = OFFICE_FINISH.taxi
   const road = runs(g, OFFICE_FINISH.taxi.in).filter(facesRoad)
   return alongEdge(g, draw, road, smaller([long, deep], [5.6, deep]), { lampRoom: 1.6, clear: 0.5, ends }, (l) => {
-    return !scenes.some((o) => overlap(o, l)) && bodies.every((b) => !b || !!standBack(b, [l]))
+    return !scenes.some((o) => overlap(o, l, 0)) && bodies.every((b) => !b || !!standBack(b, [l]))
   })
 }
 
@@ -2274,7 +2294,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
   const placed: RowLot[] = [...taken]
   /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and of all placed so far. */
   const free = (l: RowLot) =>
-    stands(g, l.x, l.y, l.w, l.d, 0.7, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l))
+    stands(g, l.x, l.y, l.w, l.d, 0.7, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l, 0))
   const { ry, half } = boxFace(entrance, w, d)
   // The canopy's ground, which nothing else takes.
   placed.push({ ...turned(x, y, ry, 0, half + 0.8 + LOBBY.canopy / 2), w: LOBBY.wide + 0.6, d: LOBBY.canopy + 0.4, ry, onRoad: false })

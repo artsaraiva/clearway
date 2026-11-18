@@ -218,8 +218,12 @@ export const neighbours: Rule = (r) => {
 
 /** Whether a Block is filled as Blocks are, not given over to a bike lane or a roundabout's island. */
 const filled = (r: Report, block: number) => !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
-/** Whether a Block is filled by its Zone. */
-const zoned = (r: Report, block: number) => !!r.blocks[block].zone && filled(r, block)
+/**
+ * Whether a Block is filled by its Zone: not given over to the seed's coral tower (`./landmarks`' `tower`), the Block's
+ * focal piece in place of a scene (#193).
+ */
+const zoned = (r: Report, block: number) =>
+  !!r.blocks[block].zone && filled(r, block) && !r.things.some((t) => t.block === block && t.fill === 'tower')
 
 /**
  * Whether a thing is a scene's focal piece, larger than a car (rule 5): standing, drawn at every distance, and longer than

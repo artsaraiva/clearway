@@ -339,13 +339,14 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
   }
 
   // Along the edge, a point at a time: drain grates on the kerb line of the straight runs, and a planter or a pair of
-  // bollards wherever the pavement has run bare for `RUN.most` m.
+  // bollards wherever the pavement has run bare for `RUN.most` m. What a Zone keeps (#175) is kept clear by a planter's
+  // half length and a little, so that one laid beside it stops short of it (#193).
   const busy = (p: Vec) =>
     stands(p.x, p.y, 0.7) ||
     kept.some((f) => {
       const [c, s] = [Math.cos(f.ry), Math.sin(f.ry)]
       const [dx, dy] = [p.x - f.x, p.y - f.y]
-      return Math.abs(dx * c + dy * s) < f.w / 2 + 0.6 && Math.abs(-dx * s + dy * c) < f.d / 2 + 0.6
+      return Math.abs(dx * c + dy * s) < f.w / 2 + 1.1 && Math.abs(-dx * s + dy * c) < f.d / 2 + 1.1
     }) ||
     [...lamps, ...trees, ...pads].some((q) => near(p, q, 2.2)) ||
     byPole(p, POLE_ROOM.furniture) ||

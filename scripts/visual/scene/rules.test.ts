@@ -183,6 +183,10 @@ describe('scenes', () => {
   it('asks no scene of a Block at Stage 1', () => {
     expect(scenes(report([], { stage: 1 }))).toEqual([])
   })
+
+  it("asks no scene of a Block the seed's coral tower stands on in place of its Zone's fill", () => {
+    expect(scenes(report([thing('tower', 0, 0, 12, 12, { fill: 'tower', tall: 40 })]))).toEqual([])
+  })
 })
 
 describe('moves', () => {
