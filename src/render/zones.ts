@@ -971,6 +971,10 @@ type MediumGround = Scene<MediumScene> & { lots: number[] }
  * The scenes of a terraced Block (#178), drawn from `draw` before its houses are built (`sceneOrder`, `placeScenes`):
  * each on a span of up to three lots side by side facing a Road (any lots, on a Block with none), as wide as its kind
  * needs at least, the second not on or beside the first. Each takes its lots whole, whose houses are not built.
+ * ponytail: a Block with no span of lots for even a shrine (5.2 m by 5.2 m) has no scene, and none says so. None does on
+ * the 26-Tile City or among the 274 Blocks of every Layout at every rotation on each side of the starting Crossroads.
+ * Ceiling: rule 5 (a scene on every Block from Stage 2) fails there. Upgrade: let a shrine take ground along the Block's
+ * edge off the lots, as a courtyard Block's scenes do (`alongEdge`).
  */
 function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): MediumGround[] {
   const order = sceneOrder(g, draw, MEDIUM_FINISH.scenes, MEDIUM_FINISH.second)
@@ -1033,6 +1037,9 @@ function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
  * Road, unseen; comes in over the kerb, growing as it leaves the Road as a car does at a Gateway; pulls up at the door
  * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road. Returns
  * its way, or none if no door has room.
+ * ponytail: a Block where no door's way keeps clear has no scooter, and none says so: 4 of the 26-Tile City's 67
+ * Blocks, while every Tile keeps one. Ceiling: rule 6 (something moving on every Tile from Stage 2) fails on a Tile
+ * whose every Block misses. Upgrade: try a tighter turn on the pavement, or a stop at the kerb itself.
  */
 function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]): Vec[] {
   const { kit, field } = g
@@ -1151,11 +1158,16 @@ function courtyards(g: ZoneGround) {
       wings = [north, south, { x0, y0: y0 + deep, x1: x0 + deep, y1: y1 - deep }, { x0: x1 - deep, y0: y0 + deep, x1, y1: y1 - deep }]
       if (kit.chance(0.4)) wings.splice(Math.floor(kit.range(0, 4)), 1)
       const [cw, cd] = [w - 2 * deep, d - 2 * deep]
-      kit.lawn(x, y, KERB, cw, cd)
+      // Its court: a lawn; or, to the level of finish (#178), setts with its tree in a round bed.
+      const lift = kit.finished ? 0.45 : 0.16 // the lawn's top, or the bed's
+      if (kit.finished) {
+        kit.paving(x, y, KERB, cw, cd, 0, MEDIUM_FINISH.alley.paving, PATTERN.setts)
+        kit.drum(PLANTER, x, y, KERB, 1.3, 1.3, lift)
+      } else kit.lawn(x, y, KERB, cw, cd)
       kit.brick('ground', x, y, KERB)
       const [size, kind] = [kit.range(0.7, 0.95), kit.chance(0.3) ? 'sakura' : 'round'] as const
-      kit.staged((stage) => kit.tree(x, y, KERB + 0.16, GROW[stage - 1] * size, kind))
-      kit.from(3, () => kit.hedge(x, y, KERB + 0.16, cw - 1.2, cd - 1.2, Math.floor(kit.range(0, 4))))
+      kit.staged((stage) => kit.tree(x, y, KERB + lift, GROW[stage - 1] * size, kind))
+      kit.from(3, () => kit.hedge(x, y, KERB + (kit.finished ? 0 : 0.16), cw - 1.2, cd - 1.2, Math.floor(kit.range(0, 4))))
     } else if (Math.min(w, d) >= deep + 6) {
       const [top, left] = [kit.chance(0.5), kit.chance(0.5)]
       const [from, to] = top ? [y0, y1 - deep] : [y0 + deep, y1]
@@ -1172,6 +1184,7 @@ function courtyards(g: ZoneGround) {
   const aroundWings = built.flatMap((b) => b.wings.map((w) => ({ ...wingLot(w), w: w.x1 - w.x0 + 2, d: w.y1 - w.y0 + 2 }))) // a metre round each
   const scenes = kit.finished ? courtScenes(g, plans, [...taken, ...aroundWings]) : []
   taken.push(...scenes.map((s) => s.ground))
+  const stage1 = taken.length // what is taken from here on stands from Stage 2: the stairs and the racks
   for (const b of built) {
     kit.lot(b.lot)
     const draw = mulberry32(spot(b.x, b.y + 1))
@@ -1216,6 +1229,7 @@ function courtyards(g: ZoneGround) {
     tries.some((t) => cornerStore(g, taken, { ...t, w: CORNER.long, d: CORNER.wide, onRoad: false }, 2, toward))
   }
   kit.lot(-1)
+  const later = new Set(taken.slice(stage1))
   if (!kit.finished) return
   for (const { kind, ground, from } of scenes) {
     kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y))
@@ -1237,6 +1251,204 @@ function courtyards(g: ZoneGround) {
   )
   const way = deliveryScooter(g, plans, doors, taken)
   for (const b of built) plantings(g, b, taken, way)
+  bareGround(g, built, taken, way, later)
+}
+
+/**
+ * A pocket court on ground `l` (#178), from Stage 1: setts, a tree in a round bed in its middle that grows with the
+ * Stage, and a bench beside the bed facing it, Close-only. Each is drawn from where it stands.
+ */
+function pocketCourt(g: ZoneGround, l: RowLot) {
+  const { kit } = g
+  const seat = turned(l.x, l.y, l.ry, Math.min(2.2, l.w / 2 - 0.35), 0)
+  kit.from(
+    1,
+    () => {
+      kit.paving(l.x, l.y, KERB, l.w, l.d, l.ry, MEDIUM_FINISH.alley.paving, PATTERN.setts)
+      kit.drum(PLANTER, l.x, l.y, KERB, 1.1, 1.1, 0.45)
+      kit.brick('building', l.x, l.y, KERB)
+      kit.closeOnly(() => kit.bench(seat.x, seat.y, KERB, l.ry + Math.PI / 2))
+    },
+    spot(l.x, l.y),
+  )
+  kit.staged((stage) => kit.tree(l.x, l.y, KERB + 0.45, GROW[stage - 1] * 0.55, 'round'), spot(l.x, l.y) + 1)
+}
+
+/** A tree in a round bed at `(x, y)` (#178), from Stage 1, growing with the Stage, drawn from where it stands. */
+function bedTree(g: ZoneGround, x: number, y: number) {
+  const { kit } = g
+  kit.from(
+    1,
+    () => {
+      kit.drum(PLANTER, x, y, KERB, 1.2, 1.2, 0.5)
+      kit.brick('building', x, y, KERB)
+    },
+    spot(x, y),
+  )
+  kit.staged((stage) => kit.tree(x, y, KERB + 0.5, GROW[stage - 1] * 0.5, 'round'), spot(x, y) + 1)
+}
+
+// What fills the bare paving round a courtyard Block's buildings (#178): m a cell of the grid it is read on; how far
+// either way of its middle line a stretch lies bare, and how long it runs, to be filled; how far each filling keeps
+// from what stands there; and how many a Block takes at most.
+const BARE = { cell: 1, half: 2, long: 11, keep: 1, most: 40 }
+
+/**
+ * What fills the bare paving left round a courtyard Block's buildings (#178; rule 3, no 12 m of pavement stands empty),
+ * from Stage 1, once all else has taken its ground (`taken`, the buildings `built` and the scooter's `way`), what is
+ * `later` (from Stage 2) left bare: while a
+ * stretch lies bare `BARE.half` m either way of its middle line for `BARE.long` m or more, in its middle a car park of
+ * four bays or a pocket court, turn about, or a tree in a round bed where neither fits, facing the nearest run of the Block's edge and standing clear of
+ * the lamps, the street trees, the poles and the scooter's way. Each takes its ground in `taken`. Read on a grid of
+ * `BARE.cell` m.
+ * ponytail: a stretch where none fits stays bare, as does any left after `BARE.most` fillings. On the 26-Tile City none
+ * is left at Stages 2 and 3; at Stage 1 two are, beside ground where outside stairs and a rack stand from Stage 2,
+ * which no filling takes. Ceiling: rule 3 fails there. Upgrade: a smaller filling, such as a planter.
+ */
+function bareGround(g: ZoneGround, built: Built[], taken: RowLot[], way: Vec[], later: Set<RowLot>) {
+  const { block, field } = g
+  const { cell: C, half, long, keep, most } = BARE
+  const [x0, y0] = [block.x0, block.y0]
+  const [nx, ny] = [Math.ceil((block.x1 - x0) / C), Math.ceil((block.y1 - y0) / C)]
+  const at = (c: number) => ({ x: x0 + ((c % nx) + 0.5) * C, y: y0 + (Math.floor(c / nx) + 0.5) * C })
+  const free = new Uint8Array(nx * ny)
+  // On the Block: cells well in from its edge, flooded from its buildings' middles, so none of a Block next door counts.
+  const stack = built.map((b) => Math.floor((b.y - y0) / C) * nx + Math.floor((b.x - x0) / C)).filter((c) => c >= 0 && c < nx * ny)
+  for (const c of stack) free[c] = 1
+  while (stack.length) {
+    const c = stack.pop()!
+    const [i, j] = [c % nx, Math.floor(c / nx)]
+    for (const [di, dj] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const [ii, jj] = [i + di, j + dj]
+      const n = jj * nx + ii
+      if (ii < 0 || jj < 0 || ii >= nx || jj >= ny || free[n]) continue
+      const p = at(n)
+      if (field.sample(p.x, p.y) > 0.5) {
+        free[n] = 1
+        stack.push(n)
+      }
+    }
+  }
+  /** Mark bare no longer the cells within `pad` m of row lot `l`. */
+  const cover = (l: RowLot, pad: number) => {
+    const r = Math.hypot(l.w, l.d) / 2 + pad
+    for (let j = Math.max(0, Math.floor((l.y - r - y0) / C)); j <= Math.min(ny - 1, Math.floor((l.y + r - y0) / C)); j++)
+      for (let i = Math.max(0, Math.floor((l.x - r - x0) / C)); i <= Math.min(nx - 1, Math.floor((l.x + r - x0) / C)); i++) {
+        const p = at(j * nx + i)
+        if (near(l, p.x, p.y, pad)) free[j * nx + i] = 0
+      }
+  }
+  // The buildings: an L's wings and a bar, and an O or a U whole, round its paved court.
+  const buildings = built.flatMap((b) => (b.wings.length >= 3 ? [wingLot(wingBounds(b.wings))] : b.wings.map(wingLot)))
+  for (const b of buildings) cover(b, 0.5)
+  for (const l of taken) if (!later.has(l)) cover(l, 0.25) // the stairs and racks leave it bare at Stage 1
+  for (const p of g.lamps) cover(around(1.6)(p), 0)
+  for (const p of g.street) cover(around(3.6)(p), 0)
+  for (const p of g.poles) cover(around(0.8)(p), 0)
+  const edges = runs(g, 1)
+  const passing = way.flatMap((a, i) => {
+    if (!i) return []
+    const b = way[i - 1]
+    const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.5)
+    return Array.from({ length: n + 1 }, (_, k) => ({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n }))
+  })
+  /** Whether ground `l` is clear to fill. */
+  const clear = (l: RowLot) =>
+    stands(g, l.x, l.y, l.w, l.d, 0.5, l.ry) &&
+    !taken.some((o) => overlap(o, { ...l, w: l.w + 0.6, d: l.d + 0.6 })) &&
+    !buildings.some((b) => overlap({ ...b, w: b.w + 1, d: b.d + 1 }, l)) &&
+    ![...g.lamps, ...g.poles].some((p) => near(l, p.x, p.y, 1)) &&
+    !passing.some((p) => near(l, p.x, p.y, keep))
+  for (let placed = 0; placed < most; placed++) {
+    // Each bare cell's distance to the nearest cell that is not, in two passes.
+    const dist = new Float32Array(nx * ny)
+    for (let c = 0; c < nx * ny; c++) dist[c] = free[c] ? 1e9 : 0
+    const d = (i: number, j: number) => (i < 0 || j < 0 || i >= nx || j >= ny ? 0 : dist[j * nx + i])
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++)
+        if (dist[j * nx + i])
+          dist[j * nx + i] = Math.min(
+            dist[j * nx + i],
+            d(i - 1, j) + 1,
+            d(i, j - 1) + 1,
+            d(i - 1, j - 1) + Math.SQRT2,
+            d(i + 1, j - 1) + Math.SQRT2,
+          )
+    for (let j = ny - 1; j >= 0; j--)
+      for (let i = nx - 1; i >= 0; i--)
+        if (dist[j * nx + i])
+          dist[j * nx + i] = Math.min(
+            dist[j * nx + i],
+            d(i + 1, j) + 1,
+            d(i, j + 1) + 1,
+            d(i + 1, j + 1) + Math.SQRT2,
+            d(i - 1, j + 1) + Math.SQRT2,
+          )
+    // The longest stretch bare `half` m either way of its middle line.
+    const seen = new Uint8Array(nx * ny)
+    let worst: { cells: number[]; length: number } | null = null
+    for (let c = 0; c < nx * ny; c++) {
+      if (seen[c] || dist[c] * C < half) continue
+      const cells = [c]
+      seen[c] = 1
+      for (let k = 0; k < cells.length; k++) {
+        const [i, j] = [cells[k] % nx, Math.floor(cells[k] / nx)]
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const n = (j + dj) * nx + i + di
+            if (i + di < 0 || j + dj < 0 || i + di >= nx || j + dj >= ny || seen[n] || dist[n] * C < half) continue
+            seen[n] = 1
+            cells.push(n)
+          }
+      }
+      const far = (from: number) =>
+        cells.reduce(
+          (best, q) =>
+            Math.hypot(at(q).x - at(from).x, at(q).y - at(from).y) > Math.hypot(at(best).x - at(from).x, at(best).y - at(from).y)
+              ? q
+              : best,
+          from,
+        )
+      const a = far(cells[0])
+      const b = far(a)
+      const length = Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y) + 2 * half
+      if (length >= long && (!worst || length > worst.length)) worst = { cells, length }
+    }
+    if (!worst) break
+    // In its middle, as near as a filling fits, facing the nearest run of the Block's edge.
+    const { cells } = worst
+    const [mx, my] = [cells.reduce((s, q) => s + at(q).x, 0) / cells.length, cells.reduce((s, q) => s + at(q).y, 0) / cells.length]
+    cells.sort((p, q) => Math.hypot(at(p).x - mx, at(p).y - my) - Math.hypot(at(q).x - mx, at(q).y - my))
+    // A car park of four bays, a pocket court or a tree in a bed; on every other filling a court before a car park.
+    const [park, court, bed] = [
+      [4 * BAY_WIDTH, MEDIUM_FINISH.bays.deep],
+      [5.2, 5.2],
+      [3, 3],
+    ]
+    let done = false
+    for (const [w, deep] of placed % 2 ? [court, park, bed] : [park, court, bed])
+      for (const q of cells) {
+        if (done) break
+        const p = at(q)
+        const off = (r: Run) => distance(p, r.a, { x: r.a.x + r.ux * r.len, y: r.a.y + r.uy * r.len })
+        const run = edges.length ? edges.reduce((best, r) => (off(r) < off(best) ? r : best)) : null
+        const l = { ...p, w, d: deep, ry: run?.ry ?? 0, onRoad: false }
+        if (!clear(l)) continue
+        taken.push(l)
+        g.kept.push(l)
+        if (w === park[0]) parkedBays(g, l)
+        else if (w === court[0]) pocketCourt(g, l)
+        else bedTree(g, l.x, l.y)
+        cover(l, keep)
+        done = true
+      }
+    if (!done) for (const q of cells) free[q] = 0 // nothing fits there: leave it
+  }
 }
 
 /**
@@ -1320,17 +1532,34 @@ function courtPlan(built: Built[], lot: Bounds, shape: number, floors: number, p
 
 /**
  * The ground of apartment building `b` (#178), from Stage 1, where it stands clear of `taken`: in an L's inner corner, a
- * court in setts with a tree in a round bed and a bench, Close-only; in an O's or a U's court, a bench by its tree.
+ * court in setts with a tree in a round bed and a bench, Close-only; in an O's or a U's court, which `courtyards` paves,
+ * a bench by its tree; and by a bar, a pocket court (`pocketCourt`) at its foot where there is ground.
  */
 function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
   const { kit } = g
   const { x0, y0, x1, y1 } = wingBounds(b.wings)
   if (b.wings.length >= 3) {
     if (Math.min(x1 - x0, y1 - y0) - 2 * (b.wings[0].y1 - b.wings[0].y0) >= 5.4)
-      kit.from(1, () => kit.closeOnly(() => kit.bench(b.x + 1.9, b.y, KERB + 0.16, -Math.PI / 2)), spot(b.x + 1.9, b.y))
+      kit.from(1, () => kit.closeOnly(() => kit.bench(b.x + 1.9, b.y, KERB, -Math.PI / 2)), spot(b.x + 1.9, b.y))
     return
   }
-  if (b.wings.length !== 2) return
+  if (b.wings.length === 1) {
+    // A bar's small court at its foot: by the middle or a quarter of a long face, the south or the east one first.
+    const [wing] = b.wings
+    for (const face of wing.x1 - wing.x0 >= wing.y1 - wing.y0 ? [1, 0] : [2, 3]) {
+      const [len, mx, my] = faceOf(wing, face)
+      const ry = Math.atan2(-FACES[face][0], FACES[face][1])
+      for (const u of [0, -len / 4, len / 4]) {
+        const l = { ...turned(mx, my, ry, u, 2.6), w: 4.6, d: 4.4, ry, onRoad: false }
+        if (!stands(g, l.x, l.y, l.w, l.d, 0.6, ry) || taken.some((o) => overlap(o, l)) || g.lamps.some((p) => near(l, p.x, p.y, 1.2)))
+          continue
+        taken.push(l)
+        g.kept.push(l)
+        return pocketCourt(g, l)
+      }
+    }
+    return
+  }
   const [a, c] = b.wings // the wing along the north or south, and the other
   const [ix0, ix1] = c.x0 <= x0 + 0.01 ? [c.x1, x1] : [x0, c.x0]
   const [iy0, iy1] = a.y0 <= y0 + 0.01 ? [a.y1, y1] : [y0, a.y0]
@@ -1361,7 +1590,6 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
  * colours. The bays and their cars then take their ground in `taken`.
  */
 function parking(g: ZoneGround, draw: () => number, taken: RowLot[], room: RowLot[]) {
-  const { kit } = g
   const { most, least, deep } = MEDIUM_FINISH.bays
   const sizes: [number, number][] = [
     [most * BAY_WIDTH, deep],
@@ -1372,6 +1600,12 @@ function parking(g: ZoneGround, draw: () => number, taken: RowLot[], room: RowLo
   if (!l) return
   taken.push({ ...l, ...turned(l.x, l.y, l.ry, 0, -0.2), w: l.w + 0.4, d: l.d + 0.4 }) // and a margin, so no hedge stands on its lines
   g.kept.push(l)
+  parkedBays(g, l)
+}
+
+/** Parking bays on ground `l` (#178), as many as fit across it, open to its front, with a kei car in the first from Stage 2 and the last at Stage 3. */
+function parkedBays(g: ZoneGround, l: RowLot) {
+  const { kit } = g
   const bays = Math.round(l.w / BAY_WIDTH)
   kit.from(1, () => parkingBays(kit, l, bays), spot(l.x, l.y))
   ;[0, bays - 1].forEach((k, n) => {
