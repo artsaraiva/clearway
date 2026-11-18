@@ -77,6 +77,21 @@ export function tint(g: THREE.BufferGeometry, color: THREE.ColorRepresentation):
   return g.setAttribute('color', new THREE.BufferAttribute(a, 3))
 }
 
+/** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
+export const painted = (geo: THREE.BufferGeometry, share: number) =>
+  geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
+
+/** Have a material paint each vertex its instance's colour as its `painted` share has it (#156). */
+export const takesPaint = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
+    '#include <color_vertex>',
+    `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
+#endif`,
+  )
+}
+
 /** A texture drawn on a canvas. */
 export function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const c = document.createElement('canvas')

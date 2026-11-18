@@ -5,7 +5,7 @@ import type { Polyline } from '../sim/geometry'
 import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
-import { canvasTexture, tint } from './shapes'
+import { canvasTexture, painted, takesPaint, tint } from './shapes'
 
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
@@ -280,7 +280,7 @@ function forklift(): THREE.BufferGeometry {
  * A shopper (#175) walking a shops Tile's pavement and stopping at the fronts, as tall as the walkers: legs, a coat in
  * white for its paint, a head and hair, and a bag at its side. Faces +x.
  */
-function shopper(): THREE.BufferGeometry {
+export function shopper(): THREE.BufferGeometry {
   const [LEGS, SKIN, HAIR, BAG] = ['#3a4252', '#f1d1b5', '#3a3330', '#f4ead2']
   return merged([
     part(0.26, 0.82, 0.4, 0, 0, 0, LEGS),
@@ -317,21 +317,6 @@ function futon(): THREE.BufferGeometry {
     part(1.7, 1.05, 0.14, 0, -1, -0.24, PAINT), // hanging out
     part(1.7, 0.55, 0.14, 0, -0.5, 0.24, PAINT), // and in
   ])
-}
-
-/** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
-const painted = (geo: THREE.BufferGeometry, share: number) =>
-  geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
-
-/** Have a material paint each vertex its instance's colour as its `painted` share has it (#156). */
-const takesPaint = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
-    '#include <color_vertex>',
-    `#include <color_vertex>
-#ifdef USE_INSTANCING_COLOR
-\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
-#endif`,
-  )
 }
 
 /**
