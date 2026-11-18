@@ -40,8 +40,14 @@ export const KNOWN: Known[] = [
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
     rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the level of finish` })),
   ),
-  // Every Zone: the kerbside (#176) leaves up to 16 m bare, as where a Block's corner faces a roundabout's ring.
-  { rule: 'empty-pavement', most: 16, owner: FOUND, why: "the kerbside leaves 13 to 16 m bare, as at a Block's corner on a roundabout" },
+  // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
+  // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).
+  {
+    rule: 'empty-pavement',
+    most: 16,
+    owner: FOUND,
+    why: "the kerbside leaves 12 to 16 m bare by a truck court's way in, a corner's rail or a roundabout's flare",
+  },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },
 ]

@@ -9,8 +9,11 @@ export const TOLERANCE = 0.1
 export const CAR = { long: 4.3, tall: 3 }
 /** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
 export const SECOND_SCENE = 2500
-/** m of pavement that may stand empty (rule 3), and how far in from the kerb something must stand to fill it. */
-export const EMPTY = { run: 12, band: 4, step: 1 }
+/**
+ * m of pavement that may stand empty (rule 3), how far in from the kerb something must stand to fill it, and within how
+ * far of the kerb a bay lies at it, as a taxi bay 0.75 m in does.
+ */
+export const EMPTY = { run: 12, band: 4, step: 1, bay: 1.5 }
 /** The reserved colours (the visual-style spec's Palette): nothing within `hue`° of either goes over `chroma` of its chroma. */
 export const RESERVED = { tool: '#1f7aff', jam: '#ff4a1f', hue: 30, chroma: 0.65 }
 /** m above the ground a vehicle's lowest point may stand: it stands on its wheels. */
@@ -352,8 +355,9 @@ export const budget =
 
 /**
  * No 12 m of pavement stands empty (rule 3): walking each Block's kerb where it faces a Road a metre at a time, something
- * standing (any layer, a wall too) within `EMPTY.band` m of the kerb, or a utility pole or lamp beside it. Approximation:
- * only what stands counts, so paving or a planted bed alone leaves the pavement empty, as a bare run of joints is.
+ * standing (any layer, a wall too) within `EMPTY.band` m of the kerb, or a utility pole or lamp beside it. A taxi or a
+ * parking bay laid at the kerb is no pavement, a lay-by off the Road, and breaks the run (#193). Approximation: only
+ * what stands counts, so paving or a planted bed alone leaves the pavement empty, as a bare run of joints is.
  */
 export const emptyPavement: Rule = (r) => {
   const out: Failure[] = []
@@ -361,6 +365,7 @@ export const emptyPavement: Rule = (r) => {
   r.blocks.forEach((b, i) => {
     if (!filled(r, i)) return
     const near = standers.filter((t) => t.block === i || t.block < 0)
+    const bays = r.claims.filter((c) => c.block === i && c.kind !== 'door').map((c) => ({ feet: [c.hull], box: boxOfHull(c.hull) }))
     const runs = b.kerb ?? [along([...b.loop, b.loop[0]], EMPTY.step)]
     let [longest, at]: [number, Pt | null] = [0, null]
     for (const pts of runs) {
@@ -370,7 +375,11 @@ export const emptyPavement: Rule = (r) => {
           feet: [disc(p.x, p.y, EMPTY.band)],
           box: { x0: p.x - EMPTY.band, y0: p.y - EMPTY.band, x1: p.x + EMPTY.band, y1: p.y + EMPTY.band },
         }
-        run = near.some((t) => depth(probe, t) > 0) ? 0 : run + 1
+        const lay = {
+          feet: [disc(p.x, p.y, EMPTY.bay)],
+          box: { x0: p.x - EMPTY.bay, y0: p.y - EMPTY.bay, x1: p.x + EMPTY.bay, y1: p.y + EMPTY.bay },
+        }
+        run = near.some((t) => depth(probe, t) > 0) || bays.some((c) => depth(lay, c) > 0) ? 0 : run + 1
         if (run > longest) [longest, at] = [run, p]
       }
     }
