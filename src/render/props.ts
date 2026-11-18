@@ -5,6 +5,7 @@ import { KERB } from './blocks'
 import { PAINTS } from './cars'
 import { SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
+import type { Footprint } from './streets'
 
 // The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a focal
 // piece larger than a car, seen from Street: a greengrocer's stand spilling onto the pavement, a florist's, a row of
@@ -250,21 +251,12 @@ function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
 const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() => kit.bench(x, y, KERB, ry))
 
 /**
- * An offices Block's scene `kind` at Stage `stage` (#177), from Stage `from`, on its ground `w` by `d` at `(x, y)`, its
- * front facing `ry` toward the Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
+ * An offices Block's scene `kind` at Stage `stage` (#177), from Stage `from`, on its `ground`, its front facing the
+ * Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
  * middle and a bench either side of it, Close-only.
  */
-export function officeScene(
-  kit: Kit,
-  kind: OfficeScene,
-  x: number,
-  y: number,
-  w: number,
-  d: number,
-  ry: number,
-  stage: number,
-  from: number,
-) {
+export function officeScene(kit: Kit, kind: OfficeScene, ground: Footprint, stage: number, from: number) {
+  const { x, y, w, d, ry } = ground
   kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
   if (stage >= from) return { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind](kit, x, y, w, d, ry, stage)
   bedTree(kit, x, y, 1.3, 0.5)
@@ -358,7 +350,7 @@ export const truckTurn = (w: number, turn: number) => -w / 2 + FOOD_TRUCK.park[0
  * The way a truck court's food truck comes in (#177), on its court `w` by `d` at `(x, y)` facing `ry`: from the kerb at
  * `entry`, slanting in over the pavement, curving to park along the front, where it heads along it.
  */
-export function truckPath(x: number, y: number, w: number, d: number, ry: number, entry: TruckEntry): Vec[] {
+export function truckPath({ x, y, w, d, ry }: Footprint, entry: TruckEntry): Vec[] {
   const [px, py] = [-w / 2 + FOOD_TRUCK.park[0], d / 2 - FOOD_TRUCK.park[1]]
   const [kx, ky] = [truckTurn(w, entry.turn), d / 2 + entry.kerb]
   return Array.from({ length: 9 }, (_, i) => {
@@ -422,8 +414,8 @@ function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
  * car does at a Gateway, and curves in to park along the front, its hatch toward the tables. After midday it backs out
  * the way it came and shrinks away at the kerb; one lap a day. Its paint is drawn from where it parks.
  */
-export function foodTruck(kit: Kit, x: number, y: number, w: number, d: number, ry: number, entry: TruckEntry) {
-  const curve = truckPath(x, y, w, d, ry, entry)
+export function foodTruck(kit: Kit, court: Footprint, entry: TruckEntry) {
+  const curve = truckPath(court, entry)
   const parked = curve[curve.length - 1]
   const paint = FOOD_TRUCKS[spot(parked.x, parked.y) % FOOD_TRUCKS.length]
   const loop = polyline([...curve, ...curve.slice(0, -1).reverse()])
@@ -475,7 +467,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
  * strip of tarmac set into the pavement, lined along its back and ends, and a stand's sign on a post at one end whose
  * board lights at night and leaves a pool. The taxis waiting in it are the kit's.
  */
-export function taxiBay(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
+export function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
   kit.put(kit.cuboid(w, 0.02, d), TAXI_BAY.tarmac, x, y, ry, 0, 0, KERB)
   kit.put(kit.cuboid(w, 0.03, 0.12), TAXI_BAY.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
   for (const k of [-1, 1]) kit.put(kit.cuboid(0.12, 0.03, d), TAXI_BAY.line, x, y, ry, k * (w / 2 - 0.06), 0, KERB)

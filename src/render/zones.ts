@@ -1135,12 +1135,12 @@ function offices(g: ZoneGround) {
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
   for (const { ground: s, kind, from, entry } of scenes) {
-    kit.staged((stage) => officeScene(kit, kind, s.x, s.y, s.w, s.d, s.ry, stage, from), spot(s.x, s.y))
-    if (entry) kit.from(from, () => foodTruck(kit, s.x, s.y, s.w, s.d, s.ry, entry), spot(s.x, s.y) + 1)
-    g.kept.push({ x: s.x, y: s.y, w: s.w, d: s.d, ry: s.ry })
+    kit.staged((stage) => officeScene(kit, kind, s, stage, from), spot(s.x, s.y))
+    if (entry) kit.from(from, () => foodTruck(kit, s, entry), spot(s.x, s.y) + 1)
+    g.kept.push(s)
   }
   if (taxi) {
-    kit.from(1, () => taxiBay(kit, taxi.x, taxi.y, taxi.w, taxi.d, taxi.ry), spot(taxi.x, taxi.y))
+    kit.from(1, () => taxiBay(kit, taxi), spot(taxi.x, taxi.y))
     const cars = taxi.w >= OFFICE_FINISH.taxi.long - 0.5 ? [-1, 1] : [0]
     cars.forEach((k, n) => {
       const p = turned(taxi.x, taxi.y, taxi.ry, k * 2.6, 0.08)
@@ -1148,7 +1148,7 @@ function offices(g: ZoneGround) {
       // Facing along the kerb with the pavement on its left, as a car stands at a Japanese kerb.
       kit.from(n ? 3 : 2, () => kit.taxi(p.x, p.y, KERB + 0.02, taxi.ry + Math.PI / 2, paint), spot(p.x, p.y))
     })
-    g.kept.push({ x: taxi.x, y: taxi.y, w: taxi.w, d: taxi.d, ry: taxi.ry })
+    g.kept.push(taxi)
   }
 }
 
@@ -1245,7 +1245,7 @@ function truckEntry(g: ZoneGround, l: RowLot): TruckEntry | null {
   for (const turn of TRUCK_TURNS) {
     const kerb = kerbAhead(g, l, truckTurn(l.w, turn))
     if (kerb === null) continue
-    const way = truckPath(l.x, l.y, l.w, l.d, l.ry, { turn, kerb })
+    const way = truckPath(l, { turn, kerb })
     const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
     if (g.poles.every((p) => clear(p, 1.5)) && g.lamps.every((p) => clear(p, 1.6)) && g.street.every((p) => clear(p, 1.8)))
       return { turn, kerb }
