@@ -122,6 +122,7 @@ const SKINS: Record<Skin, { share: number; paints: THREE.Color[]; lamps: Lamps; 
       ...[1.01, -1.01].map((z) => box(2.75, 0.42, 0.08, -0.78, 0.76, z, PAINT, 1)), // its gates
       box(0.08, 0.42, 2.1, -2.11, 0.76, 0, PAINT, 1),
       box(0.08, 0.95, 2.1, 0.56, 0.76, 0, PART.chassis), // the guard behind the cab
+      ...wheels(0.34, 1.35, 0.94), // small, as a kei truck's are, their tops inside its bed
     ],
   },
 }
