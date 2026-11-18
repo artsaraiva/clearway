@@ -95,6 +95,21 @@ export const TAXI = {
 }
 
 /**
+ * The tall kei wagon (#176): its body, cabin and band of glass, its wheels and its lamps, as the taxi's. A kei car
+ * parked by an apartment block (the kit's `parked`, #178) is drawn from the same numbers, in the cars' colours.
+ */
+export const KEI = {
+  body: { long: LENGTH, tall: 0.82, wide: 2.06, at: 0, up: 0.32 } as Piece,
+  cabin: { long: 3.55, tall: 1.36, wide: 1.98, at: -0.35, up: 1.04 } as Piece,
+  glass: { long: 3.61, tall: 0.6, wide: 2.04, at: -0.35, up: 1.58 } as Piece,
+  wheels: { r: 0.38, axle: 1.4, track: 0.94 },
+  lamps: { head: { y: 0.84, z: 0.58 }, tail: { y: 0.9, z: 0.8, tall: 0.55, wide: 0.24 } } as Lamps,
+  paints: Object.values(PAINTS),
+}
+/** A car's model as the kit parks it (#177, #178): the taxi's or the kei wagon's. */
+export type ParkedModel = typeof TAXI | typeof KEI
+
+/**
  * The skins (#176). For each: the share of cars that wear it and the paints it comes in, both drawn from a car's id
  * (`skinOf`); its lamps; and its body's other parts, facing +x, centred under its middle and standing on y = 0,
  * `LENGTH` long and oversized across as the cars always were, so that every skin reads as traffic alike: wheels, a body
@@ -118,13 +133,16 @@ const SKINS: Record<Skin, { share: number; paints: THREE.Color[]; lamps: Lamps; 
   kei: {
     share: 0.28,
     paints: COLORS,
-    lamps: { head: { y: 0.84, z: 0.58 }, tail: { y: 0.9, z: 0.8, tall: 0.55, wide: 0.24 } },
-    parts: () => [
-      rounded(LENGTH, 0.82, 2.06, 0.32, 0, 0.32, 0, PAINT, 1),
-      rounded(3.55, 1.36, 1.98, 0.3, -0.35, 1.04, 0, PAINT, 1),
-      rounded(3.61, 0.6, 2.04, 0.32, -0.35, 1.58, 0, PART.glass),
-      ...wheels(0.38, 1.4, 0.94),
-    ],
+    lamps: KEI.lamps,
+    parts: () => {
+      const { body, cabin, glass, wheels: w } = KEI
+      return [
+        rounded(body.long, body.tall, body.wide, 0.32, body.at, body.up, 0, PAINT, 1),
+        rounded(cabin.long, cabin.tall, cabin.wide, 0.3, cabin.at, cabin.up, 0, PAINT, 1),
+        rounded(glass.long, glass.tall, glass.wide, 0.32, glass.at, glass.up, 0, PART.glass),
+        ...wheels(w.r, w.axle, w.track),
+      ]
+    },
   },
   // A saloon taxi: bonnet, cabin and boot, and its lamp on the roof, cream by day and lit at night.
   taxi: {

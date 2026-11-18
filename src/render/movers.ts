@@ -13,7 +13,7 @@ import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes
 // beacons (#155) blink at night, and pools of light (#174) lie warm on the ground under the lights.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck' | 'scooter'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -147,6 +147,7 @@ const KINDS: Record<MoverKind, Kind> = {
   gondola: { speed: 1, bob: 0, rate: 0, model: gondola, wide: 0 },
   shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper, wide: 0.8 }, // #175
   foodtruck: { speed: 2, bob: 0.015, rate: 11, model: foodTruck, wide: 2.6 }, // #177
+  scooter: { speed: 2.6, bob: 0.025, rate: 12, model: scooter, wide: 1.1 }, // #178
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -318,6 +319,40 @@ function foodTruck(): THREE.BufferGeometry {
   ]
   for (const x of [1.4, -1.4]) for (const z of [0.86, -0.86]) parts.push(wheel(0.38, 0.32, x, z, TYRE, 8))
   return merged(parts)
+}
+
+/**
+ * A delivery scooter (#178), facing +x, centred under its middle and standing on y = 0, oversized more than the cars are,
+ * so that it reads from Street: two wheels, a body in white for its paint under its seat, a leg shield and handlebars, a
+ * delivery box on its carrier, and its rider in a jacket and a white helmet.
+ */
+function scooter(): THREE.BufferGeometry {
+  const [PAINT, TYRE, DARK, BOX, LEGS, JACKET, SKIN, HELMET] = [
+    '#ffffff',
+    '#2f3440',
+    '#4a525c',
+    '#f0c75e',
+    '#3a4252',
+    '#55705f',
+    '#f1d1b5',
+    '#fbf8f2',
+  ]
+  return merged([
+    wheel(0.3, 0.14, 0.62, 0, TYRE, 10),
+    wheel(0.3, 0.14, -0.6, 0, TYRE, 10),
+    part(1.05, 0.34, 0.4, -0.08, 0.32, 0, PAINT), // the body
+    part(0.14, 0.74, 0.46, 0.44, 0.3, 0, PAINT), // the leg shield
+    part(0.08, 0.36, 0.08, 0.5, 1.02, 0, DARK), // the stem
+    part(0.1, 0.06, 0.72, 0.5, 1.36, 0, DARK), // the handlebars
+    part(0.62, 0.1, 0.36, -0.22, 0.66, 0, DARK), // the seat
+    part(0.62, 0.52, 0.58, -0.66, 0.68, 0, BOX), // the box on its carrier
+    part(0.34, 0.44, 0.42, -0.12, 0.76, 0, LEGS), // the rider: legs,
+    part(0.34, 0.56, 0.46, -0.1, 1.18, 0, JACKET), // jacket,
+    part(0.5, 0.12, 0.12, 0.2, 1.42, 0.2, JACKET), // arms on the bars,
+    part(0.5, 0.12, 0.12, 0.2, 1.42, -0.2, JACKET),
+    part(0.24, 0.12, 0.26, -0.06, 1.74, 0, SKIN), // face
+    part(0.34, 0.26, 0.34, -0.08, 1.84, 0, HELMET), // and helmet
+  ]).scale(1.45, 1.45, 1.45)
 }
 
 /**

@@ -4,11 +4,12 @@ import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
-import { lampBoxes, PART as CAR, TAXI } from './cars'
+import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
 import type { Beacon, BeaconColour, Flag, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
-import { clad, createPatterns, panel, pave, PATTERN, wrap, type Cladding, type Pattern } from './pattern'
-import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
+import { clad, createPatterns, panel, pave, PATTERN, tile, wrap, type Cladding, type Pattern } from './pattern'
+import { canvasTexture, gable, hip, roundedBox, sawtooth, tint } from './shapes'
+import type { Footprint } from './streets'
 
 const TAU = Math.PI * 2
 // The palette is the oversaturated one picked in #104 at its gentlest strength. Within 30° of hue of the Tool blue or
@@ -74,6 +75,29 @@ const BIKES = {
 const WASHING = ['#ffffff', '#ffffff', '#ffc52d', '#bc9ef2', '#a6dcef', '#fbe3a2', '#ff9cbb']
 const COVERS = ['#ff9ab8', '#f0b43c', '#a58ad8', '#79c86a', '#fff7e8', '#5cc0d6']
 const STEEL = { frame: '#6f7986', tread: '#a7aeb6', pole: '#c4ccd4' }
+// Medium-density residential to the level of finish (#178). A terraced house: a bay of its back and its ends (m); how
+// steeply a hip or a gable to the front climbs, as a share of its half-span (32°); on its roof, a TV aerial, a steel
+// laundry deck, a solar water heater and a skylight, each on the share of the houses from Stages 1, 2 and 3 that the
+// roll drawn where it stands gives it; its downpipes and gutter, and the meter and the share with an AC unit at its back;
+// a corner shop's signs or a coin laundry's, the laundry's glass lit brighter, and its machines' round doors.
+const TERRACE_FINISH = {
+  bay: 2.4,
+  pitch: 0.62,
+  aerial: { share: [0.35, 0.5, 0.6], steel: '#8e979f' },
+  deck: { share: [0, 0.25, 0.45], steel: STEEL.pole, slats: STEEL.tread },
+  heater: { share: [0, 0.18, 0.3], tank: '#eef1f3' },
+  skylight: { share: [0, 0.22, 0.4], frame: '#fbf8f2', glow: 0.7 },
+  pipe: '#c4ccd4',
+  meter: { box: '#e9eef2', dial: '#4a525c' },
+  planter: '#c49a6c',
+  ac: [0.3, 0.5, 0.7],
+  corner: {
+    shop: ['#2fb39a', '#f0b43c', '#79c86a', '#e8925e', '#a58ad8'],
+    laundry: ['#5cc0d6', '#fbf8f2', '#79c86a'],
+    glow: 1.35,
+    drum: '#4a525c',
+  },
+}
 /** Outside stairs (#156): m along their flights, across their two lanes, and the depth of a landing. */
 export const STAIR = { long: 4.2, wide: 2.4, landing: 1.1 }
 /** Stairs up a wall (#156): m out from the wall, and how much longer than their rise their flight runs. */
@@ -144,6 +168,7 @@ const POOL = {
     stall: '#f8b25a',
     lobby: '#ffc98a',
     canopy: '#ffd49a',
+    door: '#ffd49a',
   },
   strengths: {
     lamp: 1,
@@ -158,6 +183,7 @@ const POOL = {
     stall: 0.85,
     lobby: 0.95,
     canopy: 1.1,
+    door: 0.7,
   },
 }
 /** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
@@ -222,6 +248,22 @@ const PAPER = new THREE.LatheGeometry(
   10,
 )
 const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
+// An apartment block to the level of finish (#178): its roof's deck of sheets, sage green under a white parapet; how
+// steeply a mansard's skirt of tiles slopes (rad), in the tiles its plan gives it; the condensers on its roof at Stages 1
+// to 3; how brightly the lights over its doors and at its stairs' landings glow, for the lamps' glow; and the lamps on its
+// walkways' parapets, `lamp` m wide and tall and brighter, before the walkways' windows dimmed to `dim` of the windows' glow, so
+// that its walkways read as rows of dots at night with the whole City in frame.
+const APARTMENT_FINISH = {
+  deck: '#9fb5a7',
+  mansard: { tip: 0.9 },
+  condensers: [2, 3, 5],
+  light: 2,
+  walkway: { lamp: [1.2, 0.6], light: 3, dim: 0.3 },
+  frame: '#4a525c',
+  washing: [0, 0.12, 0.16], // of a walkway's bays at Stages 1 to 3
+}
+// A cylinder lying along x, centred on its middle: a solar water heater's tank (#178).
+const LYING = new THREE.CylinderGeometry(1, 1, 1, 10).rotateZ(Math.PI / 2)
 // Green details (#152): a bench's wooden slats and its iron ends; a picnic blanket's colours, its gingham's pale stripe,
 // the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and its glass, painted
 // pale as the greenhouses' film is: the kit's glass would add a mesh to every green build, which never draws it.
@@ -254,6 +296,8 @@ const PLAY = {
   rim: '#c49a6c',
   rider: '#ff9cbb',
 }
+/** A garden's lawn and hedge and a playground's sand, for the builders beside the kit (`./props`, `./zones`, #178). */
+export const GARDEN = { lawn: LAWN, hedge: HEDGE, sand: PLAY.sand }
 const BEACON = { mast: 2.2, r: 0.85 } // a roof beacon's mast, m tall, and its bulb's radius
 const BUSH = new THREE.IcosahedronGeometry(1, 0) // a balcony plant's leaves: a few faces, laid by the thousand
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
@@ -305,6 +349,7 @@ const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1',
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
+const COARSE_SPHERE = new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
 const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial
@@ -392,6 +437,81 @@ export function frontOf(w: number, door: 1 | -1) {
     clear: w - 2.1,
   }
 }
+/** The bounds of an apartment block's wings together (#178). */
+export function wingBounds(wings: Bounds[]): Bounds {
+  return {
+    x0: Math.min(...wings.map((o) => o.x0)),
+    y0: Math.min(...wings.map((o) => o.y0)),
+    x1: Math.max(...wings.map((o) => o.x1)),
+    y1: Math.max(...wings.map((o) => o.y1)),
+  }
+}
+/**
+ * The bays of face `face` (of `FACES`) of an apartment wing (#156): how many fit, 3.2 m apart, and where on the face
+ * the middle of bay `i` lies, a window's at each floor.
+ */
+export function baysOf(wing: Bounds, face: number) {
+  const [nx, ny] = FACES[face]
+  const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
+  const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
+  const at = (i: number): [number, number] => {
+    const t = -(n - 1) * 1.6 + i * 3.2
+    return nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+  }
+  return { n, at }
+}
+/**
+ * An apartment block's front door (#178): on the face (of `FACES`) of its first wing that is its walkway face (`walks`)
+ * if that one looks out of the building, neither into its court nor onto another wing, or else the first face that
+ * does, in its middle bay (`baysOf`), or the first of the two middle ones where the bays are even; where it stands;
+ * null if no face looks out. The kit's `apartment` builds it there, and the Zone's fill keeps its hedges off it.
+ */
+export function doorOf(wings: Bounds[], walks: Walks): { face: number; bay: number; x: number; y: number } | null {
+  const [w] = wings
+  const { x0, y0, x1, y1 } = wingBounds(wings)
+  const out = (face: number) => {
+    const [nx, ny] = FACES[face]
+    const [px, py] = [(w.x0 + w.x1) / 2 + nx * ((w.x1 - w.x0) / 2 + 0.4), (w.y0 + w.y1) / 2 + ny * ((w.y1 - w.y0) / 2 + 0.4)]
+    return px < x0 || px > x1 || py < y0 || py > y1
+  }
+  const face = [walks[0] ?? -1, 0, 1, 2, 3].find((face) => face >= 0 && out(face)) ?? -1
+  if (face < 0) return null
+  const { n, at } = baysOf(w, face)
+  const bay = Math.floor((n - 1) / 2)
+  const [x, y] = at(bay)
+  return { face, bay, x, y }
+}
+/** A terraced house's roof (#178): a gable along the row, as the rows always had; a hip; or a gable to the front. */
+export type TerraceRoof = 'gable' | 'hip' | 'front'
+/**
+ * A terraced house's roof as the kit cuts it (#178): it climbs `pitch` over `span` m from its eaves to its ridge; its
+ * `shape`, turned `turn` from the house's front; `ridge`, how far the way its ridge runs is turned from the front's, and
+ * `half` the ridge's length; and whether a gutter runs along its back eaves.
+ */
+interface Pitched {
+  span: number
+  pitch: number
+  shape: THREE.BufferGeometry
+  turn: number
+  ridge: number
+  half: number
+  gutter: boolean
+}
+/** A corner shop or a coin laundry in the ground floor of a terraced house at a row's end, its door at end `end` (#178). */
+export interface Corner {
+  kind: 'shop' | 'laundry'
+  /** 1 its right, -1 its left, as `local`'s x runs. */
+  end: 1 | -1
+}
+/** What a terraced house's lot gives it besides its storeys, the same at every Stage (#178). */
+export interface TerracePlan {
+  roof: TerraceRoof
+  /** Its side walls that close a row, open to the Block (1 its right, -1 its left): their details stand there. */
+  ends: (1 | -1)[]
+  corner?: Corner
+}
+/** An apartment block's roof (#178): flat behind a parapet, or under a mansard's skirt of tiles in `tiles`. */
+export type ApartmentPlan = { roof: 'flat' } | { roof: 'mansard'; tiles: string }
 /** A gap in a hedge (#157): on side `side` (0 east, 1 north, 2 west, 3 south), `wide` m across and `at` m along it from its middle. */
 export interface Gap {
   side: number
@@ -672,6 +792,8 @@ export function createKit(rand: () => number, materials: Materials) {
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
   // Close-only prop, painted on `close` (`closeOnly`).
   let [patterned, pooled, closing] = [false, false, false]
+  /** Whether what is built from here on is to the level of finish (`finish`), as far as the materials allow (#178). */
+  const finished = () => patterned || pooled
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
   let stages: Stages = { from: 2, to: 2 }
@@ -768,47 +890,38 @@ export function createKit(rand: () => number, materials: Materials) {
     bricks.push({ kind, at: new THREE.Vector3(x, h, -y), dust, fate, lot })
   }
 
-  // Buildings repeat their boxes, so each is cut once per size.
-  const boxes = new Map<string, THREE.BufferGeometry>()
-  const box = (w: number, h: number, d: number, r: number, b: number) => {
-    const key = [w, h, d, r, b].map((v) => v.toFixed(2)).join()
-    if (!boxes.has(key)) boxes.set(key, roundedBox(w, h, d, r, b))
-    return boxes.get(key)!
+  // Buildings repeat their shapes, so each is cut once per size, to `digits` places, and disposed of when the kit is done.
+  const cut: Map<string, THREE.BufferGeometry | THREE.BufferGeometry[]>[] = []
+  const memo = <A extends number[], G extends THREE.BufferGeometry | THREE.BufferGeometry[]>(make: (...a: A) => G, digits = 2) => {
+    const shapes = new Map<string, G>()
+    cut.push(shapes)
+    return (...a: A): G => {
+      const key = a.map((v) => v.toFixed(digits)).join()
+      if (!shapes.has(key)) shapes.set(key, make(...a))
+      return shapes.get(key)!
+    }
   }
+  const box = memo((w: number, h: number, d: number, r: number, b: number) => roundedBox(w, h, d, r, b))
   /** A contact shadow under a footprint `w` by `d`, round or square, turned `ry`. */
   const shadow = (x: number, y: number, h: number, w: number, d: number, round = false, ry = 0) =>
     closing || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Close-only prop
-  // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion), each cut once per size.
-  const cuboids = new Map<string, THREE.BufferGeometry>()
-  const cuboid = (w: number, h: number, d: number) => {
-    const key = [w, h, d].map((v) => v.toFixed(2)).join()
-    if (!cuboids.has(key)) cuboids.set(key, new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0))
-    return cuboids.get(key)!
-  }
-  // Gable roofs repeat along a terraced row, so each is cut once per size too.
-  const gables = new Map<string, THREE.BufferGeometry>()
-  const gableRoof = (len: number, wid: number, h: number) => {
-    const key = [len, wid, h].map((v) => v.toFixed(2)).join()
-    if (!gables.has(key)) gables.set(key, gable(len, wid, h))
-    return gables.get(key)!
-  }
-  // Solar panels (#157), each cut once per size: a frame `len` along a roof's ridge and `slope` down it, and two rows
-  // of cells on it, flat, then tilted `tilt` about x so that they face +z.
-  const panels = new Map<string, [THREE.BufferGeometry, THREE.BufferGeometry]>()
-  const solarPanel = (len: number, slope: number, tilt: number) => {
-    const key = [len, slope, tilt].map((v) => v.toFixed(2)).join()
-    if (!panels.has(key)) {
-      const cols = Math.max(2, Math.round(len / 1.1))
-      const [cw, ch] = [len / cols, slope / 2]
-      const cells: THREE.BufferGeometry[] = []
-      for (let i = 0; i < cols; i++)
-        for (const r of [-0.5, 0.5])
-          cells.push(new THREE.BoxGeometry(cw - 0.1, 0.06, ch - 0.1).translate(-len / 2 + (i + 0.5) * cw, 0.07, r * ch).toNonIndexed())
-      const frame = new THREE.BoxGeometry(len, 0.08, slope).translate(0, 0.04, 0).toNonIndexed()
-      panels.set(key, [frame.rotateX(tilt), mergeGeometries(cells)!.rotateX(tilt)])
-    }
-    return panels.get(key)!
-  }
+  // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion).
+  const cuboid = memo((w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0))
+  // Gable roofs, which repeat along a terraced row, and hipped ones (#178).
+  const gableRoof = memo((len: number, wid: number, h: number) => gable(len, wid, h))
+  const hipRoof = memo((len: number, wid: number, h: number) => hip(len, wid, h))
+  // Solar panels (#157): a frame `len` along a roof's ridge and `slope` down it, and two rows of cells on it, flat, then
+  // tilted `tilt` about x so that they face +z.
+  const solarPanel = memo((len: number, slope: number, tilt: number): [THREE.BufferGeometry, THREE.BufferGeometry] => {
+    const cols = Math.max(2, Math.round(len / 1.1))
+    const [cw, ch] = [len / cols, slope / 2]
+    const cells: THREE.BufferGeometry[] = []
+    for (let i = 0; i < cols; i++)
+      for (const r of [-0.5, 0.5])
+        cells.push(new THREE.BoxGeometry(cw - 0.1, 0.06, ch - 0.1).translate(-len / 2 + (i + 0.5) * cw, 0.07, r * ch).toNonIndexed())
+    const frame = new THREE.BoxGeometry(len, 0.08, slope).translate(0, 0.04, 0).toNonIndexed()
+    return [frame.rotateX(tilt), mergeGeometries(cells)!.rotateX(tilt)]
+  })
   /** Add a shape at `(lx, ly)` in the frame of a building at `(x, y)` whose front faces `ry`, turned with it, `h` above the road. */
   const local = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, ry: number, lx: number, ly: number, h: number, sx = 1) =>
     add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx)
@@ -818,7 +931,7 @@ export function createKit(rand: () => number, materials: Materials) {
     for (const lx of [-0.82, 0.82]) for (const ly of axles) local(cuboid(0.32, 0.62, 0.62), TRUCK.tyre, x, y, ry, lx, ly, h)
   }
   /** One window's glass, lit at night for `share` of the windows and dark for the rest. */
-  const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
+  const pane = (share: number) => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
   /** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
   const cooler = (x: number, y: number, h: number, w: number, d: number) => {
     add(cuboid(w, 1.1, d), TOWER_FINISH.unit, x, y, h)
@@ -860,13 +973,10 @@ export function createKit(rand: () => number, materials: Materials) {
     sz = 1,
   ) => add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx, sy, sz)
   // A flight of stairs (#156): a slab `w` wide and `t` thick sloping up `rise` over `run`, up toward +x (or -x for a
-  // negative `run`), centred on its middle. Each is cut once per size.
-  const flights = new Map<string, THREE.BufferGeometry>()
-  const flight = (run: number, rise: number, w: number, t: number) => {
-    const key = [run, rise, w, t].map((v) => v.toFixed(2)).join()
-    if (!flights.has(key)) flights.set(key, new THREE.BoxGeometry(Math.hypot(run, rise), t, w).rotateZ(Math.atan2(rise, run)))
-    return flights.get(key)!
-  }
+  // negative `run`), centred on its middle.
+  const flight = memo((run: number, rise: number, w: number, t: number) =>
+    new THREE.BoxGeometry(Math.hypot(run, rise), t, w).rotateZ(Math.atan2(rise, run)),
+  )
   /**
    * An outdoor AC unit (#156) with its back to a wall at `(x, y)`, the wall facing `ry`, standing `h` above the road: a
    * pale casing with a fan's round grille, drawn a little large as the props are. It joins the next brick.
@@ -884,6 +994,19 @@ export function createKit(rand: () => number, materials: Materials) {
   const washing = (x: number, y: number, h: number, ry: number, out: number, brackets: boolean) => {
     if (brackets) for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, k * 1.25, out / 2, h)
     sway('washing', ...to(x, y, ry, 0, out), h, ry, { paint: pick(WASHING) })
+  }
+  /**
+   * A pole `len` long for washing centred on `(x, y)`, running along `ry`'s right, on a stand at each end with an arm
+   * across its top, in `look` (#157, #178): it joins the next brick. Returns how high over `h` the pole runs.
+   */
+  const poleStand = (x: number, y: number, h: number, ry: number, len: number, look: Look) => {
+    const top = 2.3
+    for (const k of [-1, 1]) {
+      local(cuboid(0.07, top + 0.1, 0.07), look, x, y, ry, (k * len) / 2, 0, h)
+      local(cuboid(0.07, 0.07, 0.6), look, x, y, ry, (k * len) / 2, 0, h + top - 0.04)
+    }
+    local(cuboid(len + 0.3, 0.06, 0.06), look, x, y, ry, 0, 0, h + top)
+    return top
   }
   /** A futon over a rail `h` above the road, `out` m from a wall at `(x, y)` facing `ry`, in a bright cover (#156): it rides the next brick closed and sways. */
   const futon = (x: number, y: number, h: number, ry: number, out: number) =>
@@ -972,11 +1095,287 @@ export function createKit(rand: () => number, materials: Materials) {
     for (const k of [-1, 1]) add(cuboid(0.55, 0.04, r * 1.05), paint.mark, x + k * r * 0.33, y, h + 0.12)
     add(cuboid(r * 0.66, 0.04, 0.5), paint.mark, x, y, h + 0.12)
   }
+  // Panels laid on a slope (#178): a box `w` × `t` × `d` centred on its middle, tipped `tip` about x so that its top looks
+  // out of its front (-z) and up, as a roof's slope does.
+  const tipped = memo((w: number, t: number, d: number, tip: number) => new THREE.BoxGeometry(w, t, d).rotateX(-tip), 3)
+  /** Add a copy of a pitched roof as `add` does, unscaled, wearing tile rows (`./pattern`) where the kit builds patterned (#178). */
+  const tiled = (geo: THREE.BufferGeometry, look: Look, x: number, y: number, h: number, ry: number, seed: number) => {
+    if (!patterned) return add(geo, look, x, y, h, ry)
+    const g = tile(geo.index ? geo.toNonIndexed() : geo.clone(), mulberry32(seed)())
+    push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(1, 1, 1))), look)
+  }
+  /**
+   * Each terraced roof (#178) over a house `w` along its row and `d` deep: a gable along the row, as the rows always had,
+   * or a hip or a gable to the front, which climb `TERRACE_FINISH.pitch` across it (`Pitched`).
+   */
+  const terraceRoofs: Record<TerraceRoof, (w: number, d: number) => Pitched> = {
+    gable: (w, d) => {
+      const [span, pitch] = [(d + 1) / 2, Math.min(4.2, d * 0.34)]
+      return { span, pitch, shape: gableRoof(w + 0.2, d + 1, pitch), turn: Math.PI / 2, ridge: 0, half: (w + 0.2) / 2, gutter: true }
+    },
+    front: (w, d) => {
+      const span = (w + 0.2) / 2
+      const pitch = span * TERRACE_FINISH.pitch
+      return { span, pitch, shape: gableRoof(d + 1, w + 0.2, pitch), turn: 0, ridge: Math.PI / 2, half: (d + 1) / 2, gutter: false }
+    },
+    hip: (w, d) => {
+      const span = (w + 0.2) / 2
+      const pitch = span * TERRACE_FINISH.pitch
+      const half = Math.max(0.9, (d + 1) / 2 - span)
+      return { span, pitch, shape: hipRoof(d + 1, w + 0.2, pitch), turn: 0, ridge: Math.PI / 2, half, gutter: false }
+    },
+  }
+  /**
+   * What stands on the roof `roof` of a terraced house standing on `f` (#178), on the kit's stream as the caller has it,
+   * its eaves `top` above the road. A TV aerial on the ridge at one end from Stage 1; from Stage 2 a steel laundry deck
+   * over the back slope by the ridge (washing on its pole at Stage 3), a solar water heater on the ridge with its
+   * collector on the front slope, and a skylight, each on the share of the houses `TERRACE_FINISH` gives its Stage.
+   */
+  const terraceRoof = ({ x, y, ry }: Footprint, top: number, roof: Pitched, stage: number) => {
+    const { aerial, deck, heater, skylight } = TERRACE_FINISH
+    const [aerialRoll, deckRoll, heaterRoll, skyRoll, end, turn, wash] = [
+      rand(),
+      rand(),
+      rand(),
+      rand(),
+      rand() < 0.5 ? 1 : -1,
+      rand(),
+      rand(),
+    ]
+    const { span, pitch, half } = roof
+    const rf = ry + roof.ridge // the frame whose x runs along the ridge
+    const tip = Math.atan2(pitch, span)
+    const ridge = top + pitch
+    /** How high the roof stands `down` m out from its ridge. */
+    const at = (down: number) => top + pitch * (1 - down / span)
+    /** Add `geo` `u` m along the ridge and `down` m out from it over the slope facing `side` (1 front, -1 back, as the frame's), `z` up. */
+    const on = (geo: THREE.BufferGeometry, look: Look, u: number, down: number, side: number, z: number, sx = 1, sy = 1, sz = 1) =>
+      put(geo, look, x, y, rf + (side < 0 ? Math.PI : 0), u * side, down, z, sx, sy, sz)
+    // Its thin steel, the aerial and the deck's posts and rails, is Close-only: under a pixel with the City in frame.
+    if (aerialRoll < aerial.share[stage - 1]) {
+      const [px, py] = to(x, y, rf, end * (half - 0.45), 0)
+      closeOnly(() => {
+        add(cuboid(0.07, 2.7, 0.07), TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3) // plain boxes: aerials come by the hundred
+        for (const [k, len] of [1.4, 0.9].entries())
+          add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.6 + k * 0.4, rf + turn * Math.PI)
+      })
+    }
+    if (deckRoll < deck.share[stage - 1] && span > 2.2) {
+      // Over the back slope by the ridge, at the end away from the aerial: a deck on posts behind a rail, and a pole.
+      const L = Math.min(2.2, 2 * half - 0.6)
+      const [u, D] = [-end * (half - L / 2 - 0.3), Math.min(1.6, span - 0.5)]
+      const floor = ridge + 0.1
+      const mid = 0.15 + D / 2
+      on(cuboid(L, 0.08, D), deck.slats, u, mid, -1, floor - 0.08)
+      closeOnly(() => {
+        for (const k of [-1, 1]) {
+          on(cuboid(0.07, floor - at(0.15 + D) + 1, 0.07), deck.steel, u + k * (L / 2 - 0.04), 0.15 + D - 0.04, -1, at(0.15 + D) - 0.05)
+          on(cuboid(0.05, 0.05, D), deck.steel, u + k * (L / 2 - 0.03), mid, -1, floor + 0.9)
+          on(cuboid(0.05, 1.75, 0.05), deck.steel, u + k * (L / 2 - 0.12), mid, -1, floor)
+        }
+        for (const z of [0.45, 0.9]) on(cuboid(L, 0.05, 0.05), deck.steel, u, 0.15 + D - 0.03, -1, floor + z)
+        on(cuboid(L, 0.04, 0.04), deck.steel, u, mid, -1, floor + 1.72)
+      })
+      if (stage === 3 && wash < 0.6)
+        sway('washing', ...to(x, y, rf + Math.PI, -u, mid), floor + 1.72, rf + Math.PI, { paint: pick(WASHING) })
+    }
+    if (heaterRoll < heater.share[stage - 1] && 2 * half > 3.2) {
+      // On the ridge toward the aerial's end, a tank lying along it, and its collector down the front slope.
+      const u = end * (half - 1.45)
+      add(LYING, heater.tank, ...to(x, y, rf, u, 0), ridge + 0.32, rf, 1.5, 0.3, 0.3)
+      on(tipped(1.6, 0.07, 1.3, tip), { material: glass, tint: glassOf(HOME.cells), glow: 0 }, u, 1.05, 1, at(1.05) + 0.08)
+      on(tipped(1.7, 0.05, 1.4, tip), HOME.trim, u, 1.05, 1, at(1.05) + 0.03)
+    }
+    if (skyRoll < skylight.share[stage - 1]) {
+      // Down the front slope at the other end: glass that glows a little at night, in a pale frame.
+      const [u, down] = [-end * Math.min(half - 0.9, 1), span * 0.55]
+      on(tipped(1.1, 0.05, 1.3, tip), skylight.frame, u, down, 1, at(down) + 0.04)
+      on(tipped(0.9, 0.06, 1.1, tip), { material: glass, tint: windows[1], glow: skylight.glow }, u, down, 1, at(down) + 0.08)
+    }
+  }
+  /**
+   * A terraced house's back and its ends that close a row (#178), on the kit's stream as the caller has it: a downpipe
+   * at a back corner (and a gutter along the back eaves under a gable along the row) and one at the back of each end
+   * wall; and, Close-only, a meter by the back door, pot plants beside it, an AC unit on the back wall on some and one
+   * high on an end wall on some, more with each Stage; and a planter of greens along the alley, seen from Street.
+   */
+  const terraceBack = (f: Footprint, h: number, wall: number, storeys: number, stage: number, roof: Pitched, ends: (1 | -1)[]) => {
+    const { x, y, w, d, ry } = f
+    const { pipe, meter, ac } = TERRACE_FINISH
+    const [low, high] = [rand(), rand()]
+    const back = -d / 2
+    // The downpipes and the gutter are Close-only: under a pixel with the City in frame.
+    closeOnly(() => {
+      local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, w / 2 - 0.3, back - 0.08, h)
+      if (roof.gutter) local(cuboid(w + 0.2, 0.12, 0.16), pipe, x, y, ry, 0, -(d + 1) / 2 - 0.08, h + wall - 0.12)
+      for (const end of ends) local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, end * (w / 2 + 0.08), back + 0.35, h)
+    })
+    const bays = Math.max(1, Math.round(w / TERRACE_FINISH.bay))
+    const door = -w / 2 + (Math.floor(bays / 2) + 0.5) * (w / bays) // as the pattern lays the back door
+    const side = door + 0.85 < w / 2 - 0.4 ? 1 : -1 // the meter's side of the door, where it fits
+    closeOnly(() => {
+      local(cuboid(0.36, 0.46, 0.16), meter.box, x, y, ry, door + side * 0.85, back - 0.08, h + 1.15)
+      put(FACING_DISC, meter.dial, x, y, ry + Math.PI, -(door + side * 0.85), -back + 0.17, h + 1.45, 0.08, 0.08, 1)
+      for (const k of [0, 1]) pot(...to(x, y, ry, door - side * (0.75 + k * 0.5), back - 0.35), h, 0.55 + 0.2 * rand(), () => rand())
+      if (low < ac[stage - 1] && w > 4.8) airCon(...to(x, y, ry, door - side * 1.9, back), h + 0.02, ry + Math.PI)
+      for (const end of ends)
+        if (storeys > 1 && high < ac[stage - 1]) airCon(...to(x, y, ry, end * (w / 2), back + d * 0.35), h + 3.42, ry - (end * Math.PI) / 2)
+    })
+    // A planter of greens against the back wall, past the meter, or else past the pots and the AC unit on the door's
+    // other side, where it fits: the pot plants that line the alley as seen from Street.
+    const along = [door + side * 1.7, door - side * 2.85].find((u) => Math.abs(u) + 0.5 < w / 2 - 0.45)
+    if (along === undefined) return
+    local(cuboid(1, 0.4, 0.42), TERRACE_FINISH.planter, x, y, ry, along, back - 0.3, h)
+    for (const k of [-1, 1])
+      add(BUSH, pick(LEAVES.round), ...to(x, y, ry, along + k * 0.24, back - 0.3), h + 0.55, rand() * TAU, 0.34, 0.3, 0.3)
+  }
+  /**
+   * A corner shop or a coin laundry in the ground floor of a terraced house at a row's end (#178), on the kit's stream
+   * as the caller has it: a glass front over the ground floor, framed, its door at the row's end, under a signboard
+   * with marks for lettering, and a shop's striped awning or a laundry's machines seen through its glass, Close-only; a
+   * sign on the end wall by the front; its signs lit from Stage 2, and a pool before the front and by the end wall.
+   */
+  const cornerShop = ({ x, y, w, d, ry }: Footprint, h: number, stage: number, corner: Corner) => {
+    const { kind, end } = corner
+    const laundry = kind === 'laundry'
+    const sign = pick(laundry ? TERRACE_FINISH.corner.laundry : TERRACE_FINISH.corner.shop)
+    const marks = 3 + Math.floor(rand() * 2)
+    const lights = stage >= 2
+    const face = d / 2
+    const [frame, glazed] = [SHOPFRONT.door.frames[0], w - 0.5]
+    const tall = laundry ? 2.15 : 2
+    local(
+      cuboid(glazed, tall, 0.12),
+      { material: glass, tint: windows[laundry ? 1 : 0], glow: laundry ? TERRACE_FINISH.corner.glow : 1 },
+      x,
+      y,
+      ry,
+      0,
+      face + 0.02,
+      h + 0.15,
+    )
+    local(cuboid(glazed + 0.16, 0.12, 0.22), SHOPFRONT.trim, x, y, ry, 0, face + 0.07, h + 0.03)
+    local(cuboid(glazed + 0.16, 0.1, 0.16), frame, x, y, ry, 0, face + 0.05, h + 0.15 + tall)
+    const bars = Math.max(2, Math.round(glazed / 1.3))
+    for (let k = 1; k < bars; k++)
+      local(cuboid(0.07, tall, 0.16), frame, x, y, ry, -glazed / 2 + (k * glazed) / bars, face + 0.05, h + 0.15)
+    local(cuboid(0.06, 2.1, 0.16), frame, x, y, ry, end * (w / 2 - 0.25 - glazed / bars / 2), face + 0.06, h + 0.15) // the door's edge
+    const board = (colour: string): Look => (lights ? lit(colour, SHOPFRONT.lit.board) : colour)
+    local(cuboid(w - 0.2, 0.5, 0.14), board(sign), x, y, ry, 0, face + 0.08, h + 2.44)
+    for (let k = 0; k < marks; k++)
+      local(cuboid(0.3, 0.3, 0.04), markOf(sign, lights), x, y, ry, (k - (marks - 1) / 2) * 0.46, face + 0.16, h + 2.54)
+    // On the end wall by the front, a sign standing out from it, its marks down it.
+    local(cuboid(0.12, 1.6, 0.8), board(sign), x, y, ry, end * (w / 2 + 0.07), face - 0.75, h + 1.05)
+    for (let k = 0; k < 3; k++)
+      local(cuboid(0.04, 0.3, 0.3), markOf(sign, lights), x, y, ry, end * (w / 2 + 0.14), face - 0.75, h + 1.25 + k * 0.45)
+    if (laundry)
+      closeOnly(() => {
+        // Its machines, a round door each, seen through the glass.
+        const n = Math.floor((glazed - 1.4) / 0.72)
+        for (let k = 0; k < n; k++)
+          put(FACING_DISC, TERRACE_FINISH.corner.drum, x, y, ry, end * (k * 0.72 - glazed / 2 + 0.5), face + 0.09, h + 0.72, 0.24, 0.24, 1)
+      })
+    else {
+      const stripes = Math.max(3, Math.round(glazed / 1.1))
+      for (let i = 0; i < stripes; i++)
+        local(
+          AWNING,
+          board(i % 2 ? SHOP.stripe : sign),
+          x,
+          y,
+          ry,
+          -glazed / 2 + (i + 0.5) * (glazed / stripes),
+          face + 0.85,
+          h + 2.1,
+          glazed / stripes,
+        )
+    }
+    pool(lights ? 'sign' : 'window', ...to(x, y, ry, 0, face + POOL.front.window), h, w + 0.4, POOL.deep.window, ry)
+    pool(lights ? 'sign' : 'window', ...to(x, y, ry, end * (w / 2 + 1.1), face - 0.75), h, 2.2, 2.6, ry)
+  }
+
+  /**
+   * A car parked at `(x, y)`, its front facing `ry`, as one brick (#177, #178): the cars' `model` in `paint`, in plain
+   * boxes: its body, cabin and glass, a taxi's roof lamp lit at night, its tyres, and its lamps as they are by day.
+   */
+  const parked = (model: ParkedModel, x: number, y: number, h: number, ry: number, paint: string) => {
+    const { body, cabin, glass, wheels, lamps } = model
+    const [head, , tail, , roof] = lampBoxes(lamps)
+    const bodywork: [ParkedModel['body'], Look][] = [
+      [body, paint],
+      [cabin, paint],
+      [glass, CAR.glass],
+    ]
+    if (roof) bodywork.push([roof, lit(CREAM, TAXI_LAMP)])
+    for (const [p, look] of bodywork) local(cuboid(p.wide, p.tall, p.long), look, x, y, ry, 0, p.at, h + p.up)
+    const tyre = 2 * wheels.r
+    for (const lx of [-wheels.track, wheels.track])
+      for (const ly of [-wheels.axle, wheels.axle]) local(cuboid(0.3, tyre, tyre), TRUCK.tyre, x, y, ry, lx, ly, h)
+    for (const side of [-1, 1])
+      for (const p of [head, tail]) local(cuboid(p.wide, p.tall, p.long), CAR[p.kind], x, y, ry, side * p.z, p.at, h + p.up)
+    shadow(x, y, h, 2.9, 5.2, false, ry)
+    brick('building', x, y, h)
+  }
+  /**
+   * The roof of an apartment wing standing on `f` (#178), the `k`th of its block, its cap `top` above the road: the cap,
+   * wearing roofing sheets on its top where the kit builds patterned, in the deck's sage, round a band of the cap's white;
+   * and along each face not against another wing (`against`), a parapet on it, or for a block whose plan has one, a
+   * mansard's skirt of tiles sloping out over the wall.
+   */
+  const apartmentRoof = (
+    f: Footprint,
+    top: number,
+    plan: ApartmentPlan,
+    k: number,
+    against: (px: number, py: number) => boolean,
+    seed: number,
+  ) => {
+    const { x: cx, y: cy, w, d } = f
+    const { deck, mansard } = APARTMENT_FINISH
+    const band = { top: PATTERN.sheets, front: PATTERN.gable, back: PATTERN.gable, sides: PATTERN.gable, storey: 4.8 }
+    cladded(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), patterned ? deck : COURTYARD.cap, cx, cy, top, 0, band, seed + 10 + k)
+    top += 0.6
+    for (const [face, [nx, ny]] of FACES.entries()) {
+      const { ry, half, len } = boxFace(face, w, d)
+      if (against(cx + nx * (half + 0.4), cy + ny * (half + 0.4))) continue
+      if (plan.roof === 'mansard')
+        tiled(tipped(len + 0.6, 0.14, 1.7, mansard.tip), plan.tiles, ...to(cx, cy, ry, 0, half + 0.3), top + 0.32, ry, seed + 20 + face)
+      else local(cuboid(len + 0.24, 0.45, 0.24), COURTYARD.cap, cx, cy, ry, 0, half, top)
+    }
+  }
+  /**
+   * The plant on an apartment block's roof (#178), on its first wing at `top`, on the kit's stream as the caller has it:
+   * AC condensers in a row along its far edge, more with each Stage, and a TV aerial at a corner.
+   */
+  const apartmentPlant = (wing: Bounds, top: number, stage: number) => {
+    const [w, d] = [wing.x1 - wing.x0, wing.y1 - wing.y0]
+    const long = w >= d
+    const n = Math.min(APARTMENT_FINISH.condensers[stage - 1], Math.floor(((long ? w : d) - 2.4) / 1.3))
+    for (let k = 0; k < n; k++) {
+      const [ux, uy] = long ? [wing.x1 - 1.2 - k * 1.3, wing.y1 - 0.9] : [wing.x1 - 0.9, wing.y1 - 1.2 - k * 1.3]
+      const ry = long ? Math.PI : Math.PI / 2 // facing in from the edge
+      put(cuboid(1, 0.72, 0.5), AIRCON.body, ux, uy, ry, 0, 0, top)
+      put(FACING_DISC, AIRCON.grille, ux, uy, ry, -0.16, 0.26, top + 0.36, 0.24, 0.24, 1)
+    }
+    const [px, py] = [wing.x0 + 1, wing.y0 + 1]
+    const turn = rand() * Math.PI
+    closeOnly(() => {
+      add(THIN, TERRACE_FINISH.aerial.steel, px, py, top, 0, 0.05, 3.2, 0.05)
+      for (const [k, len] of [1.6, 1.3, 1].entries())
+        add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, top + 2 + k * 0.35, turn)
+    })
+  }
 
   return {
     add,
     push,
     put,
+    cladded,
+    tiled,
+    /** A gable roof `wid` across and `h` high, `len` long, its ridge along z (`./shapes`' `gable`), cut once per size: the kit disposes of it. */
+    gable: gableRoof,
+    /** A hipped roof (`./shapes`' `hip`), cut once per size as `gable` is (#178). */
+    hip: hipRoof,
     brick,
     box,
     cuboid,
@@ -1002,6 +1401,10 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     get dressed() {
       return materials.finish.pattern || materials.finish.pools
+    },
+    /** Whether what is built from here on is to the level of finish (`finish`), as far as the materials allow (#178). */
+    get finished() {
+      return finished()
     },
 
     /** How much the kit has built so far, to read back what it builds from here on (`since`). */
@@ -1118,9 +1521,10 @@ export function createKit(rand: () => number, materials: Materials) {
      * A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. A sakura
      * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
-     * Block's edge, so that none hangs over the pavement beyond the lawn.
+     * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
+     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Street at under half the triangles.
      */
-    tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
+    tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
         for (let i = 0; i < 3; i++) {
@@ -1132,7 +1536,7 @@ export function createKit(rand: () => number, materials: Materials) {
         for (let i = 0; i < n; i++) {
           const [a, out, k] = [rand() * TAU, i ? 1.2 * s : 0, s * (i ? range(1.44, 1.92) : 2.4)]
           add(
-            SPHERE,
+            coarse ? COARSE_SPHERE : SPHERE,
             pick(LEAVES[kind]),
             x + Math.cos(a) * out,
             y + Math.sin(a) * out,
@@ -1265,18 +1669,39 @@ export function createKit(rand: () => number, materials: Materials) {
      * Stage 2 and three in four at Stage 3, with a second on the eave of some; washing under the top floor's eaves on
      * some houses of two storeys or more from Stage 2, more at Stage 3.
      */
-    townhouse(x: number, y: number, h: number, w: number, d: number, ry: number, storeys: number, stage = 2) {
+    townhouse(
+      x: number,
+      y: number,
+      h: number,
+      w: number,
+      d: number,
+      ry: number,
+      storeys: number,
+      stage = 2,
+      plan: TerracePlan = { roof: 'gable', ends: [] },
+    ) {
       const wall = storeys * 3 + 0.6
       const [tile, walls, eave, bloom] = [pick(TERRACE.roofs), pick(TERRACE.walls), rand() < 0.55, pick(TERRACE.blooms)]
-      add(box(w, wall, d, 0.16, 0.08), walls, x, y, h, ry)
-      add(gableRoof(w + 0.2, d + 1, Math.min(4.2, d * 0.34)), tile, x, y, h + wall, ry + Math.PI / 2)
+      const seed = spot(x, y) + 23 // which patterned windows light, and the finish's own draws, so the kit's stream is untouched
+      const { corner } = plan
+      // Its walls: plaster on the front, round the windows it is built with, and on the back and the ends a window in
+      // every bay, and the back door (#178).
+      const cladding = { front: PATTERN.plaster, back: PATTERN.rear, sides: PATTERN.house, storey: 3, bay: TERRACE_FINISH.bay }
+      cladded(box(w, wall, d, 0.16, 0.08), walls, x, y, h, ry, cladding, seed)
+      // Its roof: a gable along the row, as the rows always had, or a hip or a gable to the front, so that no house is
+      // the next one's in another colour (#178), in tile rows under a ridge.
+      const roof = terraceRoofs[plan.roof](w, d)
+      tiled(roof.shape, tile, x, y, h + wall, ry + roof.turn, seed + 1)
       if (stage === 3) local(cuboid(w + 0.06, 0.42, 0.5), LEDGE, x, y, ry, 0, d / 2 + 0.05, h + wall - 0.42)
       const across = w >= 5.6 ? 2 : 1 // windows a storey
       for (let s = 0; s < storeys; s++) {
         for (let k = 0; k < across; k++) {
           const lx = across === 1 ? 0 : (k ? 1 : -1) * w * 0.23
-          if (s === 0 && k === across - 1) local(cuboid(1.2, 2.2, 0.3), TERRACE.door, x, y, ry, lx, d / 2, h)
-          else local(cuboid(1.1, 1.3, 0.3), pane(0.7), x, y, ry, lx, d / 2, h + 1 + s * 3)
+          const door = s === 0 && k === across - 1
+          const look = door ? null : pane(0.7) // drawn whether or not a corner's shop front takes its place
+          if (corner && s === 0) continue
+          if (door) local(cuboid(1.2, 2.2, 0.3), TERRACE.door, x, y, ry, lx, d / 2, h)
+          else local(cuboid(1.1, 1.3, 0.3), look!, x, y, ry, lx, d / 2, h + 1 + s * 3)
           if (stage === 3 && s > 0) local(cuboid(1.4, 0.34, 0.55), bloom, x, y, ry, lx, d / 2 + 0.2, h + 0.7 + s * 3)
         }
       }
@@ -1287,10 +1712,16 @@ export function createKit(rand: () => number, materials: Materials) {
         const [ac, high, wash] = [rand(), rand(), rand()]
         const wall = (lx: number) => to(x, y, ry, lx, d / 2)
         // Under the ground floor's window, or beside the door of a house one window wide.
-        if (ac < [0.25, 0.5, 0.75][stage - 1]) airCon(...wall(across === 2 ? -w * 0.23 : -1.3), h + 0.02, ry)
+        if (ac < [0.25, 0.5, 0.75][stage - 1] && !corner) airCon(...wall(across === 2 ? -w * 0.23 : -1.3), h + 0.02, ry)
         if (stage === 3 && storeys > 1 && high < 0.45) airCon(...wall(across === 2 ? 0 : 1.3), h + 3.34, ry)
         if (storeys > 1 && wash < [0, 0.3, 0.55][stage - 1]) washing(...wall(0), h + storeys * 3 - 0.45, ry, 0.7, true)
       })
+      const f = { x, y, w, d, ry }
+      if (patterned) {
+        own(seed + 2, fate, () => terraceRoof(f, h + wall, roof, stage))
+        own(seed + 3, fate, () => terraceBack(f, h, wall, storeys, stage, roof, plan.ends))
+      }
+      if (corner) own(seed + 4, fate, () => cornerShop(f, h, stage, corner))
       shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
       brick('building', x, y, h)
     },
@@ -1306,21 +1737,36 @@ export function createKit(rand: () => number, materials: Materials) {
      *   a plant room beside the water tank.
      * A few AC units (#156), more with each Stage, stand on its walls, walkways and balconies.
      */
-    apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = []) {
+    apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = [], plan: ApartmentPlan = { roof: 'flat' }) {
       const colour = pick(COURTYARD.walls)
       const height = floors * 3.2 + 0.8
+      const seed = spot(wings[0].x0, wings[0].y0) + 29 // which patterned windows light, and the finish's own draws
+      const frontDoor = (ex: number, ey: number, ry: number) => {
+        put(cuboid(1.9, 2.5, 0.12), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.1, h)
+        put(cuboid(1.6, 2.3, 0.14), { material: glass, tint: windows[0], glow: 1.2 }, ex, ey, ry, 0, 0.12, h)
+        put(cuboid(0.06, 2.3, 0.18), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.13, h)
+        put(cuboid(2.8, 0.18, 1.5), COURTYARD.cap, ex, ey, ry, 0, 0.75, h + 2.62)
+        put(cuboid(0.4, 0.08, 0.4), lit(CREAM, APARTMENT_FINISH.light), ex, ey, ry, 0, 0.9, h + 2.56)
+        put(cuboid(2.4, 0.16, 0.9), COURTYARD.cap, ex, ey, ry, 0, 0.45, h)
+        pool('door', ...to(ex, ey, ry, 0, 1.6), h, 3.4, 2.6, ry)
+      }
       /** Whether `(px, py)` lies on a wing other than wing `self`. */
       const against = (px: number, py: number, self: number) =>
         wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
+      // Its front door (#178), in the middle of a face of its first wing that looks out of the building, not into its
+      // court or onto another wing: its walkway face if that one does, or else the first that does. Glass doors lit at
+      // night under a canopy with a lamp, which leaves a pool.
+      const door = finished() ? doorOf(wings, walks) : null
       // Where an AC unit may stand (#156): on the wall between two windows, or before a window on a walkway, and whether
       // a slab is there to stand on.
       const spots: { x: number; y: number; ry: number; slab: boolean }[] = []
       wings.forEach((wing, k) => {
         const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
-        add(box(w, height, d, 0.6, 0.2), colour, cx, cy, h)
-        add(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), COURTYARD.cap, cx, cy, h + height)
+        const plastered = { front: PATTERN.plaster, back: PATTERN.plaster, sides: PATTERN.plaster, storey: 3.2 }
+        cladded(box(w, height, d, 0.6, 0.2), colour, cx, cy, h, 0, plastered, seed + k)
+        apartmentRoof({ x: cx, y: cy, w, d, ry: 0 }, h + height, plan, k, (px, py) => against(px, py, k), seed)
         for (const [face, [nx, ny]] of FACES.entries()) {
-          const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
+          const { n, at: bay } = baysOf(wing, face)
           const ry = Math.atan2(-nx, ny)
           const len = nx === 0 ? w : d
           const [mx, my] = [cx + (nx * w) / 2, cy + (ny * d) / 2]
@@ -1330,15 +1776,29 @@ export function createKit(rand: () => number, materials: Materials) {
           /** Whether a window or a door at `(px, py)` would look into the next wing, by just out of the face across its width. */
           const blind = (px: number, py: number) => [-0.9, 0, 0.9].some((a) => against(px + nx * 0.4 + ny * a, py + ny * 0.4 + nx * a, k))
           for (let i = 0; i < n; i++) {
-            const t = -(n - 1) * 1.6 + i * 3.2
-            const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+            const [fx, fy] = bay(i)
             if (blind(fx, fy)) continue
-            for (let f = 0; f < floors; f++) add(cuboid(1.5, 1.6, 0.3), pane(0.65), fx, fy, h + 1.1 + f * 3.2, ry)
+            for (let f = 0; f < floors; f++) {
+              const look = pane(0.65) // drawn whether or not the front door takes its place
+              const dim = walk && f > 0 && finished() // behind a walkway's lamps
+              if (f === 0 && k === 0 && face === door?.face && i === door.bay) frontDoor(fx, fy, ry)
+              else add(cuboid(1.5, 1.6, 0.3), dim ? { ...look, glow: APARTMENT_FINISH.walkway.dim } : look, fx, fy, h + 1.1 + f * 3.2, ry)
+            }
             if (walk) spots.push({ x: fx, y: fy, ry, slab: true })
             // Between this window and the next: a door onto the walkway at each floor, or a wall for an AC unit.
             const [gx, gy] = nx === 0 ? [fx + 1.6, fy] : [fx, fy + 1.6]
             if (i === n - 1 || blind(gx, gy)) continue
-            if (walk) for (let f = 1; f < floors; f++) add(cuboid(0.95, 2.05, 0.16), TERRACE.door, gx, gy, h + 0.94 + f * 3.2, ry)
+            if (walk)
+              for (let f = 1; f < floors; f++) {
+                add(cuboid(0.95, 2.05, 0.16), TERRACE.door, gx, gy, h + 0.94 + f * 3.2, ry)
+                // A lamp for each door on the walkway's parapet, on its outer face under the rail, where it shows from
+                // outside as the wall behind the parapet does not, so that a block's walkways read as rows of dots at night
+                // (#178).
+                const { lamp, light } = APARTMENT_FINISH.walkway
+                const { deep, parapet } = WALKWAY
+                const top = h + 0.94 + parapet + f * 3.2 // under the rail
+                if (finished()) put(cuboid(lamp[0], lamp[1], 0.1), lit(CREAM, light), gx, gy, ry, 0, deep + 0.05, top - lamp[1])
+              }
             else spots.push({ x: gx, y: gy, ry, slab: balcony })
           }
           if (walk) {
@@ -1351,6 +1811,16 @@ export function createKit(rand: () => number, materials: Materials) {
               add(cuboid(len - 0.1, parapet, 0.14), COURTYARD.cap, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24, ry)
               add(cuboid(len - 0.1, 0.07, 0.2), STEEL.frame, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24 + parapet, ry)
             }
+            // Washing hung out on the walkways, on a pole under the slab above, in some bays (#178).
+            if (finished())
+              own(seed + 50 + face + 4 * k, fate, () => {
+                for (let f = 1; f < floors - 1; f++)
+                  for (let i = 0; i < n; i++) {
+                    const [fx, fy] = bay(i)
+                    if (rand() < APARTMENT_FINISH.washing[stage - 1] && !blind(fx, fy))
+                      washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 0.75, false)
+                  }
+              })
           }
           // Stage 3's balconies: a slab and its railing along the face at every floor above the ground, unless the
           // face's middle is against another wing. Where a slab runs into another wing it stays hidden inside it. Washing
@@ -1363,8 +1833,7 @@ export function createKit(rand: () => number, materials: Materials) {
           own(spot(mx, my), fate, () => {
             for (let f = 1; f < floors; f++) {
               for (let i = 0; i < n; i++) {
-                const t = -(n - 1) * 1.6 + i * 3.2
-                const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+                const [fx, fy] = bay(i)
                 const r = rand()
                 if (blind(fx, fy)) continue
                 if (r < 0.2) washing(fx, fy, h + 0.7 + (f + 1) * 3.2 - 0.4, ry, 0.62, false)
@@ -1385,6 +1854,7 @@ export function createKit(rand: () => number, materials: Materials) {
       })
       const [first] = wings
       const [tx, ty] = [first.x0 + (first.x1 - first.x0) * 0.3, (first.y0 + first.y1) / 2]
+      if (finished()) own(seed + 40, fate, () => apartmentPlant(first, h + height + 0.65, stage))
       if (stage > 1) {
         add(CYLINDER, TANK.body, tx, ty, h + height + 0.6, 0, 1.12, 2.2, 1.12)
         add(CONE, TANK.lid, tx, ty, h + height + 2.8, 0, 1.2, 0.8, 1.2)
@@ -1393,8 +1863,7 @@ export function createKit(rand: () => number, materials: Materials) {
         const [pw, pd] = [(first.x1 - first.x0) * 0.3, (first.y1 - first.y0) * 0.5]
         add(box(pw, 2.6, pd, 0.3, 0.1), COURTYARD.cap, first.x0 + (first.x1 - first.x0) * 0.68, ty, h + height + 0.6)
       }
-      const [x0, x1] = [Math.min(...wings.map((r) => r.x0)), Math.max(...wings.map((r) => r.x1))]
-      const [y0, y1] = [Math.min(...wings.map((r) => r.y0)), Math.max(...wings.map((r) => r.y1))]
+      const { x0, y0, x1, y1 } = wingBounds(wings)
       brick('building', (x0 + x1) / 2, (y0 + y1) / 2, h)
     },
 
@@ -2269,33 +2738,18 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A taxi parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#177): the cars' saloon taxi
-     * (#176, `TAXI`) in `paint` and plain boxes, oversized across as the cars are, its roof lamp cream by day and lit at
-     * night.
+     * A car parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#177, #178): the cars' `model`
+     * (#176, `TAXI` or `KEI`) in `paint` and plain boxes, oversized across as the cars are, a taxi's roof lamp cream by
+     * day and lit at night.
      */
-    taxi(x: number, y: number, h: number, ry: number, paint: string) {
-      const { body, cabin, glass, wheels } = TAXI
-      const [head, , tail, , roof] = lampBoxes(TAXI.lamps)
-      for (const [p, look] of [
-        [body, paint],
-        [cabin, paint],
-        [glass, CAR.glass],
-        [roof, lit(CREAM, TAXI_LAMP)],
-      ] as const)
-        local(cuboid(p.wide, p.tall, p.long), look, x, y, ry, 0, p.at, h + p.up)
-      const tyre = 2 * wheels.r
-      for (const lx of [-wheels.track, wheels.track])
-        for (const ly of [-wheels.axle, wheels.axle]) local(cuboid(0.3, tyre, tyre), TRUCK.tyre, x, y, ry, lx, ly, h)
-      for (const side of [-1, 1])
-        for (const p of [head, tail]) local(cuboid(p.wide, p.tall, p.long), CAR[p.kind], x, y, ry, side * p.z, p.at, h + p.up)
-      shadow(x, y, h, 2.9, 5.2, false, ry)
-      brick('building', x, y, h)
-    },
+    parked,
 
     /**
      * A kei car parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#157): a small, tall car in
      * one of the cars' colours on the kei truck's chassis, a cabin of dark glass under its roof behind a short bonnet,
      * oversized as the cars are. Its glass stays dark at night.
+     * This is one of two parked kei cars: medium-density's is the traffic's kei wagon (`parked(KEI, …)`, #178). Left as
+     * it is so low-density draws as before; #179 brings low-density to the level of finish and can park `KEI` instead.
      */
     keiCar(x: number, y: number, h: number, ry: number) {
       const paint = pick(CARS)
@@ -2319,15 +2773,21 @@ export function createKit(rand: () => number, materials: Materials) {
      * on a stand at each end, with what is hung on it, as one brick (#157).
      */
     laundry(x: number, y: number, h: number, ry: number, len: number, hung: Hung[]) {
-      const top = 2.3
-      for (const k of [-1, 1]) {
-        local(cuboid(0.07, top + 0.1, 0.07), HOME.pole, x, y, ry, (k * len) / 2, 0, h)
-        local(cuboid(0.07, 0.07, 0.6), HOME.pole, x, y, ry, (k * len) / 2, 0, h + top - 0.04)
-      }
-      local(cuboid(len + 0.3, 0.06, 0.06), HOME.pole, x, y, ry, 0, 0, h + top)
+      const top = poleStand(x, y, h, ry, len, HOME.pole)
       for (const p of hung)
         if (p.futon) sway('futon', ...to(x, y, ry, p.at, 0), h + top + 0.06, ry, { paint: p.colour })
         else sway('cloth', ...to(x, y, ry, p.at, 0), h + top, ry, { paint: p.colour, size: [p.w, p.tall] })
+      brick('tree', x, y, h)
+    },
+
+    /**
+     * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): a steel pole on a stand
+     * at each end, as a garden's laundry pole stands (#157), and a line of washing (`./movers`' `washing`) in a paint from
+     * the kit's stream, which sways.
+     */
+    washingPole(x: number, y: number, h: number, ry: number) {
+      const top = poleStand(x, y, h, ry, 2.8, STEEL.pole)
+      sway('washing', x, y, h + top, ry, { paint: pick(WASHING) })
       brick('tree', x, y, h)
     },
 
@@ -2419,6 +2879,13 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     outsideStairs(x: number, y: number, ry: number, tops: number[]) {
       stairs(x, y, ry, tops)
+      if (finished()) {
+        // A light at each landing, under the next or on a post over the top one, and a pool at their foot (#178).
+        const { long: L, landing: D } = STAIR
+        for (const at of tops.slice(1))
+          put(cuboid(0.24, 0.14, 0.24), lit(CREAM, APARTMENT_FINISH.light), x, y, ry, (L - D) / 2, 0, at + 2.1)
+        pool('door', ...to(x, y, ry, 0, 0), tops[0], STAIR.long + 1.6, STAIR.wide + 1.6, ry)
+      }
       shadow(x, y, tops[0], STAIR.long + 1, STAIR.wide + 1, false, ry)
       brick('building', x, y, tops[0])
     },
@@ -2574,9 +3041,9 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('tree', x, y, h)
     },
 
-    /** A frame of two swings at `(x, y)`, its bar along `ry`'s right, as a brick that pops in (#155). */
-    swings(x: number, y: number, h: number, ry: number) {
-      const [wide, tall] = [3.4, 2.5]
+    /** A frame of two swings at `(x, y)`, or of one if `one` (#178), its bar along `ry`'s right, as a brick that pops in (#155). */
+    swings(x: number, y: number, h: number, ry: number, one = false) {
+      const [wide, tall] = [one ? 2.2 : 3.4, 2.5]
       for (const k of [-1, 1]) {
         for (const j of [-0.7, 0.7]) {
           const leg = new THREE.BoxGeometry(0.14, tall + 0.2, 0.14).rotateX(-j * 0.5).translate(0, tall / 2, j * 0.62)
@@ -2585,7 +3052,7 @@ export function createKit(rand: () => number, materials: Materials) {
         }
       }
       local(cuboid(wide + 0.3, 0.14, 0.14), PLAY.swings, x, y, ry, 0, 0, h + tall)
-      for (const k of [-0.8, 0.8]) {
+      for (const k of one ? [0] : [-0.8, 0.8]) {
         for (const c of [-0.28, 0.28]) local(cuboid(0.04, tall - 0.6, 0.04), PLAY.chain, x, y, ry, k + c, 0, h + 0.6)
         local(cuboid(0.7, 0.08, 0.36), PLAY.seat, x, y, ry, k, 0, h + 0.55)
       }
@@ -2710,13 +3177,10 @@ export function createKit(rand: () => number, materials: Materials) {
       pools: Pool[]
     } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
-      for (const g of [...boxes.values(), ...cuboids.values(), ...gables.values(), ...flights.values(), ...[...panels.values()].flat()])
-        g.dispose()
-      boxes.clear()
-      cuboids.clear()
-      gables.clear()
-      flights.clear()
-      panels.clear()
+      for (const shapes of cut) {
+        for (const g of [...shapes.values()].flat()) g.dispose()
+        shapes.clear()
+      }
       return { parts, bricks, movers, plumes, beacons, sways, flags, pools }
     },
   }
