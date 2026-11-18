@@ -63,10 +63,10 @@ export interface Built {
 export type Stands = (x: number, y: number, r: number) => boolean
 
 /**
- * What stands on Block `block` near its edge, as `built` has it (#176): each triangle of its parts that rises above the
- * pavement and comes near the edge, laid on a grid of small cells point by point (so that a wall seen edge-on counts as
- * well as a roof), and each mover's loop as wide as its kind. Low ground (a lawn, soil, a bed) counts where it lies;
- * what stands tall counts a little further off.
+ * What stands on Block `block` near its edge, as `built` has it (#176): the edges of each triangle of its parts that
+ * rises above the pavement and comes near the edge, laid on a grid of small cells point by point, and each mover's loop
+ * as wide as its kind. Low ground (a lawn, soil, a bed) counts where it lies; what stands tall counts a little further
+ * off.
  */
 export function standing(block: Block, field: Field, built: Built): Stands {
   const { cell, band } = STANDS
@@ -84,31 +84,46 @@ export function standing(block: Block, field: Field, built: Built): Stands {
     const k = at(x, y)
     if (k >= 0 && grid[k] < v) grid[k] = v
   }
-  const p = [0, 0, 0, 0, 0, 0]
+  /** Whether any cell over the box `x0`–`x1` by `y0`–`y1` lies within the band. */
+  const reaches = (bx0: number, by0: number, bx1: number, by1: number) => {
+    const [i0, i1] = [Math.max(0, Math.floor((bx0 - x0) / cell)), Math.min(nx - 1, Math.floor((bx1 - x0) / cell))]
+    const [j0, j1] = [Math.max(0, Math.floor((by0 - y0) / cell)), Math.min(ny - 1, Math.floor((by1 - y0) / cell))]
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (near[j * nx + i]) return true
+    return false
+  }
+  const step = cell * 0.9 // points no more than a cell apart
+  /**
+   * Mark a triangle's edge from `(ax, ay)` to `(bx, by)` point by point. Its edges are enough: the street's furniture
+   * stands within a metre or so of the Block's edge, so anything under it has an edge nearer still.
+   */
+  const edge = (ax: number, ay: number, bx: number, by: number, v: number) => {
+    const n = Math.ceil(Math.hypot(bx - ax, by - ay) / step)
+    for (let i = 0; i <= n; i++) mark(ax + ((bx - ax) * i) / (n || 1), ay + ((by - ay) * i) / (n || 1), v)
+  }
   for (const g of built.geometries) {
-    const pos = g.attributes.position
-    const index = g.index
-    const n = index ? index.count : pos.count
+    const a = g.attributes.position.array
+    const index = g.index?.array
+    // A part is a single shape: one that rises nowhere over the pavement, or lies wholly away from the edge, is skipped.
+    let [lx, ly, hx, hy, top] = [Infinity, Infinity, -Infinity, -Infinity, -Infinity]
+    for (let i = 0; i < a.length; i += 3) {
+      lx = Math.min(lx, a[i])
+      hx = Math.max(hx, a[i])
+      top = Math.max(top, a[i + 1])
+      ly = Math.min(ly, -a[i + 2])
+      hy = Math.max(hy, -a[i + 2])
+    }
+    if (top < KERB + STANDS.low || !reaches(lx, ly, hx, hy)) continue
+    const n = index ? index.length : a.length / 3
     for (let t = 0; t + 2 < n; t += 3) {
-      let [top, close] = [-Infinity, false]
-      for (let v = 0; v < 3; v++) {
-        const i = index ? index.getX(t + v) : t + v
-        top = Math.max(top, pos.getY(i))
-        ;[p[2 * v], p[2 * v + 1]] = [pos.getX(i), -pos.getZ(i)]
-        const k = at(p[2 * v], p[2 * v + 1])
-        if (k >= 0 && near[k]) close = true
-      }
-      if (top < KERB + STANDS.low || !close) continue
-      const v = top < KERB + STANDS.tall ? 1 : 2
-      const [ax, ay, bx, by, cx, cy] = p
-      const longest = Math.max(Math.hypot(bx - ax, by - ay), Math.hypot(cx - ax, cy - ay), Math.hypot(cx - bx, cy - by))
-      const steps = Math.max(1, Math.ceil(longest / (cell * 0.9))) // points no more than a cell apart over the triangle
-      for (let i = 0; i <= steps; i++) {
-        for (let j = 0; j <= steps - i; j++) {
-          const [u, w] = [i / steps, j / steps]
-          mark(ax + (bx - ax) * u + (cx - ax) * w, ay + (by - ay) * u + (cy - ay) * w, v)
-        }
-      }
+      const [ia, ib, ic] = index ? [3 * index[t], 3 * index[t + 1], 3 * index[t + 2]] : [3 * t, 3 * t + 3, 3 * t + 6]
+      const high = Math.max(a[ia + 1], a[ib + 1], a[ic + 1])
+      if (high < KERB + STANDS.low) continue
+      const [ax, ay, bx, by, cx, cy] = [a[ia], -a[ia + 2], a[ib], -a[ib + 2], a[ic], -a[ic + 2]]
+      if (!reaches(Math.min(ax, bx, cx), Math.min(ay, by, cy), Math.max(ax, bx, cx), Math.max(ay, by, cy))) continue
+      const v = high < KERB + STANDS.tall ? 1 : 2
+      edge(ax, ay, bx, by, v)
+      edge(bx, by, cx, cy, v)
+      edge(cx, cy, ax, ay, v)
     }
   }
   for (const { kind, loop } of built.loops) {
