@@ -337,6 +337,11 @@ export const FACES = [
   [1, 0],
   [-1, 0],
 ] as const
+/** Face `k` of `FACES` of a box `w` (east–west) by `d`: its way out (as a front faces), m from the middle out to it, and how long it is. */
+export function boxFace(k: number, w: number, d: number) {
+  const [fx, fy] = FACES[k]
+  return { ry: Math.atan2(-fx, fy), half: (fx ? w : d) / 2, len: fx ? d : w }
+}
 
 /**
  * A colour (painted onto the shared soft-lit material), a material of the kit, or one of them tinted by vertex colour.
@@ -2063,11 +2068,6 @@ export function createKit(rand: () => number, materials: Materials) {
         if (dishes < [0, 0.6, 0.9][stage - 1]) dish(x - rw * 0.41, y - rd * 0.02, at)
         if (stage === 3 && dishes < 0.5) dish(x + rw * 0.12, y - rd * 0.22, at)
       }
-      /** The face of `FACES` that `k` is: its way out (as a front faces), and m from the middle to the body there. */
-      const faceOf = (k: number, bw = w, bd = d) => {
-        const [fx, fy] = FACES[k]
-        return { ry: Math.atan2(-fx, fy), half: (fx ? bw : bd) / 2, len: fx ? bd : bw }
-      }
       /**
        * A name plate lit at night on each face of the crown, `out` m from the middle of a box `bw` by `bd` (or the
        * body's), its foot `z` high: a board in a company's colour, its marks pale and lit on a dark or a coloured board
@@ -2077,7 +2077,7 @@ export function createKit(rand: () => number, materials: Materials) {
         if (!plate) return
         const mark = markOf(board, true)
         for (let k = 0; k < 4; k++) {
-          const { ry, half, len } = faceOf(k, bw, bd)
+          const { ry, half, len } = boxFace(k, bw, bd)
           const pw = Math.min(len * 0.62, 9)
           local(cuboid(pw, 0.95, 0.14), lit(board, OFFICE_FINISH.lit.board), x, y, ry, 0, half + out, z)
           const size = 0.5
@@ -2092,11 +2092,11 @@ export function createKit(rand: () => number, materials: Materials) {
       add(box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, x, y, h + 3.2)
       // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the Road.
       for (let k = 0; k < 4; k++) {
-        const { ry, half, len } = faceOf(k)
+        const { ry, half, len } = boxFace(k, w, d)
         pool('lobby', ...to(x, y, ry, 0, half + 2), h, len + 2, 2.8, ry)
       }
       if (entrance !== undefined) {
-        const { ry, half } = faceOf(entrance)
+        const { ry, half } = boxFace(entrance, w, d)
         const { canopy, wide, door } = LOBBY
         const out = half + 0.8 // the plinth's face
         local(cuboid(3.4, 0.8, 0.6), trim, x, y, ry, 0, out + 0.3, h) // a landing before the door

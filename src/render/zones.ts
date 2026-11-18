@@ -9,6 +9,7 @@ import { inside, type Field } from './field'
 import {
   BIKE_RACK,
   CONTAINER,
+  boxFace,
   FACES,
   frontOf,
   LOBBY,
@@ -1074,7 +1075,7 @@ function towerFoot(g: ZoneGround, podium: RowLot, taken: RowLot[], own: RowLot) 
  * and at Stage 3 the high ones, carry a lit name plate on their crowns.
  */
 function offices(g: ZoneGround) {
-  const { kit, block, field } = g
+  const { kit, block } = g
   const centre = middle(block)
   const plans = mulberry32(spot(centre.x, centre.y) ^ 0x0ff1ce) // the plans' own stream: the kit's draws as they did
   const lots = lotsOf(g, OFFICES.margin, OFFICES.lot)
@@ -1119,9 +1120,7 @@ function offices(g: ZoneGround) {
     if (near.has(style) && others.length) style = others[Math.floor(plans() * others.length)]
     styled.push({ lot: lots[i], style })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road.
-    const entrance = FACES.map(([fx, fy], k) => ({ k, edge: field.sample(x + fx * (w / 2 + 3), y + fy * (d / 2 + 3)) })).sort(
-      (a, b) => a.edge - b.edge,
-    )[0].k
+    const entrance = nearestFace(g, x, y, w / 2 + 3, d / 2 + 3)
     kit.staged((stage) => {
       const [t, tall] = [kit.range(0, 1), kit.chance(SKYLINE.tall)]
       kit.range(0, 1) // its style's draw, `style` above: still drawn, so that every draw after it stays
@@ -1278,6 +1277,15 @@ function kerbAhead(g: ZoneGround, l: RowLot, along: number): number | null {
   return null
 }
 
+/** Whether a straight run of the Block's outline faces a Road at its middle, rather than the seam with the next Tile. */
+const facesRoad = (r: Run) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2)
+
+/** The face of `FACES` whose point out from `(x, y)`, `ax` m east or west or `ay` m north or south, lies nearest the Block's edge. */
+function nearestFace({ field }: ZoneGround, x: number, y: number, ax: number, ay: number): number {
+  const edge = (k: number) => field.sample(x + FACES[k][0] * ax, y + FACES[k][1] * ay)
+  return [1, 2, 3].reduce((best, k) => (edge(k) < edge(best) ? k : best), 0)
+}
+
 /** Whether the middle of `l` lies within `b`. */
 const inBounds = (b: Bounds, l: Vec) => l.x > b.x0 && l.x < b.x1 && l.y > b.y0 && l.y < b.y1
 
@@ -1298,8 +1306,7 @@ function beside(a: Bounds, b: Bounds): boolean {
 function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLot | null {
   for (const lot of open) {
     const [cx, cy] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
-    const [fx, fy] = FACES.map((f) => ({ f, edge: g.field.sample(cx + f[0] * 6, cy + f[1] * 6) })).sort((a, b) => a.edge - b.edge)[0].f
-    const ry = Math.atan2(-fx, fy)
+    const { ry } = boxFace(nearestFace(g, cx, cy, 6, 6), 0, 0)
     // Spots over the lot, the middle first: a lot at a rounded corner may have its middle near the Block's edge.
     const steps = [0, -0.15, 0.15, -0.3, 0.3]
     const spots = steps
@@ -1376,7 +1383,7 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
  */
 function taxiBay(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
   const { long, deep, ends } = OFFICE_FINISH.taxi
-  const road = runs(g, OFFICE_FINISH.taxi.in).filter((r) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2))
+  const road = runs(g, OFFICE_FINISH.taxi.in).filter(facesRoad)
   return alongEdge(g, draw, road, [long, deep], [5.6, deep], 1.6, ends, (l) => {
     return !scenes.some((o) => overlap(o, l)) && bodies.every((b) => !b || !!standBack(b, [l]))
   })
@@ -1398,10 +1405,9 @@ function alongEdge(
   ends: number,
   ok: (l: RowLot) => boolean,
 ): RowLot | null {
-  const facing = (r: Run) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2)
   for (const [w, d] of [size, [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2], least]) {
     const fits = candidates.filter((r) => r.len >= w + 2 * ends)
-    const road = fits.filter(facing)
+    const road = fits.filter(facesRoad)
     for (const pool of road.length ? [road, fits] : [fits]) {
       for (let tries = 0; tries < 8 && pool.length; tries++) {
         const run = pool[Math.floor(draw() * pool.length)]
@@ -1445,8 +1451,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
   /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and of all placed so far. */
   const free = (l: RowLot) =>
     stands(g, l.x, l.y, l.w, l.d, 0.7, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l))
-  const [fx, fy] = FACES[entrance]
-  const [ry, half] = [Math.atan2(-fx, fy), (fx ? w : d) / 2]
+  const { ry, half } = boxFace(entrance, w, d)
   // The canopy's ground, which nothing else takes.
   placed.push({ ...turned(x, y, ry, 0, half + 0.8 + LOBBY.canopy / 2), w: LOBBY.wide + 0.6, d: LOBBY.canopy + 0.4, ry, onRoad: false })
   const side = flags(g, x, y, w, d, entrance, free, placed, stood)
@@ -1460,9 +1465,8 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
     break
   }
   for (const k of [2, 3, 0, 1]) {
-    if (k === entrance || (FACES[k][0] === -fx && FACES[k][1] === -fy)) continue
-    const [gx, gy] = FACES[k]
-    const [fr, fh] = [Math.atan2(-gx, gy), (gx ? w : d) / 2]
+    if (k === entrance || (FACES[k][0] === -FACES[entrance][0] && FACES[k][1] === -FACES[entrance][1])) continue
+    const { ry: fr, half: fh } = boxFace(k, w, d)
     const p = turned(x, y, fr, 0, fh + 1.9)
     const seat = { ...p, w: 2.4, d: 1.2, ry: fr, onRoad: false }
     if (!free(seat)) continue
@@ -1520,7 +1524,10 @@ function flags(
   const room = (p: Vec) =>
     free({ x: p.x, y: p.y, w: 0.8, d: 0.8, ry: 0, onRoad: false }) && stands(g, p.x + fly.x, p.y + fly.y, 0.4, 0.4, 0.2)
   /** Each face's way out (as a front faces) and m from the middle out to where its poles stand. */
-  const faceOf = (k: number) => ({ ry: Math.atan2(-FACES[k][0], FACES[k][1]), out: (FACES[k][0] ? w : d) / 2 + FLAGS.out })
+  const faceOf = (k: number) => {
+    const { ry, half } = boxFace(k, w, d)
+    return { ry, out: half + FLAGS.out }
+  }
   const { ry, out } = faceOf(entrance)
   const rows: { poles: Vec[]; side: number }[] = [1, -1].map((side) => ({
     poles: [0, 1, 2].map((k) => turned(x, y, ry, side * (LOBBY.wide / 2 + 0.9 + k * FLAGS.apart), out)),
