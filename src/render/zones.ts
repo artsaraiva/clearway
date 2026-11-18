@@ -1091,7 +1091,10 @@ function offices(g: ZoneGround) {
     const { x, y, w, d } = tower
     kit.lot(i)
     let style = STYLES[Math.floor(plans() * STYLES.length)]
-    if (style === last) style = STYLES[(STYLES.indexOf(style) + 2) % STYLES.length] // never its neighbour's
+    // Never its neighbour's: the lot cut before it, which lies beside it.
+    // ponytail: only that one neighbour is checked, so on a Block of four lots or more two lots side by side that were
+    // cut apart may share a style, at different sizes. Check every lot whose bounds touch this one's if a sheet shows it.
+    if (style === last) style = STYLES[(STYLES.indexOf(style) + 2) % STYLES.length]
     if (kit.chance(0.06)) {
       grove(g, lots[i], taken) // the odd lot left to trees
       continue

@@ -300,8 +300,8 @@ export function shopper(): THREE.BufferGeometry {
 
 /**
  * A food truck (#177), facing +x, centred under its middle and standing on y = 0, oversized as the cars are: a kei van
- * whose cab and box are white for the paint it takes, a serving hatch open along its left (-z) side under a striped awning, a counter, and
- * a menu board on its side.
+ * whose cab and box are white for the paint it takes, a serving hatch open along its left (-z) side over a counter
+ * under a striped awning, and a menu board on its other side.
  */
 function foodTruck(): THREE.BufferGeometry {
   const [PAINT, TYRE, GLASS, DARK, STRIPE, HATCH, LIT] = ['#ffffff', '#2f3440', '#41566c', '#4a525c', '#fbf8f2', '#5a4a3c', '#ffe2b0']
