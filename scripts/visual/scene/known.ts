@@ -67,7 +67,7 @@ export const knownOf = (f: Failure) =>
  * Tile (26 more), as #152 and #154 found, and should be a decision, not an accident.
  */
 export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
-  'low-density': { triangles: 2.9e6, meshes: 160 },
+  'low-density': { triangles: 2.2e6, meshes: 160 }, // #179: about a tenth over the 1.97 M it builds at Stage 3
   'medium-density': { triangles: 2.3e6, meshes: 160 },
   'high-density': { triangles: 1.95e6, meshes: 160 },
   offices: { triangles: 2.25e6, meshes: 160 },
