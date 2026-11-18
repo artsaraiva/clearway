@@ -1163,6 +1163,10 @@ interface Body {
 /**
  * Body `b` standing back from all of `taken` (#177): its plinth, 0.8 m out, kept `OFFICE_FINISH.clear` m from each, cut
  * back on whichever side keeps it largest; null if that leaves it under `OFFICES.least` across.
+ * ponytail: each of `taken` is stood back from by its bounds east–west and north–south. Ceiling: ground turned along a
+ * diagonal run, as on a Curve's or a Roundabout's Blocks, has bounds up to 1.4 times its size each way, so a tower beside
+ * it is cut back further than it need be, or left out when that leaves it under `OFFICES.least`. Upgrade: cut by the
+ * turned ground's own sides, as `overlap` tests them.
  */
 function standBack(b: Body, taken: RowLot[]): Body | null {
   let [x0, y0, x1, y1] = [b.x - b.w / 2, b.y - b.d / 2, b.x + b.w / 2, b.y + b.d / 2]
