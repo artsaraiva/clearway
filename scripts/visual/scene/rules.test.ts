@@ -183,6 +183,10 @@ describe('scenes', () => {
   it('asks no scene of a Block at Stage 1', () => {
     expect(scenes(report([], { stage: 1 }))).toEqual([])
   })
+
+  it("asks no scene of a Block the seed's coral tower stands on in place of its Zone's fill", () => {
+    expect(scenes(report([thing('tower', 0, 0, 12, 12, { fill: 'tower', tall: 40 })]))).toEqual([])
+  })
 })
 
 describe('moves', () => {
@@ -206,5 +210,11 @@ describe('empty-pavement', () => {
   it('fails a Block with nothing standing along 40 m of its edge', () => {
     const r = report([thing('shop', -20, 0, 2, 40), thing('shop', 0, -20, 40, 2), thing('shop', 0, 20, 40, 2)])
     expect(emptyPavement(r).map((f) => f.by)).toEqual(['31 m'])
+  })
+
+  it('reads a taxi bay laid at the kerb as no pavement, which breaks the run either side of it', () => {
+    const taxi = { kind: 'taxi' as const, tile: '0,0', block: 0, hull: turnedBox(18.75, 0, 2.5, 20, 0), thing: 0 }
+    const r = report([thing('shop', -20, 0, 2, 40), thing('shop', 0, -20, 40, 2), thing('shop', 0, 20, 40, 2)], { claims: [taxi] })
+    expect(emptyPavement(r)).toEqual([])
   })
 })

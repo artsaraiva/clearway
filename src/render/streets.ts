@@ -21,14 +21,14 @@ import { ZEBRA } from './roads'
 // pad along a zebra's end and the guide strip in from it; a guard rail's height, how far it reaches round a corner each
 // way, how far in from the edge it stands and how far it keeps from a tactile pad; a convex mirror's pole and its share
 // of corners; tree pits; drain grates, one every `every` m of straight kerb; and the longest run of pavement left bare
-// before a planter, a pair of bollards or a bench breaks it.
+// before a planter, a pair of bollards or a bench breaks it, and on a curve how much further before a pair of bollards does.
 const KERBSTONE = { from: 0.26, to: 0.62, colour: '#cbc3b5' }
 const TACTILE = { colour: '#f2c744', deep: 0.6, guide: 1.6, wide: 0.3 }
 const RAIL = { tall: 0.9, reach: 7.5, in: 0.45, gap: 2.6, colour: '#f4f6f8' }
 const MIRROR = { tall: 3.3, r: 0.4, share: 3, pole: '#f0b43c', face: '#d8e6ee' }
 const PIT = { grate: '#8c949e', soil: '#8a7560', size: 1.5 }
 const GRATE = { every: 9, colour: '#9aa0a8' }
-const RUN = { most: 10, in: 0.95 }
+const RUN = { most: 10, in: 0.95, curve: 1 }
 const PLANTER = { body: '#d9d3c7', leaves: ['#5fbc51', '#7bcd5d', '#6bc357'] }
 const BOLLARD = '#9aa3ad'
 // m a utility pole keeps from the street's furniture, and from a drain grate on the kerb line it stands by (#176).
@@ -59,7 +59,7 @@ export interface Built {
 }
 
 /** Whether anything stands within `r` m of `(x, y)` on a Block, or anything tall within `r` m and a little more (`standing`). */
-export type Stands = (x: number, y: number, r: number) => boolean
+export type Stands = (x: number, y: number, r: number, tall?: boolean) => boolean
 
 /**
  * What stands on Block `block` near its edge, as `built` has it (#176): the edges of each triangle of its parts that
@@ -142,14 +142,14 @@ export function standing(block: Block, field: Field, built: Built): Stands {
       }
     }
   }
-  return (x, y, r) => {
+  return (x, y, r, tall = false) => {
     const reach = r + STANDS.clear
     const [i0, i1] = [Math.floor((x - reach - x0) / cell), Math.floor((x + reach - x0) / cell)]
     const [j0, j1] = [Math.floor((y - reach - y0) / cell), Math.floor((y + reach - y0) / cell)]
     for (let j = Math.max(0, j0); j <= Math.min(ny - 1, j1); j++) {
       for (let i = Math.max(0, i0); i <= Math.min(nx - 1, i1); i++) {
         const v = grid[j * nx + i]
-        if (!v) continue
+        if (!v || (tall && v < 2)) continue
         const d = Math.hypot(x0 + (i + 0.5) * cell - x, y0 + (j + 0.5) * cell - y) - cell * 0.7 // to the cell's nearest
         if (d <= (v === 2 ? reach : r)) return true
       }
@@ -339,17 +339,22 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
   }
 
   // Along the edge, a point at a time: drain grates on the kerb line of the straight runs, and a planter or a pair of
-  // bollards wherever the pavement has run bare for `RUN.most` m.
+  // bollards wherever the pavement has run bare for `RUN.most` m. What a Zone keeps (#175) is kept clear by a planter's
+  // half length and a little, so that one laid beside it stops short of it (#193).
   const busy = (p: Vec) =>
-    stands(p.x, p.y, 0.7) ||
+    stands(p.x, p.y, 0.7, true) ||
     kept.some((f) => {
       const [c, s] = [Math.cos(f.ry), Math.sin(f.ry)]
       const [dx, dy] = [p.x - f.x, p.y - f.y]
-      return Math.abs(dx * c + dy * s) < f.w / 2 + 0.6 && Math.abs(-dx * s + dy * c) < f.d / 2 + 0.6
+      return Math.abs(dx * c + dy * s) < f.w / 2 + 1.1 && Math.abs(-dx * s + dy * c) < f.d / 2 + 1.1
     }) ||
-    [...lamps, ...trees, ...pads].some((q) => near(p, q, 2.2)) ||
+    [...lamps, ...trees].some((q) => near(p, q, 2.2)) ||
     byPole(p, POLE_ROOM.furniture) ||
     corners.some((q) => near(p, q, RAIL.reach + 1))
+  // A crossing's tactile pads lie flat: the pavement by them runs on bare, but nothing stands on them; and what a Zone
+  // lays low by the edge, paving or a bed, leaves it bare too, but takes only a pair of bollards (#193).
+  const onPad = (p: Vec) => pads.some((q) => near(p, q, 2.2))
+  const low = (p: Vec) => stands(p.x, p.y, 0.7)
   let [bare, grated, breaks] = [0, 0, 0]
   for (let i = 0; i < loop.length; i++) {
     const step = Math.hypot(loop[(i + 1) % loop.length].x - loop[i].x, loop[(i + 1) % loop.length].y - loop[i].y)
@@ -371,7 +376,7 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
       grated = 0
     }
     bare = busy(p) || field.sample(p.x, p.y) < RUN.in - 0.2 ? 0 : bare + step
-    if (bare > RUN.most && straight) {
+    if (bare >= RUN.most && straight && !onPad(p) && !low(p)) {
       const q = at(i, RUN.in + 0.2)
       const kind = breaks++ % 3
       kit.furniture(() => {
@@ -379,6 +384,11 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
         else if (kind === 1) bollards(kit, p.x, p.y, ry)
         else kit.bench(q.x, q.y, KERB, ry + Math.PI) // facing the road
       })
+      bare = 0
+    } else if (bare >= RUN.most + RUN.curve && !onPad(p)) {
+      // Where the edge curves, as where a roundabout's arm flares into its ring, or a Zone's paving reaches it, a pair
+      // of bollards, which neither crowds, once it has run bare a little further (#193).
+      kit.furniture(() => bollards(kit, p.x, p.y, ry))
       bare = 0
     }
   }

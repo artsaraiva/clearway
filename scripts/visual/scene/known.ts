@@ -33,87 +33,21 @@ const BROKEN: Record<string, string[]> = {
   farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
-/** Found by the scene check on the Zones already built to the level of finish; #193 owns them. */
-const FOUND = '#193'
+/** Left by #193: the bare pavement runs it did not break; #195 owns them. */
+const FOUND = '#195'
 
 export const KNOWN: Known[] = [
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
     rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the level of finish` })),
   ),
-  // Every Zone: the kerbside (#176) leaves up to 16 m bare, as where a Block's corner faces a roundabout's ring.
-  { rule: 'empty-pavement', most: 16, owner: FOUND, why: "the kerbside leaves 13 to 16 m bare, as at a Block's corner on a roundabout" },
-  // Medium density (#178).
+  // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
+  // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).
   {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(townhouse|wallStairs|gardens|binStore|bikeRack|pocketPark|bathhouse) and (townhouse|wallStairs|gardens|bikeRack|pocketPark|binStore|bathhouse)/,
+    rule: 'empty-pavement',
+    most: 16,
     owner: FOUND,
-    why: 'terraced houses, and their stairs, gardens, racks and bin stores, run into the next house',
+    why: "the kerbside leaves 12 to 16 m bare by a truck court's way in, a corner's rail or a roundabout's flare",
   },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|bathhouse|bikeRack) and (plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|tree|bathhouse)/,
-    owner: FOUND,
-    why: "an apartment block's wall hedges overlap its walls, each other, its court's hedge and its stairs",
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(bedTree|tree|vendingMachine|binStore|pocketPark|bikeRack|outsideStairs) on a door step/,
-    owner: FOUND,
-    why: "trees, vending machines, bin stores, racks, stairs and a pocket park stand before apartments' doors",
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(bathhouse|outsideStairs) on a parking bay/,
-    owner: FOUND,
-    why: 'a bathhouse or stairs graze a parking bay',
-  },
-  {
-    rule: 'neighbours-differ',
-    zone: 'medium-density',
-    what: /"terrace /,
-    owner: FOUND,
-    why: 'terraced houses side by side across a bend or a corner of the row',
-  },
-  {
-    rule: 'paths-clear',
-    zone: 'medium-density',
-    what: /^scooter's path runs through townhouse/,
-    owner: FOUND,
-    why: "the delivery scooter's path grazes a terraced house",
-  },
-  { rule: 'scenes', zone: 'medium-density', what: /^no scene/, owner: FOUND, why: 'some Blocks find no ground for a scene' },
-  // Offices (#177).
-  {
-    rule: 'keeps-clear',
-    zone: 'offices',
-    what: /sunkenCourt|^(officeTower|planter) on a taxi bay|^parked (on a door step|and officeTower)/,
-    owner: FOUND,
-    why: "a sunken court's rim under a kerbside planter or over a taxi bay; a tower or a planter on a taxi bay; a taxi before a door",
-  },
-  { rule: 'inside-block', zone: 'offices', what: /^officeTower/, owner: FOUND, why: "a tower stands over its Block's edge on seed 1" },
-  { rule: 'scenes', zone: 'offices', what: /^no scene/, owner: FOUND, why: 'a small Block that finds no ground for a scene' },
-  // Shops (#175).
-  {
-    rule: 'keeps-clear',
-    zone: 'shops',
-    what: /^(shop|keiTruck|planter) and (shop|keiTruck|planter)/,
-    owner: FOUND,
-    why: 'shops at a row corner, and kei trucks in the back yards, run into shops',
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'shops',
-    what: /pots|menuBoard|plantStand|produce|florist|greengrocer|capsules|^vendingMachine on a door step/,
-    owner: FOUND,
-    why: "door pots, menu boards and stands crowd a scene's front and the door, and a vending machine stands before one on seed 5",
-  },
-  { rule: 'neighbours-differ', zone: 'shops', owner: FOUND, why: 'shops kept apart only from the lot cut before them' },
-  { rule: 'paths-clear', zone: 'shops', what: /^shopper/, owner: FOUND, why: "shoppers walk through a florist's or a greengrocer's stand" },
-  { rule: 'scenes', zone: 'shops', owner: FOUND, why: 'shops Blocks without a scene, or with a stand smaller than a car' },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },
 ]
