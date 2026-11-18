@@ -102,14 +102,27 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const lamps = lampSpots(block, field)
   for (const { x, y } of lamps) kit.lamp(x, y, KERB)
   const from = kit.mark() // what stands on the Block from here on, which the street furniture keeps off
+  /**
+   * Last, whatever fills the Block: its street trees `street` planted, and its kerbside dressed round what stands on it
+   * from `from` on, the street trees and what its Zone says stands near its edge (`kept`), as its street lights and road
+   * plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike lane's too).
+   */
+  const dress = (street: Vec[] = [], kept: Footprint[] = []) => {
+    const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
+    for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
+    if (kit.dressed) dressStreet(kit, block, field, net, spec, { lamps, trees: street, poles, stands, kept })
+  }
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
     if (authored.type === 'park') park(kit, field, block, { x: authored.at[0], y: authored.at[1] })
     else plaza(kit, field, block)
-    return
+    return dress()
   }
-  if (Math.min(block.x1 - block.x0, block.y1 - block.y0) < NARROW) return bikeLane(kit, field, block)
+  if (Math.min(block.x1 - block.x0, block.y1 - block.y0) < NARROW) {
+    bikeLane(kit, field, block)
+    return dress()
+  }
 
   // Every landmark's ground, on the slab yet or not, so that no Rebuild changes which lots are left.
   const reserved = scenery.landmarks.map((l) => towerGround(...l.at))
@@ -140,8 +153,5 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const kept: Footprint[] = []
   if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
-  const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
-  for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
-  // The kerbside round every Tile (#175, #176), dressed as its street lights and road plate are (`./scenery`).
-  if (kit.dressed) dressStreet(kit, block, field, net, spec, { lamps, trees: street, poles, stands, kept })
+  dress(street, kept)
 }
