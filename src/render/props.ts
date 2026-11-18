@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
 import { polyline, type Vec } from '../sim/geometry'
 import { KERB } from './blocks'
+import { PAINTS } from './cars'
 import { SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
 
@@ -217,7 +218,7 @@ export type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
 
 // Colours: stone for a court's rim, its steps, its floor and a sculpture's plinth; sculptures in amber, teal, steel,
 // violet or white; a clock's post and face; a taxi bay's tarmac, its lines and its sign's pole, board, band and marks;
-// and a food truck's paints, the cars' colours but the taxis' yellow.
+// and a food truck's paints, four of the cars' (`PAINTS`), never the taxis' yellow.
 const STONE = { rim: '#d9d3c7', step: '#e8e2d6', floor: '#d6cec1', dark: '#bdb4a6' }
 const ART = ['#f0b43c', '#2fb39a', '#c4ccd4', '#a58ad8', '#fbf8f2']
 const CLOCK = { post: '#4a525c', face: '#fbf8f2', hands: '#2f3440' }
@@ -225,7 +226,7 @@ const CLOCK = { post: '#4a525c', face: '#fbf8f2', hands: '#2f3440' }
 // shadow, to every offices build, which draws none of it otherwise.
 const WATER = '#63d1f4'
 const TAXI_BAY = { tarmac: '#bcc1c8', line: '#fbf8f2', pole: '#9aa3ad', board: '#fbf8f2', band: '#f6d36a', marks: '#2f3440' }
-const FOOD_TRUCKS = ['#64cb9f', '#ff9cbb', '#ffffff', '#bc9ef2']
+const FOOD_TRUCKS = [PAINTS.mint, PAINTS.pink, PAINTS.white, PAINTS.violet]
 // A sculpture plaza's ring, standing on edge: 1 m across, its tube 0.16 m thick, scaled to its size.
 const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
 // A food truck (#177): where it parks on its court, m from the court's left end and in from its front; and the s it

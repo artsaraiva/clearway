@@ -4,6 +4,7 @@ import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
+import { lampBoxes, PART as CAR, TAXI } from './cars'
 import type { Glow } from './day'
 import type { Beacon, BeaconColour, Flag, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
 import { clad, createPatterns, panel, pave, PATTERN, wrap, type Cladding, type Pattern } from './pattern'
@@ -272,9 +273,8 @@ const OFFICE_FINISH = {
   boards: ['#2fb39a', '#f0b43c', '#79c86a', '#a58ad8', '#fbf8f2', '#2f3440'],
   lit: { board: 0.33, marks: 1.6, soffit: 1, fascia: 1.4 },
 }
-// A parked taxi (#177): the cars' dark glass, their pale head lamps and deep red tail lamps by day, and how brightly its
-// roof lamp glows at night.
-const TAXI = { glass: '#41566c', head: '#f4efe0', tail: '#a84a52', lamp: 1.2 }
+// How brightly a parked taxi's roof lamp glows at night (#177).
+const TAXI_LAMP = 1.2
 /** An office lobby's canopy over its revolving door (#177): m out from the lobby and along it, and the door's radius. */
 export const LOBBY = { canopy: 2.6, wide: 4.6, door: 0.95 }
 /** A satellite dish's bowl (#177), its rim 0.55 m across, tilted to face -z and up. */
@@ -2275,18 +2275,24 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * A taxi parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#177): the cars' saloon taxi
-     * (#176) in `paint` and plain boxes, oversized across as the cars are, its roof lamp cream by day and lit at night.
+     * (#176, `TAXI`) in `paint` and plain boxes, oversized across as the cars are, its roof lamp cream by day and lit at
+     * night.
      */
     taxi(x: number, y: number, h: number, ry: number, paint: string) {
-      local(cuboid(2.15, 0.8, 4.3), paint, x, y, ry, 0, 0, h + 0.32)
-      local(cuboid(1.9, 0.74, 2.2), paint, x, y, ry, 0, -0.2, h + 1.06)
-      local(cuboid(1.96, 0.4, 2.26), TAXI.glass, x, y, ry, 0, -0.2, h + 1.24)
-      local(cuboid(0.86, 0.3, 0.42), lit(CREAM, TAXI.lamp), x, y, ry, 0, -0.15, h + 1.8)
-      for (const lx of [-0.96, 0.96]) for (const ly of [-1.35, 1.35]) local(cuboid(0.3, 0.76, 0.76), TRUCK.tyre, x, y, ry, lx, ly, h)
-      for (const lx of [-0.62, 0.62]) {
-        local(cuboid(0.4, 0.22, 0.1), TAXI.head, x, y, ry, lx, 2.14, h + 0.8)
-        local(cuboid(0.46, 0.2, 0.1), TAXI.tail, x, y, ry, lx, -2.14, h + 0.84)
-      }
+      const { body, cabin, glass, wheels } = TAXI
+      const [head, , tail, , roof] = lampBoxes(TAXI.lamps)
+      for (const [p, look] of [
+        [body, paint],
+        [cabin, paint],
+        [glass, CAR.glass],
+        [roof, lit(CREAM, TAXI_LAMP)],
+      ] as const)
+        local(cuboid(p.wide, p.tall, p.long), look, x, y, ry, 0, p.at, h + p.up)
+      const tyre = 2 * wheels.r
+      for (const lx of [-wheels.track, wheels.track])
+        for (const ly of [-wheels.axle, wheels.axle]) local(cuboid(0.3, tyre, tyre), TRUCK.tyre, x, y, ry, lx, ly, h)
+      for (const side of [-1, 1])
+        for (const p of [head, tail]) local(cuboid(p.wide, p.tall, p.long), CAR[p.kind], x, y, ry, side * p.z, p.at, h + p.up)
       shadow(x, y, h, 2.9, 5.2, false, ry)
       brick('building', x, y, h)
     },

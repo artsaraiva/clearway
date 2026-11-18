@@ -3,6 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { area, KERB, twiceArea, type Block } from './blocks'
+import { TAXI } from './cars'
 import { WIND } from './day'
 import { inside, type Field } from './field'
 import {
@@ -133,13 +134,14 @@ const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 
 const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // Offices to the level of finish (#177). Each Block's plan is drawn from a stream of its own, so the kit's draws are
 // as they were: its scenes, on ground reserved along a Road before any tower is laid, which every tower's plinth keeps
-// `clear` m from; its taxi bay; its plaza paving's colour; and each tower's style, never its neighbour's. A scene's
+// `clear` m from; its taxi bay; its plaza paving's colour; and a tower's style where its own is a neighbour's. A scene's
 // ground is `long` m along the Block's edge and `deep` m in from a line `in` m in from it, or at least `least`, `ends`
-// m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across; a Block of `second` m² or more has a second at Stage 3. A
-// taxi bay is `long` m along the kerb, room for two taxis, and `deep` m, from `in` m in from the edge, `ends` m from its
-// run's ends at least. Plaza paving reaches up to `plaza` m out from a tower's plinth, `edge` m in from the Block's edge,
-// clear of the kerbstone line. At Stage 3 a tower of `plate` floors or more carries a lit name plate, as the tall ones
-// do from Stage 2. The pieces a plaza picks from, and the taxis' paints, the cars' yellow twice as often as mint.
+// m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across; a
+// Block of `second` m² or more has a second at Stage 3. A taxi bay is `long` m along the kerb, room for two taxis, and
+// `deep` m, from `in` m in from the edge, `ends` m from its run's ends at least. Plaza paving reaches up to `plaza` m out
+// from a tower's plinth, `edge` m in from the Block's edge, clear of the kerbstone line. At Stage 3 a tower of `plate`
+// floors or more carries a lit name plate, as the tall ones do from Stage 2. The pieces a plaza picks from. The taxis
+// take the cars' taxi's paints (`TAXI`).
 const OFFICE_FINISH = {
   scenes: ['court', 'sculpture', 'truck'] as OfficeScene[],
   ground: { long: 12, deep: 7.5, in: 0.8, least: [8.5, 5.5], keep: 9, ends: 3 } as const,
@@ -151,7 +153,6 @@ const OFFICE_FINISH = {
   paving: ['#e3ddd2', '#dde0de', '#e6dccc'],
   plate: 12,
   pieces: ['sculpture', 'clock', 'fountain'] as PlazaPiece[],
-  taxis: ['#ffc52d', '#ffc52d', '#64cb9f'],
 }
 // Flags by an office tower's lobby (#154): the share of towers that fly them from Stage 2 and from Stage 3, m out from
 // the tower's middle past its face and apart, how far a flag flies from its pole (as the kit's `flag` draws it), and
@@ -1147,7 +1148,7 @@ function offices(g: ZoneGround) {
     const cars = taxi.w >= OFFICE_FINISH.taxi.long - 0.5 ? [-1, 1] : [0]
     cars.forEach((k, n) => {
       const p = turned(taxi.x, taxi.y, taxi.ry, k * 2.6, 0.08)
-      const paint = OFFICE_FINISH.taxis[spot(p.x, p.y) % OFFICE_FINISH.taxis.length]
+      const paint = TAXI.paints[spot(p.x, p.y) % TAXI.paints.length]
       // Facing along the kerb with the pavement on its left, as a car stands at a Japanese kerb.
       kit.from(n ? 3 : 2, () => kit.taxi(p.x, p.y, KERB + 0.02, taxi.ry + Math.PI / 2, paint), spot(p.x, p.y))
     })
