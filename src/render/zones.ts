@@ -238,7 +238,7 @@ const FRONT = {
 } as const
 // Shops to the level of finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
 // noodle shops, one in eight; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
-// widest on a Road where none is that wide, and the area (m²) from which a Block
+// widest on a Road where none is that wide, the shortest a stand may be (m), a car's length and a little, and the area (m²) from which a Block
 // has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
 // far out from the fronts shoppers walk (m), how long they stop at each (s), and their coats, the cars' colours.
 const SHOP_FINISH = {
@@ -246,6 +246,7 @@ const SHOP_FINISH = {
   noodle: 0.12,
   scenes: ['greengrocer', 'florist', 'capsules', 'stall'] as ShopScene[],
   wide: 8,
+  stand: 4.5,
   second: 2500,
   paved: 1.7,
   paving: ['#efd3ad', '#ecd0c6', '#dde3c6', '#e5d6ec'],
@@ -2427,10 +2428,10 @@ function flags(
 /**
  * Shops: low shops shoulder to shoulder along every edge, each with its front, and trees behind. Every shop is one
  * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, the kit's `shop`) as its lot's
- * plan has it: a front colour and a form that differ from its neighbour's, and one shop in eight a noodle shop whose
- * vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of 2,500 m²
- * or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a Road
- * from Stage 2, stopping at each.
+ * plan has it (`shopPlans`): a front colour and a form that differ from its neighbours', and one shop in eight a noodle
+ * shop whose vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of
+ * 2,500 m² or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a
+ * Road from Stage 2, stopping at each.
  */
 function shops(g: ZoneGround) {
   const { kit, block } = g
@@ -2444,22 +2445,12 @@ function shops(g: ZoneGround) {
   const plans = mulberry32(spot(centre.x, centre.y) ^ 0x51d5) // the plans' own stream: the kit's draws as they did
   const scenes = sceneLots(g, lots, plans)
   const paving = SHOP_FINISH.paving[Math.floor(plans() * SHOP_FINISH.paving.length)]
-  let [front, form] = [-1, -1]
-  const built: (ShopForm | undefined)[] = [] // each lot's shop's form, none for a food stall's court
+  const planned = shopPlans(lots, scenes, plans)
   for (const [i, l] of lots.entries()) {
     kit.lot(i, l)
     const storeys = kit.chance(0.45) ? 1 : 2
-    front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
-    // Its form: the one drawn, or the next one that no shop beside it has, as round a row's corner (#193), nor the lot
-    // cut before it unless that leaves none.
-    const { forms } = SHOP_FINISH
-    const beside = new Set(built.flatMap((f, k) => (f && besideRow(lots[k], l) ? [f] : [])))
-    const near = forms.some((f) => !beside.has(f) && f !== forms[form]) ? new Set([...beside, forms[form]]) : beside
-    form = Math.floor(plans() * forms.length)
-    for (let n = 0; n < forms.length && near.has(forms[form]); n++) form = (form + 1) % forms.length
-    const noodle = plans() < SHOP_FINISH.noodle
+    const { front, form, noodle } = planned[i]
     const scene = scenes.get(i)
-    built.push(scene?.kind === 'stall' ? undefined : forms[form])
     // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
     const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
     g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
@@ -2467,7 +2458,7 @@ function shops(g: ZoneGround) {
       kit.scene('stall', () => kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving)))
       continue
     }
-    const plan = { front: FRONT.cloths[front], form: SHOP_FINISH.forms[form], noodle, door, onRoad: l.onRoad }
+    const plan = { front: FRONT.cloths[front], form, noodle, door, onRoad: l.onRoad }
     kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
     const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_FINISH.paved / 2)
     kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_FINISH.paved, l.ry, paving), spot(l.x, l.y) + 2)
@@ -2478,6 +2469,43 @@ function shops(g: ZoneGround) {
   kit.lot(-1)
   shoppers(g, lots, scenes)
   backYard(g, lots, yards(g, lots, SHOPS.trees))
+}
+
+/**
+ * Each shop's plan on lots `lots` (#175), drawn from `plans` lot by lot: its front's colour, another than the lot cut
+ * before it has; its form, the one drawn or the next one that no shop beside it has, as round a row's corner (#193),
+ * nor the lot cut before it unless that leaves none; and whether it is a noodle shop. Where the shops beside a lot
+ * already have all three forms, one of them takes another its own neighbours leave it, so that the lot can have its
+ * form. A food stall's court (`scenes`) has no form.
+ */
+function shopPlans(lots: RowLot[], scenes: Map<number, { kind: ShopScene }>, plans: () => number) {
+  const { forms } = SHOP_FINISH
+  const index: number[] = [] // each lot's form, as drawn and moved on
+  const shop = (k: number) => scenes.get(k)?.kind !== 'stall'
+  const beside = (i: number, j: number) => i !== j && shop(j) && besideRow(lots[Math.min(i, j)], lots[Math.max(i, j)])
+  /** The forms of the shops beside lot `i` among the first `n`, but `but`. */
+  const near = (i: number, n: number, but = -1) =>
+    new Set(index.slice(0, n).flatMap((f, k) => (k !== but && beside(i, k) ? [forms[f]] : [])))
+  let front = -1
+  const drawn = lots.map((_, i) => {
+    front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
+    const around = near(i, i)
+    const last = forms[index[i - 1]]
+    const kept = forms.some((f) => !around.has(f) && f !== last) ? new Set([...around, last]) : around
+    let form = Math.floor(plans() * forms.length)
+    for (let n = 0; n < forms.length && kept.has(forms[form]); n++) form = (form + 1) % forms.length
+    // Every form beside it: move one of those shops on to a form none of its own neighbours has, and take its old one.
+    for (let j = 0; j < i && around.has(forms[form]) && shop(i); j++) {
+      if (!beside(i, j) || near(i, i, j).has(forms[index[j]])) continue
+      const theirs = near(j, i)
+      const to = forms.findIndex((f) => f !== forms[index[j]] && !theirs.has(f))
+      if (to < 0) continue
+      ;[form, index[j]] = [index[j], to]
+    }
+    index.push(form)
+    return { front, noodle: plans() < SHOP_FINISH.noodle }
+  })
+  return drawn.map((p, i) => ({ ...p, form: forms[index[i]] }))
 }
 
 /**
@@ -2508,20 +2536,32 @@ function backYard(g: ZoneGround, lots: RowLot[], trees: Vec[]) {
 /**
  * The lots of a shops Block that hold its scenes (#175): from Stage 2 one, on a lot facing a Road wide enough for it,
  * of a kind picked from where the Block lies; at Stage 3 a second of another kind on a Block of 2,500 m² or more, not
- * beside the first.
+ * beside the first. A stand or capsule machines go only where they are longer than a car, and a food stall's court
+ * where they would not be (#193).
  */
 function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<number, { kind: ShopScene; from: number }> {
   const scenes = new Map<number, { kind: ShopScene; from: number }>()
-  const road = lots.flatMap((l, i) => (l.onRoad ? [i] : []))
+  // On lots facing a Road; or on any, on a Block whose fronts all face the seam with the next Tile (#193).
+  const facing = lots.flatMap((l, i) => (l.onRoad ? [i] : []))
+  const road = facing.length ? facing : lots.map((_, i) => i)
   const widest = Math.max(0, ...road.map((i) => lots[i].w))
   const fit = road.filter((i) => lots[i].w >= Math.min(SHOP_FINISH.wide, widest))
   const kinds = [...SHOP_FINISH.scenes]
-  const [first, at] = [kinds.splice(Math.floor(draw() * kinds.length), 1)[0], Math.floor(draw() * fit.length)]
-  const [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
+  let [first, at] = [kinds.splice(Math.floor(draw() * kinds.length), 1)[0], Math.floor(draw() * fit.length)]
+  let [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
   if (!fit.length) return scenes
+  // A stand or a row of capsule machines only where it is longer than a car: on a lot too narrow, a food stall's
+  // court, whose tree is taller than one (#193).
+  const long = (i: number) => frontOf(lots[i].w, 1).glazed - 0.2 >= SHOP_FINISH.stand
+  if (!long(fit[at]) && first !== 'stall') [first, second] = ['stall', second === 'stall' ? first : second]
   scenes.set(fit[at], { kind: first, from: 2 })
-  const rest = fit.filter((i) => Math.abs(i - fit[at]) > 1)
-  if (area(g.block.loop) >= SHOP_FINISH.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
+  // The second on a lot wide enough not beside the first; or else any on a Road not beside it, or any at all (#193).
+  const apart = (pool: number[]) => pool.filter((i) => Math.abs(i - fit[at]) > 1)
+  const rest = [apart(fit), apart(road), apart(lots.map((_, i) => i))].find((pool) => pool.length) ?? []
+  if (area(g.block.loop) < SHOP_FINISH.second || !rest.length) return scenes
+  const lot = rest[Math.floor(other * rest.length)]
+  if (!long(lot)) second = 'stall'
+  scenes.set(lot, { kind: second, from: 3 })
   return scenes
 }
 

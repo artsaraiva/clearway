@@ -42,23 +42,6 @@ export const KNOWN: Known[] = [
   ),
   // Every Zone: the kerbside (#176) leaves up to 16 m bare, as where a Block's corner faces a roundabout's ring.
   { rule: 'empty-pavement', most: 16, owner: FOUND, why: "the kerbside leaves 13 to 16 m bare, as at a Block's corner on a roundabout" },
-  // Shops (#175).
-  {
-    rule: 'keeps-clear',
-    zone: 'shops',
-    what: /^(shop|keiTruck|planter) and (shop|keiTruck|planter)/,
-    owner: FOUND,
-    why: 'shops at a row corner, and kei trucks in the back yards, run into shops',
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'shops',
-    what: /pots|menuBoard|plantStand|produce|florist|greengrocer|capsules|^vendingMachine on a door step/,
-    owner: FOUND,
-    why: "door pots, menu boards and stands crowd a scene's front and the door, and a vending machine stands before one on seed 5",
-  },
-  { rule: 'neighbours-differ', zone: 'shops', owner: FOUND, why: 'shops kept apart only from the lot cut before them' },
-  { rule: 'scenes', zone: 'shops', owner: FOUND, why: 'shops Blocks without a scene, or with a stand smaller than a car' },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },
 ]
