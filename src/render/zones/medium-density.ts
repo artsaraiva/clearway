@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Bounds, type Vec } from '../../sim/geometry'
 import { KERB } from '../blocks'
@@ -8,21 +9,25 @@ import {
   doorOf,
   FACES,
   GARDEN,
+  SHAPES,
   spot,
   STAIR,
   stairAt,
+  to,
   VENDING_MACHINE,
   WALKWAY,
   WALL_STAIR,
   wingBounds,
   type ApartmentPlan,
+  type Kit,
   type TerracePlan,
   type TerraceRoof,
   type Walks,
 } from '../kit'
 import { GROW } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { BAY_WIDTH, binStore, MEDIUM_SCENES, mediumScene, parkingBays, type MediumScene } from '../props'
+import { bench, GLOWS, waiting } from '../props'
+import type { Footprint } from '../streets'
 import {
   besideRow,
   corners,
@@ -1044,3 +1049,213 @@ function walkwayBlocked(wings: Bounds[], k: number, face: number, end: number): 
 
 /** The heights above the road of the landings of a building's outside stairs, `floors` storeys tall: the ground, then each walkway. */
 const floorTops = (floors: number) => [KERB, ...Array.from({ length: floors - 1 }, (_, f) => KERB + 0.94 + (f + 1) * 3.2)]
+
+// Medium-density residential (#178): the scenes a Block picks from, each on ground it reserves before its lots are laid,
+// `w` m along the Block's edge and `d` deep, its front facing `ry` toward the Road: a wayside shrine in stone and wood, a
+// pocket park with one swing, or a bathhouse with a tall thin chimney. Before its Stage a scene's ground is laid in setts
+// with a tree in a round bed and a bench either side, so that no ground stands empty.
+
+/** The scenes a medium-density Block picks from (#178). */
+export type MediumScene = 'shrine' | 'park' | 'bathhouse'
+/** The ground each scene takes (#178), m along the Block's edge and deep: as much as it would have, and the least it fits on. */
+export const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least: [number, number] }> = {
+  shrine: { most: [7.5, 7], least: [5.2, 5.2] },
+  park: { most: [10, 8], least: [7, 5.6] },
+  bathhouse: { most: [13, 10], least: [9.6, 7.6] },
+}
+
+// Colours (#178): a shrine's stone, its timber, its copper roof gone green, and the straw rope and the paper over it; a
+// bathhouse's plaster, its stone footing, its slate tiles, its noren, its sign and its brick chimney under a white band;
+// and the setts a scene's ground is laid in before its Stage, and a shrine's gravel.
+const SHRINE = {
+  stone: '#d9d3c7',
+  dark: '#bdb4a6',
+  step: '#c9c1b3',
+  wood: '#8a5a3c',
+  door: '#c49a6c',
+  roof: '#6f9a8a',
+  straw: '#e8cf7f',
+  paper: '#fbf8f2',
+}
+const SETTS = '#ddd6c9'
+const BATHHOUSE = {
+  wall: '#f6e6cb',
+  footing: '#bdb4a6',
+  roof: '#4d6575',
+  noren: ['#3f4a5e', '#6c5a8a'],
+  sign: '#2f3440',
+  chimney: '#a8604f',
+  band: '#f4f1ea',
+  tall: 18,
+}
+
+/**
+ * A medium-density Block's scene `kind` at Stage `stage` (#178), from Stage `from`, on its `ground`, its front facing
+ * the Road: the scene, or before `from` setts with a tree in a round bed in its middle and a bench either side of it,
+ * Close-only.
+ */
+export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: number, from: number) {
+  const { x, y, w, d, ry } = ground
+  if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
+  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
+  waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9), true)
+}
+
+/** A stone lantern at `(x, y)` facing `ry` (#178): a footing, a post, a fire box that lights at dusk and leaves its pool, and a cap. */
+function stoneLantern(kit: Kit, x: number, y: number, ry: number) {
+  kit.add(kit.cuboid(0.62, 0.22, 0.62), SHRINE.dark, x, y, KERB, ry)
+  kit.add(kit.cuboid(0.24, 0.85, 0.24), SHRINE.stone, x, y, KERB + 0.22, ry)
+  kit.add(kit.cuboid(0.5, 0.12, 0.5), SHRINE.stone, x, y, KERB + 1.07, ry)
+  kit.add(kit.cuboid(0.36, 0.34, 0.36), kit.lit('#fff4dc', GLOWS.low), x, y, KERB + 1.19, ry)
+  kit.add(SHAPES.cone, SHRINE.stone, x, y, KERB + 1.53, ry, 0.5, 0.34, 0.5)
+  kit.pool('cream', x, y, KERB, 2.6, 2.6)
+  kit.shadow(x, y, KERB, 1, 1, true)
+  kit.brick('building', x, y, KERB)
+}
+
+/**
+ * A wayside shrine at Stage `stage` (#178), on gravel: a stone torii at its front, stepping stones to a timber shrine
+ * under a copper roof on a stone footing, a straw rope and paper across its front, a stone lantern either side that
+ * lights at dusk and leaves its pool, and an old tree beside it; at Stage 3 an offering box before it and a low stone
+ * fence along its sides.
+ */
+function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
+  const at = (u: number, v: number) => to(x, y, ry, u, v)
+  const side = spot(x, y) % 2 ? 1 : -1 // the side its tree stands
+  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
+  const [front, back] = [d / 2 - 0.8, -d / 2 + 1.3]
+  for (let v = front - 1; v > back + 1.2; v -= 0.95) kit.put(kit.cuboid(0.9, 0.06, 0.6), SHRINE.step, x, y, ry, 0, v, KERB + 0.02)
+  // The torii, in stone: two pillars, a lintel and a tie beam with a strut between.
+  const span = Math.min(1.35, w / 2 - 0.7)
+  for (const s of [-1, 1]) kit.drum(SHRINE.stone, ...at(s * span, front), KERB, 0.17, 0.17, 3.1)
+  kit.put(kit.cuboid(2 * span + 0.9, 0.24, 0.4), SHRINE.stone, x, y, ry, 0, front, KERB + 3.1)
+  kit.put(kit.cuboid(2 * span + 0.3, 0.18, 0.2), SHRINE.stone, x, y, ry, 0, front, KERB + 2.5)
+  kit.put(kit.cuboid(0.18, 0.42, 0.14), SHRINE.dark, x, y, ry, 0, front, KERB + 2.68)
+  kit.shadow(...at(0, front), KERB, 2 * span + 1.2, 1, false, ry)
+  kit.brick('building', ...at(0, front), KERB)
+  // The shrine on its footing at the back, under a copper roof, its straw rope and paper across its front.
+  kit.put(kit.cuboid(2, 0.7, 1.7), SHRINE.dark, x, y, ry, 0, back, KERB)
+  kit.put(kit.cuboid(1.2, 1.05, 1), SHRINE.wood, x, y, ry, 0, back, KERB + 0.7)
+  kit.put(kit.cuboid(0.72, 0.78, 0.05), SHRINE.door, x, y, ry, 0, back + 0.5, KERB + 0.82)
+  kit.put(kit.gable(1.7, 1.9, 0.62), SHRINE.roof, x, y, ry + Math.PI / 2, 0, back, KERB + 1.75)
+  kit.put(kit.cuboid(1.5, 0.1, 0.1), SHRINE.straw, x, y, ry, 0, back + 0.62, KERB + 1.68)
+  for (const u of [-0.32, 0.32]) kit.put(kit.cuboid(0.12, 0.3, 0.02), SHRINE.paper, x, y, ry, u, back + 0.66, KERB + 1.36)
+  kit.shadow(...at(0, back), KERB, 2.6, 2.4, false, ry)
+  kit.brick('building', ...at(0, back), KERB)
+  for (const s of [-1, 1]) stoneLantern(kit, ...at(s * Math.min(1.7, w / 2 - 0.6), back + 1.6), ry)
+  kit.tree(...at(side * (w / 2 - 1.2), back + 0.2), KERB, 0.62, 'round', true)
+  if (stage < 3) return
+  kit.put(kit.cuboid(0.9, 0.5, 0.45), SHRINE.wood, x, y, ry, 0, back + 1.25, KERB)
+  for (let k = 0; k < 4; k++) kit.put(kit.cuboid(0.8, 0.03, 0.06), SHRINE.door, x, y, ry, 0, back + 1.08 + k * 0.1, KERB + 0.5)
+  for (const s of [-1, 1]) {
+    const u = s * (w / 2 - 0.35)
+    for (let v = front - 1.4; v > back - 0.4; v -= 1.1) kit.put(kit.cuboid(0.18, 0.55, 0.18), SHRINE.stone, x, y, ry, u, v, KERB)
+    kit.put(kit.cuboid(0.1, 0.1, front - back - 0.6), SHRINE.stone, x, y, ry, u, (front - 1.4 + back) / 2, KERB + 0.5)
+  }
+  kit.brick('building', x, y, KERB)
+}
+
+/**
+ * A pocket park at Stage `stage` (#178): a lawn behind a low hedge, one swing over sand, a tree, a bench facing the
+ * swing, Close-only, and a lamp at its front corner that leaves its pool; at Stage 3 a spring rider and a bed of flowers.
+ */
+function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
+  const at = (u: number, v: number) => to(x, y, ry, u, v)
+  const side = spot(x, y) % 2 ? 1 : -1 // the side its swing stands
+  kit.surface(x, y, KERB, w - 0.4, d - 0.4, ry, GARDEN.lawn)
+  for (const s of [-1, 1]) kit.put(kit.cuboid(0.5, 0.65, d - 1.4), GARDEN.hedge, x, y, ry, s * (w / 2 - 0.45), -0.5, KERB)
+  kit.put(kit.cuboid(w - 0.9, 0.65, 0.5), GARDEN.hedge, x, y, ry, 0, -d / 2 + 0.45, KERB)
+  kit.brick('ground', x, y, KERB)
+  const swing = at(side * (w / 2 - 2.4), -0.6)
+  kit.surface(...swing, KERB + 0.02, 3.4, 2.8, ry, GARDEN.sand)
+  kit.swings(...swing, KERB + 0.12, ry, true)
+  kit.tree(...at(-side * (w / 2 - 1.8), -d / 2 + 1.9), KERB + 0.1, 0.58, 'round', true)
+  bench(kit, ...at(-side * (w / 2 - 2.2), 0.6), ry + (side * Math.PI) / 2)
+  kit.lamp(...at(-side * (w / 2 - 0.9), d / 2 - 0.9), KERB + 0.1) // on the lawn, its pool over it
+  if (stage < 3) return
+  kit.rider(...at(side * (w / 2 - 2.4), d / 2 - 1.6), KERB + 0.1, ry)
+  kit.flowerBed(...at(0, -d / 2 + 1.3), KERB + 0.1, Math.min(3, w - 4.6), 0.9, ry, '#ffadc8')
+}
+
+/**
+ * A bathhouse at Stage `stage` (#178): one tall storey of plaster over a timber wainscot on a stone footing, its high
+ * windows lit at night, under a tiled hip along its front; a porch on timber posts under a big gable to the front over
+ * its door, two noren across the door and a signboard with marks for lettering lit at night on the porch, which leave a
+ * pool; and a tall thin brick chimney behind it under a white band, whose steam rises through the working day. At Stage
+ * 3 a vending machine by the door.
+ */
+function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
+  const [bw, bd] = [Math.min(w - 1, 11), Math.min(d - 1.8, 8)]
+  const v = -d / 2 + 0.5 + bd / 2 // its middle, out from the ground's
+  const face = v + bd / 2
+  const seed = spot(x, y)
+  const [cx, cy] = to(x, y, ry, 0, v)
+  kit.put(kit.cuboid(bw + 0.4, 0.45, bd + 0.4), BATHHOUSE.footing, x, y, ry, 0, v, KERB)
+  const walls = { front: PATTERN.plaster, back: PATTERN.house, sides: PATTERN.house, storey: 4.6, bay: 2.8 }
+  kit.cladded(kit.box(bw, 4.6, bd, 0.2, 0.08), BATHHOUSE.wall, cx, cy, KERB + 0.45, ry, walls, seed)
+  kit.put(kit.cuboid(bw + 0.1, 1.05, bd + 0.1), SHRINE.wood, x, y, ry, 0, v, KERB + 0.45) // a timber wainscot round it
+  // A hipped roof along its front, and over its door a porch on timber posts under a big gable to the front.
+  kit.tiled(kit.hip(bw + 0.8, bd + 1.4, Math.min(3, bd * 0.38)), BATHHOUSE.roof, cx, cy, KERB + 5.05, ry + Math.PI / 2, seed + 1)
+  for (const s of [-1, 1]) kit.put(kit.cuboid(0.24, 3.3, 0.24), SHRINE.wood, x, y, ry, s * 1.75, face + 1.5, KERB + 0.45)
+  kit.put(kit.cuboid(4, 0.24, 0.3), SHRINE.wood, x, y, ry, 0, face + 1.5, KERB + 3.6)
+  kit.tiled(kit.gable(2.2, 4.4, 1.6), BATHHOUSE.roof, ...to(x, y, ry, 0, face + 0.95), KERB + 3.8, ry, seed + 2)
+  kit.put(
+    kit.cuboid(2, 2.3, 0.1),
+    { material: kit.glass, tint: new THREE.Color(1, 1, 1), glow: 1.2 },
+    x,
+    y,
+    ry,
+    0,
+    face + 0.04,
+    KERB + 0.45,
+  )
+  BATHHOUSE.noren.forEach((colour, k) => kit.put(kit.cuboid(0.92, 0.9, 0.03), colour, x, y, ry, (k - 0.5) * 0.98, face + 0.2, KERB + 1.85))
+  kit.put(kit.cuboid(2.4, 0.8, 0.14), kit.lit(BATHHOUSE.sign, 0.33), x, y, ry, 0, face + 2.06, KERB + 4.2)
+  for (let k = 0; k < 3; k++)
+    kit.put(kit.cuboid(0.4, 0.4, 0.04), kit.lit('#fbf8f2', 1.6), x, y, ry, (k - 1) * 0.66, face + 2.14, KERB + 4.4)
+  kit.pool('sign', ...to(x, y, ry, 0, face + 1.6), KERB, 4.4, 2.8, ry)
+  // The chimney against its back wall, on its ground (#193), under a white band, steaming.
+  const [hx, hy] = to(x, y, ry, (seed % 2 ? 1 : -1) * Math.min(2, bw / 2 - 1), v - bd / 2 + 0.2)
+  kit.drum(BATHHOUSE.chimney, hx, hy, KERB, 0.5, 0.5, BATHHOUSE.tall)
+  kit.drum(BATHHOUSE.band, hx, hy, KERB + BATHHOUSE.tall - 1.6, 0.54, 0.54, 0.9)
+  kit.drum(BATHHOUSE.chimney, hx, hy, KERB + BATHHOUSE.tall, 0.6, 0.6, 0.3)
+  kit.steam(hx, hy, KERB + BATHHOUSE.tall + 0.4)
+  kit.shadow(cx, cy, KERB, bw * 1.3 + 1, bd * 1.3 + 1, false, ry)
+  kit.brick('building', cx, cy, KERB)
+  if (stage === 3) kit.vendingMachine(...to(x, y, ry, bw / 2 - 1.2, face + 0.5), KERB, ry)
+}
+
+// A bin store (#178): bags of rubbish under a green net in a steel frame, and a little sign; Close-only, as the small
+// props are. Parking bays by an apartment block (#178): tarmac set into the pavement, white lines between the bays.
+const BINS = { frame: '#9aa3ad', net: '#4f8a6e', bags: ['#f4f1ea', '#e3ecd6', '#f4f1ea', '#dfe7ee'], sign: '#fbf8f2' }
+const TAU = Math.PI * 2
+const BAYS = { tarmac: '#bcc1c8', line: '#fbf8f2', each: 2.5 }
+
+/** A bin store against a wall at `(x, y)`, facing `ry`, as one Close-only brick (#178): bags under a green net in a frame, and its sign. */
+export function binStore(kit: Kit, x: number, y: number, ry: number) {
+  const draw = mulberry32(spot(x, y))
+  kit.closeOnly(() => {
+    for (const u of [-0.95, 0.95]) kit.put(kit.cuboid(0.06, 0.9, 1), BINS.frame, x, y, ry, u, 0, KERB)
+    kit.put(kit.cuboid(1.96, 0.05, 1), BINS.frame, x, y, ry, 0, 0, KERB + 0.88)
+    for (let k = 0; k < 4; k++) {
+      const [bx, by] = to(x, y, ry, -0.62 + k * 0.42, (k % 2) * 0.16 - 0.08)
+      kit.add(SHAPES.bush, BINS.bags[Math.floor(draw() * BINS.bags.length)], bx, by, KERB + 0.3, draw() * TAU, 0.32, 0.3, 0.32)
+    }
+    kit.put(kit.cuboid(1.9, 0.5, 0.95), BINS.net, x, y, ry, 0, 0, KERB + 0.38)
+    kit.put(kit.cuboid(0.5, 0.36, 0.03), BINS.sign, x, y, ry, 0.5, -0.52, KERB + 1.05)
+  })
+  kit.brick('building', x, y, KERB)
+}
+
+/** Parking bays on `ground` (#178), `bays` of them side by side across its width, open to its front, as one brick. */
+export function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: number) {
+  kit.claim('bay', x, y, w, d, ry)
+  kit.put(kit.cuboid(w, 0.02, d), BAYS.tarmac, x, y, ry, 0, 0, KERB)
+  kit.put(kit.cuboid(w, 0.03, 0.12), BAYS.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
+  for (let k = 0; k <= bays; k++)
+    kit.put(kit.cuboid(0.12, 0.03, d - 0.4), BAYS.line, x, y, ry, -w / 2 + 0.06 + (k * (w - 0.12)) / bays, -0.2, KERB)
+  kit.brick('ground', x, y, KERB)
+}
+
+/** m across a parking bay (#178). */
+export const BAY_WIDTH = BAYS.each
