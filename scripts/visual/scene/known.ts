@@ -15,7 +15,6 @@ export interface Known {
 
 /** The Zones not yet built to the level of finish (#173), with the ticket that builds each. */
 const UNFINISHED: Record<string, string> = {
-  'low-density': '#179',
   parks: '#180',
   industrial: '#181',
   green: '#182',
@@ -25,7 +24,6 @@ const UNFINISHED: Record<string, string> = {
 }
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
-  'low-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement'],
   parks: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
   industrial: ['scenes', 'empty-pavement'],
   green: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],

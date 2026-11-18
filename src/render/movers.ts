@@ -13,7 +13,7 @@ import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes
 // beacons (#155) blink at night, and pools of light (#174) lie warm on the ground under the lights.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck' | 'scooter'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck' | 'scooter' | 'cat'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -61,13 +61,17 @@ export interface Plume {
   steam?: boolean
 }
 
-/** The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, or a shop's nobori banner (#153). */
-export type FlagKind = 'flag' | 'nobori'
+/**
+ * The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, a
+ * shop's nobori banner (#153), or a carp streamer in a garden (#179).
+ */
+export type FlagKind = 'flag' | 'nobori' | 'carp'
 
 /**
  * Something that flies from the top of a pole at `at`, in Three coordinates, and flutters in the wind (#154): a flag.
  * It flies downwind in `colour`, or turned `ry` as the kit turns a shape if it hangs from a rod as a nobori does (#153),
- * is lowered to `low` m above the road and furled for the night, and rides its pole's brick at `brick`.
+ * is lowered to `low` m above the road and furled for the night, and rides its pole's brick at `brick`. It flies at
+ * `size` times its model's size, as the carp on one pole do, largest at the top (#179); 1 unless given.
  */
 export interface Flag {
   kind: FlagKind
@@ -76,6 +80,7 @@ export interface Flag {
   colour: string
   brick: number
   ry?: number
+  size?: number
 }
 
 /** A beacon's colour (#155): white or amber, never the Jam's red. */
@@ -148,6 +153,7 @@ const KINDS: Record<MoverKind, Kind> = {
   shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper, wide: 0.8 }, // #175
   foodtruck: { speed: 2, bob: 0.015, rate: 11, model: foodTruck, wide: 2.6 }, // #177
   scooter: { speed: 2.6, bob: 0.025, rate: 12, model: scooter, wide: 1.1 }, // #178
+  cat: { speed: 0.45, bob: 0.015, rate: 10, model: cat, wide: 0 }, // #179: it walks the top of a garden wall, on no ground
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -174,6 +180,7 @@ const PLUMES = {
 const FLAGS: Record<FlagKind, { model: () => THREE.BufferGeometry; reach: number; swing: number; waves: number }> = {
   flag: { model: () => new THREE.PlaneGeometry(2.3, 1.45, 8, 2).translate(1.15, -0.725, 0), reach: 2.3, swing: 0.32, waves: 1.3 },
   nobori: { model: nobori, reach: 0.76, swing: 0.2, waves: 0.6 }, // #153
+  carp: { model: carp, reach: 2.6, swing: 0.3, waves: 1.1 }, // #179
 }
 // How fast every flying thing's waves run (rad/s), and the share of the day it takes to raise or lower one, at the
 // start and the end of the working day.
@@ -400,6 +407,57 @@ function nobori(): THREE.BufferGeometry {
     cloth(0.29, 0.51, -2.4, -2.1, '#ffffff', 1),
     cloth(0.51, 0.76, -2.4, 0, '#ffffff', 1),
   ])
+}
+
+/**
+ * A carp streamer (#179), flying along +x from its pole as the flags do, its mouth's ring at the pole, 2.6 m long and
+ * hanging under y = 0: a fish of cloth, flat, its body white for the paint it takes and divided along its length so that
+ * the waves run through it, a pale belly, an eye on each side and a forked tail.
+ */
+function carp(): THREE.BufferGeometry {
+  const L = 2.6
+  const mid = -0.2 * L // its middle line, below the pole's top
+  // Its half-height at each of its body's stations, mouth to the root of its tail.
+  const body = [0.11, 0.15, 0.17, 0.165, 0.14, 0.1, 0.07].map((h, i) => ({ x: (i * 0.8 * L) / 6, h: h * L }))
+  const v: number[] = []
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => v.push(...a, ...b, ...c, ...a, ...c, ...d)
+  for (let i = 0; i + 1 < body.length; i++) {
+    const [p, q] = [body[i], body[i + 1]]
+    quad([p.x, mid - p.h, 0], [q.x, mid - q.h, 0], [q.x, mid + q.h, 0], [p.x, mid + p.h, 0])
+  }
+  const root = body[body.length - 1]
+  // The tail: two lobes out to its tips, a notch between them.
+  for (const s of [-1, 1])
+    v.push(root.x, mid, 0, L, mid + s * 0.17 * L, 0, root.x, mid + s * root.h, 0, root.x, mid, 0, 0.9 * L, mid, 0, L, mid + s * 0.17 * L, 0)
+  const cloth = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+  cloth.computeVertexNormals()
+  const keep = (w: number, h: number, x: number, y: number, z: number, colour: string) =>
+    painted(tint(new THREE.PlaneGeometry(w, h).deleteAttribute('uv').translate(x, y, z), colour), 0)
+  const eyes = [0.006, -0.006].flatMap((z) => [
+    keep(0.22, 0.22, 0.13 * L, mid + 0.05 * L, z, '#fbf8f2'),
+    keep(0.1, 0.1, 0.13 * L, mid + 0.05 * L, z * 2, '#2f3440'),
+    keep(0.5 * L, 0.07 * L, 0.42 * L, mid - 0.09 * L, z, '#fbf8f2'), // its belly
+  ])
+  return merged([painted(tint(cloth, '#ffffff'), 1), ...eyes])
+}
+
+/**
+ * A cat (#179), facing +x, centred under its middle and standing on y = 0, oversized as the moving details are so that it
+ * reads from Tile zoom: a body, legs, a head with ears, and a tail held up, white for the paint it takes, its eyes dark.
+ */
+function cat(): THREE.BufferGeometry {
+  const PAINT = '#ffffff'
+  const tail = painted(tint(new THREE.BoxGeometry(0.06, 0.34, 0.06).rotateZ(0.5).translate(-0.27, 0.36, 0), PAINT), 1)
+  return merged([
+    ...[-0.15, 0.15].flatMap((x) => [-0.06, 0.06].map((z) => painted(part(0.06, 0.16, 0.06, x, 0, z, PAINT), 1))), // legs
+    painted(part(0.44, 0.17, 0.18, 0, 0.14, 0, PAINT), 1), // the body
+    painted(part(0.17, 0.16, 0.17, 0.25, 0.24, 0, PAINT), 1), // the head
+    painted(part(0.05, 0.07, 0.04, 0.26, 0.4, 0.05, PAINT), 1), // the ears
+    painted(part(0.05, 0.07, 0.04, 0.26, 0.4, -0.05, PAINT), 1),
+    painted(part(0.02, 0.03, 0.035, 0.34, 0.33, 0.04, '#2f3440'), 0), // the eyes
+    painted(part(0.02, 0.03, 0.035, 0.34, 0.33, -0.04, '#2f3440'), 0),
+    tail,
+  ]).scale(1.7, 1.7, 1.7)
 }
 
 /**
@@ -740,8 +798,12 @@ export function createMovers() {
     for (const [kind, { model, cloth, shadow }] of flyers) {
       const flying = entries.flatMap((e) => e.flags.filter((f) => f.kind === kind))
       if (!flying.length) continue
-      // Each flag's phase, from where it flies, and its colour, which stay until the next remesh.
-      const phase = new THREE.InstancedBufferAttribute(new Float32Array(flying.map((f) => mulberry32(spot(f.at.x, -f.at.z))() * 7)), 1)
+      // Each flag's phase, from where it flies (how high too, for the carp on one pole, #179), and its colour, which stay
+      // until the next remesh.
+      const phase = new THREE.InstancedBufferAttribute(
+        new Float32Array(flying.map((f) => mulberry32(spot(f.at.x, -f.at.z) ^ (kind === 'carp' ? Math.round(f.at.y * 100) : 0))() * 7)),
+        1,
+      )
       const mesh = new THREE.InstancedMesh(model.clone().setAttribute('phase', phase), cloth, flying.length)
       mesh.name = `${kind}s`
       mesh.castShadow = mesh.receiveShadow = true
@@ -1052,7 +1114,8 @@ export function createMovers() {
             const foot = e.build.bricks[f.brick].at // what its pole grows out of
             const y = f.low + (f.at.y - f.low) * raised
             at.set(foot.x + (f.at.x - foot.x) * s, foot.y + (y - foot.y) * s + pose.lift, foot.z + (f.at.z - foot.z) * s)
-            m.compose(at, q.setFromAxisAngle(up, f.ry ?? downwind), scale.set(s * (0.06 + 0.94 * raised), s, s))
+            const grown = s * (f.size ?? 1)
+            m.compose(at, q.setFromAxisAngle(up, f.ry ?? downwind), scale.set(grown * (0.06 + 0.94 * raised), grown, grown))
             mesh.setMatrixAt(k, m)
           }
         }

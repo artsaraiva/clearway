@@ -26,7 +26,7 @@ import {
 } from '../kit'
 import { GROW } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { bench, GLOWS, waiting } from '../props'
+import { bench, gardenShed, stoneLantern, waiting } from '../props'
 import type { Footprint } from '../streets'
 import {
   besideRow,
@@ -86,7 +86,6 @@ const MEDIUM_FINISH = {
     deep: 2,
     soil: '#8a7560',
     greens: ['#6bc357', '#85cf61', '#5fbc51'],
-    shed: { wall: '#d9dcd2', roof: '#8f9aa5' },
     sheds: 0.25,
     washing: 0.5,
   },
@@ -276,7 +275,7 @@ function alleys(g: ZoneGround, lots: RowLot[]) {
  */
 function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
   const { kit } = g
-  const { deep, soil, greens, shed } = MEDIUM_FINISH.garden
+  const { deep, soil, greens } = MEDIUM_FINISH.garden
   for (const l of lots) {
     const p = turned(l.x, l.y, l.ry, 0, -l.d / 2 - MEDIUM_FINISH.alley.deep - 0.25 - deep / 2)
     const bed = { ...p, w: l.w - 0.6, d: deep, ry: l.ry, onRoad: false }
@@ -305,11 +304,7 @@ function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
         kit.brick('ground', p.x, p.y, KERB)
         if (sheds) {
           const at = turned(p.x, p.y, ry, side * (bed.w / 2 - 0.75), 0)
-          kit.put(kit.cuboid(1.3, 1.7, 1.1), shed.wall, at.x, at.y, ry, 0, 0, KERB)
-          kit.put(kit.cuboid(1.5, 0.1, 1.3), shed.roof, at.x, at.y, ry, 0, 0, KERB + 1.7)
-          kit.put(kit.cuboid(0.04, 1.4, 0.04), shed.roof, at.x, at.y, ry, 0, 0.57, KERB + 0.1)
-          kit.shadow(at.x, at.y, KERB, 1.9, 1.7, false, ry)
-          kit.brick('building', at.x, at.y, KERB)
+          gardenShed(kit, at.x, at.y, KERB, ry)
         }
         const pole = turned(p.x, p.y, ry, 0, deep / 2 + 0.15)
         if (washes) kit.washingPole(pole.x, pole.y, KERB, ry)
@@ -1099,18 +1094,6 @@ export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stag
   if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
   kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
   waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9), true)
-}
-
-/** A stone lantern at `(x, y)` facing `ry` (#178): a footing, a post, a fire box that lights at dusk and leaves its pool, and a cap. */
-function stoneLantern(kit: Kit, x: number, y: number, ry: number) {
-  kit.add(kit.cuboid(0.62, 0.22, 0.62), SHRINE.dark, x, y, KERB, ry)
-  kit.add(kit.cuboid(0.24, 0.85, 0.24), SHRINE.stone, x, y, KERB + 0.22, ry)
-  kit.add(kit.cuboid(0.5, 0.12, 0.5), SHRINE.stone, x, y, KERB + 1.07, ry)
-  kit.add(kit.cuboid(0.36, 0.34, 0.36), kit.lit('#fff4dc', GLOWS.low), x, y, KERB + 1.19, ry)
-  kit.add(SHAPES.cone, SHRINE.stone, x, y, KERB + 1.53, ry, 0.5, 0.34, 0.5)
-  kit.pool('cream', x, y, KERB, 2.6, 2.6)
-  kit.shadow(x, y, KERB, 1, 1, true)
-  kit.brick('building', x, y, KERB)
 }
 
 /**
