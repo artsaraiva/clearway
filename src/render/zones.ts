@@ -2496,8 +2496,12 @@ function backYard(g: ZoneGround, lots: RowLot[], trees: Vec[]) {
     const back = lots.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a))
     const ry = back.ry + Math.PI / 2 // its length along the wall
     if (!stands(g, x, y, 2.4, 5, 1.5, ry)) continue
+    // Its whole length clear of every shop and what stands on its walls, not its middle alone (#193).
+    const truck = { x, y, w: 2.8, d: 5.4, ry, onRoad: false }
+    if (lots.some((l) => overlap(walled(l), truck, 0))) continue
     kit.from(parked.length ? 3 : 2, () => kit.keiTruck(x, y, KERB, ry), spot(x, y))
     parked.push({ x, y })
+    g.kept.push(truck) // which the kerbside's planters keep off
   }
 }
 
@@ -2531,7 +2535,12 @@ function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopS
   const at = (lu: number, o: number) => turned(l.x, l.y, l.ry, lu, l.d / 2 + o)
   const build = { greengrocer, florist, capsules }[scene.kind as Exclude<ShopScene, 'stall'>]
   const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
-  kit.scene(scene.kind, () => kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage), spot(p.x, p.y)))
+  // What its stand spills toward the kerb at Stage 3 keeps off the poles, the lamps and the street trees there (#193).
+  const kerbside = [...g.poles, ...g.lamps, ...g.street]
+  const free = (x: number, y: number) => !kerbside.some((q) => Math.hypot(q.x - x, q.y - y) < 0.8)
+  kit.scene(scene.kind, () =>
+    kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage, free), spot(p.x, p.y)),
+  )
   const q = at(-door * (l.w / 2 - 2.5), 0.6)
   if (kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry))
     kit.staged((stage) => stage < scene.from && menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
@@ -2540,6 +2549,12 @@ function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopS
 
 /** m: a menu board's ground on the pavement, its legs' spread along the front and across it. */
 const MENU = { w: 0.7, d: 0.5 }
+
+/**
+ * Whether something on the pavement before shop `l`'s front, its door at end `door`, reaching `half` m either way of `u`
+ * m along the front, keeps clear of the pot plants by its door (#193).
+ */
+const offPots = (l: RowLot, door: 1 | -1, u: number, half: number) => frontOf(l.w, door).pots.every((p) => Math.abs(p - u) > half + 0.45)
 
 /**
  * A food stall's court on lot `l` (#175), at Stage `stage`: the lot left open and paved, a bench at its back facing the
@@ -2589,7 +2604,7 @@ function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1, outer = false) {
 function seamFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   doorPots(g, l, door)
   const q = turned(l.x, l.y, l.ry, -door * (l.w / 2 - 2.6), l.d / 2 + 0.6)
-  if (spot(q.x, q.y) % 2 && g.kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry))
+  if (spot(q.x, q.y) % 2 && g.kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry) && offPots(l, door, -door * (l.w / 2 - 2.6), MENU.w / 2))
     g.kit.from(1, () => menuBoard(g.kit, q.x, q.y, l.ry), spot(q.x, q.y))
 }
 
@@ -2686,15 +2701,15 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   if (vending) {
     // Backed up to the front at its end, and a second beside it at Stage 3.
     const [a, b] = [u(0.85), u(2.15)]
-    if (clear(0.5, a - 0.6, a + 0.6) && clear(1, a) && unclaimed(at(a, 0.5))) {
+    if (clear(0.5, a - 0.6, a + 0.6) && clear(1, a) && unclaimed(at(a, 0.5)) && offPots(l, door, a, 0.6)) {
       from(vending, at(a, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
-      if (second && clear(0.5, b - 0.6, b + 0.6) && unclaimed(at(b, 0.5)))
+      if (second && clear(0.5, b - 0.6, b + 0.6) && unclaimed(at(b, 0.5)) && offPots(l, door, b, 0.6))
         from(3, at(b, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
       free = second ? 2.85 : 1.55
     }
   } else {
     const q = at(u(1.1), 0.6)
-    if (kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry)) {
+    if (kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry) && offPots(l, door, u(1.1), MENU.w / 2)) {
       kit.from(1, () => menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
       board = 1.55
     }
@@ -2725,7 +2740,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
     // Before the window where no bicycles or menu board stand, from Stage 2: crates of produce, or a plant stand,
     // Close-only.
     const q = at(u(ware + 0.9), 0.45)
-    if (clear(0.45, u(ware + 0.2), u(ware + 1.6)))
+    if (clear(0.45, u(ware + 0.2), u(ware + 1.6)) && offPots(l, door, u(ware + 0.9), 0.7))
       kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }
   if (banners) {

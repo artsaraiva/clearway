@@ -50,18 +50,25 @@ function stand(kit: Kit, x: number, y: number, ry: number, len: number, pitch: n
   }
 }
 
+/** Whether a stand's Stage 3 spill may stand at a point (#193): anywhere, unless its shop says otherwise. */
+const Free = (_x: number, _y: number) => true
+
 /**
  * A greengrocer's stand before a shop front, as one brick (#175): produce heaped on three steps along the front, `len`
  * long, with a price board at one end; at Stage 3 crates more spill to the kerb. Its middle at `(x, y)`, 0.6 m out from
  * the front facing `ry`.
  */
-export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: number, stage: number) {
+export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
   const draw = mulberry32(spot(x, y))
   stand(kit, x, y, ry, len, 0.7, (lx, ly, z) =>
     kit.put(kit.cuboid(0.62, 0.16, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, ly, z),
   )
   kit.put(kit.cuboid(0.7, 0.5, 0.05), BOARD.chalk, x, y, ry, len / 2 - 0.4, 0.68, KERB + 0.6)
-  if (stage === 3) for (let i = 0; i < 4; i++) crate(kit, x, y, ry, -len / 2 + 0.5 + i * 0.7, 1.05, KERB, 0.1, draw)
+  if (stage === 3)
+    for (let i = 0; i < 4; i++) {
+      const lx = -len / 2 + 0.5 + i * 0.7
+      if (free(...to(x, y, ry, lx, 1.05))) crate(kit, x, y, ry, lx, 1.05, KERB, 0.1, draw)
+    }
   kit.shadow(x, y, KERB, len + 0.6, 1.8, false, ry)
   kit.brick('building', x, y, KERB)
 }
@@ -70,7 +77,7 @@ export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: num
  * A florist's stand before a shop front, as one brick (#175): buckets of flowers on three steps along the front, `len`
  * long, and pot plants by it; at Stage 3 a row of tall plants at the kerb's side.
  */
-export function florist(kit: Kit, x: number, y: number, ry: number, len: number, stage: number) {
+export function florist(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
   const draw = mulberry32(spot(x, y))
   stand(kit, x, y, ry, len, 0.62, (lx, ly, z) => {
     kit.put(kit.cuboid(0.34, 0.34, 0.3), BUCKET, x, y, ry, lx, ly, z)
@@ -80,6 +87,7 @@ export function florist(kit: Kit, x: number, y: number, ry: number, len: number,
   if (stage === 3)
     for (let i = 0; i < 3; i++) {
       const [px, py] = to(x, y, ry, -len / 2 + 0.6 + i * 1.1, 1.05)
+      if (!free(px, py)) continue
       kit.add(SHAPES.pot, '#e9e4da', px, py, KERB, 0, 0.32, 0.5, 0.32)
       kit.add(SHAPES.sphere, LEAF, px, py, KERB + 1.05, 0, 0.42, 0.62, 0.42)
     }
@@ -92,7 +100,7 @@ export function florist(kit: Kit, x: number, y: number, ry: number, len: number,
  * colour under a clear top full of capsules that lights at dusk as a vending machine's front does, and leaves a pool.
  * Stage 3 tops each pile with a sign.
  */
-export function capsules(kit: Kit, x: number, y: number, ry: number, len: number, stage: number) {
+export function capsules(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, _free = Free) {
   const draw = mulberry32(spot(x, y))
   const n = Math.max(4, Math.floor(len / 0.66))
   for (let i = 0; i < n; i++) {
