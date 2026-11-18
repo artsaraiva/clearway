@@ -523,6 +523,9 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
  */
 const [ROW_LEAST, ROW_STEP, ROW_BACK] = [3.6, 1.4, 0.75]
 
+/** Row lot `l` with what stands on its walls: on its back (`ROW_BACK`), and the AC unit under a front window. */
+const walled = (l: RowLot): RowLot => ({ ...l, ...turned(l.x, l.y, l.ry, 0, (0.45 - ROW_BACK) / 2), d: l.d + ROW_BACK + 0.45 })
+
 /** Row lot `l` with the step before its front (`ROW_STEP`) and what stands on its back wall (`ROW_BACK`). */
 const stepped = (l: RowLot): RowLot => ({ ...l, ...turned(l.x, l.y, l.ry, 0, (ROW_STEP - ROW_BACK) / 2), d: l.d + ROW_STEP + ROW_BACK })
 
@@ -846,7 +849,8 @@ function terraces(g: ZoneGround) {
   }
   kit.lot(-1)
   const trees = yards(g, lots, TERRACES.trees, kit.finished)
-  const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3)), ...signs]
+  // The houses with what stands on their walls (#193), the lamps, the trees and the corner shops' end walls.
+  const taken: RowLot[] = [...lots.map(walled), ...g.lamps.map(around(1.4)), ...trees.map(around(3)), ...signs]
   // A corner by a row's end (#156), beyond its end wall from its front back: one from Stage 2, a second from Stage 3.
   let from = 2
   for (const [i, l] of lots.entries()) {
@@ -867,7 +871,7 @@ function terraces(g: ZoneGround) {
       const ry = l.ry - (s * Math.PI) / 2 // the wall at its back, its flight along the house's depth
       const stair = { x: c.x, y: c.y, w: L, d: W + 0.1, ry, onRoad: false }
       if (mulberry32(spot(c.x, c.y))() > TERRACES.stairs) continue
-      if (!stands(g, c.x, c.y, L, W, 0.6, ry) || taken.some((o) => overlap(o, stair))) continue
+      if (!stands(g, c.x, c.y, L, W, 0.6, ry) || taken.some((o) => overlap(o, stair, 0)) || !kit.unclaimed(c.x, c.y, L, W, ry)) continue
       taken.push(stair)
       kit.lot(i)
       kit.staged(
@@ -899,10 +903,11 @@ function terraces(g: ZoneGround) {
     if (open.has(i) || !l.onRoad) return []
     // Before its door; or, for a corner shop, beyond the row's end, coming in and going from the far side, so that it
     // waits and turns round clear of the awning over its front, which reaches 1.65 m out and to 0.25 m short of the
-    // row's end: the scooter is 2.6 m long, and turns round 1.9 m to the side it does not come in from.
+    // row's end: the scooter is 2.6 m long, and turns round 1.9 m to the side it does not come in from. It stops 1.05 m
+    // out, its 1.1 m width clear of an AC unit under the front window (#193).
     const corner = planned[i].corner
     const u = corner ? corner.end * (l.w / 2 + 3.2) : l.w >= 5.6 ? l.w * 0.23 : 0
-    return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry, ...(corner ? { side: -corner.end } : {}) }]
+    return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 1.05), ry: l.ry, ...(corner ? { side: -corner.end } : {}) }]
   })
   for (const { ground: s } of scenes) doors.push({ ...turned(s.x, s.y, s.ry, 0, s.d / 2 + 0.9), ry: s.ry }) // a scene's front too
   // The scooter keeps out from under the corner shops' awnings, which reach 1.65 m out along the glazing.
@@ -977,7 +982,7 @@ function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
   for (const l of lots) {
     const p = turned(l.x, l.y, l.ry, 0, -l.d / 2 - MEDIUM_FINISH.alley.deep - 0.25 - deep / 2)
     const bed = { ...p, w: l.w - 0.6, d: deep, ry: l.ry, onRoad: false }
-    if (bed.w < 3 || !stands(g, p.x, p.y, bed.w, deep, 0.8, l.ry) || taken.some((o) => overlap(o, bed))) continue
+    if (bed.w < 3 || !stands(g, p.x, p.y, bed.w, deep, 0.8, l.ry) || taken.some((o) => overlap(o, bed, 0))) continue
     taken.push(bed)
     const draw = mulberry32(spot(p.x, p.y))
     const [extra, side] = [draw(), draw() < 0.5 ? 1 : -1]
@@ -1066,7 +1071,7 @@ function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): Medium
   return placeScenes<MediumScene, MediumGround>(order, MEDIUM_FINISH.scenes, (kind, out) => {
     const { most, least } = MEDIUM_SCENES[kind]
     const ground = alongEdge(g, draw, runs(g, 0.8), smaller(most, least), { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }, (l) => {
-      return clearOfScenes(out, l) && !taken.some((o) => overlap(o, l))
+      return clearOfScenes(out, l) && !taken.some((o) => overlap(o, l)) && g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
     })
     return ground && { ground, lots: [] }
   })
@@ -1075,7 +1080,8 @@ function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): Medium
 /** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground clear of `taken`, which it then takes. */
 function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
   const room = { lampRoom: 1.2, clear: 0.4, ends: 4, slide: true }
-  const l = alongEdge(g, draw, runs(g, 0.65), [[2.1, 1.1]], room, (l) => !taken.some((o) => overlap(o, l)))
+  const ok = (l: RowLot) => !taken.some((o) => overlap(o, l, 0.02)) && g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
+  const l = alongEdge(g, draw, runs(g, 0.65), [[2.1, 1.1]], room, ok)
   if (!l) return
   taken.push(l)
   g.kept.push(l)
@@ -1156,7 +1162,8 @@ const CORNER = { long: BIKE_RACK.long + 0.3 + 2 * VENDING_MACHINE.wide + 0.25, w
  * more bicycles. Each is drawn from where it stands.
  */
 function cornerStore(g: ZoneGround, taken: RowLot[], corner: RowLot, from: number, toward: number): boolean {
-  if (!stands(g, corner.x, corner.y, corner.w, corner.d, 0.6, corner.ry) || taken.some((o) => overlap(o, corner))) return false
+  if (!stands(g, corner.x, corner.y, corner.w, corner.d, 0.6, corner.ry) || taken.some((o) => overlap(o, corner, 0))) return false
+  if (!g.kit.unclaimed(corner.x, corner.y, corner.w, corner.d, corner.ry)) return false // nor before a door (#193)
   taken.push(corner)
   const { kit } = g
   const { x, y, ry } = corner
@@ -1241,14 +1248,18 @@ function courtyards(g: ZoneGround) {
   for (const b of built) {
     kit.lot(b.lot)
     const draw = mulberry32(spot(b.x, b.y + 1))
+    const { x0, y0, x1, y1 } = wingBounds(b.wings)
+    const inCourt = (px: number, py: number) => px > x0 && px < x1 && py > y0 && py < y1
     b.wings.forEach((wing, k) => {
       const face = b.walks[k]
       if (face < 0) return
       for (const end of draw() < 0.5 ? [1, -1] : [-1, 1]) {
         const s = stairAt(wing, face, end)
         const lot = { x: s.x, y: s.y, w: STAIR.long + 0.3, d: STAIR.wide + 0.3, ry: s.ry, onRoad: false }
-        if (walkwayBlocked(b.wings, k, face, end) || !stands(g, s.x, s.y, lot.w, lot.d, 0.6, s.ry) || taken.some((o) => overlap(o, lot)))
+        if (walkwayBlocked(b.wings, k, face, end) || !stands(g, s.x, s.y, lot.w, lot.d, 0.6, s.ry) || taken.some((o) => overlap(o, lot, 0)))
           continue
+        // Not in an O's or a U's court, round its tree and inside its Stage 3 hedge, nor before a door (#193).
+        if ((b.wings.length >= 3 && inCourt(s.x, s.y)) || !kit.unclaimed(lot.x, lot.y, lot.w, lot.d, lot.ry)) continue
         taken.push(lot)
         kit.staged(
           (stage) => {
@@ -1260,8 +1271,7 @@ function courtyards(g: ZoneGround) {
       }
     })
     // Its rack and machines along the first stretch of outside wall with room, looking along each face in turn.
-    const { x0, y0, x1, y1 } = wingBounds(b.wings)
-    const court = (px: number, py: number) => px > x0 && px < x1 && py > y0 && py < y1
+    const court = inCourt
     const tries = b.wings.flatMap((wing) =>
       FACES.flatMap(([nx, ny], face) => {
         const [len, mx, my] = faceOf(wing, face)
@@ -1416,7 +1426,8 @@ function bareGround(g: ZoneGround, built: Built[], taken: RowLot[], way: Vec[], 
     !taken.some((o) => overlap(o, { ...l, w: l.w + 0.6, d: l.d + 0.6 })) &&
     !buildings.some((b) => overlap({ ...b, w: b.w + 1, d: b.d + 1 }, l)) &&
     ![...g.lamps, ...g.poles].some((p) => near(l, p.x, p.y, 1)) &&
-    !passing.some((p) => near(l, p.x, p.y, keep))
+    !passing.some((p) => near(l, p.x, p.y, keep)) &&
+    g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry) // nor before a door or on a bay (#193)
   for (let placed = 0; placed < most; placed++) {
     // Each bare cell's distance to the nearest cell that is not, in two passes.
     const dist = new Float32Array(nx * ny)
@@ -1506,16 +1517,21 @@ function bareGround(g: ZoneGround, built: Built[], taken: RowLot[], way: Vec[], 
 
 /**
  * A low hedge along each outside face of apartment building `b` (#178), from Stage 1, 0.5 m out from its wall, in
- * lengths of 2 m or more where it stands on the Block clear of `taken`, of its front door and of the scooter's `way`.
+ * lengths of 2 m or more where it stands on the Block clear of `taken` (by any amount, #193), of its front door and of
+ * the scooter's `way`; none round an O's or a U's court.
  */
 function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
   const { kit } = g
   const { deep, tall, colour } = MEDIUM_FINISH.hedge
   const door = doorOf(b.wings, b.walks)
+  const { x0, y0, x1, y1 } = wingBounds(b.wings)
   b.wings.forEach((wing, k) =>
     FACES.forEach(([nx, ny], face) => {
       if (!looksOut(b.wings, k, face)) return
       const [len, mx, my] = faceOf(wing, face)
+      // Not into an O's or a U's court, which has its own hedge at Stage 3 (#193).
+      const [cx, cy] = [mx + nx * 2, my + ny * 2]
+      if (b.wings.length >= 3 && cx > x0 && cx < x1 && cy > y0 && cy < y1) return
       const ry = Math.atan2(-nx, ny)
       // How far along the face its front door stands, as `turned` runs: its canopy and step span 1.4 m either way.
       const at = door && k === 0 && face === door.face ? (door.x - mx) * Math.cos(ry) + (door.y - my) * Math.sin(ry) : null
@@ -1526,7 +1542,7 @@ function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
         const ok =
           !(at !== null && Math.abs(u - at) < 2) &&
           stands(g, p.x, p.y, 1, deep, 0.4, ry) &&
-          !taken.some((o) => overlap(o, slot)) &&
+          !taken.some((o) => overlap(o, slot, 0)) &&
           !way.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.4)
         if (ok) free.push(u)
       }
@@ -1606,6 +1622,7 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
         const l = { ...turned(mx, my, ry, u, 2.6), w: 4.6, d: 4.4, ry, onRoad: false }
         if (!stands(g, l.x, l.y, l.w, l.d, 0.6, ry) || taken.some((o) => overlap(o, l)) || g.lamps.some((p) => near(l, p.x, p.y, 1.2)))
           continue
+        if (!kit.unclaimed(l.x, l.y, l.w, l.d, ry)) continue // nor before a door (#193)
         taken.push(l)
         g.kept.push(l)
         return pocketCourt(g, l)
@@ -1618,6 +1635,7 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
   const [iy0, iy1] = a.y0 <= y0 + 0.01 ? [a.y1, y1] : [y0, a.y0]
   const court = { x: (ix0 + ix1) / 2, y: (iy0 + iy1) / 2, w: ix1 - ix0 - 1, d: iy1 - iy0 - 1, ry: 0, onRoad: false }
   if (Math.min(court.w, court.d) < 4 || !stands(g, court.x, court.y, court.w, court.d, 0.6) || taken.some((o) => overlap(o, court))) return
+  if (!kit.unclaimed(court.x, court.y, court.w, court.d)) return // nor before a door (#193)
   taken.push(court)
   // The tree in the corner the wings make, the bench facing it.
   const tx = c.x0 <= x0 + 0.01 ? ix0 + 1.6 : ix1 - 1.6
@@ -1648,7 +1666,7 @@ function parking(g: ZoneGround, draw: () => number, taken: RowLot[], room: RowLo
     [most * BAY_WIDTH, deep],
     [least * BAY_WIDTH, deep],
   ]
-  const clear = (l: RowLot) => l.onRoad && !taken.some((o) => overlap(o, l)) && !room.some((o) => overlap(o, l))
+  const clear = (l: RowLot) => l.onRoad && !taken.some((o) => overlap(o, l, 0)) && !room.some((o) => overlap(o, l))
   const l = alongEdge(g, draw, runs(g, MEDIUM_FINISH.bays.in), sizes, { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }, clear)
   if (!l) return
   taken.push({ ...l, ...turned(l.x, l.y, l.ry, 0, -0.2), w: l.w + 0.4, d: l.d + 0.4 }) // and a margin, so no hedge stands on its lines
