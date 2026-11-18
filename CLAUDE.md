@@ -14,6 +14,10 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 Single-context: one root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 
+### Zone tickets
+
+Briefing, building or reviewing a visual-style Zone ticket: see `docs/agents/zone-ticket.md`.
+
 ## Testing
 
 Most of this game is verified by playtesting. Tests cover the simulation, where playtesting misses regressions.
@@ -29,7 +33,7 @@ Assert outcomes only: jammed, cleared, legal, refused, a price, yen, a Stage. Ve
 
 Visual-style PR evidence comes from `scripts/visual/`: `npm run shots -- <zones>` for the Stage sheets, `npm run bench:visual -- <zones> --against origin/main` for the 1,000-car frame time. Usage heads each script.
 
-The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script, not part of `npm test`, that builds each Zone's City in Node at every Stage and asserts that everything stands on its Block and keeps clear of bays, door steps and the rest, movers' paths too; vehicles stand on wheels; neighbours differ; each Block has its scenes; something moves; lights leave pools; small props are Close-only; no colour nears the reserved two; triangles and meshes stay under a ceiling. It prints the building forms and scenes built and whether each Zone's meshes match the ref. Known failures are listed with their owners in `scripts/visual/scene/known.ts`; its rules have their own tests over hand-made reports. Sheets are for the look alone: a Zone ticket asks for a pass and one sheet.
+The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script outside `npm test`, whose usage heads `scripts/visual/check.mjs`. Sheets are for the look alone.
 
 Zone work lives in `src/render/zones/<zone>.ts` (its look, fill, plans and scenes) and `.scratch/visual-style/zones/<zone>.md` (its part of the visual-style spec); what every Zone shares stays in `src/render/zones/ground.ts`, `scenes.ts`, the kit and `.scratch/visual-style/spec.md`. The pre-commit hook runs the scene check on each staged Zone module, and on every Zone when another render file or the check itself is staged (about 50 s).
 

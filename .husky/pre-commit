@@ -1,6 +1,7 @@
 # Every ticket lands through a PR from its own branch, and this checkout is shared, so its branch can change under you.
 [ "$(git branch --show-current)" != main ] || { echo "pre-commit: main is checked out. Commit on the ticket's branch, <n>-<slug>." >&2; exit 1; }
 npx lint-staged
+npm run --silent lint:glossary
 npm run typecheck
 npm run test
 
