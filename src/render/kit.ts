@@ -838,6 +838,28 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const claim = (kind: Claim['kind'], x: number, y: number, w: number, d: number, ry: number) => {
     claims.push({ kind, x, y, w, d, ry, brick: bricks.length })
   }
+  /** Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far: `kit.unclaimed`. */
+  const unclaimed = (x: number, y: number, w: number, d: number, ry = 0) => {
+    const outline = (b: { x: number; y: number; w: number; d: number; ry: number }) =>
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([u, v]) => to(b.x, b.y, b.ry, (u * b.w) / 2, (v * b.d) / 2))
+    const mine = outline({ x, y, w, d, ry })
+    // Apart along one of the two boxes' sides (the separating axes), or within a sliver of it.
+    return claims.every((c) => {
+      const theirs = outline(c)
+      return [ry, c.ry].some((turn) =>
+        [turn, turn + Math.PI / 2].some((a) => {
+          const along = (p: [number, number]) => p[0] * Math.cos(a) + p[1] * Math.sin(a)
+          const [m, t] = [mine.map(along), theirs.map(along)]
+          return Math.min(Math.max(...m), Math.max(...t)) - Math.max(Math.min(...m), Math.min(...t)) <= 0.02
+        }),
+      )
+    })
+  }
   /**
    * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
    * deep, and as wide as the door less 0.2 m either side, where its frame stands and pot plants may flank it.
@@ -1271,8 +1293,13 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     closeOnly(() => {
       local(cuboid(0.36, 0.46, 0.16), meter.box, x, y, ry, door + side * 0.85, back - 0.08, h + 1.15)
       put(FACING_DISC, meter.dial, x, y, ry + Math.PI, -(door + side * 0.85), -back + 0.17, h + 1.45, 0.08, 0.08, 1)
-      for (const k of [0, 1]) pot(...to(x, y, ry, door - side * (0.75 + k * 0.5), back - 0.35), h, 0.55 + 0.2 * rand(), () => rand())
-      if (low < ac[stage - 1] && w > 4.8) airCon(...to(x, y, ry, door - side * 1.9, back), h + 0.02, ry + Math.PI)
+      // The pots and the AC unit stand before its own back wall, short of the next house's (#193).
+      for (const k of [0, 1]) {
+        const u = door - side * (0.75 + k * 0.5)
+        if (Math.abs(u) + 0.4 <= w / 2) pot(...to(x, y, ry, u, back - 0.35), h, 0.55 + 0.2 * rand(), () => rand())
+      }
+      const unit = door - side * 1.9
+      if (low < ac[stage - 1] && Math.abs(unit) + 0.6 <= w / 2) airCon(...to(x, y, ry, unit, back), h + 0.02, ry + Math.PI)
       for (const end of ends)
         if (storeys > 1 && high < ac[stage - 1]) airCon(...to(x, y, ry, end * (w / 2), back + d * 0.35), h + 3.42, ry - (end * Math.PI) / 2)
     })
@@ -1572,6 +1599,12 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * is drawn.
      */
     claim,
+
+    /**
+     * Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far (#193): the
+     * bays and the steps before doors, which later pieces read rather than a list of their own.
+     */
+    unclaimed,
 
     /**
      * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own: seeded

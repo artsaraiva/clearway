@@ -427,9 +427,9 @@ function corners(lot: RowLot, shrink: number): Vec[] {
   ].map(([u, v]) => ({ x: lot.x + u * c - v * s, y: lot.y + u * s + v * c }))
 }
 
-/** Whether two row lots overlap by more than a sliver, by their separating axes. */
-function overlap(a: RowLot, b: RowLot): boolean {
-  const [pa, pb] = [corners(a, 0.15), corners(b, 0.15)]
+/** Whether two row lots overlap by more than a sliver (`shrink` m in from each), by their separating axes. */
+function overlap(a: RowLot, b: RowLot, shrink = 0.15): boolean {
+  const [pa, pb] = [corners(a, shrink), corners(b, shrink)]
   for (const ry of [a.ry, b.ry]) {
     for (const [ax, ay] of [
       [Math.cos(ry), Math.sin(ry)],
@@ -447,6 +447,19 @@ function near(lot: RowLot, x: number, y: number, pad: number): boolean {
   const [c, s] = [Math.cos(lot.ry), Math.sin(lot.ry)]
   const [dx, dy] = [x - lot.x, y - lot.y]
   return Math.abs(dx * c + dy * s) < lot.w / 2 + pad && Math.abs(-dx * s + dy * c) < lot.d / 2 + pad
+}
+
+/**
+ * Whether row lots `a` and `b` lie side by side (#193), as `beside` has it for boxes: in `a`'s frame, within 1.5 m of
+ * each other one way, as across a bend or a corner of a row, and sharing more than 1 m of side the other.
+ */
+function besideRow(a: RowLot, b: RowLot): boolean {
+  const [c, s] = [Math.cos(a.ry), Math.sin(a.ry)]
+  const local = corners(b, 0).map((p) => [(p.x - a.x) * c + (p.y - a.y) * s, -(p.x - a.x) * s + (p.y - a.y) * c])
+  const [u0, u1] = [Math.min(...local.map((p) => p[0])), Math.max(...local.map((p) => p[0]))]
+  const [v0, v1] = [Math.min(...local.map((p) => p[1])), Math.max(...local.map((p) => p[1]))]
+  const [gu, gv] = [Math.max(-a.w / 2 - u1, u0 - a.w / 2), Math.max(-a.d / 2 - v1, v0 - a.d / 2)] // gaps: below 0, an overlap
+  return (gu <= 1.5 && gv < -1) || (gv <= 1.5 && gu < -1)
 }
 
 /** How far `p` lies from the segment from `a` to `b`. */
@@ -482,8 +495,9 @@ function sides(loop: Vec[], tolerance: number): Vec[] {
 
 /**
  * Rows of lots along the Block's edge, whatever its shape: their fronts `margin` m in from the edge and facing out,
- * each `width()` wide, and a whole side of a row `depth()` deep. A lot that would overlap one placed already, or not
- * stand on the Block, is left out, so corners stay open.
+ * each `width()` wide, and a whole side of a row `depth()` deep. A lot that would overlap one placed already by more
+ * than a sliver, or not stand on the Block, is left out, so corners stay open; one that overlaps by a sliver, as at a
+ * row's corner, is cut back at an end until it and the step before its front keep clear (`cutBack`, #193).
  */
 function rows(g: ZoneGround, margin: number, depth: () => number, width: () => number): RowLot[] {
   const lots: RowLot[] = []
@@ -491,14 +505,37 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
     const d = depth()
     for (let s = 0.3; s < len - 0.3;) {
       const w = Math.min(width(), len - 0.3 - s)
-      if (w < 3.6) break
+      if (w < ROW_LEAST) break
       const [fx, fy] = [a.x + ux * (s + w / 2), a.y + uy * (s + w / 2)]
       const lot = { x: fx - (nx * d) / 2, y: fy - (ny * d) / 2, w, d, ry, onRoad: onRoad(fx, fy) }
-      if (stands(g, lot.x, lot.y, w - 0.3, d - 0.3, 0.4, ry) && !lots.some((o) => overlap(o, lot))) lots.push(lot)
+      const kept = stands(g, lot.x, lot.y, w - 0.3, d - 0.3, 0.4, ry) && !lots.some((o) => overlap(o, lot)) && cutBack(lots, lot)
+      if (kept) lots.push(kept)
       s += w
     }
   }
   return lots
+}
+
+/**
+ * m: the narrowest row lot (`rows`); how far before a row lot's front its step reaches, where its door opens; and how
+ * far its back wall's pipes, meter and AC units stand out behind it.
+ */
+const [ROW_LEAST, ROW_STEP, ROW_BACK] = [3.6, 1.4, 0.75]
+
+/** Row lot `l` with the step before its front (`ROW_STEP`) and what stands on its back wall (`ROW_BACK`). */
+const stepped = (l: RowLot): RowLot => ({ ...l, ...turned(l.x, l.y, l.ry, 0, (ROW_STEP - ROW_BACK) / 2), d: l.d + ROW_STEP + ROW_BACK })
+
+/**
+ * Row lot `lot` cut back at one end, 0.1 m at a time, until it, its step and its back wall keep clear of each of `lots`
+ * and theirs (#193); null if that leaves it under `ROW_LEAST` wide.
+ */
+function cutBack(lots: RowLot[], lot: RowLot): RowLot | null {
+  for (let cut = 0; lot.w - cut >= ROW_LEAST; cut += 0.1)
+    for (const end of [1, -1]) {
+      const l = { ...lot, ...turned(lot.x, lot.y, lot.ry, (end * cut) / 2, 0), w: lot.w - cut }
+      if (!lots.some((o) => overlap(stepped(o), stepped(l), 0.02))) return l
+    }
+  return null
 }
 
 /** A straight run of a Block's outline `margin` m in from its edge, as `runs` walks them. */
@@ -878,12 +915,14 @@ function terraces(g: ZoneGround) {
 
 /**
  * A terraced house's plan (#178), lot `i` of `lots` with its Stage 2 `storeys`, drawn from `plans` as the lots before it
- * were `planned`: its roof, a gable along the row as the rows always had unless a house on a lot it touches stands as
- * many storeys at Stage 1 under one, when it takes a hip or a gable to the front, one that none of them has; its ends
- * that close the row; and, if `shop` and its front faces a Road at a row's end, on some a corner shop or a coin laundry
- * in its ground floor. No two houses side by side are then the same building in another colour at any Stage.
- * ponytail: a house touching houses of its storeys under all three roofs keeps a gable. Ceiling: it matches one of them;
- * none does on the 26-Tile City (0 of 595 pairs). Upgrade: a fourth roof, such as a flat one behind a parapet.
+ * were `planned`: its roof, a gable along the row as the rows always had unless a house on a lot it touches, or one
+ * side by side with it across a bend or a corner of the row (`besideRow`, #193), stands as many storeys at Stage 1 under
+ * one, when it takes a hip or a gable to the front, one that none of them has; its ends that close the row; and, if
+ * `shop` and its front faces a Road at a row's end, on some a corner shop or a coin laundry in its ground floor. No two
+ * houses side by side are then the same building in another colour at any Stage.
+ * ponytail: a house beside houses of its storeys under all three roofs keeps a gable. Ceiling: it matches one of them;
+ * none does over five seeds of the 26-Tile City (the scene check's rule 10). Upgrade: a fourth roof, such as a flat one
+ * behind a parapet.
  */
 function terracePlan(
   lots: RowLot[],
@@ -897,7 +936,9 @@ function terracePlan(
   const l = lots[i]
   const first = (k: number) => TERRACE_STOREYS(storeys[k], 1)
   const grown = { ...l, w: l.w + 0.8, d: l.d + 0.8 }
-  const near = planned.flatMap((p, k) => (!open.has(k) && first(k) === first(i) && overlap(grown, lots[k]) ? [p.roof] : []))
+  // The lots it touches, and those side by side with it across a bend or a corner of the row (#193).
+  const nextTo = (k: number) => overlap(grown, lots[k]) || besideRow(lots[k], l)
+  const near = planned.flatMap((p, k) => (!open.has(k) && first(k) === first(i) && nextTo(k) ? [p.roof] : []))
   const free = MEDIUM_FINISH.roofs.filter((r) => !near.includes(r))
   const roof = free.includes('gable') ? 'gable' : (free[Math.floor(plans() * free.length)] ?? 'gable')
   const ends = ([1, -1] as const).filter((end) => {
@@ -2351,14 +2392,21 @@ function shops(g: ZoneGround) {
   const scenes = sceneLots(g, lots, plans)
   const paving = SHOP_FINISH.paving[Math.floor(plans() * SHOP_FINISH.paving.length)]
   let [front, form] = [-1, -1]
+  const built: (ShopForm | undefined)[] = [] // each lot's shop's form, none for a food stall's court
   for (const [i, l] of lots.entries()) {
     kit.lot(i, l)
     const storeys = kit.chance(0.45) ? 1 : 2
     front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
-    const drawn = Math.floor(plans() * SHOP_FINISH.forms.length)
-    form = SHOP_FINISH.forms[drawn] === SHOP_FINISH.forms[form] ? (drawn + 1) % SHOP_FINISH.forms.length : drawn
+    // Its form: the one drawn, or the next one that no shop beside it has, as round a row's corner (#193), nor the lot
+    // cut before it unless that leaves none.
+    const { forms } = SHOP_FINISH
+    const beside = new Set(built.flatMap((f, k) => (f && besideRow(lots[k], l) ? [f] : [])))
+    const near = forms.some((f) => !beside.has(f) && f !== forms[form]) ? new Set([...beside, forms[form]]) : beside
+    form = Math.floor(plans() * forms.length)
+    for (let n = 0; n < forms.length && near.has(forms[form]); n++) form = (form + 1) % forms.length
     const noodle = plans() < SHOP_FINISH.noodle
     const scene = scenes.get(i)
+    built.push(scene?.kind === 'stall' ? undefined : forms[form])
     // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
     const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
     g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
@@ -2375,7 +2423,7 @@ function shops(g: ZoneGround) {
     else seamFront(g, l, door)
   }
   kit.lot(-1)
-  shoppers(g, lots)
+  shoppers(g, lots, scenes)
   backYard(g, lots, yards(g, lots, SHOPS.trees))
 }
 
@@ -2432,9 +2480,13 @@ function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopS
   const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
   kit.scene(scene.kind, () => kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage), spot(p.x, p.y)))
   const q = at(-door * (l.w / 2 - 2.5), 0.6)
-  kit.staged((stage) => stage < scene.from && menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
-  doorPots(g, l, door)
+  if (kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry))
+    kit.staged((stage) => stage < scene.from && menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
+  doorPots(g, l, door, true) // the stand takes the window's side of the door (#193)
 }
+
+/** m: a menu board's ground on the pavement, its legs' spread along the front and across it. */
+const MENU = { w: 0.7, d: 0.5 }
 
 /**
  * A food stall's court on lot `l` (#175), at Stage `stage`: the lot left open and paved, a bench at its back facing the
@@ -2464,9 +2516,11 @@ function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, pavin
   }
 }
 
-/** Pot plants either side of shop `l`'s door, Close-only, from Stage 1 (#175). */
-function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1) {
-  const spots = frontOf(l.w, door).pots.map((u) => turned(l.x, l.y, l.ry, u, l.d / 2 + 0.35))
+/** Pot plants either side of shop `l`'s door, Close-only, from Stage 1 (#175); or, if `outer`, on its outer side alone. */
+function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1, outer = false) {
+  const spots = frontOf(l.w, door)
+    .pots.slice(0, outer ? 1 : 2)
+    .map((u) => turned(l.x, l.y, l.ry, u, l.d / 2 + 0.35))
   g.kit.from(
     1,
     () =>
@@ -2482,25 +2536,29 @@ function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1) {
 function seamFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   doorPots(g, l, door)
   const q = turned(l.x, l.y, l.ry, -door * (l.w / 2 - 2.6), l.d / 2 + 0.6)
-  if (spot(q.x, q.y) % 2) g.kit.from(1, () => menuBoard(g.kit, q.x, q.y, l.ry), spot(q.x, q.y))
+  if (spot(q.x, q.y) % 2 && g.kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry))
+    g.kit.from(1, () => menuBoard(g.kit, q.x, q.y, l.ry), spot(q.x, q.y))
 }
 
 /**
  * Shoppers walking each run of fronts on a Road (#175): one from Stage 2 and, on a run of three shops or more, a
  * second at Stage 3, setting out half its loop ahead. Each walks along the run `SHOP_FINISH.walk` m out from the fronts,
- * stopping a few seconds at each front's middle and turning at the run's ends, past a scene's lot as past any other.
+ * stopping a few seconds at each front's middle and turning at the run's ends, past a scene's lot as past any other but
+ * a greengrocer's or a florist's, where a run ends (#193): their stands reach to the kerb at Stage 3.
  */
-function shoppers(g: ZoneGround, lots: RowLot[]) {
+function shoppers(g: ZoneGround, lots: RowLot[], scenes: Map<number, { kind: ShopScene }>) {
   const { kit } = g
   const runs: RowLot[][] = []
   let run: RowLot[] = []
-  for (const l of lots) {
+  for (const [i, l] of lots.entries()) {
     const last = run[run.length - 1]
-    if (l.onRoad && last && Math.abs(last.ry - l.ry) < 1e-6 && Math.hypot(l.x - last.x, l.y - last.y) < (l.w + last.w) / 2 + 0.6)
-      run.push(l)
+    // A greengrocer's or a florist's stand, whose crates and tall plants spill to the kerb at Stage 3, ends a run (#193).
+    const kind = scenes.get(i)?.kind
+    const walked = l.onRoad && kind !== 'greengrocer' && kind !== 'florist'
+    if (walked && last && Math.abs(last.ry - l.ry) < 1e-6 && Math.hypot(l.x - last.x, l.y - last.y) < (l.w + last.w) / 2 + 0.6) run.push(l)
     else {
       if (run.length >= 2) runs.push(run)
-      run = l.onRoad ? [l] : []
+      run = walked ? [l] : []
     }
   }
   if (run.length >= 2) runs.push(run)
@@ -2569,17 +2627,24 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const u = (t: number) => side * (half - t)
   const doorFrame = frontOf(l.w, door).clear // where the door's frame begins, in from that end
   let free = 0.3 // where the stretch left for the banners begins, in from that end
+  let board = 0 // where the menu board's stretch ends, in from that end, which the wares keep clear of (#193)
+  /** Whether a vending machine at `p` keeps off the step before a door (#193). */
+  const unclaimed = (p: Vec) => kit.unclaimed(p.x, p.y, VENDING_MACHINE.wide, VENDING_MACHINE.deep, l.ry)
   if (vending) {
     // Backed up to the front at its end, and a second beside it at Stage 3.
     const [a, b] = [u(0.85), u(2.15)]
-    if (clear(0.5, a - 0.6, a + 0.6) && clear(1, a)) {
+    if (clear(0.5, a - 0.6, a + 0.6) && clear(1, a) && unclaimed(at(a, 0.5))) {
       from(vending, at(a, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
-      if (second && clear(0.5, b - 0.6, b + 0.6)) from(3, at(b, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
+      if (second && clear(0.5, b - 0.6, b + 0.6) && unclaimed(at(b, 0.5)))
+        from(3, at(b, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
       free = second ? 2.85 : 1.55
     }
   } else {
     const q = at(u(1.1), 0.6)
-    kit.from(1, () => menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
+    if (kit.unclaimed(q.x, q.y, MENU.w, MENU.d, l.ry)) {
+      kit.from(1, () => menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
+      board = 1.55
+    }
   }
   if (bikes) {
     // A row in from the vending machines, nosed in to the front, as many as fit before the door, and two more on its
@@ -2602,10 +2667,12 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
       free = t(more ? n + extra : n)
     }
   }
-  if (free < doorFrame - 1.8 && wares < FRONT.wares) {
-    // Before the window where no bicycles stand, from Stage 2: crates of produce, or a plant stand, Close-only.
-    const q = at(u(free + 0.9), 0.45)
-    if (clear(0.45, u(free + 0.2), u(free + 1.6)))
+  const ware = Math.max(free, board)
+  if (ware < doorFrame - 1.8 && wares < FRONT.wares) {
+    // Before the window where no bicycles or menu board stand, from Stage 2: crates of produce, or a plant stand,
+    // Close-only.
+    const q = at(u(ware + 0.9), 0.45)
+    if (clear(0.45, u(ware + 0.2), u(ware + 1.6)))
       kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }
   if (banners) {
