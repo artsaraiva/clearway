@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Vec } from '../sim/geometry'
 
 /**
@@ -76,6 +77,13 @@ export function tint(g: THREE.BufferGeometry, color: THREE.ColorRepresentation):
   for (let i = 0; i < a.length; i += 3) a.set([c.r, c.g, c.b], i)
   return g.setAttribute('color', new THREE.BufferAttribute(a, 3))
 }
+
+/** A box `w` × `h` × `d` with its foot at `(x, y, z)`, in `colour`: a part of an instanced model (`merged`). */
+export const part = (w: number, h: number, d: number, x: number, y: number, z: number, colour: THREE.ColorRepresentation) =>
+  tint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), colour)
+
+/** A model's parts merged into one geometry, their triangles unshared first so that any parts merge. */
+export const merged = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
 
 /** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
 export const painted = (geo: THREE.BufferGeometry, share: number) =>

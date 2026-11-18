@@ -1,11 +1,10 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, polyline, sameBounds, type Bounds, type Polyline } from '../sim/geometry'
 import type { Network } from '../sim/network'
 import { KERB } from './blocks'
 import { inside, type Field } from './field'
 import { shopper } from './movers'
-import { takesPaint, tint } from './shapes'
+import { merged, part, takesPaint, tint } from './shapes'
 
 const INSET = 1.6 // m in from the kerb: the pavement's centre line
 const SPACING = 85 // m of pavement per walker
@@ -15,12 +14,9 @@ const WHITE = new THREE.Color('#ffffff')
 /** A kind of walker (#176), each with a model of its own, seen at Close: a shopper with a bag, a schoolchild in a yellow hat, an office worker. */
 export type WalkerKind = 'shopper' | 'schoolchild' | 'worker'
 
-/** A box `w` × `h` × `d` with its foot at `(x, y, z)`, the walker facing +x, in `colour`. */
-const part = (w: number, h: number, d: number, x: number, y: number, z: number, colour: string) =>
-  tint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z).toNonIndexed(), colour)
-/** The parts merged into one model, its white parts taking its instance's paint. */
+/** The parts merged into one model, facing +x, its white parts taking its instance's paint. */
 const model = (parts: THREE.BufferGeometry[]) => {
-  const g = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
+  const g = merged(parts)
   const colour = g.attributes.color
   const share = new Float32Array(colour.count)
   for (let i = 0; i < colour.count; i++) share[i] = colour.getX(i) + colour.getY(i) + colour.getZ(i) > 2.99 ? 1 : 0
@@ -44,8 +40,8 @@ const KINDS: Record<WalkerKind, { share: number; model: () => THREE.BufferGeomet
         part(0.3, 0.52, 0.48, 0, 0.5, 0, '#fbf8f2'), // the shirt
         part(0.26, 0.4, 0.42, -0.24, 0.56, 0, '#5a3f34'), // the satchel
         part(0.3, 0.3, 0.3, 0.02, 1.02, 0, SKIN),
-        tint(new THREE.CylinderGeometry(0.24, 0.27, 0.16, 10).translate(0.02, 1.38, 0).toNonIndexed(), '#f6d36a'), // the hat
-        tint(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 10).translate(0.02, 1.31, 0).toNonIndexed(), '#f6d36a'), // its brim
+        tint(new THREE.CylinderGeometry(0.24, 0.27, 0.16, 10).translate(0.02, 1.38, 0), '#f6d36a'), // the hat
+        tint(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 10).translate(0.02, 1.31, 0), '#f6d36a'), // its brim
       ]),
   },
   worker: {

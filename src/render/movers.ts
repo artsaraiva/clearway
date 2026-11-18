@@ -1,11 +1,10 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
 import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
-import { canvasTexture, painted, takesPaint, tint } from './shapes'
+import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes'
 
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
@@ -196,14 +195,9 @@ const POOLS = {
   ],
 }
 
-/** A box `w` by `h` by `d` centred on `(x, z)` with its bottom at `y`, painted. */
-const part = (w: number, h: number, d: number, x: number, y: number, z: number, color: string) =>
-  tint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), color)
 /** A wheel of radius `r` and width `w` on an axle across the model at `x`, `z` out from the middle, `sides` round. */
 const wheel = (r: number, w: number, x: number, z: number, color: string, sides = 14) =>
   tint(new THREE.CylinderGeometry(r, r, w, sides).rotateX(Math.PI / 2).translate(x, r, z), color)
-/** The parts merged into one model. */
-const merged = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
 
 /**
  * A little tractor (#149), facing +x, centred under its middle and standing on y = 0, oversized as the cars are so it

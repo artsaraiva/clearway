@@ -1,10 +1,9 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Vehicle } from '../sim/sim'
 import type { Glow } from './day'
-import { painted, roundedBox, takesPaint, tint } from './shapes'
+import { merged, painted, part, roundedBox, takesPaint, tint } from './shapes'
 
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
 const CAP = 1500
@@ -28,23 +27,20 @@ const PAINT = '#ffffff' // a skin's painted parts, which take its instance's col
 /** A car's skin (#176): how the sim's one car type is drawn, each a model of the same length. */
 export type Skin = 'hatchback' | 'kei' | 'taxi' | 'van' | 'keiTruck'
 
-/** A geometry's triangles, unshared, so that every part of a model merges. */
-const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g)
 /** A rounded box `w` × `h` × `d` with its foot at `(x, y, z)` (m, the car facing +x), in `colour`, taking the paint `share`. */
 const rounded = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, colour: string, share = 0) =>
-  painted(tint(flat(roundedBox(w, h, d, r, Math.min(0.2, h / 4))).translate(x, y, z), colour), share)
+  painted(tint(roundedBox(w, h, d, r, Math.min(0.2, h / 4)).translate(x, y, z), colour), share)
 /** A plain box `w` × `h` × `d` with its foot at `(x, y, z)`, in `colour`, taking the paint `share`. */
 const box = (w: number, h: number, d: number, x: number, y: number, z: number, colour: string, share = 0) =>
-  painted(tint(flat(new THREE.BoxGeometry(w, h, d)).translate(x, y + h / 2, z), colour), share)
+  painted(part(w, h, d, x, y, z, colour), share)
 /** Four wheels of radius `r` on axles `x` m either way of the middle, `z` out from it. */
 const wheels = (r: number, x: number, z: number) =>
   [x, -x].flatMap((ax) =>
     [z, -z].map((az) => {
-      const tyre = flat(new THREE.CylinderGeometry(r, r, 0.3, 8)).rotateX(Math.PI / 2)
+      const tyre = new THREE.CylinderGeometry(r, r, 0.3, 8).rotateX(Math.PI / 2)
       return painted(tint(tyre.translate(ax, r, az), PART.tyre), 0)
     }),
   )
-const merged = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts)!
 
 /**
  * Where a skin's lamps are (m, the car facing +x): a pair of head lamps `head.y` up and `head.z` either way of the
@@ -122,7 +118,7 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
 function lampsOf({ head, tail, roof }: Lamps, lit: boolean): THREE.BufferGeometry[] {
   const grow = lit ? 0.04 : 0
   const lamp = (w: number, h: number, d: number, x: number, y: number, z: number, day: string, night: string) =>
-    lit ? tint(flat(new THREE.BoxGeometry(w + grow, h + grow, d + grow)).translate(x, y + h / 2, z), night) : box(w, h, d, x, y, z, day)
+    lit ? tint(new THREE.BoxGeometry(w + grow, h + grow, d + grow).translate(x, y + h / 2, z), night) : box(w, h, d, x, y, z, day)
   return [
     ...[head.z, -head.z].map((z) => lamp(0.1, 0.22, 0.4, LENGTH / 2 - 0.02, head.y, z, PART.head, LIGHT.head)),
     ...[tail.z, -tail.z].map((z) => lamp(0.1, tail.tall, tail.wide, -LENGTH / 2 + 0.02, tail.y, z, PART.tail, LIGHT.tail)),
