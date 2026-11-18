@@ -46,6 +46,36 @@ export function gable(len: number, wid: number, h: number): THREE.BufferGeometry
 }
 
 /**
+ * Hipped roof standing on y = 0 (#178), non-indexed: `wid` across and `len` long, its ridge along z at `h`, sloping down
+ * to its eaves on every side, the hips at each end as steep as its sides, and closed underneath.
+ */
+export function hip(len: number, wid: number, h: number): THREE.BufferGeometry {
+  const [a, l] = [wid / 2, len / 2]
+  const ridge = Math.max(0, l - a)
+  const [A, B, C, D] = [
+    [-a, 0, -l],
+    [a, 0, -l],
+    [a, 0, l],
+    [-a, 0, l],
+  ]
+  const [R1, R2] = [
+    [0, h, -ridge],
+    [0, h, ridge],
+  ]
+  // prettier-ignore
+  const faces = [
+    B, R2, C, B, R1, R2, // the +x side
+    D, R1, A, D, R2, R1, // the -x side
+    A, R1, B, // the hip at -z
+    C, R2, D, // the hip at +z
+    A, B, C, A, C, D, // underneath
+  ]
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(faces.flat(), 3))
+  g.computeVertexNormals()
+  return g
+}
+
+/**
  * A sawtooth roof standing on y = 0: `n` teeth `h` high along x over `len`, each an upright face and a slope down to
  * the next, `wid` deep along z.
  */

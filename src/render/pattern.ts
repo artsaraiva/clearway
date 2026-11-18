@@ -32,9 +32,24 @@ export const PATTERN = {
   deck: 8,
   /** An office plaza (#177): granite slabs chequered in two tones, in m on the map over `REPEAT.paving`. */
   plaza: 9,
+  /** A terraced house's storey on its back or a row's end (#178): plaster, and a framed window in every bay. */
+  house: 10,
+  /** `house` with a back door in the middle bay of its ground floor (#178). */
+  rear: 11,
+  /** A terraced house's front (#178): plaster and a line at each floor, round the windows and the door it is built with. */
+  plaster: 12,
+  /** A pitched roof's tile rows (#178), in m along its eaves and down from its ridge over `REPEAT.roof`: kawara in ribs. */
+  tiles: 13,
+  /** The gable end under a tiled roof (#178): pale boards. */
+  gable: 14,
+  /** An apartment block's flat roof (#178): sheets of roofing in strips, in m from its corner, with its size. */
+  sheets: 15,
+  /** Setts (#178): small stones in rows, in m on the map over `REPEAT.paving`, as an alley or a court is paved. */
+  setts: 16,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
+const REAR_DOOR = 10 // the layer of `rear`'s middle bay on the ground floor (#178)
 
 /** m of the map or a roof that one repeat of the paving's or the roof's pattern covers. */
 const REPEAT = { paving: 2.4, roof: 2 }
@@ -145,6 +160,40 @@ export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, 
 }
 
 /**
+ * Lay tile rows over a pitched roof (#178), a non-indexed gable or hip in its own frame before it is placed: each slope
+ * wears `PATTERN.tiles`, in m along its eaves and down from its ridge, the roof's top, so that its rows run along the
+ * eaves and its ribs down the slope; each upright face, a gable end, wears `PATTERN.gable`. Its underside wears nothing.
+ * `seed` (0 to 1) as `clad`'s.
+ */
+export function tile(geo: THREE.BufferGeometry, seed: number): THREE.BufferGeometry {
+  const pos = geo.attributes.position
+  geo.computeBoundingBox()
+  const top = geo.boundingBox!.max.y
+  const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
+  const tag = 0.1 + 0.8 * seed
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i)
+      b.fromBufferAttribute(pos, i + 1).sub(a)
+      c.fromBufferAttribute(pos, i + 2).sub(a)
+      const n = b.cross(c).normalize()
+      if (n.y < -0.2) continue
+      const slope = n.y > 0.2
+      // Along the eaves: square to the way the slope falls, or along an upright face.
+      const [ax, az] = slope ? [-n.z, n.x] : Math.abs(n.z) >= Math.abs(n.x) ? [1, 0] : [0, 1]
+      const len = Math.hypot(ax, az) || 1
+      const fall = Math.sqrt(Math.max(0.05, 1 - n.y * n.y))
+      for (let k = i; k < i + 3; k++) {
+        const [x, y, z] = [pos.getX(k), pos.getY(k), pos.getZ(k)]
+        const along = (x * ax + z * az) / len
+        uv.set([along, slope ? (top - y) / fall : y], 2 * k)
+        worn.set([(slope ? PATTERN.tiles : PATTERN.gable) + tag, 0, 0], 3 * k)
+      }
+    }
+  })
+}
+
+/**
  * Lay paving joints, or `kind`'s other paving, over the faces of a geometry in place (Three coordinates) that look up, in
  * m on the map.
  */
@@ -198,6 +247,18 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
     for (let x = 0; x < S; x += S / 4) fill(g, [112, 0, 0], x, 0, 2, S)
     fill(g, [100, 0, 0], 0, 0, S, 8)
     fill(g, [110, 0, 0], 0, S - 8, S, 3)
+  }
+  /** A fine speckle over the whole layer, each `cell` texels square a shade between `lo` and `hi`, from `seed`. */
+  const speckle = (g: CanvasRenderingContext2D, seed: number, lo: number, hi: number, cell: number) => {
+    const draw = stream(seed)
+    for (let y = 0; y < S; y += cell)
+      for (let x = 0; x < S; x += cell) fill(g, [Math.round(lo + draw() * (hi - lo)), 0, 0], x, y, cell, cell)
+  }
+  /** A terraced house's plaster (#178): a fine speckle, a line at the floor and a lighter one over it. */
+  const plaster = (g: CanvasRenderingContext2D, seed: number) => {
+    speckle(g, seed, 122, 134, 4)
+    fill(g, [102, 0, 0], 0, 0, S, 4)
+    fill(g, [138, 0, 0], 0, 4, S, 2)
   }
   /** A window `w` by `h` texels, its foot `y` up, centred across the layer: a pale frame, two sliding panes and a sill. */
   const window = (g: CanvasRenderingContext2D, w: number, h: number, y: number, frame: number) => {
@@ -306,6 +367,65 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
         }
       }
     },
+    // A terraced house's storey of 3 m on its back or a row's end (#178): plaster, a line at the floor, and a window 0.9
+    // m wide and 1.25 m tall, 0.95 m up, framed, sliding and silled, under a little hood.
+    (g) => {
+      plaster(g, 19)
+      window(g, 48, 53, 41, 4)
+      fill(g, [128, 0, 255], 36, 41 + 53 + 7, 56, 3) // the hood
+      fill(g, [96, 0, 0], 36, 41 + 53 + 4, 56, 3) // its shadow
+    },
+    // Its ground floor's middle bay at the back (#178): a back door 0.85 m wide with a lit pane, framed, under a hood.
+    (g) => {
+      plaster(g, 23)
+      const [w, h] = [44, 86]
+      const x = (S - w) / 2
+      fill(g, [128, 0, 255], x - 3, 4, w + 6, h + 3)
+      fill(g, [86, 0, 0], x, 4, w, h)
+      fill(g, [70, 0, 0], x + w - 8, 4 + h / 2 - 2, 4, 4) // its handle
+      fill(g, [128, 255, 0], x + 7, 4 + h - 30, w - 14, 22)
+      fill(g, [128, 0, 255], x - 8, 4 + h + 7, w + 16, 4)
+      fill(g, [88, 0, 0], x - 8, 4 + h + 3, w + 16, 4)
+    },
+    // A terraced house's front (#178): plaster and a line at each floor, round the windows and door built over it.
+    (g) => plaster(g, 29),
+    // A pitched roof's tiles (#178): kawara 0.25 m across in ribs down the slope, each rib lit along its crown, in rows
+    // 0.25 m deep, the foot of each row shaded where the next overlaps it.
+    (g) => {
+      const t = S / 8
+      for (let k = 0; k < S; k++) fill(g, [Math.round(112 + 30 * Math.sin((Math.PI * (k % t)) / t)), 0, 0], k, 0, 1, S)
+      for (let row = 0; row < 8; row++) {
+        fill(g, [92, 0, 0], 0, row * t, S, 2)
+        fill(g, [108, 0, 0], 0, row * t + 2, S, 2)
+      }
+    },
+    // A gable end under a tiled roof (#178): pale boards 0.25 m wide.
+    (g) => {
+      fill(g, [128, 0, 255], 0, 0, S, S)
+      for (let y = 0; y < S; y += S / 8) fill(g, [112, 0, 255], 0, y, S, 2)
+    },
+    // An apartment block's flat roof (#178): sheets of roofing a metre wide, a raised seam between each two, and a
+    // lap every 2 m along them.
+    (g) => {
+      speckle(g, 31, 120, 134, 4)
+      for (const x of [0, S / 2]) {
+        fill(g, [100, 0, 0], x, 0, 3, S)
+        fill(g, [146, 0, 0], x + 3, 0, 2, S)
+      }
+      fill(g, [112, 0, 0], 0, 0, S, 2)
+    },
+    // Setts (#178): stones 0.3 m square in a running bond, each a shade of its own, with dark joints.
+    (g) => {
+      const draw = stream(37)
+      const t = S / 8
+      fill(g, [84, 0, 0], 0, 0, S, S)
+      for (let row = 0; row < 8; row++) {
+        for (let k = -1; k < 8; k++) {
+          const x = k * t + (row % 2) * (t / 2)
+          fill(g, [Math.round(108 + draw() * 32), 0, 0], x + 1.5, row * t + 1.5, t - 3, t - 3)
+        }
+      }
+    },
   ]
 }
 
@@ -396,7 +516,8 @@ float patternKind = floor(vPattern.x);
 float patternGlass = 0.0;
 float patternLit = 0.0;
 // Derivatives before the branch: a face's neighbour may wear no pattern. A roof's m in from its nearest edge.
-vec2 patternAt = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(PATTERN.deck)} ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
+bool patternInMetres = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(PATTERN.deck)} || patternKind == ${f(PATTERN.sheets)} || patternKind == ${f(PATTERN.tiles)} || patternKind == ${f(PATTERN.gable)};
+vec2 patternAt = patternInMetres ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
 vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);
 float patternEdge = min(min(vPatternAt.x, vPattern.y - vPatternAt.x), min(vPatternAt.y, vPattern.z - vPatternAt.y));
@@ -404,8 +525,12 @@ float patternAa = fwidth(patternEdge);
 if (patternKind > 0.5) {
   float layer = patternKind - 1.0;
   if (patternKind == ${f(PATTERN.back)}) layer = floor(patternAt.x) == floor(floor(vPattern.y + 0.5) * 0.5) ? ${f(DOOR)} : ${f(PATTERN.wall - 1)};
+  // A terraced house's back (#178): its door in the middle bay of the ground floor, a window in every other bay.
+  if (patternKind == ${f(PATTERN.rear)}) layer = floor(patternAt.y) == 0.0 && floor(patternAt.x) == floor(floor(vPattern.y + 0.5) * 0.5) ? ${f(REAR_DOOR)} : ${f(PATTERN.house - 1)};
   vec3 worn = textureGrad(patternMap, vec3(patternAt, layer), patternDx, patternDy).rgb;
   float shade = worn.r * 2.0;
+  // A tiled roof's ridge (#178): a darker cap along its first 0.22 m down from the top.
+  if (patternKind == ${f(PATTERN.tiles)}) shade *= 1.0 - 0.22 * (1.0 - smoothstep(0.2 - patternAa, 0.24 + patternAa, vPatternAt.y));
   if (patternKind == ${f(PATTERN.roof)}) {
     // The parapet: a pale rim round the roof, and the shadow it throws in.
     float edge = patternEdge;

@@ -23,6 +23,8 @@ import {
   WALKWAY,
   type Hung,
   type Kit,
+  type TerracePlan,
+  type TerraceRoof,
   type OfficeStyle,
   type ShopForm,
   type Walks,
@@ -96,6 +98,18 @@ const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4, stair
 // tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L,
 // and a narrower one a bar.
 const COURTYARDS = { lot: 42, margin: 3.2, gap: 1.6, clear: 1.5, least: 9, wing: [7.5, 9], floors: [4, 7.4], court: 5 } as const
+// Medium-density residential to the level of finish (#178). Each Block's plan is drawn from a stream of its own, so the
+// kit's draws, and with them every lot's house or building, are as before but for what the plan sets. A terraced
+// house's roof: a gable along the row, as before, or one of the others where a house beside it would otherwise be the
+// same building in another colour. At most `corners` corner shops or coin laundries a Block, at a row's end facing a
+// Road, on `corner` of those ends, a laundry `laundry` of the time. The alley behind the rows, `alley` m deep, in setts.
+const MEDIUM_FINISH = {
+  roofs: ['gable', 'front', 'hip'] as TerraceRoof[],
+  corners: 2,
+  corner: 0.45,
+  laundry: 0.45,
+  alley: { deep: 1.7, paving: '#ddd3c4' },
+}
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
 // of at most 17 m east–west by 15 north–south and at least 9, 11 to 17 storeys tall, leaving 4.5 m of the lot open on
 // every side. Its podium is 1.2 m wider all round and stands 1.5 m in from the Block's edge.
@@ -270,7 +284,7 @@ export interface Look {
 /** Each Zone's look. An unzoned Tile has none: its Blocks are left as grass (`verge`). */
 export const LOOKS: Record<Zone['id'], Look> = {
   'low-density': { landmarks: false, fill: houses },
-  'medium-density': { landmarks: false, fill: (g) => (g.tileDraw < 0.5 ? terraces(g) : courtyards(g)) },
+  'medium-density': { landmarks: false, finish: true, fill: (g) => (g.tileDraw < 0.5 ? terraces(g) : courtyards(g)) },
   'high-density': { landmarks: true, fill: towers },
   offices: { landmarks: true, finish: true, fill: offices },
   shops: { landmarks: false, finish: true, fill: shops },
@@ -726,22 +740,34 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
  * - Stage 3: a second machine and more bicycles there, and a second rack and machine at the next row's end with room.
  */
 function terraces(g: ZoneGround) {
-  const { kit } = g
+  const { kit, block } = g
   const lots = rows(
     g,
     TERRACES.margin,
     () => kit.range(...TERRACES.deep),
     () => kit.range(...TERRACES.wide),
   )
-  const storeys = lots.map((l, i) => {
+  const centre = middle(block)
+  const plans = mulberry32(spot(centre.x, centre.y) ^ 0x7e44ace) // the plans' own stream: the kit's draws as they did
+  const storeys: number[] = []
+  const planned: TerracePlan[] = []
+  const signs: RowLot[] = [] // the corner shops' end walls, where no rack or stairs stand
+  let corners = 0
+  for (const [i, l] of lots.entries()) {
     kit.lot(i)
     const s = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
-    kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(s, stage), stage))
-    return s
-  })
+    storeys.push(s)
+    const plan = terracePlan(lots, i, storeys, planned, plans, corners < MEDIUM_FINISH.corners)
+    planned.push(plan)
+    if (plan.corner) {
+      corners++
+      signs.push({ ...turned(l.x, l.y, l.ry, plan.corner.end * (l.w / 2 + 0.8), l.d / 2 - 1.3), w: 1.6, d: 2.8, ry: l.ry, onRoad: false })
+    }
+    kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(s, stage), stage, plan))
+  }
   kit.lot(-1)
   const trees = yards(g, lots, TERRACES.trees)
-  const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3))]
+  const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3)), ...signs]
   // A corner by a row's end (#156), beyond its end wall from its front back: one from Stage 2, a second from Stage 3.
   let from = 2
   for (const l of lots) {
@@ -774,6 +800,53 @@ function terraces(g: ZoneGround) {
     }
   }
   kit.lot(-1)
+  if (kit.finished) alleys(g, lots, taken)
+}
+
+/**
+ * A terraced house's plan (#178), lot `i` of `lots` with its Stage 2 `storeys`, drawn from `plans` as the lots before it
+ * were `planned`: its roof, a gable along the row as the rows always had unless a house on a lot it touches stands as
+ * many storeys at Stage 1 under one, when it takes a hip or a gable to the front, one that none of them has; its ends
+ * that close the row; and, if `shop` and its front faces a Road at a row's end, on some a corner shop or a coin laundry
+ * in its ground floor. No two houses side by side are then the same building in another colour at any Stage.
+ */
+function terracePlan(
+  lots: RowLot[],
+  i: number,
+  storeys: number[],
+  planned: TerracePlan[],
+  plans: () => number,
+  shop: boolean,
+): TerracePlan {
+  const l = lots[i]
+  const first = (k: number) => TERRACE_STOREYS(storeys[k], 1)
+  const grown = { ...l, w: l.w + 0.8, d: l.d + 0.8 }
+  const near = planned.flatMap((p, k) => (first(k) === first(i) && overlap(grown, lots[k]) ? [p.roof] : []))
+  const free = MEDIUM_FINISH.roofs.filter((r) => !near.includes(r))
+  const roof = free.includes('gable') ? 'gable' : (free[Math.floor(plans() * free.length)] ?? 'gable')
+  const ends = ([1, -1] as const).filter((end) => {
+    const p = turned(l.x, l.y, l.ry, end * (l.w / 2 + 0.4), 0)
+    return !lots.some((o, k) => k !== i && inside(corners(o, -0.1), p.x, p.y))
+  })
+  const roll = plans()
+  const kind = plans() < MEDIUM_FINISH.laundry ? 'laundry' : ('shop' as const)
+  if (!shop || !l.onRoad || !ends.length || roll >= MEDIUM_FINISH.corner) return { roof, ends }
+  return { roof, ends, corner: { kind, end: ends[0] } }
+}
+
+/**
+ * The alley behind each terraced row (#178): setts `MEDIUM_FINISH.alley.deep` m deep along each house's back, where it
+ * lies on the Block clear of its edge, under what `taken` holds; the pot plants along it are the houses' own.
+ */
+function alleys(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
+  const { kit } = g
+  const { deep, paving } = MEDIUM_FINISH.alley
+  for (const l of lots) {
+    const p = turned(l.x, l.y, l.ry, 0, -l.d / 2 - deep / 2)
+    if (!stands(g, p.x, p.y, l.w, deep, 0.6, l.ry)) continue
+    kit.from(1, () => kit.paving(p.x, p.y, KERB, l.w, deep, l.ry, paving, PATTERN.setts), spot(p.x, p.y))
+  }
+  void taken
 }
 
 /** A square `side` m across round a point, as a row lot. */
