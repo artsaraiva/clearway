@@ -2738,6 +2738,17 @@ export function createKit(rand: () => number, materials: Materials) {
       brick('tree', x, y, h)
     },
 
+    /**
+     * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): two steel posts and the
+     * pole across them, and a line of washing (`./movers`' `washing`) in a paint from the kit's stream, which sways.
+     */
+    washingPole(x: number, y: number, h: number, ry: number) {
+      for (const k of [-1, 1]) local(cuboid(0.06, 2.3, 0.06), STEEL.pole, x, y, ry, k * 1.4, 0, h)
+      local(cuboid(2.95, 0.05, 0.05), STEEL.pole, x, y, ry, 0, 0, h + 2.25)
+      sway('washing', x, y, h + 2.25, ry, { paint: pick(WASHING) })
+      brick('tree', x, y, h)
+    },
+
     /** Laundry for a pole (#157), its sizes and colours, and a futon's colour, drawn from the kit's stream. */
     washing: () => ({
       items: Array.from({ length: 8 }, () => ({ w: range(0.55, 0.78), tall: range(0.75, 1.15), colour: pick(HOME.laundry) })),

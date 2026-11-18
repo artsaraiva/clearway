@@ -123,6 +123,16 @@ const MEDIUM_FINISH = {
   mansard: ['#b85a4c', '#4d6575', '#7a5a46', '#5aa69b', '#a8765a'],
   // Parking bays by an apartment block, m in from the Block's edge and deep, and how many fit at most and at least.
   bays: { in: 0.75, deep: 5.2, most: 3, least: 2 },
+  // The garden behind a terraced house, beyond its alley: m deep; its soil and its rows of greens, the leaves'; the share
+  // with a steel shed from Stage 2, and the share with one or a pole of washing.
+  garden: {
+    deep: 2,
+    soil: '#8a7560',
+    greens: ['#6bc357', '#85cf61', '#5fbc51'],
+    shed: { wall: '#d9dcd2', roof: '#8f9aa5' },
+    sheds: 0.25,
+    washing: 0.5,
+  },
   // A low hedge along an apartment block's walls, m deep and tall, in the gardens' hedge's green.
   hedge: { deep: 0.8, tall: 0.55, colour: '#4e9f49' },
   // A delivery scooter's waits (s), off down the Road and at the door, at least and at most.
@@ -835,6 +845,11 @@ function terraces(g: ZoneGround) {
     g.kept.push(ground)
     taken.push(ground)
   }
+  gardens(
+    g,
+    lots.filter((_, i) => !open.has(i)),
+    taken,
+  )
   bins(g, plans, taken)
   const doors = lots.flatMap((l, i) => {
     if (open.has(i) || !l.onRoad) return []
@@ -889,6 +904,56 @@ function alleys(g: ZoneGround, lots: RowLot[]) {
     const p = turned(l.x, l.y, l.ry, 0, -l.d / 2 - deep / 2)
     if (!stands(g, p.x, p.y, l.w, deep, 0.6, l.ry)) continue
     kit.from(1, () => kit.paving(p.x, p.y, KERB, l.w, deep, l.ry, paving, PATTERN.setts), spot(p.x, p.y))
+  }
+}
+
+/**
+ * A garden behind each terraced house of `lots`, beyond its alley (#178), where it lies on the Block clear of `taken`,
+ * which it then takes: a bed of soil under rows of greens, taller from Stage 2; and from Stage 2 a steel shed at one end
+ * on some, and a pole of washing, which sways, on others. Each is drawn from where it lies.
+ */
+function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
+  const { kit } = g
+  const { deep, soil, greens, shed } = MEDIUM_FINISH.garden
+  for (const l of lots) {
+    const p = turned(l.x, l.y, l.ry, 0, -l.d / 2 - MEDIUM_FINISH.alley.deep - 0.25 - deep / 2)
+    const bed = { ...p, w: l.w - 0.6, d: deep, ry: l.ry, onRoad: false }
+    if (bed.w < 3 || !stands(g, p.x, p.y, bed.w, deep, 0.8, l.ry) || taken.some((o) => overlap(o, bed))) continue
+    taken.push(bed)
+    const draw = mulberry32(spot(p.x, p.y))
+    const [extra, side] = [draw(), draw() < 0.5 ? 1 : -1]
+    const ry = l.ry + Math.PI // facing the house's back, across its alley
+    kit.staged(
+      (stage) => {
+        const sheds = stage > 1 && extra < MEDIUM_FINISH.garden.sheds && bed.w >= 3.6
+        const washes = stage > 1 && !sheds && extra < MEDIUM_FINISH.garden.washing
+        kit.put(kit.cuboid(bed.w, 0.12, deep), soil, p.x, p.y, ry, 0, 0, KERB)
+        const long = bed.w - (sheds ? 2.1 : 0.5)
+        for (let r = 0; r < 3; r++)
+          kit.put(
+            kit.cuboid(long, 0.1 + 0.12 * stage, 0.3),
+            greens[r],
+            p.x,
+            p.y,
+            ry,
+            sheds ? -side * 0.8 : 0,
+            -deep / 2 + 0.45 + r * 0.6,
+            KERB + 0.12,
+          )
+        kit.brick('ground', p.x, p.y, KERB)
+        if (sheds) {
+          const at = turned(p.x, p.y, ry, side * (bed.w / 2 - 0.75), 0)
+          kit.put(kit.cuboid(1.3, 1.7, 1.1), shed.wall, at.x, at.y, ry, 0, 0, KERB)
+          kit.put(kit.cuboid(1.5, 0.1, 1.3), shed.roof, at.x, at.y, ry, 0, 0, KERB + 1.7)
+          kit.put(kit.cuboid(0.04, 1.4, 0.04), shed.roof, at.x, at.y, ry, 0, 0.57, KERB + 0.1)
+          kit.shadow(at.x, at.y, KERB, 1.9, 1.7, false, ry)
+          kit.brick('building', at.x, at.y, KERB)
+        }
+        const pole = turned(p.x, p.y, ry, 0, deep / 2 + 0.15)
+        if (washes) kit.washingPole(pole.x, pole.y, KERB, ry)
+      },
+      spot(p.x, p.y) + 1,
+    )
   }
 }
 
