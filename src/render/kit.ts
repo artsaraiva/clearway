@@ -1301,13 +1301,13 @@ export function createKit(rand: () => number, materials: Materials) {
   const parked = (model: ParkedModel, x: number, y: number, h: number, ry: number, paint: string) => {
     const { body, cabin, glass, wheels, lamps } = model
     const [head, , tail, , roof] = lampBoxes(lamps)
-    const pieces: [ParkedModel['body'], Look][] = [
+    const bodywork: [ParkedModel['body'], Look][] = [
       [body, paint],
       [cabin, paint],
       [glass, CAR.glass],
     ]
-    if (roof) pieces.push([roof, lit(CREAM, TAXI_LAMP)])
-    for (const [p, look] of pieces) local(cuboid(p.wide, p.tall, p.long), look, x, y, ry, 0, p.at, h + p.up)
+    if (roof) bodywork.push([roof, lit(CREAM, TAXI_LAMP)])
+    for (const [p, look] of bodywork) local(cuboid(p.wide, p.tall, p.long), look, x, y, ry, 0, p.at, h + p.up)
     const tyre = 2 * wheels.r
     for (const lx of [-wheels.track, wheels.track])
       for (const ly of [-wheels.axle, wheels.axle]) local(cuboid(0.3, tyre, tyre), TRUCK.tyre, x, y, ry, lx, ly, h)
