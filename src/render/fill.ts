@@ -151,7 +151,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   }
 
   const kept: Footprint[] = []
-  if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
+  if (look) look.fill({ kit, block, field, reserved, street, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
   dress(street, kept)
 }

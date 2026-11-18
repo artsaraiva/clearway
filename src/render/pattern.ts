@@ -23,6 +23,15 @@ export const PATTERN = {
   back: 5,
   /** Coloured paving (#175): bricks in a basket weave, in m on the map over `REPEAT.paving`. */
   bricks: 6,
+  /**
+   * An office tower's curtain wall (#177): panes of the wall's own glass, two to a bay, a line at every floor over a
+   * darker spandrel, in three tones lighter toward the top, lit floor by floor at night.
+   */
+  curtain: 7,
+  /** A flat office roof's deck (#177): square pavers, in m from its corner, with its size. */
+  deck: 8,
+  /** An office plaza (#177): granite slabs chequered in two tones, in m on the map over `REPEAT.paving`. */
+  plaza: 9,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -43,6 +52,14 @@ const SIZE = 128 // texels on a layer's side
 const GLASS = ['#b4d6e3', '#9cc7df', '#7aa9c9', '#56738a']
 const TRIM = '#fbf8f2'
 const WINDOW_LIGHT = '#ffc78a' // as the kit's glass glows
+/**
+ * A curtain wall's glass (#177): the sky's colour it pales toward up a tower, as #130's floors did, as a share of the way
+ * there at its foot and more for each third of its height; how much each pane's tone strays either way; how bright a lit
+ * floor's panes glow, at least and at most, for the windows' glow, dimmed for a darker glass as the kit's glass dims
+ * (with the square of its green beside the kit's glass's, `glass`) but never below `least` of it; and how dimly a dark
+ * floor still shows.
+ */
+const CURTAIN = { sky: '#e9f4fb', foot: 0.06, third: 0.12, tone: 0.07, lit: [0.45, 0.85], glass: '#9cc7df', least: 0.35, dark: 0.03 }
 
 /** The faces of a box in its own frame (its front -z, as the kit's shapes face) and the pattern each wears; m a bay and a storey take. */
 export interface Cladding {
@@ -52,6 +69,11 @@ export interface Cladding {
   sides?: Pattern
   bay?: number
   storey?: number
+  /**
+   * The share of a curtain wall's floors lit at night (#177), which a face wearing `PATTERN.curtain` carries in its
+   * pattern's second number, where another wall carries its bays: none lit unless given.
+   */
+  lit?: number
 }
 
 /**
@@ -65,28 +87,61 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
   const { min, max } = geo.boundingBox!
   const [w, h, d] = [max.x - min.x, max.y - min.y, max.z - min.z]
   const { bay = 3, storey = h } = cladding
-  const uv = new Float32Array(pos.count * 2)
-  const worn = new Float32Array(pos.count * 3)
   const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
   const tag = 0.1 + 0.8 * seed // kept clear of the whole numbers, which say the pattern
-  for (let i = 0; i < pos.count; i += 3) {
-    a.fromBufferAttribute(pos, i)
-    b.fromBufferAttribute(pos, i + 1).sub(a)
-    c.fromBufferAttribute(pos, i + 2).sub(a)
-    const n = b.cross(c).normalize() // the triangle's normal
-    const [top, endOn] = [n.y > 0.5, Math.abs(n.z) >= Math.abs(n.x)] // a wall facing ∓z, or one facing ±x
-    const kind = top ? cladding.top : n.y < -0.5 ? undefined : endOn ? (n.z < 0 ? cladding.front : cladding.back) : cladding.sides
-    if (!kind) continue
-    const across = endOn ? w : d
-    const bays = Math.max(1, Math.round(across / bay))
-    for (let k = i; k < i + 3; k++) {
-      const [x, y, z] = [pos.getX(k) - min.x, pos.getY(k) - min.y, pos.getZ(k) - min.z]
-      uv.set(top ? [x, z] : [((endOn ? x : z) / across) * bays, y / storey], 2 * k)
-      worn.set(top ? [kind + tag, w, d] : [kind + tag, bays, h / storey], 3 * k)
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i)
+      b.fromBufferAttribute(pos, i + 1).sub(a)
+      c.fromBufferAttribute(pos, i + 2).sub(a)
+      const n = b.cross(c).normalize() // the triangle's normal
+      const [top, endOn] = [n.y > 0.5, Math.abs(n.z) >= Math.abs(n.x)] // a wall facing ∓z, or one facing ±x
+      const kind = top ? cladding.top : n.y < -0.5 ? undefined : endOn ? (n.z < 0 ? cladding.front : cladding.back) : cladding.sides
+      if (!kind) continue
+      const across = endOn ? w : d
+      const bays = Math.max(1, Math.round(across / bay))
+      for (let k = i; k < i + 3; k++) {
+        const [x, y, z] = [pos.getX(k) - min.x, pos.getY(k) - min.y, pos.getZ(k) - min.z]
+        uv.set(top ? [x, z] : [((endOn ? x : z) / across) * bays, y / storey], 2 * k)
+        // The pattern's second number: a roof's width, a curtain wall's lit share, another wall's bays.
+        const second = top ? w : kind === PATTERN.curtain ? (cladding.lit ?? 0) : bays
+        worn.set([kind + tag, second, top ? d : h / storey], 3 * k)
+      }
     }
-  }
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-  return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
+  })
+}
+
+/**
+ * Lay a curtain wall (#177) round the side of a cylinder (non-indexed, three's `CylinderGeometry` with its own uv)
+ * before it is placed, as `clad` lays one up a box's faces: `around` m round and `tall` m tall, in as many whole bays of
+ * about `bay` m as fit round it and storeys of `storey` m, `lit` of its floors lit at night as `seed` (0 to 1) has them.
+ * Its caps wear nothing.
+ */
+export function wrap(geo: THREE.BufferGeometry, around: number, tall: number, bay: number, storey: number, lit: number, seed: number) {
+  const [nor, at] = [geo.attributes.normal, geo.attributes.uv]
+  const bays = Math.max(1, Math.round(around / bay))
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < nor.count; i++) {
+      if (Math.abs(nor.getY(i)) > 0.5) continue
+      uv.set([at.getX(i) * bays, (at.getY(i) * tall) / storey], 2 * i)
+      worn.set([PATTERN.curtain + 0.1 + 0.8 * seed, lit, tall / storey], 3 * i)
+    }
+  })
+}
+
+/**
+ * Lay a roof's pattern `kind` (as an office roof's deck, #177) over a curved roof by its own uv, before it is placed:
+ * three's sphere or cone, non-indexed, `around` pavers round it and `up` from its foot to its top, as a dome's panels
+ * or a pointed cap's. `seed` (0 to 1) as `clad`'s.
+ */
+export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, up: number, seed: number): THREE.BufferGeometry {
+  const at = geo.attributes.uv
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < at.count; i++) {
+      uv.set([at.getX(i) * around, at.getY(i) * up], 2 * i)
+      worn.set([kind + 0.1 + 0.8 * seed, around, up], 3 * i)
+    }
+  })
 }
 
 /**
@@ -96,13 +151,24 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
 export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
-  const uv = new Float32Array(pos.count * 2)
-  const worn = new Float32Array(pos.count * 3)
-  for (let i = 0; i < pos.count; i++) {
-    if (nor.getY(i) < 0.9) continue
-    uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
-    worn[3 * i] = kind + 0.5
-  }
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < pos.count; i++) {
+      if (nor.getY(i) < 0.9) continue
+      uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
+      worn[3 * i] = kind + 0.5
+    }
+  })
+}
+
+/**
+ * Give a geometry the `uv` and `pattern` attributes the surface pattern reads, as `fill` writes them over zeros, which
+ * wear none: two numbers a vertex for where it lies in its pattern, and three for the pattern, with its tag, and its
+ * size. `fill` may read the geometry's own uv, which this then replaces.
+ */
+function wear(geo: THREE.BufferGeometry, fill: (uv: Float32Array, worn: Float32Array) => void): THREE.BufferGeometry {
+  const n = geo.attributes.position.count
+  const [uv, worn] = [new Float32Array(n * 2), new Float32Array(n * 3)]
+  fill(uv, worn)
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
 }
@@ -207,6 +273,39 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
         }
       }
     },
+    // A curtain wall's bay of a storey (#177): a darker spandrel at its foot under a pale line at the floor, then two
+    // panes of glass side by side, a mullion at the bay's edges and between them, and a shadow under each head.
+    (g) => {
+      fill(g, [128, 255, 0], 0, 0, S, S)
+      fill(g, [104, 255, 0], 0, S - 7, S, 7)
+      fill(g, [86, 0, 0], 0, 0, S, 19)
+      fill(g, [128, 0, 255], 0, 19, S, 4)
+      for (const x of [0, S - 2]) fill(g, [128, 0, 255], x, 0, 2, S)
+      fill(g, [128, 0, 255], S / 2 - 1, 23, 2, S - 23)
+    },
+    // A flat office roof's deck (#177): pavers 1 m square, each a shade of its own, with darker joints.
+    (g) => {
+      const draw = stream(13)
+      const t = S / 2
+      for (let row = 0; row < 2; row++) {
+        for (let k = 0; k < 2; k++) {
+          fill(g, [98, 0, 0], k * t, row * t, t, t)
+          fill(g, [Math.round(120 + draw() * 14), 0, 0], k * t + 2, row * t + 2, t - 4, t - 4)
+        }
+      }
+    },
+    // An office plaza (#177): slabs 0.6 m square in a grid, a light square of four beside a dark one, with joints.
+    (g) => {
+      const draw = stream(17)
+      const t = S / 4
+      for (let row = 0; row < 4; row++) {
+        for (let k = 0; k < 4; k++) {
+          const dark = (Math.floor(row / 2) + Math.floor(k / 2)) % 2
+          fill(g, [90, 0, 0], k * t, row * t, t, t)
+          fill(g, [Math.round((dark ? 108 : 132) + draw() * 10), 0, 0], k * t + 1.5, row * t + 1.5, t - 3, t - 3)
+        }
+      }
+    },
   ]
 }
 
@@ -297,7 +396,7 @@ float patternKind = floor(vPattern.x);
 float patternGlass = 0.0;
 float patternLit = 0.0;
 // Derivatives before the branch: a face's neighbour may wear no pattern. A roof's m in from its nearest edge.
-vec2 patternAt = patternKind == ${f(PATTERN.roof)} ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
+vec2 patternAt = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(PATTERN.deck)} ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
 vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);
 float patternEdge = min(min(vPatternAt.x, vPattern.y - vPatternAt.x), min(vPatternAt.y, vPattern.z - vPatternAt.y));
@@ -317,12 +416,26 @@ if (patternKind > 0.5) {
     diffuseColor.rgb = mix(mix(diffuseColor.rgb, vec3(grey), ${f(PARAPET.grey)}), diffuseColor.rgb, rim);
     shade = mix(shade * ${f(PARAPET.inside)}, ${f(PARAPET.pale)}, rim) * (1.0 - ${f(PARAPET.lee)} * lee);
   }
+  vec3 patternPaint = diffuseColor.rgb;
   diffuseColor.rgb = mix(diffuseColor.rgb, ${vec3(TRIM)}, worn.b);
-  float h = patternHash(vec3(floor(patternAt), fract(vPattern.x) * 97.0));
+  float seed = fract(vPattern.x) * 97.0;
+  float h = patternHash(vec3(floor(patternAt), seed));
   vec3 glass = h < ${f(LIT)} ? (h < ${f(LIT / 3)} ? ${vec3(GLASS[0])} : h < ${f((2 * LIT) / 3)} ? ${vec3(GLASS[1])} : ${vec3(GLASS[2])}) : ${vec3(GLASS[3])};
+  float lit = h < ${f(LIT)} ? (h < ${f((2 * LIT) / 3)} ? 1.0 : 0.45) : 0.0;
+  if (patternKind == ${f(PATTERN.curtain)}) {
+    // The wall's own glass, its paint, paling toward the sky a third of its height at a time, each pane a tone of its
+    // own; and a floor lit across the whole tower, as the share in vPattern.y of its floors are, or dark.
+    float pane = patternHash(vec3(floor(patternAt.x * 2.0), floor(patternAt.y), seed + 5.0));
+    float third = floor(clamp(patternAt.y / max(vPattern.z, 1.0), 0.0, 0.999) * 3.0);
+    glass = mix(patternPaint, ${vec3(CURTAIN.sky)}, ${f(CURTAIN.foot)} + ${f(CURTAIN.third)} * third);
+    glass *= 1.0 + ${f(CURTAIN.tone)} * (pane < 0.34 ? -1.0 : pane < 0.67 ? 0.0 : 1.0);
+    float floorLit = patternHash(vec3(1.7, floor(patternAt.y), seed));
+    float dim = min(1.0, pow(patternPaint.g / ${f(new THREE.Color(CURTAIN.glass).g)}, 2.0));
+    lit = floorLit < vPattern.y ? (${f(CURTAIN.lit[0])} + ${f(CURTAIN.lit[1] - CURTAIN.lit[0])} * pane) * mix(${f(CURTAIN.least)}, 1.0, dim) : ${f(CURTAIN.dark)};
+  }
   diffuseColor.rgb = mix(diffuseColor.rgb, glass, worn.g) * shade;
   patternGlass = worn.g;
-  patternLit = worn.g * (h < ${f(LIT)} ? (h < ${f((2 * LIT) / 3)} ? 1.0 : 0.45) : 0.0);
+  patternLit = worn.g * lit;
 }`,
         )
         .replace(

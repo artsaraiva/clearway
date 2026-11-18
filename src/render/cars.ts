@@ -8,9 +8,19 @@ import { merged, painted, part, roundedBox, takesPaint, tint } from './shapes'
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
 const CAP = 1500
 const LENGTH = 4.3 // m: every skin is drawn this long, the sim's one car type
-// Walkers' shirts, the planes' wings and the confetti share these. Blue is the Tools' colour and red-orange the Jams',
-// so there is a turquoise car where a blue one would be and a raspberry one where a coral one would be.
-const COLORS = ['#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#e9eef2', '#ff9cbb'].map((c) => new THREE.Color(c))
+// Walkers' shirts, the planes' wings, the confetti and the food trucks (#177) share these. Blue is the Tools' colour and
+// red-orange the Jams', so there is a turquoise car where a blue one would be and a raspberry one where a coral one would be.
+export const PAINTS = {
+  white: '#ffffff',
+  raspberry: '#db6982',
+  turquoise: '#009dcb',
+  yellow: '#ffc52d',
+  mint: '#64cb9f',
+  violet: '#bc9ef2',
+  pale: '#e9eef2',
+  pink: '#ff9cbb',
+}
+const COLORS = Object.values(PAINTS).map((c) => new THREE.Color(c))
 const [WHITE, , TURQUOISE, YELLOW, MINT, , PALE] = COLORS
 const GROW = 8 // m of lane over which a car grows in, or shrinks out, at a Gateway
 const STUCK_BELOW = 0.4 // m/s
@@ -20,7 +30,15 @@ const [ANGRY_AFTER, ANGRY_RAMP] = [5, 3] // real seconds stuck before anger star
 // The skins' parts that keep their own colour (#176): tyres, the cars' dark glass, a chassis, trim, the lamps by day
 // (a pale lens at the front and a deep red one at the back, 17° of hue from the Jam's red-orange at 55% of its chroma)
 // and a taxi's roof lamp in the bulb's cream. By night the lamps light on a mesh of their own, as they always have.
-const PART = { tyre: '#2f3440', glass: '#41566c', chassis: '#4a525c', trim: '#c4ccd4', head: '#f4efe0', tail: '#a84a52', roof: '#fff4dc' }
+export const PART = {
+  tyre: '#2f3440',
+  glass: '#41566c',
+  chassis: '#4a525c',
+  trim: '#c4ccd4',
+  head: '#f4efe0',
+  tail: '#a84a52',
+  roof: '#fff4dc',
+}
 const LIGHT = { head: '#fff6d8', tail: '#ff3030', roof: '#ffd890' }
 const PAINT = '#ffffff' // a skin's painted parts, which take its instance's colour
 
@@ -51,6 +69,29 @@ interface Lamps {
   head: { y: number; z: number }
   tail: { y: number; z: number; tall: number; wide: number }
   roof?: { at: number; y: number }
+}
+
+/** A box of a car's model (m, the car facing +x): `long` along the car, `tall`, `wide` across, its middle `at` along from the car's and its foot `up`. */
+interface Piece {
+  long: number
+  tall: number
+  wide: number
+  at: number
+  up: number
+}
+
+/**
+ * The saloon taxi (#176): its body, cabin and band of glass, its wheels' radius, axles and track, its lamps, and its
+ * paints, yellow twice as often as mint, so that it reads as a taxi. A parked taxi (the kit's `taxi`, #177) is drawn
+ * from the same numbers.
+ */
+export const TAXI = {
+  body: { long: LENGTH, tall: 0.8, wide: 2.15, at: 0, up: 0.32 } as Piece,
+  cabin: { long: 2.2, tall: 0.74, wide: 1.9, at: -0.2, up: 1.06 } as Piece,
+  glass: { long: 2.26, tall: 0.4, wide: 1.96, at: -0.2, up: 1.24 } as Piece,
+  wheels: { r: 0.38, axle: 1.35, track: 0.96 },
+  lamps: { head: { y: 0.8, z: 0.62 }, tail: { y: 0.84, z: 0.62, tall: 0.2, wide: 0.46 }, roof: { at: -0.15, y: 1.78 } } as Lamps,
+  paints: [PAINTS.yellow, PAINTS.yellow, PAINTS.mint],
 }
 
 /**
@@ -88,14 +129,17 @@ const SKINS: Record<Skin, { share: number; paints: THREE.Color[]; lamps: Lamps; 
   // A saloon taxi: bonnet, cabin and boot, and its lamp on the roof, cream by day and lit at night.
   taxi: {
     share: 0.12,
-    paints: [YELLOW, YELLOW, MINT],
-    lamps: { head: { y: 0.8, z: 0.62 }, tail: { y: 0.84, z: 0.62, tall: 0.2, wide: 0.46 }, roof: { at: -0.15, y: 1.78 } },
-    parts: () => [
-      rounded(LENGTH, 0.8, 2.15, 0.4, 0, 0.32, 0, PAINT, 1),
-      rounded(2.2, 0.74, 1.9, 0.42, -0.2, 1.06, 0, PAINT, 1),
-      rounded(2.26, 0.4, 1.96, 0.44, -0.2, 1.24, 0, PART.glass),
-      ...wheels(0.38, 1.35, 0.96),
-    ],
+    paints: TAXI.paints.map((c) => new THREE.Color(c)),
+    lamps: TAXI.lamps,
+    parts: () => {
+      const { body, cabin, glass, wheels: w } = TAXI
+      return [
+        rounded(body.long, body.tall, body.wide, 0.4, body.at, body.up, 0, PAINT, 1),
+        rounded(cabin.long, cabin.tall, cabin.wide, 0.42, cabin.at, cabin.up, 0, PAINT, 1),
+        rounded(glass.long, glass.tall, glass.wide, 0.44, glass.at, glass.up, 0, PART.glass),
+        ...wheels(w.r, w.axle, w.track),
+      ]
+    },
   },
   // A box van, flat-fronted: one tall body, glass round its front half, and tail lamps up its back corners.
   van: {
@@ -128,16 +172,34 @@ const SKINS: Record<Skin, { share: number; paints: THREE.Color[]; lamps: Lamps; 
 }
 const ORDER = Object.keys(SKINS) as Skin[]
 
-/** A skin's lamps as boxes: by day its lenses on its body (`lit` false), or by night a little larger and lit (`lit` true). */
-function lampsOf({ head, tail, roof }: Lamps, lit: boolean): THREE.BufferGeometry[] {
-  const grow = lit ? 0.04 : 0
-  const lamp = (w: number, h: number, d: number, x: number, y: number, z: number, day: string, night: string) =>
-    lit ? tint(new THREE.BoxGeometry(w + grow, h + grow, d + grow).translate(x, y + h / 2, z), night) : box(w, h, d, x, y, z, day)
+/** A lamp of a car's model, a box (m, the car facing +x) placed as a `Piece`, `z` across from its middle: which lamp it is. */
+type Lamp = Piece & { z: number; kind: 'head' | 'tail' | 'roof' }
+
+/** Where a skin's lamps are, as boxes: a pair of head lamps, a pair of tail lamps, and a taxi's roof lamp. */
+export function lampBoxes({ head, tail, roof }: Lamps): Lamp[] {
   return [
-    ...[head.z, -head.z].map((z) => lamp(0.1, 0.22, 0.4, LENGTH / 2 - 0.02, head.y, z, PART.head, LIGHT.head)),
-    ...[tail.z, -tail.z].map((z) => lamp(0.1, tail.tall, tail.wide, -LENGTH / 2 + 0.02, tail.y, z, PART.tail, LIGHT.tail)),
-    ...(roof ? [lamp(0.42, 0.3, 0.86, roof.at, roof.y, 0, PART.roof, LIGHT.roof)] : []),
+    ...[head.z, -head.z].map((z) => ({ long: 0.1, tall: 0.22, wide: 0.4, at: LENGTH / 2 - 0.02, up: head.y, z, kind: 'head' as const })),
+    ...[tail.z, -tail.z].map((z) => ({
+      long: 0.1,
+      tall: tail.tall,
+      wide: tail.wide,
+      at: -LENGTH / 2 + 0.02,
+      up: tail.y,
+      z,
+      kind: 'tail' as const,
+    })),
+    ...(roof ? [{ long: 0.42, tall: 0.3, wide: 0.86, at: roof.at, up: roof.y, z: 0, kind: 'roof' as const }] : []),
   ]
+}
+
+/** A skin's lamps as boxes: by day its lenses on its body (`lit` false), or by night a little larger and lit (`lit` true). */
+function lampsOf(lamps: Lamps, lit: boolean): THREE.BufferGeometry[] {
+  const grow = lit ? 0.04 : 0
+  return lampBoxes(lamps).map(({ long, tall, wide, at, up, z, kind }) =>
+    lit
+      ? tint(new THREE.BoxGeometry(long + grow, tall + grow, wide + grow).translate(at, up + tall / 2, z), LIGHT[kind])
+      : box(long, tall, wide, at, up, z, PART[kind]),
+  )
 }
 
 /** The skin car `id` wears, by the skins' shares, and its paint: the same every frame and every run. */
