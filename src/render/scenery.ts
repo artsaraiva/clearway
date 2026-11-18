@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Cell, Zone } from '../city/city'
+import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import { middle, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Sim } from '../sim/sim'
@@ -11,8 +12,10 @@ import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
 import { standPoles, stringWires, type LineEnd } from './poles'
-import type { Beacon, Flag, Mover, Plume, Sway } from './movers'
+import type { Beacon, Flag, Mover, Plume, Pool, Sway } from './movers'
 import { laySlab } from './slab'
+import { markPlate } from './streets'
+import { LOOKS } from './zones'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
 export interface Landmark {
@@ -79,6 +82,8 @@ export interface Build {
   sways: Sway[]
   /** The flags, each riding its pole's brick (`./movers`). */
   flags: Flag[]
+  /** The pools of light on the ground, each riding the brick of what lights it (`./movers`, #174). */
+  pools: Pool[]
   /** The middle of each Block built. */
   blocks: { middle: Vec }[]
   pieces: Bounds[]
@@ -86,6 +91,21 @@ export interface Build {
 
 /** A build in progress: each call of `next` takes one step of it, and the last returns the build. */
 export type Building = Generator<void, Build>
+
+/**
+ * Give every geometry of one material each vertex attribute that any of them has, zero where it had none, so that they
+ * merge: on a Tile built to the level of finish only what wears a pattern carries `pattern` (#174). A build with no
+ * pattern carries none, and its vertices read none: WebGL reads an attribute a geometry lacks as zero, and nothing in
+ * the game sets another default (three would only for a ShaderMaterial's `defaultAttributeValues`).
+ */
+function wearAlike(geometries: THREE.BufferGeometry[]) {
+  const sizes = new Map<string, number>()
+  for (const g of geometries) for (const [name, a] of Object.entries(g.attributes)) sizes.set(name, a.itemSize)
+  for (const g of geometries) {
+    for (const [name, size] of sizes)
+      if (!g.getAttribute(name)) g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * size), size))
+  }
+}
 
 /** Take every step of a build that is left, at once. */
 export function finish(building: Building): Build {
@@ -110,7 +130,7 @@ export function createScenery(
   field: Field,
   materials: Materials,
   zoneOf: (cell: Cell) => Zone | undefined,
-  stageOf: (cell: Cell) => number,
+  stageOf: (cell: Cell) => Stage,
 ) {
   /**
    * The pieces laid, in order, each with the meshes of the build that laid it (pieces laid together share them) and the
@@ -147,6 +167,7 @@ export function createScenery(
     const beacons: Beacon[] = []
     const sways: Sway[] = []
     const flags: Flag[] = []
+    const pools: Pool[] = []
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
@@ -156,6 +177,7 @@ export function createScenery(
       for (const beacon of done.beacons) beacons.push({ ...beacon, brick: beacon.brick + bricks.length })
       for (const sway of done.sways) sways.push({ ...sway, brick: sway.brick + bricks.length })
       for (const flag of done.flags) flags.push({ ...flag, brick: flag.brick + bricks.length })
+      for (const pool of done.pools) pools.push({ ...pool, brick: pool.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
     const slab = createKit(mulberry32(0), materials)
@@ -167,7 +189,12 @@ export function createScenery(
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
     const poles = createKit(mulberry32(0), materials)
     for (const piece of pieces) {
-      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery)
+      // A Tile built to the level of finish has street lights and marks on its road plate (#175), as far as the
+      // materials' finish allows: the kit's test, which its Blocks' streets take too.
+      const zone = zoneOf(cellAt(middle(piece)))
+      poles.finish(!!(zone && LOOKS[zone.id].finish))
+      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.finished)
+      if (poles.finished) markPlate(poles, piece, net)
       const entry = laid.find((l) => sameBounds(l.piece, piece))
       if (entry) entry.ends = ends
     }
@@ -179,8 +206,10 @@ export function createScenery(
       const cell = cellAt(middle(b))
       kit.stages(stages ?? { from: stageOf(cell), to: stageOf(cell) })
       kit.ground((x, y, clear) => field.sample(x, y) >= clear && inside(b.loop, x, y))
+      const zone = zoneOf(cell)
+      kit.finish(!!(zone && LOOKS[zone.id].finish))
       pavement(kit, b)
-      fillBlock(kit, b, { net, spec, scenery, field, zone: zoneOf(cell) })
+      fillBlock(kit, b, { net, spec, scenery, field, zone })
       take(kit, i)
       yield
     }
@@ -192,17 +221,19 @@ export function createScenery(
       ;(byMaterial.get(material) ?? byMaterial.set(material, []).get(material)!).push(geometry)
     }
     for (const [material, geometries] of byMaterial) {
+      wearAlike(geometries)
       const merged = mergeGeometries(geometries)
       if (!merged) throw new Error(`parts of one material do not share their vertex attributes (${material.type})`)
       for (const g of geometries) g.dispose()
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = !material.transparent
+      if (material === materials.close) mesh.customDepthMaterial = materials.closeDepth
       mesh.receiveShadow = true
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)
       yield
     }
-    return { meshes, bricks, movers, plumes, beacons, sways, flags, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
+    return { meshes, bricks, movers, plumes, beacons, sways, flags, pools, blocks: blocks.map((b) => ({ middle: middle(b) })), pieces }
   }
 
   /** Start a build of `pieces` as the last pieces laid. */

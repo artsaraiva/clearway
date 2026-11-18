@@ -1,12 +1,15 @@
 // Frame time with 1,000 cars, draw calls and triangles, each Zone all over the 26-Tile City: the working tree against a
 // git ref, interleaved round by round so that whatever else is drawing on the GPU lands on both alike.
 //
-// Usage: npm run bench:visual -- <zones | all> [--against <git ref>] [--stages 3] [--rounds 3]
+// Usage: npm run bench:visual -- <zones | all> [--against <git ref>] [--stages 3] [--views framed] [--times noon]
+//          [--rounds 3] [--query <params>]
 //
 // Prints each bench as it runs, then a Markdown table of medians for the PR. Compare numbers only within one table: the
-// same City reads up to a millisecond apart from one day to the next.
+// same City reads up to a millisecond apart from one day to the next. --views takes framed, the whole City in frame,
+// and street, one Tile filling the screen (#173); --times takes noon and night. --query adds dev parameters to the
+// game's URL on both sides, such as `finish=none`.
 import { parseArgs } from 'node:util'
-import { buildCity, launch, open, stageAll, zonesFrom } from './city.mjs'
+import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, zonesFrom } from './city.mjs'
 import { closeAll, serve } from './serve.mjs'
 
 const { values, positionals } = parseArgs({
@@ -14,18 +17,30 @@ const { values, positionals } = parseArgs({
   options: {
     against: { type: 'string' },
     stages: { type: 'string', default: '3' },
+    views: { type: 'string', default: 'framed' },
+    times: { type: 'string', default: 'noon' },
     rounds: { type: 'string', default: '3' },
+    query: { type: 'string', default: '' },
   },
 })
 const stages = values.stages.split(',').map(Number)
 const rounds = Number(values.rounds)
+const views = values.views.split(',')
+if (views.some((v) => !['framed', 'street'].includes(v))) throw new Error('--views takes framed and street')
+const DAY = { noon: 0.25, night: 0.75 }
+const times = values.times.split(',')
+if (times.some((t) => !(t in DAY))) throw new Error('--times takes noon and night')
+// Street: one Tile filling the screen, as `npm run shots` frames it.
+const STREET = { ...DEFAULT_POINTS.street[0], metres: METRES.street }
 
-/** In the page: one frame's draw calls and triangles, then the ms per frame with 1,000 cars, a third of them stuck. */
-async function measure() {
+/**
+ * In the page, after the camera is placed: one frame's draw calls and triangles at the time of day `day`, then the ms per
+ * frame with 1,000 cars, a third of them stuck.
+ */
+async function measure(day) {
   const c = window.clearway
-  c.view.holdDay(0.25)
-  c.view.camera.frameCity()
-  for (let i = 0; i < 12; i++) c.frame(0.1)
+  c.view.holdDay(day)
+  for (let i = 0; i < 2; i++) c.frame(0.1)
   // The view hands out no renderer. Catch it as three passes it to the scene, from the module the game imports three
   // from: patching `WebGLRenderer.prototype.render` does nothing, as three defines `render` on each instance.
   const src = await (await fetch('/src/render/view.ts')).text()
@@ -89,18 +104,25 @@ try {
   for (let round = 0; round < rounds; round++) {
     for (const zone of zones) {
       for (const server of round % 2 ? [...servers].reverse() : servers) {
-        const page = await open(context, server.url)
+        const page = await open(context, server.url, values.query)
         await buildCity(page, zone)
         for (const stage of stages) {
           await stageAll(page, stage)
-          const r = await page.evaluate(measure)
-          const row = results.get(`${zone} ${stage}`) ?? new Map()
-          results.set(`${zone} ${stage}`, row)
-          if (!row.has(server)) row.set(server, { ms: [], calls: r.calls, triangles: r.triangles })
-          row.get(server).ms.push(r.ms)
-          console.log(
-            `round ${round + 1}  ${zone} Stage ${stage}  ${server.label}: ${ms(r.ms)}, ${r.calls} calls, ${mega(r.triangles)} M triangles`,
-          )
+          for (const view of views) {
+            await (view === 'street' ? page.evaluate(lookAt, STREET) : page.evaluate(frameAll))
+            for (const time of times) {
+              const r = await page.evaluate(measure, DAY[time])
+              const key = `${zone} ${stage} ${view} ${time}`
+              const row = results.get(key) ?? new Map()
+              results.set(key, row)
+              if (!row.has(server)) row.set(server, { ms: [], calls: r.calls, triangles: r.triangles })
+              row.get(server).ms.push(r.ms)
+              console.log(
+                `round ${round + 1}  ${zone} Stage ${stage} ${view} ${time}  ${server.label}: ${ms(r.ms)}, ${r.calls} calls, ` +
+                  `${mega(r.triangles)} M triangles`,
+              )
+            }
+          }
         }
         await page.close()
       }
@@ -109,26 +131,27 @@ try {
 
   const table = against
     ? [
-        `| Zone | Stage | \`${values.against}\` | This branch | Change | Draw calls | Triangles |`,
-        '| --- | ---: | ---: | ---: | ---: | --- | --- |',
+        `| Zone | Stage | View | Time | \`${values.against}\` | This branch | Change | Draw calls | Triangles |`,
+        '| --- | ---: | --- | --- | ---: | ---: | ---: | --- | --- |',
       ]
-    : ['| Zone | Stage | Frame time | Draw calls | Triangles |', '| --- | ---: | ---: | ---: | ---: |']
+    : ['| Zone | Stage | View | Time | Frame time | Draw calls | Triangles |', '| --- | ---: | --- | --- | ---: | ---: | ---: |']
   const noisy = []
   for (const [key, row] of results) {
-    const [zone, stage] = key.split(' ')
+    const [zone, stage, view, time] = key.split(' ')
     const [a, b] = servers.map((s) => row.get(s))
     for (const [server, r] of row) {
       const [lo, hi] = [Math.min(...r.ms), Math.max(...r.ms)]
       if (hi - lo > 0.25 * median(r.ms))
-        noisy.push(`${names[zone]} at Stage ${stage} on the ${server.label} read ${lo.toFixed(2)}–${ms(hi)}`)
+        noisy.push(`${names[zone]} at Stage ${stage}, ${view} at ${time}, on the ${server.label} read ${lo.toFixed(2)}–${ms(hi)}`)
     }
+    const lead = `| ${names[zone]} | ${stage} | ${view} | ${time}`
     if (!b) {
-      table.push(`| ${names[zone]} | ${stage} | ${ms(median(a.ms))} | ${a.calls} | ${mega(a.triangles)} M |`)
+      table.push(`${lead} | ${ms(median(a.ms))} | ${a.calls} | ${mega(a.triangles)} M |`)
       continue
     }
     const change = median(b.ms) - median(a.ms)
     table.push(
-      `| ${names[zone]} | ${stage} | ${ms(median(a.ms))} | ${ms(median(b.ms))} | ${change < 0 ? '−' : '+'}${ms(Math.abs(change))} | ` +
+      `${lead} | ${ms(median(a.ms))} | ${ms(median(b.ms))} | ${change < 0 ? '−' : '+'}${ms(Math.abs(change))} | ` +
         `${a.calls} → ${b.calls} | ${mega(a.triangles)} → ${mega(b.triangles)} M |`,
     )
   }

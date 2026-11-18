@@ -5,16 +5,16 @@ import type { Polyline } from '../sim/geometry'
 import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
-import { tint } from './shapes'
+import { canvasTexture, tint } from './shapes'
 
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
 // stretch: it sets out each morning and stops for the night once it has worked the day's stretches. A chimney's smoke
-// (#150) rises through the same working day, washing and futons (#155) hang out through it and sway in the wind, and
-// beacons (#155) blink at night.
+// (#150) rises through the same working day, washing and futons (#155) hang out through it and sway in the wind,
+// beacons (#155) blink at night, and pools of light (#174) lie warm on the ground under the lights.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -46,10 +46,14 @@ export interface Mover {
   brick: number
 }
 
-/** A chimney's smoke (#150): puffs rise from `at`, its top, in Three coordinates, once the brick at `brick` stands. */
+/**
+ * A chimney's smoke (#150): puffs rise from `at`, its top, in Three coordinates, once the brick at `brick` stands. Steam
+ * (#175), from a noodle shop's vent or a food stall's pot, is smaller, quicker and fainter.
+ */
 export interface Plume {
   at: THREE.Vector3
   brick: number
+  steam?: boolean
 }
 
 /** The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, or a shop's nobori banner (#153). */
@@ -77,6 +81,20 @@ export interface Beacon {
   at: THREE.Vector3
   r: number
   colour: BeaconColour
+  brick: number
+}
+
+/**
+ * A pool of light on the ground (#174): a warm decal `w` by `d` centred on `at`, in Three coordinates, turned `ry` as the
+ * kit turns a shape, in `colour` at the strength of its light, riding the brick at `brick` of what lights it, and lit as
+ * the lamps are. No light source: it adds its glow to the ground under it.
+ */
+export interface Pool {
+  at: THREE.Vector3
+  w: number
+  d: number
+  ry: number
+  colour: THREE.Color
   brick: number
 }
 
@@ -120,13 +138,20 @@ const KINDS: Record<MoverKind, Kind> = {
   forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift },
   butterfly: { speed: 1.4, bob: 0.28, rate: 4.5, model: butterfly, fly: { up: 0.9, ease: 1.6 }, beat: 7 },
   gondola: { speed: 1, bob: 0, rate: 0, model: gondola },
+  shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper }, // #175
 }
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
-// Smoke (#150): s between puffs from a chimney, how long a puff lasts (s), how fast it rises (m/s) and how the wind
-// carries it (m/s, Three's x and z), its radius as it leaves the chimney and as it fades (m), how opaque it starts, and
-// its colour.
-const SMOKE = { every: 0.6, lasts: 5.5, rise: 1.6, wind: [WIND.x, -WIND.y], from: 0.7, to: 2.5, opacity: 0.92, colour: '#f4f1ea' }
+// Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
+const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
+// Each kind of plume's puffs: a chimney's smoke (#150), and steam (#175) from a noodle shop's vent or a food stall's pot,
+// quicker, smaller and fainter, and slower on the wind. s between puffs, how long a puff lasts (s), how fast it rises
+// (m/s), its share of the wind and of its own drift, its radius as it leaves and as it fades (m), and its share of the
+// smoke's opacity.
+const PLUMES = {
+  smoke: { every: 0.6, lasts: 5.5, rise: 1.6, wind: 1, drift: 1, from: 0.7, to: 2.5, fade: 1 },
+  steam: { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, drift: 0.4, from: 0.3, to: 1.15, fade: 0.7 },
+}
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
 // to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
 // pole and how far its free end swings (m); and how many waves run along it.
@@ -154,6 +179,22 @@ const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.
 // Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
 // moment, and takes this share of the day to come or go.
 const HANG = { out: 0.05, in: 0.06, takes: 0.004 }
+// Pools of light (#174): how much of its colour a pool adds at its middle for the lamps' glow; how much of the moonlight
+// on the ground it takes the place of there, without which a warm light added to the bright blue night comes out
+// white, once the lamps glow `full`, as from dusk through the night; and how it fades out to its edge (the share of
+// both at each share of the way out). Below `full`, as the lamps come on before dusk and go out at dawn, it dims as
+// much less as it lights less, so that a pool never darkens the ground.
+const POOLS = {
+  bright: 0.26,
+  dims: 0.6,
+  full: 4,
+  fade: [
+    [0, 1],
+    [0.4, 0.82],
+    [0.72, 0.36],
+    [1, 0],
+  ],
+}
 
 /** A box `w` by `h` by `d` centred on `(x, z)` with its bottom at `y`, painted. */
 const part = (w: number, h: number, d: number, x: number, y: number, z: number, color: string) =>
@@ -233,6 +274,21 @@ function forklift(): THREE.BufferGeometry {
   for (const x of [-0.7, 0.36]) for (const z of [-0.5, 0.5]) parts.push(part(0.06, 1.1, 0.06, x, 1.02, z * 1.02, DARK))
   for (const z of [0.48, -0.48]) parts.push(wheel(0.3, 0.24, 0.45, z, TYRE, 8), wheel(0.25, 0.22, -0.55, z, TYRE, 8))
   return merged(parts).translate(-0.3, 0, 0).scale(1.3, 1.3, 1.3)
+}
+
+/**
+ * A shopper (#175) walking a shops Tile's pavement and stopping at the fronts, as tall as the walkers: legs, a coat in
+ * white for its paint, a head and hair, and a bag at its side. Faces +x.
+ */
+function shopper(): THREE.BufferGeometry {
+  const [LEGS, SKIN, HAIR, BAG] = ['#3a4252', '#f1d1b5', '#3a3330', '#f4ead2']
+  return merged([
+    part(0.26, 0.82, 0.4, 0, 0, 0, LEGS),
+    part(0.36, 0.74, 0.62, 0, 0.8, 0, '#ffffff'), // the coat
+    part(0.32, 0.32, 0.32, 0.02, 1.54, 0, SKIN),
+    part(0.34, 0.12, 0.34, 0, 1.82, 0, HAIR),
+    part(0.24, 0.34, 0.1, 0.04, 0.58, 0.37, BAG),
+  ])
 }
 
 /**
@@ -399,7 +455,7 @@ export interface Poses {
   pose(of: Build, i: number): { scale: number; lift: number } | null
 }
 
-/** A puff of smoke in the air: where it left its chimney, when (s run), and its own drift. */
+/** A puff of smoke in the air: where it left its chimney, when (s run), its own drift, and its kind of plume (#175). */
 interface Puff {
   x: number
   y: number
@@ -407,6 +463,7 @@ interface Puff {
   born: number
   dx: number
   dz: number
+  kind: keyof typeof PLUMES
 }
 
 /** The movers, plumes, flags, beacons and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
@@ -420,6 +477,9 @@ interface Entry {
   beacons: { beacon: Beacon; phase: number }[]
   /** Each swaying thing, where it is in its swing when the run starts, and when (the day's clock) it is hung out and taken in. */
   sways: { sway: Sway; phase: number; out: number; in: number }[]
+  /** The pools of light, and the index of the first in the City's mesh of them. */
+  pools: Pool[]
+  poolAt: number
   playing?: Poses
 }
 
@@ -428,7 +488,8 @@ interface Entry {
  * work done, a clock that runs only through the working day and while the world runs, so a mover built again (by a
  * Swap, a Rezoning or a Stage-up) carries on from where it was. A mover arrives with its brick in the build's reveal,
  * and leaves with its build. Each chimney smokes while the working day runs, once its brick stands, its puffs one
- * instanced mesh of soft spheres that fade as they rise.
+ * instanced mesh of soft spheres that fade as they rise. The pools of light (#174) are laid once, and moved only while
+ * their lights still arrive.
  * ponytail: every instance is placed each frame, parked or not, which is nothing at a few hundred. Skip the parked
  * ones if a City ever holds thousands.
  */
@@ -566,15 +627,49 @@ export function createMovers() {
   const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
   hanging.onBeforeCompile = takesPaint
   const swaying = new Map<SwayKind, THREE.InstancedMesh>()
+  // Pools of light (#174): one instanced mesh of warm decals for the whole City, added to what lies under them, unlit
+  // and untouched by tone mapping, as the contact shadows are, dimming the moonlight under them by up to `POOLS.dims`
+  // (its opacity) as they add their own (its colour, premultiplied by it). Each takes its colour; the material's is the
+  // lamps' glow.
+  const warmth = new THREE.MeshBasicMaterial({
+    map: canvasTexture(64, 64, (g) => {
+      const fade = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+      for (const [at, a] of POOLS.fade) fade.addColorStop(at, `rgba(255,255,255,${a})`)
+      g.fillStyle = fade
+      g.fillRect(0, 0, 64, 64)
+    }),
+    transparent: true,
+    opacity: POOLS.dims,
+    premultipliedAlpha: true,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    depthWrite: false,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+  })
+  const decal = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+  let pooled: THREE.InstancedMesh | null = null
+  /** Lay entry `e`'s pools in the mesh of them, each as big as its light's brick stands: none while it falls in. */
+  const layPools = (e: Entry) => {
+    if (!pooled) return
+    e.pools.forEach((p, i) => {
+      const pose = e.playing?.pose(e.build, p.brick) ?? { scale: 1, lift: 0 }
+      const k = pose.lift > 0.01 ? 0.001 : Math.max(0.001, pose.scale)
+      pooled!.setMatrixAt(e.poolAt + i, m.compose(p.at, q.setFromAxisAngle(up, p.ry), scale.set(p.w * k, 1, p.d * k)))
+    })
+    pooled.instanceMatrix.needsUpdate = true
+  }
 
-  /** New instanced meshes for the movers, beacons and swaying things there are now. */
+  /** New instanced meshes for the movers, flags, beacons, swaying things and pools of light there are now. */
   const remesh = () => {
     for (const mesh of meshes.values()) {
       group.remove(mesh)
       mesh.dispose()
       if (mesh.geometry !== models.get(mesh.name as MoverKind)) mesh.geometry.dispose()
     }
-    for (const mesh of [...swaying.values(), ...(beacons ? [beacons] : [])]) {
+    for (const mesh of [...swaying.values(), ...(beacons ? [beacons] : []), ...(pooled ? [pooled] : [])]) {
       group.remove(mesh)
       mesh.dispose()
     }
@@ -614,6 +709,22 @@ export function createMovers() {
     }
     swaying.clear()
     beacons = null
+    pooled = null
+    const lying = entries.reduce((n, e) => n + e.pools.length, 0)
+    if (lying) {
+      pooled = new THREE.InstancedMesh(decal, warmth, lying)
+      pooled.name = 'pools'
+      pooled.frustumCulled = false
+      pooled.renderOrder = 2 // over the contact shadows, which it lights too
+      let at = 0
+      for (const e of entries) {
+        e.poolAt = at
+        e.pools.forEach((p, i) => pooled!.setColorAt(at + i, p.colour))
+        at += e.pools.length
+        layPools(e)
+      }
+      group.add(pooled)
+    }
     const lights = entries.flatMap((e) => e.beacons)
     if (lights.length) {
       flashes = new THREE.InstancedBufferAttribute(new Float32Array(lights.length), 1)
@@ -746,12 +857,20 @@ export function createMovers() {
   return {
     group,
 
-    /** Show the movers, plumes, beacons and swaying things of `build`, arriving with their bricks as `playing` plays it, or at once. */
+    /** Show the movers, plumes, flags, beacons, swaying things and pools of light of `build`, arriving with their bricks as `playing` plays it, or at once. */
     add(build: Build, playing?: Poses) {
-      if (!build.movers.length && !build.plumes.length && !build.flags.length && !build.beacons.length && !build.sways.length) return
+      if (
+        !build.movers.length &&
+        !build.plumes.length &&
+        !build.flags.length &&
+        !build.beacons.length &&
+        !build.sways.length &&
+        !build.pools.length
+      )
+        return
       const plumes = build.plumes.map((plume) => {
         const draw = mulberry32(spot(plume.at.x, -plume.at.z))
-        return { plume, next: draw() * SMOKE.every, draw }
+        return { plume, next: draw() * PLUMES.smoke.every, draw } // its first puff within a chimney's beat, steam's too
       })
       const beacons = build.beacons.map((beacon) => ({ beacon, phase: mulberry32(spot(beacon.at.x, -beacon.at.z))() }))
       const sways = build.sways.map((sway) => {
@@ -759,16 +878,27 @@ export function createMovers() {
         const [phase, out, taken] = [draw() * Math.PI * 2, draw(), draw()]
         return { sway, phase, out: WORK.from + out * HANG.out, in: WORK.to - HANG.takes - taken * HANG.in }
       })
-      entries.push({ build, movers: build.movers, flags: build.flags, plumes, puffs: [], beacons, sways, playing })
-      if (build.movers.length || build.flags.length || beacons.length || sways.length) remesh()
+      entries.push({
+        build,
+        movers: build.movers,
+        flags: build.flags,
+        plumes,
+        puffs: [],
+        beacons,
+        sways,
+        pools: build.pools,
+        poolAt: 0,
+        playing,
+      })
+      if (build.movers.length || build.flags.length || beacons.length || sways.length || build.pools.length) remesh()
     },
 
-    /** Take away what moves, smokes, blinks, flies and sways of the build whose meshes are `meshes`, as its meshes leave the scene. */
+    /** Take away what moves, smokes, blinks, flies, sways and lights the ground of the build whose meshes are `meshes`, as its meshes leave the scene. */
     drop(meshes: THREE.Mesh[]) {
       const kept = entries.filter((e) => e.build.meshes !== meshes)
       if (kept.length === entries.length) return
       const moved = entries.some(
-        (e) => e.build.meshes === meshes && (e.movers.length || e.flags.length || e.beacons.length || e.sways.length),
+        (e) => e.build.meshes === meshes && (e.movers.length || e.flags.length || e.beacons.length || e.sways.length || e.pools.length),
       )
       entries = kept
       if (moved) remesh()
@@ -802,7 +932,10 @@ export function createMovers() {
           e.sways.filter((s) => fate(s.sway.brick) !== 'goes'),
         ]
         if (beacons.length < e.beacons.length || sways.length < e.sways.length) [e.beacons, e.sways, changed] = [beacons, sways, true]
+        const lying = e.pools.filter((p) => fate(p.brick) !== 'goes')
+        if (lying.length < e.pools.length) [e.pools, changed] = [lying, true]
         e.playing = undefined
+        layPools(e) // at full size, as it now stands
       }
       if (changed) remesh()
       const counts = new Map<MoverKind, number>()
@@ -877,22 +1010,25 @@ export function createMovers() {
       for (const e of entries) {
         for (const p of e.plumes) {
           if (!working || !stands(e, p.plume.brick)) continue
-          for (p.next -= dt; p.next <= 0; p.next += SMOKE.every) {
+          const kind = p.plume.steam ? 'steam' : 'smoke'
+          const { every, drift } = PLUMES[kind]
+          for (p.next -= dt; p.next <= 0; p.next += every) {
             const { x, y, z } = p.plume.at
-            const [a, r] = [p.draw() * Math.PI * 2, 0.25 + 0.25 * p.draw()]
-            e.puffs.push({ x, y, z, born: t + p.next, dx: Math.cos(a) * r, dz: Math.sin(a) * r })
+            const [a, r] = [p.draw() * Math.PI * 2, (0.25 + 0.25 * p.draw()) * drift]
+            e.puffs.push({ x, y, z, born: t + p.next, dx: Math.cos(a) * r, dz: Math.sin(a) * r, kind })
           }
         }
-        e.puffs = e.puffs.filter((f) => t - f.born < SMOKE.lasts)
+        e.puffs = e.puffs.filter((f) => t - f.born < PLUMES[f.kind].lasts)
         for (const f of e.puffs) {
           if (n >= PUFFS) break
           const age = Math.max(0, t - f.born)
-          const k = age / SMOKE.lasts
+          const { lasts, rise, from, to, wind, fade } = PLUMES[f.kind]
+          const k = age / lasts
           const [wx, wz] = SMOKE.wind
-          at.set(f.x + (wx + f.dx) * age, f.y + SMOKE.rise * age * (1 - 0.3 * k), f.z + (wz + f.dz) * age)
-          m.compose(at, q, scale.setScalar(SMOKE.from + (SMOKE.to - SMOKE.from) * Math.sqrt(k)))
+          at.set(f.x + (wx * wind + f.dx) * age, f.y + rise * age * (1 - 0.3 * k), f.z + (wz * wind + f.dz) * age)
+          m.compose(at, q, scale.setScalar(from + (to - from) * Math.sqrt(k)))
           smoke.setMatrixAt(n, m)
-          fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8)
+          fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8 * fade)
           n++
         }
       }
@@ -937,6 +1073,16 @@ export function createMovers() {
         }
       }
       for (const mesh of swaying.values()) mesh.instanceMatrix.needsUpdate = true
+
+      // Pools of light: lit as the lamps are, dimming the moonlight as much, and hidden by day. Only those whose lights
+      // still arrive move.
+      const lamps = glow?.lamps ?? 0
+      warmth.opacity = POOLS.dims * Math.min(1, lamps / POOLS.full)
+      warmth.color.setScalar(warmth.opacity > 0 ? (lamps * POOLS.bright) / warmth.opacity : 0)
+      if (pooled) {
+        pooled.visible = warmth.opacity > 0
+        for (const e of entries) if (e.playing) layPools(e)
+      }
     },
   }
 }

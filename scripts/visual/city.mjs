@@ -11,6 +11,10 @@ export const CITY = [
 ] // prettier-ignore
 
 export const VIEWPORT = { width: 1440, height: 900 }
+/** The metres of road plane across the canvas at Street, one Tile filling the screen, and at Close, one Block (`lookAt`). */
+export const METRES = { street: 110, close: 40 }
+/** Where a Zone's Street and Close shots look unless it has points of its own: the Tile at (2, 0), and a Block of it. */
+export const DEFAULT_POINTS = { street: [{ x: 200, y: 0 }], close: [{ x: 225, y: -25 }] }
 
 /**
  * Headless Google Chrome on the GPU (Metal on a Mac), 1440 × 900 at 2×. Its frame times match a visible browser's,
@@ -26,15 +30,18 @@ export async function launch() {
   return { browser, context }
 }
 
-/** Open a seed-3 Free run with the game's own frame loop held, so only `clearway.frame` moves time. */
-export async function open(context, base) {
+/**
+ * Open a seed-3 Free run with the game's own frame loop held, so only `clearway.frame` moves time. `query` adds dev
+ * parameters to the page's URL, such as `finish=none`.
+ */
+export async function open(context, base, query = '') {
   const page = await context.newPage()
   page.on('pageerror', (e) => console.error('pageerror', e.message))
   page.on('console', (m) => m.type() === 'error' && !m.location().url.endsWith('/favicon.ico') && console.error('console', m.text()))
   await page.addInitScript(() => {
     window.requestAnimationFrame = () => 0
   })
-  await page.goto(`${base}/?free&seed=3`)
+  await page.goto(`${base}/?free&seed=3${query ? `&${query.replace(/^[?&]/, '')}` : ''}`)
   await page.waitForFunction(() => window.clearway)
   await page.evaluate(() => window.clearway.frame(0.016))
   return page
@@ -72,6 +79,53 @@ export async function stageAll(page, stage) {
     for (let i = 0; i < 20000 && c.view.stagingUp; i++) c.frame(0.1)
     for (let i = 0; i < 40; i++) c.frame(0.1) // confetti settles
   }, stage)
+}
+
+/** In the page: turn the camera `quarters` quarter-turns about the middle of the canvas, keeping its tilt and zoom. */
+export function turnCamera(quarters) {
+  const c = window.clearway
+  c.view.camera.rotate((-document.querySelector('#scene').getBoundingClientRect().height / 4) * quarters, 0)
+  c.frame(0.1)
+}
+
+/**
+ * In the page: frame the whole City from the camera's heading, and return the clip round its Tiles for a screenshot.
+ * The three distances every sheet shows are this one, Framed, and `lookAt`'s Street and Close.
+ */
+export function frameAll() {
+  const c = window.clearway
+  c.view.camera.frameCity()
+  for (let i = 0; i < 12; i++) c.frame(0.1)
+  const corners = c.game.city.tiles.flatMap((t) =>
+    [-50, 50].flatMap((dx) => [-50, 50].map((dy) => c.view.camera.onScreen({ x: t.cell.x * 100 + dx, y: t.cell.y * 100 + dy }))),
+  )
+  const xs = corners.map((p) => p[0])
+  const ys = corners.map((p) => p[1])
+  const x = Math.max(0, Math.min(...xs) - 30)
+  const y = Math.max(0, Math.min(...ys) - 70) // room for the tallest buildings
+  return { x, y, width: Math.min(innerWidth, Math.max(...xs) + 30) - x, height: Math.min(innerHeight, Math.max(...ys) + 40) - y }
+}
+
+/**
+ * In the page: fly to the sim point `(x, y)` (m; a Tile is 100 m) from the camera's heading and zoom until `metres` of
+ * road plane run across the canvas's width (`METRES`).
+ */
+export function lookAt({ x, y, metres }) {
+  const c = window.clearway
+  c.view.camera.frameCity()
+  for (let i = 0; i < 12; i++) c.frame(0.1)
+  c.view.camera.centreOn({ x, y })
+  for (let i = 0; i < 12; i++) c.frame(0.1)
+  const r = document.querySelector('#scene').getBoundingClientRect()
+  const middle = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }
+  for (let k = 0; k < 6; k++) {
+    const a = c.view.pick({ clientX: middle.clientX - 100, clientY: middle.clientY })
+    const b = c.view.pick({ clientX: middle.clientX + 100, clientY: middle.clientY })
+    const span = (Math.hypot(b.x - a.x, b.y - a.y) * r.width) / 200
+    c.view.camera.zoomAt(middle, (100 * Math.log(span / metres)) / Math.log(0.95))
+    c.frame(0.1)
+  }
+  for (let i = 0; i < 4; i++) c.frame(0.1)
 }
 
 /** The Zones named in `args` (commas or spaces, or `all`), checked against what `server` serves. */

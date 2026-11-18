@@ -2,26 +2,31 @@ import type { Zone } from '../city/city'
 import { mulberry32 } from '../sim/demand'
 import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
-import { KERB, type Block } from './blocks'
+import { area, KERB, twiceArea, type Block } from './blocks'
 import { WIND } from './day'
 import { inside, type Field } from './field'
 import {
   BIKE_RACK,
   CONTAINER,
   FACES,
+  frontOf,
   shedDoors,
   spot,
   STAIR,
   stairAt,
+  to,
   VENDING_MACHINE,
   WALL_STAIR,
   WALKWAY,
   type Hung,
   type Kit,
   type OfficeStyle,
+  type ShopForm,
   type Walks,
 } from './kit'
 import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
+import { cafeTable, capsules, florist, foodStall, greengrocer, menuBoard, plantStand, pots, produce, type ShopScene } from './props'
+import { planter, type Footprint } from './streets'
 
 // What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
 // shapes, its palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look
@@ -112,8 +117,8 @@ const FLAGS = {
   cloths: ['#2fb39a', '#f0b43c', '#5cc0d6', '#a58ad8', '#79c86a', '#ff9ab8', '#fbf8f2'],
 }
 // Shops: rows of shops 6.5 to 10.5 m wide and 10 to 12 m deep along every edge, their fronts 2.4 m in from it, and up
-// to three trees in the yards behind.
-const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 3 } as const
+// to four trees in the yards behind.
+const SHOPS = { margin: 2.4, deep: [10, 12], wide: [6.5, 10.5], trees: 4 } as const
 // Shop details (#153), before the fronts that face a Road: the share of shops with each from Stages 1, 2 and 3 (one
 // roll a shop for each detail, so a shop keeps its details as it grows), and the share of those with a vending machine
 // that have a second at Stage 3. Parked bicycles stand `gap` m apart, `row` m out from the front to their middles and
@@ -126,6 +131,7 @@ const FRONT = {
   nobori: [0, 0.35, 0.55],
   lanterns: [0, 0.35, 0.6],
   bikes: [0, 0.3, 0.5],
+  wares: 0.6, // of the fronts with room before the window, the share with crates of produce or a plant stand (#175)
   gap: 0.7,
   row: 1,
   slant: Math.PI + 0.4,
@@ -135,6 +141,23 @@ const FRONT = {
   room: 1.4,
   cloths: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
 } as const
+// Shops to the level of finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
+// noodle shops, one in eight; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
+// widest on a Road where none is that wide, and the area (m²) from which a Block
+// has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
+// far out from the fronts shoppers walk (m), how long they stop at each (s), and their coats, the cars' colours.
+const SHOP_FINISH = {
+  forms: ['flat', 'facade', 'flat', 'setback'] as ShopForm[],
+  noodle: 0.12,
+  scenes: ['greengrocer', 'florist', 'capsules', 'stall'] as ShopScene[],
+  wide: 8,
+  second: 2500,
+  paved: 1.7,
+  paving: ['#efd3ad', '#ecd0c6', '#dde3c6', '#e5d6ec'],
+  walk: 2.1,
+  waits: [1.5, 5],
+  coats: ['#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'],
+}
 // Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
 // a shed over all but 2.5 m of the lot on every side, 1.5 m in from the Block's edge and at least 9 m across. On some
 // Blocks the first shed has a chimney.
@@ -179,12 +202,19 @@ export interface ZoneGround {
   lamps: Vec[]
   /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
   tileDraw: number
+  /** What the look stands near the Block's edge, which the street's furniture keeps off (`./streets`, #175). */
+  kept: Footprint[]
 }
 
 /** How a Zone builds on its Blocks. */
 export interface Look {
   /** Whether the seed may stand its coral tower landmark on a Tile of this Zone. */
   landmarks: boolean
+  /**
+   * Whether it is built to the level of finish (#173): wearing surface pattern and leaving pools of light at night
+   * (the kit's `finish`). Shops alone, since the prototype (#174).
+   */
+  finish?: boolean
   fill(ground: ZoneGround): void
 }
 
@@ -194,7 +224,7 @@ export const LOOKS: Record<Zone['id'], Look> = {
   'medium-density': { landmarks: false, fill: (g) => (g.tileDraw < 0.5 ? terraces(g) : courtyards(g)) },
   'high-density': { landmarks: true, fill: towers },
   offices: { landmarks: true, fill: offices },
-  shops: { landmarks: false, fill: shops },
+  shops: { landmarks: false, finish: true, fill: shops },
   industrial: { landmarks: false, fill: industrial },
   parks: { landmarks: false, fill: parks },
   green: {
@@ -367,12 +397,7 @@ function rows(g: ZoneGround, margin: number, depth: () => number, width: () => n
   for (const loop of g.field.outlines(margin, [g.block])) {
     if (loop.length < 4 || !inside(g.block.loop, loop[0].x, loop[0].y)) continue
     const line = sides(loop, 0.7)
-    let twice = 0
-    line.forEach((p, i) => {
-      const q = line[(i + 1) % line.length]
-      twice += p.x * q.y - q.x * p.y
-    })
-    const turn = twice > 0 ? 1 : -1 // counterclockwise, the outside is to the right of the way round
+    const turn = twiceArea(line) > 0 ? 1 : -1 // counterclockwise, the outside is to the right of the way round
     for (let i = 0; i < line.length; i++) {
       const [a, b] = [line[i], line[(i + 1) % line.length]]
       const len = Math.hypot(b.x - a.x, b.y - a.y)
@@ -1039,37 +1064,211 @@ function flags(g: ZoneGround, x: number, y: number, w: number, d: number) {
 }
 
 /**
- * Shops: low shops shoulder to shoulder along every edge, each with an awning where it faces a Road, and trees behind.
- * Every shop is one storey at Stage 1 and a storey higher at Stage 3, with the finish its Stage gives it (the kit's
- * `shop`).
+ * Shops: low shops shoulder to shoulder along every edge, each with its front, and trees behind. Every shop is one
+ * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, the kit's `shop`) as its lot's
+ * plan has it: a front colour and a form that differ from its neighbour's, and one shop in eight a noodle shop whose
+ * vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of 2,500 m²
+ * or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a Road
+ * from Stage 2, stopping at each.
  */
 function shops(g: ZoneGround) {
-  const { kit } = g
+  const { kit, block } = g
   const lots = rows(
     g,
     SHOPS.margin,
-    () => kit.range(...SHOPS.deep),
+    () => kit.range(...SHOPS.deep) * kit.deeper,
     () => kit.range(...SHOPS.wide),
   )
+  const centre = middle(block)
+  const plans = mulberry32(spot(centre.x, centre.y) ^ 0x51d5) // the plans' own stream: the kit's draws as they did
+  const scenes = sceneLots(g, lots, plans)
+  const paving = SHOP_FINISH.paving[Math.floor(plans() * SHOP_FINISH.paving.length)]
+  let [front, form] = [-1, -1]
   for (const [i, l] of lots.entries()) {
     kit.lot(i)
     const storeys = kit.chance(0.45) ? 1 : 2
-    kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, SHOP_STOREYS(storeys, stage), l.onRoad, stage))
-    if (l.onRoad) shopFront(g, l)
+    front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
+    const drawn = Math.floor(plans() * SHOP_FINISH.forms.length)
+    form = SHOP_FINISH.forms[drawn] === SHOP_FINISH.forms[form] ? (drawn + 1) % SHOP_FINISH.forms.length : drawn
+    const noodle = plans() < SHOP_FINISH.noodle
+    const scene = scenes.get(i)
+    // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
+    const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
+    g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
+    if (scene?.kind === 'stall') {
+      kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving))
+      continue
+    }
+    const plan = { front: FRONT.cloths[front], form: SHOP_FINISH.forms[form], noodle, door, onRoad: l.onRoad }
+    kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
+    const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_FINISH.paved / 2)
+    kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_FINISH.paved, l.ry, paving), spot(l.x, l.y) + 2)
+    if (scene) sceneFront(g, l, door, scene)
+    else if (l.onRoad) shopFront(g, l, door)
+    else seamFront(g, l, door)
   }
   kit.lot(-1)
-  yards(g, lots, SHOPS.trees)
+  shoppers(g, lots)
+  backYard(g, lots, yards(g, lots, SHOPS.trees))
 }
 
 /**
- * The details before shop `l`'s front (#153), each drawn from where the shop stands, so that nothing else on the Block
- * changes: a vending machine or two at one end, a row of bicycles at the other, nobori banners at the pavement's edge
- * between them, and paper lanterns under the awning. Each stands from the Stage its roll gives it (`FRONT`), and more
- * come at Stage 3: a second vending machine on half the fronts with one, two more bicycles, a third banner and two
- * more lanterns. What stands on the pavement keeps on the Block, 0.6 m in from its edge, and clear of the lamps at its
- * corners and the street trees.
+ * A shops Block's back yard behind its rows (#175): a delivery kei truck parked alongside the nearest back wall from
+ * Stage 2, and a second at Stage 3, where there is room clear of the shops and the yard's trees.
  */
-function shopFront(g: ZoneGround, l: RowLot) {
+function backYard(g: ZoneGround, lots: RowLot[], trees: Vec[]) {
+  const { kit, block, field } = g
+  const centre = middle(block)
+  const draw = mulberry32(spot(centre.x, centre.y) ^ 0xbac4)
+  const parked: Vec[] = []
+  for (let tries = 0; tries < 40 && parked.length < 2 && lots.length; tries++) {
+    const [x, y] = [block.x0 + draw() * (block.x1 - block.x0), block.y0 + draw() * (block.y1 - block.y0)]
+    if (field.sample(x, y) < 4 || lots.some((l) => near(l, x, y, 1.4))) continue
+    if ([...trees, ...parked].some((p) => Math.hypot(p.x - x, p.y - y) < 4.5)) continue
+    const back = lots.reduce((a, b) => (Math.hypot(b.x - x, b.y - y) < Math.hypot(a.x - x, a.y - y) ? b : a))
+    const ry = back.ry + Math.PI / 2 // its length along the wall
+    if (!stands(g, x, y, 2.4, 5, 1.5, ry)) continue
+    kit.from(parked.length ? 3 : 2, () => kit.keiTruck(x, y, KERB, ry), spot(x, y))
+    parked.push({ x, y })
+  }
+}
+
+/**
+ * The lots of a shops Block that hold its scenes (#175): from Stage 2 one, on a lot facing a Road wide enough for it,
+ * of a kind picked from where the Block lies; at Stage 3 a second of another kind on a Block of 2,500 m² or more, not
+ * beside the first.
+ */
+function sceneLots(g: ZoneGround, lots: RowLot[], draw: () => number): Map<number, { kind: ShopScene; from: number }> {
+  const scenes = new Map<number, { kind: ShopScene; from: number }>()
+  const road = lots.flatMap((l, i) => (l.onRoad ? [i] : []))
+  const widest = Math.max(0, ...road.map((i) => lots[i].w))
+  const fit = road.filter((i) => lots[i].w >= Math.min(SHOP_FINISH.wide, widest))
+  const kinds = [...SHOP_FINISH.scenes]
+  const [first, at] = [kinds.splice(Math.floor(draw() * kinds.length), 1)[0], Math.floor(draw() * fit.length)]
+  const [second, other] = [kinds[Math.floor(draw() * kinds.length)], draw()]
+  if (!fit.length) return scenes
+  scenes.set(fit[at], { kind: first, from: 2 })
+  const rest = fit.filter((i) => Math.abs(i - fit[at]) > 1)
+  if (area(g.block.loop) >= SHOP_FINISH.second && rest.length) scenes.set(rest[Math.floor(other * rest.length)], { kind: second, from: 3 })
+  return scenes
+}
+
+/**
+ * A scene before shop `l`'s front (#175), from its Stage: a greengrocer's or a florist's stand, or a row of capsule
+ * machines, along its window, and pot plants by its door. Before that Stage the front has the pots and a menu board.
+ */
+function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopScene; from: number }) {
+  const { kit } = g
+  const { window: u, glazed: len } = frontOf(l.w, door)
+  const at = (lu: number, o: number) => turned(l.x, l.y, l.ry, lu, l.d / 2 + o)
+  const build = { greengrocer, florist, capsules }[scene.kind as Exclude<ShopScene, 'stall'>]
+  const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
+  kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage), spot(p.x, p.y))
+  const q = at(-door * (l.w / 2 - 2.5), 0.6)
+  kit.staged((stage) => stage < scene.from && menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
+  doorPots(g, l, door)
+}
+
+/**
+ * A food stall's court on lot `l` (#175), at Stage `stage`: the lot left open and paved, a bench at its back facing the
+ * Road and a tree in a back corner from Stage 1, and from Stage `from` the food stall near the front, planters along
+ * the court's sides, and at Stage 3 a table under a parasol.
+ */
+function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, paving: string) {
+  const { kit } = g
+  const at = (u: number, v: number) => turned(l.x, l.y, l.ry, u, v)
+  const back = -l.d / 2 + 1.6
+  const bench = at(0, back)
+  kit.bench(bench.x, bench.y, KERB, l.ry)
+  const tree = at((l.w / 2 - 1.6) * (spot(l.x, l.y) % 2 ? 1 : -1), back)
+  kit.tree(tree.x, tree.y, KERB, GROW[stage - 1] * 0.6, 'round')
+  if (stage < from) return
+  const court = at(0, SHOP_FINISH.paved / 2)
+  kit.paving(court.x, court.y, KERB, l.w, l.d + SHOP_FINISH.paved, l.ry, paving)
+  const stall = at(0, l.d / 2 - 1.3)
+  foodStall(kit, stall.x, stall.y, l.ry)
+  for (const k of [-1, 1]) {
+    const p = at(k * (l.w / 2 - 0.5), 0)
+    planter(kit, p.x, p.y, l.ry + Math.PI / 2, Math.min(l.d - 4, 4))
+  }
+  if (stage === 3) {
+    const t = at(-(l.w / 2 - 2), back + 2.2)
+    cafeTable(kit, t.x, t.y, FRONT.cloths[spot(l.x, l.y) % FRONT.cloths.length])
+  }
+}
+
+/** Pot plants either side of shop `l`'s door, Close-only, from Stage 1 (#175). */
+function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1) {
+  const spots = frontOf(l.w, door).pots.map((u) => turned(l.x, l.y, l.ry, u, l.d / 2 + 0.35))
+  g.kit.from(
+    1,
+    () =>
+      pots(
+        g.kit,
+        spots.map((p) => [p.x, p.y]),
+      ),
+    spot(spots[0].x, spots[0].y),
+  )
+}
+
+/** Before a shop's front that faces the seam with the next Tile (#175): pot plants by its door and, on half, a menu board. */
+function seamFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
+  doorPots(g, l, door)
+  const q = turned(l.x, l.y, l.ry, -door * (l.w / 2 - 2.6), l.d / 2 + 0.6)
+  if (spot(q.x, q.y) % 2) g.kit.from(1, () => menuBoard(g.kit, q.x, q.y, l.ry), spot(q.x, q.y))
+}
+
+/**
+ * Shoppers walking each run of fronts on a Road (#175): one from Stage 2 and, on a run of three shops or more, a
+ * second at Stage 3, setting out half its loop ahead. Each walks along the run `SHOP_FINISH.walk` m out from the fronts,
+ * stopping a few seconds at each front's middle and turning at the run's ends, past a scene's lot as past any other.
+ */
+function shoppers(g: ZoneGround, lots: RowLot[]) {
+  const { kit } = g
+  const runs: RowLot[][] = []
+  let run: RowLot[] = []
+  for (const l of lots) {
+    const last = run[run.length - 1]
+    if (l.onRoad && last && Math.abs(last.ry - l.ry) < 1e-6 && Math.hypot(l.x - last.x, l.y - last.y) < (l.w + last.w) / 2 + 0.6)
+      run.push(l)
+    else {
+      if (run.length >= 2) runs.push(run)
+      run = l.onRoad ? [l] : []
+    }
+  }
+  if (run.length >= 2) runs.push(run)
+  for (const r of runs) {
+    const out = (l: RowLot, u: number) => turned(l.x, l.y, l.ry, u, l.d / 2 + SHOP_FINISH.walk)
+    const [first, last] = [r[0], r[r.length - 1]]
+    const there = [out(first, -first.w / 2 + 0.5), ...r.map((l) => out(l, 0)), out(last, last.w / 2 - 0.5)]
+    const pts = [...there, ...there.slice(0, -1).reverse()]
+    const stops = [0]
+    for (let i = 1; i < pts.length - 1; i++) stops.push(stops[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y))
+    const draw = mulberry32(spot(first.x, first.y) ^ 0x5b0b)
+    const [lo, hi] = SHOP_FINISH.waits
+    const waits = stops.map(() => lo + draw() * (hi - lo))
+    const paints = [0, 1].map(() => SHOP_FINISH.coats[Math.floor(draw() * SHOP_FINISH.coats.length)])
+    const loop = polyline(pts)
+    kit.from(2, () => kit.mover('shopper', loop, stops, 0, KERB, { waits, paint: paints[0] }), spot(pts[0].x, pts[0].y))
+    if (r.length >= 3)
+      kit.from(
+        3,
+        () => kit.mover('shopper', loop, stops, Math.floor(stops.length / 2), KERB, { waits, paint: paints[1] }),
+        spot(pts[1].x, pts[1].y),
+      )
+  }
+}
+
+/**
+ * The details before shop `l`'s front on a Road (#153), each drawn from where the shop stands, so that nothing else on
+ * the Block changes: a vending machine or two at the end away from the door, a row of bicycles beside them, nobori
+ * banners at the pavement's edge along the rest, paper lanterns under the awning, and pot plants by the door. Each stands
+ * from the Stage its roll gives it (`FRONT`), and more come at Stage 3: a second vending machine on half the fronts with
+ * one, two more bicycles where there is room before the door, a third banner and two more lanterns. A front with no
+ * vending machine has a menu board on the pavement. What stands on the pavement keeps on the Block, 0.6 m in from its
+ * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Close-only.
+ */
+function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const { kit, field } = g
   const draw = mulberry32(spot(l.x, l.y))
   const half = l.w / 2
@@ -1087,48 +1286,68 @@ function shopFront(g: ZoneGround, l: RowLot) {
     const roll = draw()
     return shares.findIndex((s) => roll < s) + 1
   }
-  const side = draw() < 0.5 ? 1 : -1 // the end the vending machines stand at; the bicycles take the other
+  draw() // the door's end, which `shops` drew from where the shop stands, as this stream's first draw
+  const side = -door // the end the vending machines stand at
   const [vending, banners, lanterns, bikes] = [first(FRONT.vending), first(FRONT.nobori), first(FRONT.lanterns), first(FRONT.bikes)]
-  const [second, count, cloth, amber] = [
+  const [second, count, cloth, amber, wares] = [
     draw() < FRONT.second,
     2 + Math.floor(draw() * 3),
     FRONT.cloths[Math.floor(draw() * FRONT.cloths.length)],
     draw() < 0.5,
+    draw(),
   ]
   /** Build `fn` at `p` from Stage `stage`, on a stream of its own from where it stands. */
   const from = (stage: number, p: Vec, fn: (p: Vec) => void) => stage && kit.from(stage, () => fn(p), spot(p.x, p.y))
-  let [left, right] = [-half + 0.3, half - 0.3] // the stretch of the front left for the banners
+  /** Along the front, `t` m in from the vending machines' end. */
+  const u = (t: number) => side * (half - t)
+  const doorFrame = frontOf(l.w, door).clear // where the door's frame begins, in from that end
+  let free = 0.3 // where the stretch left for the banners begins, in from that end
   if (vending) {
     // Backed up to the front at its end, and a second beside it at Stage 3.
-    const [u, v] = [side * (half - 0.85), side * (half - 2.15)]
-    if (clear(0.5, u - 0.6, u + 0.6) && clear(1, u)) {
-      from(vending, at(u, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
-      if (second && clear(0.5, v - 0.6, v + 0.6)) from(3, at(v, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
-      ;[left, right] = side > 0 ? [left, v - 0.8] : [v + 0.8, right]
+    const [a, b] = [u(0.85), u(2.15)]
+    if (clear(0.5, a - 0.6, a + 0.6) && clear(1, a)) {
+      from(vending, at(a, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
+      if (second && clear(0.5, b - 0.6, b + 0.6)) from(3, at(b, 0.5), (p) => kit.vendingMachine(p.x, p.y, KERB, l.ry))
+      free = second ? 2.85 : 1.55
     }
+  } else {
+    const q = at(u(1.1), 0.6)
+    kit.from(1, () => menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }
   if (bikes) {
-    // A row from the other end, nosed in to the front, and two more bicycles on its end at Stage 3.
-    const [start, step] = [-side * (half - 0.55), side * FRONT.gap]
-    const end = (n: number) => start + step * (n - 1)
+    // A row in from the vending machines, nosed in to the front, as many as fit before the door, and two more on its
+    // end at Stage 3 where there is room.
+    const t0 = free + 0.3
+    const room = Math.floor((doorFrame - 0.35 - t0) / FRONT.gap) + 1
+    const n = Math.min(count, room)
+    const extra = Math.min(2, room - n)
+    const t = (k: number) => t0 + k * FRONT.gap
     /** `n` bicycles on from the `k`-th, from Stage `stage`. */
     const row = (stage: number, k: number, n: number) =>
-      from(stage, at(start + step * (k + (n - 1) / 2), FRONT.row), (p) => kit.bicycles(p.x, p.y, KERB, l.ry, n, FRONT.gap, FRONT.slant))
+      from(stage, at(u(t(k + (n - 1) / 2)), FRONT.row), (p) =>
+        kit.closeOnly(() => kit.bicycles(p.x, p.y, KERB, l.ry, n, FRONT.gap, FRONT.slant)),
+      )
     const reach = [FRONT.row - 0.15, FRONT.row + 0.85] // the pavement the row stands on
-    if (reach.every((o) => clear(o, start, end(count)))) {
-      row(bikes, 0, count)
-      const more = reach.every((o) => clear(o, end(count + 2)))
-      if (more) row(3, count, 2)
-      const last = end(more ? count + 2 : count) + step
-      ;[left, right] = side > 0 ? [last, right] : [left, last]
+    if (n >= 2 && reach.every((o) => clear(o, u(t(0)), u(t(n - 1))))) {
+      row(bikes, 0, n)
+      const more = extra > 0 && reach.every((o) => clear(o, u(t(n + extra - 1))))
+      if (more) row(3, n, extra)
+      free = t(more ? n + extra : n)
     }
+  }
+  if (free < doorFrame - 1.8 && wares < FRONT.wares) {
+    // Before the window where no bicycles stand, from Stage 2: crates of produce, or a plant stand, Close-only.
+    const q = at(u(free + 0.9), 0.45)
+    if (clear(0.45, u(free + 0.2), u(free + 1.6)))
+      kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }
   if (banners) {
     // Up to three along what is left of the front, at the pavement's edge, each cloth hung to the right of its pole.
-    const n = Math.min(3, Math.floor((right - left) / 1.3))
+    const len = l.w - 0.3 - free
+    const n = Math.min(3, Math.floor(len / 1.3))
     for (let k = 0; k < n; k++) {
-      const u = left + ((k + 0.5) * (right - left)) / n - 0.4
-      if (clear(FRONT.banner, u, u + 0.8)) from(k < 2 ? banners : 3, at(u, FRONT.banner), (p) => kit.nobori(p.x, p.y, KERB, l.ry, cloth))
+      const p = u(free + ((k + 0.5) * len) / n) - 0.4
+      if (clear(FRONT.banner, p, p + 0.8)) from(k < 2 ? banners : 3, at(p, FRONT.banner), (q) => kit.nobori(q.x, q.y, KERB, l.ry, cloth))
     }
   }
   if (lanterns) {
@@ -1141,13 +1360,14 @@ function shopFront(g: ZoneGround, l: RowLot) {
     ])
       from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => kit.lantern(p.x, p.y, KERB + 1.95, amber))
   }
+  doorPots(g, l, door)
 }
 
-/** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies on the map, as the kit's `local` places it. */
-const turned = (x: number, y: number, ry: number, lx: number, ly: number): Vec => ({
-  x: x + lx * Math.cos(ry) - ly * Math.sin(ry),
-  y: y + lx * Math.sin(ry) + ly * Math.cos(ry),
-})
+/** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies, as the kit's `to` has it, as a point. */
+const turned = (x: number, y: number, ry: number, lx: number, ly: number): Vec => {
+  const [px, py] = to(x, y, ry, lx, ly)
+  return { x: px, y: py }
+}
 
 /**
  * A shed as `industrial` lays it (#150): its footprint `w` (east–west) by `d` centred on `(x, y)`, the way its long

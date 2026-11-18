@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import { middle, polyline, type Bounds, type Polyline, type Vec } from '../sim/geometry'
-import { KERB, type Block } from './blocks'
+import { area, KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import { spot, type Kit } from './kit'
 import { raised } from './shapes'
@@ -18,15 +18,6 @@ function overlay(kit: Kit, field: Field, block: Block, inset: number, thickness:
   for (const loop of field.outlines(inset, [block])) {
     if (inside(block.loop, loop[0].x, loop[0].y)) kit.push(raised(loop, thickness, thickness * 0.4).translate(0, KERB, 0), color)
   }
-}
-
-function area(loop: Vec[]): number {
-  let twice = 0
-  loop.forEach((p, i) => {
-    const q = loop[(i + 1) % loop.length]
-    twice += p.x * q.y - q.x * p.y
-  })
-  return Math.abs(twice) / 2
 }
 
 /** Whether a box `w` (east–west) by `d` centred on `(x, y)` stays at least `room` m clear of every point of `points`. */

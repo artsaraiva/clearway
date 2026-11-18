@@ -15,6 +15,19 @@ export interface Block extends Bounds {
 /** A Block from an outline of the field. */
 export const block = (loop: Vec[]): Block => ({ loop, ...around(loop) })
 
+/** Twice the area inside an outline (m², the shoelace formula): positive if it runs counterclockwise. */
+export function twiceArea(loop: Vec[]): number {
+  let twice = 0
+  loop.forEach((p, i) => {
+    const q = loop[(i + 1) % loop.length]
+    twice += p.x * q.y - q.x * p.y
+  })
+  return twice
+}
+
+/** The area inside an outline, m². */
+export const area = (loop: Vec[]) => Math.abs(twiceArea(loop)) / 2
+
 /**
  * Whether an outline is wide enough to be a Block rather than a sliver: twice its area over its perimeter is its width,
  * on average. A seam between two pieces of slab can leave a sliver between a Road and the seam.
@@ -29,9 +42,12 @@ export function wide({ loop }: Block): boolean {
   return Math.abs(twice) / perimeter >= SLIVER
 }
 
-/** A Block's pavement as one brick: a bevelled slab raised from its outline. A roundabout's island is one too. */
+/**
+ * A Block's pavement as one brick: a bevelled slab raised from its outline, paved where the kit builds patterned
+ * (#174). A roundabout's island is one too.
+ */
 export function pavement(kit: Kit, b: Block) {
   const { x, y } = middle(b)
-  kit.push(raised(b.loop, KERB, BEVEL), PAVEMENT)
+  kit.pavement(raised(b.loop, KERB, BEVEL), PAVEMENT)
   kit.brick('block', x, y, 0, 3)
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Cell, Zone } from '../city/city'
+import type { Stage } from '../game/game'
 import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Junction } from '../sim/network'
 import type { Sim, Vehicle } from '../sim/sim'
@@ -10,7 +11,7 @@ import { createJamEmotion } from './emotion'
 import { createField } from './field'
 import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from './hand'
 import { createRouteInspector, createStageInspector, type InspectedTile } from './inspector'
-import { createMaterials, type Stages } from './kit'
+import { createMaterials, type Finish, type Stages } from './kit'
 import { createLabels } from './labels'
 import { createMovers } from './movers'
 import { createReveal } from './reveal'
@@ -40,7 +41,7 @@ export interface Ground {
   /** The Zone of the Tile on `cell`, as the City has it when its piece is built. None: unzoned. */
   zoneOf(cell: Cell): Zone | undefined
   /** The Stage of the Tile on `cell`, as the game has it when its piece is built. Any, for an unzoned Tile. */
-  stageOf(cell: Cell): number
+  stageOf(cell: Cell): Stage
 }
 
 /** A Tile's piece to build again because the Tile went from one Stage to another, with its build once begun and done. */
@@ -57,8 +58,10 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
 /**
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
  * the Blocks' field and the lighting follow the City as it grows, and the camera goes wherever the player takes it.
+ * `finishing` says whether the Zones built to the level of finish wear their surface pattern and light pools (#174): both,
+ * unless a sheet turns one off to show the Zone without it.
  */
-export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) {
+export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
@@ -70,7 +73,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
   /** The slab so far as a rectangle: its road plate and grass rim. */
   const slabNow = () => slabBounds(extent(pieces))
   const field = createField()
-  const materials = createMaterials()
+  const materials = createMaterials(finishing)
   // Before the reveals, which copy the materials it patches.
   const stageInspector = createStageInspector(materials)
   const scenery = createScenery(ground.scenery, field, materials, ground.zoneOf, ground.stageOf)
@@ -326,7 +329,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
      * Stage-up in two has a frame over 16.7 ms, up to 28 ms (#138). Split a Block's fill into its lots, a step each, if
      * that hitch shows on slower machines.
      */
-    stageUp(piece: Bounds, from: number, to: number) {
+    stageUp(piece: Bounds, from: Stage, to: Stage) {
       const queued = waiting.find((j) => !j.begun && sameBounds(j.piece, piece))
       if (!queued) waiting.push({ piece, stages: { from, to } })
       else if (queued.stages.from === to) waiting.splice(waiting.indexOf(queued), 1)
@@ -464,6 +467,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground) 
       const glow = day.update(dt)
       movers.update(dt, day.time, glow)
       materials.setGlow(glow)
+      materials.setZoom(rig.camera.zoom)
       cars.setGlow(glow)
       emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
       walkers.update(dt)

@@ -66,16 +66,30 @@ export function stringWires(kit: Kit, a: Post, b: Post) {
   kit.brick('wire', (a.x + b.x) / 2, (a.y + b.y) / 2, TOP - sag)
 }
 
-/** A pole, its crossbar across the road, and its drum if it carries one, as one brick that grows in like a lamp. */
-function stand(kit: Kit, p: Post) {
+/**
+ * A pole, its crossbar across the road, and its drum if it carries one, as one brick that grows in like a lamp. With a
+ * street light (#175), an arm reaches out over the road with a lamp's head that lights at dusk and leaves a pool on the
+ * road under it.
+ */
+function stand(kit: Kit, p: Post, light = false) {
   const { x: tx, y: ty } = p.toRoad
   kit.add(ROD, POLE, p.x, p.y, KERB, 0, POLES.radius, POLES.height, POLES.radius)
   // The bar's length runs along Three's z, south: turned `ry`, it runs along (sin ry, -cos ry) on the map.
   kit.add(BAR, POLE, p.x + tx * POLES.toRoad, p.y + ty * POLES.toRoad, KERB + POLES.height - 0.9, Math.atan2(tx, -ty))
   // The drum hangs beside the pole along the road, clear of the Block's buildings.
   if (p.drum) kit.add(ROD, DRUM, p.x - ty * 0.5, p.y + tx * 0.5, KERB + POLES.drum, 0, 0.36, 1.2, 0.36)
+  if (light) {
+    const { reach, at } = STREET_LIGHT
+    const ry = Math.atan2(tx, -ty)
+    kit.add(kit.cuboid(0.12, 0.12, reach), POLE, p.x + (tx * reach) / 2, p.y + (ty * reach) / 2, KERB + at, ry)
+    kit.add(kit.cuboid(0.36, 0.16, 0.75), kit.bulb, p.x + tx * (reach - 0.2), p.y + ty * (reach - 0.2), KERB + at - 0.16, ry)
+    kit.pool('pole', p.x + tx * (reach + 0.4), p.y + ty * (reach + 0.4), 0, STREET_LIGHT.pool, STREET_LIGHT.pool)
+  }
   kit.brick('pole', p.x, p.y, KERB)
 }
+// A street light on every third pole of a Tile built to the level of finish (#175): how far its arm reaches over the
+// road, how high it is (m above the kerb), and how wide its pool.
+const STREET_LIGHT = { reach: 2.1, at: 6.4, pool: 6.5, every: 3 }
 
 /**
  * The utility poles of the Tile on `cell`, and the wires strung between them, added to `kit` a brick each. Returns the
@@ -90,7 +104,7 @@ function stand(kit: Kit, p: Post) {
  * The poles stand where the cell puts them, half a spacing in from each edge and a spacing apart, whatever the Tiles
  * around it, so that a seam's wire always finds them; on an avenue, between its street trees. They stand on the
  * pavement just in from the kerb, which what the Zones build keeps clear of, and move along the Road to keep clear of a
- * lamp, or are left out.
+ * lamp, or are left out. On a Tile built to the level of finish (`lit`, #175), every third carries a street light.
  */
 export function standPoles(
   kit: Kit,
@@ -100,6 +114,7 @@ export function standPoles(
   field: Field,
   blocks: Block[],
   scenery: Scenery,
+  lit = false,
 ): LineEnd[] {
   const junction = net.junctions.find((j) => j.id === junctionId(cell))
   if (!junction) return []
@@ -230,7 +245,8 @@ export function standPoles(
     }
   }
 
-  for (const post of [...[...lines.values()].flat(), ...corners]) stand(kit, post)
+  for (const line of lines.values()) line.forEach((post, i) => stand(kit, post, lit && i % STREET_LIGHT.every === 1))
+  for (const post of corners) stand(kit, post)
   for (const [a, b] of spans) stringWires(kit, a, b)
   return [...lines].flatMap(([dir, line]) => (line.length ? [{ road: arms.get(dir)!, post: line[line.length - 1] }] : []))
 }
