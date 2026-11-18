@@ -1311,6 +1311,8 @@ export function createKit(rand: () => number, materials: Materials) {
     tiled,
     /** A gable roof `wid` across and `h` high, `len` long, its ridge along z (`./shapes`' `gable`), cut once per size: the kit disposes of it. */
     gable: gableRoof,
+    /** A hipped roof (`./shapes`' `hip`), cut once per size as `gable` is (#178). */
+    hip: hipRoof,
     brick,
     box,
     cuboid,

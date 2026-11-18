@@ -519,7 +519,7 @@ const BATHHOUSE = {
   sign: '#2f3440',
   chimney: '#a8604f',
   band: '#f4f1ea',
-  tall: 17,
+  tall: 18,
 }
 
 /**
@@ -613,10 +613,11 @@ function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
 }
 
 /**
- * A bathhouse at Stage `stage` (#178): one tall storey of plaster on a stone footing, its high windows lit at night,
- * under a tiled gable along its front; a porch roofed as a little gable over its door, two noren across the door and a
- * signboard with marks for lettering lit at night over it, which leave a pool; and a tall thin brick chimney at its back
- * under a white band, whose steam rises through the working day. At Stage 3 a vending machine by the door.
+ * A bathhouse at Stage `stage` (#178): one tall storey of plaster over a timber wainscot on a stone footing, its high
+ * windows lit at night, under a tiled hip along its front; a porch on timber posts under a big gable to the front over
+ * its door, two noren across the door and a signboard with marks for lettering lit at night on the porch, which leave a
+ * pool; and a tall thin brick chimney behind it under a white band, whose steam rises through the working day. At Stage
+ * 3 a vending machine by the door.
  */
 function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   const [bw, bd] = [Math.min(w - 1, 11), Math.min(d - 1.8, 8)]
@@ -627,10 +628,12 @@ function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: num
   kit.put(kit.cuboid(bw + 0.4, 0.45, bd + 0.4), BATHHOUSE.footing, x, y, ry, 0, v, KERB)
   const walls = { front: PATTERN.plaster, back: PATTERN.house, sides: PATTERN.house, storey: 4.6, bay: 2.8 }
   kit.cladded(kit.box(bw, 4.6, bd, 0.2, 0.08), BATHHOUSE.wall, cx, cy, KERB + 0.45, ry, walls, seed)
-  kit.tiled(kit.gable(bw + 0.6, bd + 1.4, Math.min(3.2, bd * 0.4)), BATHHOUSE.roof, cx, cy, KERB + 5.05, ry + Math.PI / 2, seed + 1)
-  // The porch over the door: two posts and a little gable to the front, the door's glass lit, two noren across it.
-  for (const s of [-1, 1]) kit.put(kit.cuboid(0.2, 2.9, 0.2), SHRINE.wood, x, y, ry, s * 1.3, face + 1.2, KERB + 0.45)
-  kit.tiled(kit.gable(1.7, 3.3, 1.05), BATHHOUSE.roof, ...to(x, y, ry, 0, face + 0.75), KERB + 3.35, ry, seed + 2)
+  kit.put(kit.cuboid(bw + 0.1, 1.05, bd + 0.1), SHRINE.wood, x, y, ry, 0, v, KERB + 0.45) // a timber wainscot round it
+  // A hipped roof along its front, and over its door a porch on timber posts under a big gable to the front.
+  kit.tiled(kit.hip(bw + 0.8, bd + 1.4, Math.min(3, bd * 0.38)), BATHHOUSE.roof, cx, cy, KERB + 5.05, ry + Math.PI / 2, seed + 1)
+  for (const s of [-1, 1]) kit.put(kit.cuboid(0.24, 3.3, 0.24), SHRINE.wood, x, y, ry, s * 1.75, face + 1.5, KERB + 0.45)
+  kit.put(kit.cuboid(4, 0.24, 0.3), SHRINE.wood, x, y, ry, 0, face + 1.5, KERB + 3.6)
+  kit.tiled(kit.gable(2.2, 4.4, 1.6), BATHHOUSE.roof, ...to(x, y, ry, 0, face + 0.95), KERB + 3.8, ry, seed + 2)
   kit.put(
     kit.cuboid(2, 2.3, 0.1),
     { material: kit.glass, tint: new THREE.Color(1, 1, 1), glow: 1.2 },
@@ -642,12 +645,12 @@ function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: num
     KERB + 0.45,
   )
   BATHHOUSE.noren.forEach((colour, k) => kit.put(kit.cuboid(0.92, 0.9, 0.03), colour, x, y, ry, (k - 0.5) * 0.98, face + 0.2, KERB + 1.85))
-  kit.put(kit.cuboid(3, 0.85, 0.14), kit.lit(BATHHOUSE.sign, 0.33), x, y, ry, 0, face + 0.08, KERB + 3.65)
+  kit.put(kit.cuboid(2.4, 0.8, 0.14), kit.lit(BATHHOUSE.sign, 0.33), x, y, ry, 0, face + 2.06, KERB + 4.2)
   for (let k = 0; k < 3; k++)
-    kit.put(kit.cuboid(0.42, 0.42, 0.04), kit.lit('#fbf8f2', 1.6), x, y, ry, (k - 1) * 0.7, face + 0.16, KERB + 3.86)
+    kit.put(kit.cuboid(0.4, 0.4, 0.04), kit.lit('#fbf8f2', 1.6), x, y, ry, (k - 1) * 0.66, face + 2.14, KERB + 4.4)
   kit.pool('sign', ...to(x, y, ry, 0, face + 1.6), KERB, 4.4, 2.8, ry)
-  // The chimney at a back corner, under a white band, steaming.
-  const [hx, hy] = to(x, y, ry, (seed % 2 ? 1 : -1) * (bw / 2 - 1), v - bd / 2 + 0.9)
+  // The chimney behind it, under a white band, steaming.
+  const [hx, hy] = to(x, y, ry, (seed % 2 ? 1 : -1) * Math.min(2, bw / 2 - 1), v - bd / 2 - 0.2)
   kit.drum(BATHHOUSE.chimney, hx, hy, KERB, 0.5, 0.5, BATHHOUSE.tall)
   kit.drum(BATHHOUSE.band, hx, hy, KERB + BATHHOUSE.tall - 1.6, 0.54, 0.54, 0.9)
   kit.drum(BATHHOUSE.chimney, hx, hy, KERB + BATHHOUSE.tall, 0.6, 0.6, 0.3)
