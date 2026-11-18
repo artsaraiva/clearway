@@ -1,6 +1,9 @@
+import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
+import { polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import { SHAPES, spot, to, type Kit } from './kit'
+import { PATTERN } from './pattern'
 
 // The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a focal
 // piece larger than a car, seen from Street: a greengrocer's stand spilling onto the pavement, a florist's, a row of
@@ -197,4 +200,225 @@ export function produce(kit: Kit, x: number, y: number, ry: number) {
       crate(kit, x, y, ry, lx, 0, KERB + z, 0.08, draw)
   })
   kit.brick('building', x, y, KERB)
+}
+
+// Offices (#177): the scenes an offices Block picks from, each on ground it reserves along the Block's edge, `w` m along
+// it and `d` deep, its front facing `ry` toward the street; the piece on each tower's plaza; and a taxi bay at the kerb.
+// Benches and planters are Close-only, as the street's furniture is. Before its Stage a scene's ground is paved, with a
+// tree in a round bed, so that no ground stands empty.
+
+/** The scenes an offices Block picks from (#177). */
+export type OfficeScene = 'court' | 'sculpture' | 'truck'
+/** What stands on an office tower's plaza from Stage 2 (#177). */
+export type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
+
+// Colours: stone for a court's rim, its steps, its floor and a sculpture's plinth; sculptures in amber, teal, steel,
+// violet or white; a clock's post and face; a taxi bay's tarmac, its lines and its sign's pole, board, band and marks;
+// and a food truck's paints, the cars' colours.
+const STONE = { rim: '#d9d3c7', step: '#e8e2d6', floor: '#d6cec1', dark: '#bdb4a6' }
+const ART = ['#f0b43c', '#2fb39a', '#c4ccd4', '#a58ad8', '#fbf8f2']
+const CLOCK = { post: '#4a525c', face: '#fbf8f2', hands: '#2f3440' }
+const TAXI_BAY = { tarmac: '#bcc1c8', line: '#fbf8f2', pole: '#9aa3ad', board: '#fbf8f2', band: '#f6d36a', marks: '#2f3440' }
+export const FOOD_TRUCKS = ['#64cb9f', '#ffc52d', '#ff9cbb', '#ffffff', '#bc9ef2']
+// A sculpture plaza's ring, standing on edge: 1 m across, its tube 0.16 m thick, scaled to its size.
+const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
+// A food truck (#177): m from where it parks to where it turns off the street, and the s it waits there before it
+// drives in, late in the morning, and parked before it leaves, after midday.
+const FOOD_TRUCK = { drive: 6, waits: [30, 30] }
+// How brightly a lit clock face, a court's low lights and a sculpture's uplights glow, for the lamps' glow.
+const GLOWS = { clock: 0.8, low: 1.4 }
+
+/** A tree of size `s` in a round stone bed `r` m across at `(x, y)`, as two bricks. */
+function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
+  kit.drum(STONE.rim, x, y, KERB, r, r, 0.5)
+  kit.drum('#8a7560', x, y, KERB + 0.42, r - 0.18, r - 0.18, 0.1)
+  kit.brick('building', x, y, KERB)
+  kit.tree(x, y, KERB + 0.5, s, 'round')
+}
+
+/** A bench at `(x, y)` facing `ry`, Close-only (#177). */
+const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() => kit.bench(x, y, KERB, ry))
+
+/**
+ * A scene's ground before its Stage `from` (#177): paved, with a tree in a round bed in its middle and a bench either
+ * side of it, Close-only.
+ */
+function sceneGround(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
+  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+  bedTree(kit, x, y, 1.3, 0.5)
+  for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * 2.8, 0), ry + (k * Math.PI) / 2)
+}
+
+/**
+ * A sunken court at Stage `stage` (#177), from Stage `from`: three tiers of stone steps down on three sides to a paved
+ * court open toward the street, a tree in a round bed at its back and benches on its floor; at Stage 3 a long pool of
+ * water across its front and two low lights at its open corners that leave their pools. Before `from`, its ground.
+ */
+export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
+  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
+  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+  for (let k = 0; k < 3; k++) {
+    const [half, back, tall] = [w / 2 - 0.5 * k, -d / 2 + 0.5 * k, 0.9 - 0.3 * k]
+    const look = k ? STONE.step : STONE.rim
+    kit.put(kit.cuboid(2 * half, tall, 0.5), look, x, y, ry, 0, back + 0.25, KERB)
+    for (const s of [-1, 1])
+      kit.put(kit.cuboid(0.5, tall, d / 2 - back - 0.5), look, x, y, ry, s * (half - 0.25), (back + 0.5 + d / 2) / 2, KERB)
+  }
+  kit.shadow(x, y, KERB, w + 1, d + 1, false, ry)
+  kit.brick('building', x, y, KERB)
+  bedTree(kit, ...to(x, y, ry, 0, -d / 2 + 2.6), 1.1, stage === 3 ? 0.55 : 0.46)
+  for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * (w / 2 - 2.6), 0.4), ry + (k * Math.PI) / 2)
+  if (stage === 3) {
+    kit.put(kit.cuboid(w - 4, 0.36, 1.3), STONE.rim, x, y, ry, 0, d / 2 - 1, KERB)
+    kit.put(kit.cuboid(w - 4.3, 0.06, 1), kit.water, x, y, ry, 0, d / 2 - 1, KERB + 0.32)
+    for (const k of [-1, 1]) {
+      const [lx, ly] = to(x, y, ry, k * (w / 2 - 1.8), d / 2 - 0.4)
+      kit.add(kit.cuboid(0.22, 0.7, 0.22), STONE.dark, lx, ly, KERB)
+      kit.add(kit.cuboid(0.26, 0.2, 0.26), kit.lit('#fff4dc', GLOWS.low), lx, ly, KERB + 0.7)
+      kit.pool('cream', lx, ly, KERB, 2.6, 2.6)
+    }
+    kit.brick('building', x, y, KERB)
+  }
+}
+
+/**
+ * A sculpture plaza at Stage `stage` (#177), from Stage `from`: a round stone platform with a sculpture larger than a
+ * car on it, picked from where it stands (a ring on edge, three cubes stacked askew, or a sphere on a drum); at Stage 3
+ * two uplights that leave their pools and benches facing it. Before `from`, its ground.
+ */
+export function sculpturePlaza(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
+  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
+  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+  const draw = mulberry32(spot(x, y))
+  const [kind, colour, other] = [Math.floor(draw() * 3), ART[Math.floor(draw() * ART.length)], ART[Math.floor(draw() * ART.length)]]
+  const r = Math.min(d / 2 - 0.4, 3.4)
+  kit.drum(STONE.rim, x, y, KERB, r, r, 0.22)
+  kit.drum(STONE.dark, x, y, KERB + 0.2, r - 0.5, r - 0.5, 0.04)
+  const top = KERB + 0.22
+  if (kind === 0) {
+    kit.add(kit.cuboid(1.8, 0.5, 1.1), STONE.dark, x, y, top, ry)
+    kit.add(RING, colour, x, y, top + 0.5 + 2.3, ry, 2.3, 2.3, 2.3)
+  } else if (kind === 1) {
+    for (const [s, z, turn, look] of [
+      [2.1, 0, 0.3, colour],
+      [1.6, 2.1, -0.25, other],
+      [1.15, 3.7, 0.55, colour],
+    ] as const)
+      kit.add(kit.cuboid(s, s, s), look, x, y, top + z, ry + turn)
+  } else {
+    kit.drum(STONE.dark, x, y, top, 0.9, 0.9, 1.3)
+    kit.ball(colour, x, y, top + 1.3 + 1.5, 1.6)
+  }
+  kit.shadow(x, y, KERB, 2 * r + 1, 2 * r + 1, true)
+  kit.brick('building', x, y, KERB)
+  if (stage === 3) {
+    for (const k of [-1, 1]) {
+      const [lx, ly] = to(x, y, ry, k * (r - 0.6), r - 0.9)
+      kit.add(kit.cuboid(0.3, 0.16, 0.3), kit.lit('#fff4dc', GLOWS.low), lx, ly, top)
+      kit.pool('cream', lx, ly, KERB, 2.8, 2.8)
+    }
+    kit.brick('building', x, y, KERB)
+    for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * (r + 1.3), 0), ry + (k * Math.PI) / 2)
+  }
+}
+
+/**
+ * Where a food truck parks and the street it turns off, on a truck court's ground (#177): it parks along the front,
+ * its serving hatch toward the tables, and turns off the street `FOOD_TRUCK.drive` m along.
+ */
+const truckSpots = (x: number, y: number, w: number, d: number, ry: number) => ({
+  parked: to(x, y, ry, -w / 2 + 3, d / 2 - 1.6),
+  street: to(x, y, ry, -w / 2 + 3 + FOOD_TRUCK.drive, d / 2 - 1.6),
+})
+
+/**
+ * A food truck's court at Stage `stage` (#177), from Stage `from`: tables under parasols at its back for the truck that
+ * parks at its front through the middle of the day (`foodTruck`), and a menu board, Close-only; at Stage 3 a third
+ * table and string lights over them on two posts, which leave a pool. Before `from`, its ground.
+ */
+export function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
+  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
+  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+  kit.brick('ground', x, y, KERB)
+  const tables = stage === 3 ? [-0.32, 0, 0.32] : [-0.25, 0.25]
+  tables.forEach((t, i) => cafeTable(kit, ...to(x, y, ry, t * w, -d / 2 + 1.9), ART[(spot(x, y) + i) % 4]))
+  menuBoard(kit, ...to(x, y, ry, -w / 2 + 6.6, d / 2 - 2.9), ry + Math.PI / 2)
+  if (stage === 3) {
+    const v = -d / 2 + 1.9
+    for (const k of [-1, 1]) kit.put(kit.cuboid(0.08, 2.9, 0.08), '#9aa3ad', x, y, ry, k * (w / 2 - 0.6), v, KERB)
+    kit.put(kit.cuboid(w - 1.2, 0.03, 0.03), '#2f3440', x, y, ry, 0, v, KERB + 2.85)
+    const n = Math.round((w - 1.2) / 0.7)
+    for (let k = 0; k < n; k++)
+      kit.put(kit.cuboid(0.16, 0.16, 0.16), kit.lit('#fff1c7', 1.5), x, y, ry, -w / 2 + 0.6 + ((k + 0.5) * (w - 1.2)) / n, v, KERB + 2.66)
+    kit.pool('string', ...to(x, y, ry, 0, v), KERB, w, 3.2, ry)
+    kit.brick('building', x, y, KERB)
+  }
+}
+
+/**
+ * The food truck of a truck court (#177), as a mover: it waits off the street through the morning, unseen, turns in
+ * late in the morning and parks, its hatch toward the tables, through the middle of the day, and drives back out after
+ * midday, shrinking as it leaves the street, as a car does at a Gateway; one lap a day. Its paint is drawn from where
+ * it parks.
+ */
+export function foodTruck(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
+  const { parked, street } = truckSpots(x, y, w, d, ry)
+  const [p, s] = [
+    { x: parked[0], y: parked[1] },
+    { x: street[0], y: street[1] },
+  ]
+  const paint = FOOD_TRUCKS[spot(...parked) % FOOD_TRUCKS.length]
+  kit.mover('foodtruck', polyline([s, p, s]), [0, FOOD_TRUCK.drive], 0, KERB, { waits: [...FOOD_TRUCK.waits], paint, laps: true, away: 0 })
+}
+
+/**
+ * The piece on an office tower's plaza at `(x, y)`, facing `ry`, as one brick (#177): a sculpture of two blocks askew
+ * on a plinth, a clock on a post whose faces light at night and leave a pool, or a fountain whose spray rises through
+ * the working day, as steam does.
+ */
+export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: PlazaPiece) {
+  const draw = mulberry32(spot(x, y))
+  if (kind === 'sculpture') {
+    const [a, b] = [ART[Math.floor(draw() * ART.length)], ART[Math.floor(draw() * ART.length)]]
+    kit.add(kit.cuboid(1.5, 0.45, 1.5), STONE.dark, x, y, KERB, ry)
+    kit.add(kit.cuboid(1, 1.5, 1), a, x, y, KERB + 0.45, ry + 0.4)
+    kit.add(kit.cuboid(0.8, 0.8, 0.8), b, x, y, KERB + 1.95, ry - 0.3)
+    kit.shadow(x, y, KERB, 2.2, 2.2, true)
+  } else if (kind === 'clock') {
+    kit.add(kit.cuboid(0.6, 0.3, 0.6), STONE.dark, x, y, KERB, ry)
+    kit.add(kit.cuboid(0.18, 3.5, 0.18), CLOCK.post, x, y, KERB + 0.3, ry)
+    kit.add(kit.cuboid(1, 1, 0.34), CLOCK.post, x, y, KERB + 3.5, ry)
+    for (const turn of [0, Math.PI]) {
+      kit.put(SHAPES.disc, kit.lit(CLOCK.face, GLOWS.clock), x, y, ry + turn, 0, 0.18, KERB + 4, 0.4, 0.4, 1)
+      kit.put(kit.cuboid(0.05, 0.3, 0.02), CLOCK.hands, x, y, ry + turn, 0, 0.19, KERB + 4)
+      kit.put(kit.cuboid(0.22, 0.05, 0.02), CLOCK.hands, x, y, ry + turn, 0.1, 0.19, KERB + 3.98)
+    }
+    kit.pool('cream', x, y, KERB, 3, 3)
+    kit.shadow(x, y, KERB, 1.4, 1.4, true)
+  } else {
+    kit.drum(STONE.rim, x, y, KERB, 1.5, 1.5, 0.5)
+    kit.drum(kit.water, x, y, KERB + 0.1, 1.3, 1.3, 0.36)
+    kit.drum(STONE.dark, x, y, KERB, 0.22, 0.22, 1.1)
+    kit.steam(x, y, KERB + 1.2)
+    kit.shadow(x, y, KERB, 3.4, 3.4, true)
+  }
+  kit.brick('building', x, y, KERB)
+}
+
+/**
+ * A taxi bay at the kerb, `w` m along it and `d` deep, its front facing `ry` toward the street, as one brick (#177): a
+ * strip of tarmac set into the pavement, lined along its back and ends, and a stand's sign on a post at one end whose
+ * board lights at night and leaves a pool. The taxis waiting in it are the kit's.
+ */
+export function taxiBay(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
+  kit.put(kit.cuboid(w, 0.02, d), TAXI_BAY.tarmac, x, y, ry, 0, 0, KERB)
+  kit.put(kit.cuboid(w, 0.03, 0.12), TAXI_BAY.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
+  for (const k of [-1, 1]) kit.put(kit.cuboid(0.12, 0.03, d), TAXI_BAY.line, x, y, ry, k * (w / 2 - 0.06), 0, KERB)
+  const [px, py] = to(x, y, ry, w / 2 - 0.5, -d / 2 - 0.4)
+  kit.add(SHAPES.thin, TAXI_BAY.pole, px, py, KERB, 0, 0.05, 2.7, 0.05)
+  kit.put(kit.cuboid(0.9, 0.6, 0.06), kit.lit(TAXI_BAY.board, GLOWS.clock), px, py, ry, 0, 0, KERB + 2.1)
+  kit.put(kit.cuboid(0.9, 0.14, 0.07), kit.lit(TAXI_BAY.band, 0.33), px, py, ry, 0, 0, KERB + 2.56)
+  for (const k of [-1, 0, 1]) kit.put(kit.cuboid(0.16, 0.16, 0.08), TAXI_BAY.marks, px, py, ry, k * 0.24, 0, KERB + 2.24)
+  kit.pool('cream', px, py, KERB, 2.6, 2.6)
+  kit.brick('ground', x, y, KERB)
 }

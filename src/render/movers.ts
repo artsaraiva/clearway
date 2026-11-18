@@ -13,7 +13,7 @@ import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes
 // beacons (#155) blink at night, and pools of light (#174) lie warm on the ground under the lights.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper'
+export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -37,6 +37,11 @@ export interface Mover {
   hang?: number
   /** Whether it works whole laps of its loop a day, so that it ends each day at the stop it set out from (#154). */
   laps?: boolean
+  /**
+   * The stop where it is away (#177), as a food truck is off down the street until it turns in: unseen while it waits
+   * there, and shrinking as it nears it, as a car does at a Gateway. Always seen unless given.
+   */
+  away?: number
   /** The stop it sets out from on the first day. */
   first: number
   /** m above the road it drives on. */
@@ -140,12 +145,15 @@ const KINDS: Record<MoverKind, Kind> = {
   butterfly: { speed: 1.4, bob: 0.28, rate: 4.5, model: butterfly, wide: 0, fly: { up: 0.9, ease: 1.6 }, beat: 7 },
   gondola: { speed: 1, bob: 0, rate: 0, model: gondola, wide: 0 },
   shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper, wide: 0.8 }, // #175
+  foodtruck: { speed: 2, bob: 0.015, rate: 11, model: foodTruck, wide: 2.6 }, // #177
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
 export const moverWidth = (kind: MoverKind) => KINDS[kind].wide
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
+/** m from the stop where a mover is away (#177) over which it shrinks out of sight, or grows back. */
+const AWAY = 3
 // Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
 const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
 // Each kind of plume's puffs: a chimney's smoke (#150), and steam (#175) from a noodle shop's vent or a food stall's pot,
@@ -288,6 +296,27 @@ export function shopper(): THREE.BufferGeometry {
     part(0.34, 0.12, 0.34, 0, 1.82, 0, HAIR),
     part(0.24, 0.34, 0.1, 0.04, 0.58, 0.37, BAG),
   ])
+}
+
+/**
+ * A food truck (#177), facing +x, centred under its middle and standing on y = 0, oversized as the cars are: a kei van
+ * whose cab and box are white for the paint it takes, a serving hatch open along its left (-z) side under a striped awning, a counter, and
+ * a menu board on its side.
+ */
+function foodTruck(): THREE.BufferGeometry {
+  const [PAINT, TYRE, GLASS, DARK, STRIPE, HATCH, LIT] = ['#ffffff', '#2f3440', '#41566c', '#4a525c', '#fbf8f2', '#5a4a3c', '#ffe2b0']
+  const parts = [
+    part(4.3, 0.34, 1.9, 0, 0.42, 0, DARK), // the chassis
+    part(1.4, 1.5, 2.1, 1.45, 0.62, 0, PAINT), // the cab
+    part(0.06, 0.62, 1.9, 2.16, 1.4, 0, GLASS), // its windscreen
+    part(2.85, 2.25, 2.2, -0.68, 0.62, 0, PAINT), // the box
+    part(2.1, 0.95, 0.06, -0.68, 1.55, -1.12, HATCH), // the hatch, open
+    part(2.1, 0.08, 0.5, -0.68, 1.47, -1.32, LIT), // its counter
+    part(2.3, 0.06, 1.1, -0.68, 2.62, -1.55, STRIPE), // the awning over it
+    part(0.7, 0.9, 0.04, -0.68, 1.1, 1.12, DARK), // a menu board on the other side
+  ]
+  for (const x of [1.4, -1.4]) for (const z of [0.86, -0.86]) parts.push(wheel(0.38, 0.32, x, z, TYRE, 8))
+  return merged(parts)
 }
 
 /**
@@ -937,7 +966,10 @@ export function createMovers() {
           const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
           const phase = phaseOf(v)
           const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
-          const size = Math.max(0.001, pose.scale)
+          // Away (#177): unseen at its stop there, and shrinking as it nears it.
+          const there = v.away === undefined ? null : along(v.loop, v.stops[v.away] || v.loop.length)
+          const gone = there ? smooth(Math.min(1, Math.hypot(p.x - there.x, p.y - there.y) / AWAY)) : 1
+          const size = Math.max(0.001, pose.scale * gone)
           q.setFromAxisAngle(up, p.heading)
           m.compose(at.set(p.x, v.h + p.up + pose.lift + rise + hop, -p.y), q, scale.setScalar(size))
           mesh.setMatrixAt(i, m)
