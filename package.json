@@ -10,6 +10,7 @@
     "bench": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/bench.ts'))\"",
     "shots": "node scripts/visual/shots.mjs",
     "bench:visual": "node scripts/visual/bench.mjs",
+    "check:scene": "node scripts/visual/check.mjs",
     "tune": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/tune.ts'))\"",
     "prepare": "husky"
   },

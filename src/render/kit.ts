@@ -587,6 +587,38 @@ export interface Brick {
   fate: Fate
   /** The lot of its Block it stands on, in the order its Zone's look cut them; -1 for none. */
   lot: number
+  /** The scene it belongs to (#191): its index in the kit's `scenes`, or -1 for none. */
+  scene: number
+  /** What built it, for the scene check (#191): only when the kit was asked to label its bricks (`createKit`). */
+  what?: string
+}
+
+/**
+ * Ground a fill lays and later pieces must keep clear of (#191), as the scene check reads it: a parking bay, a taxi
+ * bay, or the step before a door. A box `w` along its front by `d`, centred on `(x, y)` (m) and turned `ry` as the kit's
+ * frames are, and the brick it was laid with.
+ */
+export interface Claim {
+  kind: 'bay' | 'taxi' | 'door'
+  x: number
+  y: number
+  w: number
+  d: number
+  ry: number
+  brick: number
+}
+
+/** A scene (#173, rule 5) a fill laid (#191): its kind, as its Zone names it; its bricks carry its index. */
+export interface Scene {
+  kind: string
+}
+
+/** The building form a lot was built in (#191), such as an office tower's style, which rule 10 holds neighbours apart by. */
+export interface Form {
+  lot: number
+  form: string
+  /** The lot's ground, as its Zone cut it: a box `w` by `d` centred on `(x, y)` and turned `ry`. None if not told. */
+  ground?: { x: number; y: number; w: number; d: number; ry: number }
 }
 
 /** The Stage a build is of, `to`, or, when `from` differs, the two Stages a Tile's Stage-up goes between. */
@@ -776,7 +808,7 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
  * `(x, y)` on the map and `h` above the road, and every shape added belongs to the next brick closed. Every random
  * choice comes from `rand`, so the same stream builds the same town.
  */
-export function createKit(rand: () => number, materials: Materials) {
+export function createKit(rand: () => number, materials: Materials, label?: () => string) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
   const { solid, close, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
@@ -789,6 +821,29 @@ export function createKit(rand: () => number, materials: Materials) {
   const sways: Sway[] = []
   const flags: Flag[] = []
   const pools: Pool[] = []
+  // What the scene check reads (#191): the ground laid to be kept clear, the scenes and the lots' building forms.
+  const claims: Claim[] = []
+  const scenes: Scene[] = []
+  const forms: Form[] = []
+  let scene = -1 // the scene the bricks closed from now on belong to
+  let ground: Form['ground'] // the current lot's ground, if its Zone told it
+  /** A new brick, labelled with what built it where the scene check asks (`label`). */
+  const made = (kind: BrickKind, at: THREE.Vector3, dust: number): Brick =>
+    label ? { kind, at, dust, fate, lot, scene, what: label() } : { kind, at, dust, fate, lot, scene }
+  /** Record that the current lot is built in `form` (#191): its building's kind and the shape it takes. */
+  const formed = (form: string) => {
+    if (lot >= 0) forms.push({ lot, form, ground })
+  }
+  /** Lay claim to ground `w` by `d` at `(x, y)` turned `ry` (#191), riding the next brick closed: `kit.claim`. */
+  const claim = (kind: Claim['kind'], x: number, y: number, w: number, d: number, ry: number) => {
+    claims.push({ kind, x, y, w, d, ry, brick: bricks.length })
+  }
+  /**
+   * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
+   * deep, and as wide as the door less 0.2 m either side, where its frame stands and pot plants may flank it.
+   */
+  const doorway = (x: number, y: number, ry: number, w: number, out = 0) =>
+    claim('door', ...to(x, y, ry, 0, out + 0.6), Math.max(0.6, w - 0.4), 1.2, ry)
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
   // Close-only prop, painted on `close` (`closeOnly`).
   let [patterned, pooled, closing] = [false, false, false]
@@ -887,7 +942,7 @@ export function createKit(rand: () => number, materials: Materials) {
     if (open === parts.length) return
     for (let i = open; i < parts.length; i++) parts[i].brick = bricks.length
     open = parts.length
-    bricks.push({ kind, at: new THREE.Vector3(x, h, -y), dust, fate, lot })
+    bricks.push(made(kind, new THREE.Vector3(x, h, -y), dust))
   }
 
   // Buildings repeat their shapes, so each is cut once per size, to `digits` places, and disposed of when the kit is done.
@@ -956,7 +1011,7 @@ export function createKit(rand: () => number, materials: Materials) {
     movers.push({ kind, loop, stops, first, h, ...more, brick: bricks.length })
     const [p, f] = [loop.pts[0], more.face]
     const at = f ? new THREE.Vector3(f.x, h + p.y, -f.y) : new THREE.Vector3(p.x, h, -p.y)
-    bricks.push({ kind: 'mover', at, dust: 0, fate, lot })
+    bricks.push(made('mover', at, 0))
   }
   /** Add a shape at `(lx, ly)` in the frame of something at `(x, y)` facing `ry`, turned with it and scaled. */
   const put = (
@@ -1490,10 +1545,33 @@ export function createKit(rand: () => number, materials: Materials) {
       return onBlock(x, y, clear)
     },
 
-    /** The bricks closed from now on stand on lot `n` of the Block (-1: on none). */
-    lot(n: number) {
+    /**
+     * The bricks closed from now on stand on lot `n` of the Block (-1: on none), whose ground, if given, is `on`: a box,
+     * or one turned as a row's lots are. The ground goes no further than the scene check (#191), whose rule 10 reads
+     * which lots lie side by side.
+     */
+    lot(n: number, on?: Bounds | { x: number; y: number; w: number; d: number; ry: number }) {
       lot = n
+      ground = on && ('x0' in on ? { x: (on.x0 + on.x1) / 2, y: (on.y0 + on.y1) / 2, w: on.x1 - on.x0, d: on.y1 - on.y0, ry: 0 } : on)
     },
+
+    /**
+     * Build what `fn` adds as one scene of the Block (#173's rule 5), of the kind its Zone names `kind`, for the scene
+     * check to find (#191). It changes nothing that is drawn.
+     */
+    scene(kind: string, fn: () => void) {
+      const was = scene
+      scene = scenes.push({ kind }) - 1
+      fn()
+      scene = was
+    },
+
+    /**
+     * Lay claim to ground later pieces must keep clear of (#191): a box `w` by `d` at `(x, y)` turned `ry`, as `Claim`
+     * has it, riding the next brick closed. The scene check holds what stands on it to account; it changes nothing that
+     * is drawn.
+     */
+    claim,
 
     /**
      * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own: seeded
@@ -1573,6 +1651,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     house(x: number, y: number, h: number, w: number, d: number, stage = 2, more: { front?: number; solar?: boolean } = {}) {
       const panes = { material: glass, tint: pick(windows) }
+      formed('house')
       const [tall, walls, roofs, end] = [rand(), pick(WALLS), pick(ROOFS), rand() < 0.5 ? 1 : -1]
       const k = stage === 1 ? 0.7 : 1
       ;[w, d] = [Math.min(w, 12) * k, Math.min(d, 12) * k]
@@ -1597,6 +1676,7 @@ export function createKit(rand: () => number, materials: Materials) {
         // The front door, on side `front` (0 east, 1 north, 2 west, 3 south), under a little canopy.
         const [ry, half] = [((more.front - 1) * Math.PI) / 2, (more.front % 2 ? d : w) / 2]
         local(cuboid(1.05, 2.05, 0.14), HOME.door, x, y, ry, 0, half + 0.02, h)
+        doorway(...to(x, y, ry, 0, half), ry, 1.05)
         local(cuboid(1.6, 0.1, 0.8), LEDGE, x, y, ry, 0, half + 0.38, h + 2.3)
       }
       if (more.solar) {
@@ -1681,6 +1761,7 @@ export function createKit(rand: () => number, materials: Materials) {
       plan: TerracePlan = { roof: 'gable', ends: [] },
     ) {
       const wall = storeys * 3 + 0.6
+      formed(`terrace ${plan.roof} ${storeys}`)
       const [tile, walls, eave, bloom] = [pick(TERRACE.roofs), pick(TERRACE.walls), rand() < 0.55, pick(TERRACE.blooms)]
       const seed = spot(x, y) + 23 // which patterned windows light, and the finish's own draws, so the kit's stream is untouched
       const { corner } = plan
@@ -1701,6 +1782,7 @@ export function createKit(rand: () => number, materials: Materials) {
           const look = door ? null : pane(0.7) // drawn whether or not a corner's shop front takes its place
           if (corner && s === 0) continue
           if (door) local(cuboid(1.2, 2.2, 0.3), TERRACE.door, x, y, ry, lx, d / 2, h)
+          if (door) doorway(...to(x, y, ry, lx, d / 2), ry, 1.2, 0.15)
           else local(cuboid(1.1, 1.3, 0.3), look!, x, y, ry, lx, d / 2, h + 1 + s * 3)
           if (stage === 3 && s > 0) local(cuboid(1.4, 0.34, 0.55), bloom, x, y, ry, lx, d / 2 + 0.2, h + 0.7 + s * 3)
         }
@@ -1739,10 +1821,12 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = [], plan: ApartmentPlan = { roof: 'flat' }) {
       const colour = pick(COURTYARD.walls)
+      formed(`apartment ${plan.roof} ${wings.length} ${floors}`)
       const height = floors * 3.2 + 0.8
       const seed = spot(wings[0].x0, wings[0].y0) + 29 // which patterned windows light, and the finish's own draws
       const frontDoor = (ex: number, ey: number, ry: number) => {
         put(cuboid(1.9, 2.5, 0.12), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.1, h)
+        doorway(ex, ey, ry, 1.6, 0.16)
         put(cuboid(1.6, 2.3, 0.14), { material: glass, tint: windows[0], glow: 1.2 }, ex, ey, ry, 0, 0.12, h)
         put(cuboid(0.06, 2.3, 0.18), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.13, h)
         put(cuboid(2.8, 0.18, 1.5), COURTYARD.cap, ex, ey, ry, 0, 0.75, h + 2.62)
@@ -1893,6 +1977,7 @@ export function createKit(rand: () => number, materials: Materials) {
       rooftop: { pad?: boolean; beacon?: boolean } = {},
     ) {
       const [colour, trim] = [pick(FLATS.walls), pick(FLATS.trims)]
+      formed('tower')
       // Its balconies' plants, washing and futons (#155), each balcony's drawn from where it stands, so the tower's own
       // stream is untouched: the share of balconies with each at this Stage.
       const [plants, washing, futons] = [
@@ -1996,6 +2081,7 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     shop(x: number, y: number, h: number, w: number, d: number, ry: number, plan: ShopPlan) {
       const { storeys, stage, onRoad, door, front, form, noodle } = plan
+      formed(`shop ${form} ${storeys}`)
       const [upper, stripe, roofSign, hung, board, billboard, tallSign] = [
         pick(SHOP.uppers),
         pick(SHOP.fronts),
@@ -2033,6 +2119,7 @@ export function createKit(rand: () => number, materials: Materials) {
       const layout = frontOf(w, door)
       const doorAt = layout.door
       local(cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, doorAt, face + 0.01, h)
+      doorway(...to(x, y, ry, doorAt, face), ry, SHOPFRONT.door.wide, 0.1)
       local(cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, doorAt, face + 0.03, h + 0.04)
       local(cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, doorAt, face + 0.04, h + 0.04)
       local(cuboid(1.66, 0.05, 0.05), frame, x, y, ry, doorAt, face + 0.2, h + 2.36)
@@ -2234,6 +2321,7 @@ export function createKit(rand: () => number, materials: Materials) {
      *   chimney with a second band.
      */
     warehouse(x: number, y: number, h: number, w: number, d: number, chimney: boolean, side: number, stage = 2) {
+      formed('shed')
       const [tall, walls, roofs, lit, doorColour, chimneyTall] = [
         rand(),
         pick(SHED.walls),
@@ -2300,6 +2388,7 @@ export function createKit(rand: () => number, materials: Materials) {
      * - Stage 3: a second, shorter silo and a lean-to shed against its other side.
      */
     barn(x: number, y: number, h: number, ry: number, stage = 2) {
+      formed('barn')
       add(box(9, 5.2, 7, 0.3, 0.1), pick(BARN.walls), x, y, h, ry)
       add(gableRoof(9.6, 8, 3.2), BARN.roof, x, y, h + 5.2, ry + Math.PI / 2)
       local(cuboid(3.2, 3.8, 0.3), BARN.door, x, y, ry, 0, 3.5, h)
@@ -2376,6 +2465,7 @@ export function createKit(rand: () => number, materials: Materials) {
       more: { gondola?: boolean; plate?: boolean; entrance?: number } = {},
     ) {
       const { gondola = false, plate = false, entrance } = more
+      formed(`office ${style}`)
       const STOREY = 3.2
       const SKY = new THREE.Color('#e9f4fb')
       const [foot, trim, busy] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), rand()]
@@ -2566,6 +2656,7 @@ export function createKit(rand: () => number, materials: Materials) {
         const out = half + 0.8 // the plinth's face
         local(cuboid(3.4, 0.8, 0.6), trim, x, y, ry, 0, out + 0.3, h) // a landing before the door
         local(cuboid(3.4, 0.4, 0.5), trim, x, y, ry, 0, out + 0.85, h) // and a step up to it
+        doorway(x, y, ry, 2 * door, out + 1.1)
         const drum = to(x, y, ry, 0, half + 0.3)
         add(CYLINDER, { material: glass, tint: windows[0], glow: 1.4 }, ...drum, h + 0.8, 0, door, 2.3, door)
         add(CYLINDER, TOWER_FINISH.frame, ...drum, h + 3.05, 0, door + 0.08, 0.16, door + 0.08)
@@ -3164,7 +3255,8 @@ export function createKit(rand: () => number, materials: Materials) {
 
     /**
      * Everything built, as parts tagged with their bricks, the movers, the chimneys' plumes, the beacons, what sways,
-     * the flags and the pools of light. Every shape must be in a brick by now. The kit is spent after this.
+     * the flags and the pools of light; and for the scene check (#191) the ground claimed, the scenes and the lots'
+     * building forms. Every shape must be in a brick by now. The kit is spent after this.
      */
     done(): {
       parts: Part[]
@@ -3175,13 +3267,16 @@ export function createKit(rand: () => number, materials: Materials) {
       sways: Sway[]
       flags: Flag[]
       pools: Pool[]
+      claims: Claim[]
+      scenes: Scene[]
+      forms: Form[]
     } {
       if (open < parts.length) throw new Error('the kit has shapes left out of any brick')
       for (const shapes of cut) {
         for (const g of [...shapes.values()].flat()) g.dispose()
         shapes.clear()
       }
-      return { parts, bricks, movers, plumes, beacons, sways, flags, pools }
+      return { parts, bricks, movers, plumes, beacons, sways, flags, pools, claims, scenes, forms }
     },
   }
 }

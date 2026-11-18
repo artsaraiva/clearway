@@ -579,7 +579,7 @@ function houses(g: ZoneGround) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const lawn = fit(g, x, y, lot.x1 - lot.x0 - 2 * HOUSES.gap, lot.y1 - lot.y0 - 2 * HOUSES.gap, HOUSES.clear, HOUSES.least, 1.6, 3)
     if (!lawn) continue
-    kit.lot(i)
+    kit.lot(i, lot)
     const { w, d } = lawn
     kit.from(1, () => {
       kit.lawn(x, y, KERB, w, d)
@@ -790,7 +790,7 @@ function terraces(g: ZoneGround) {
   const signs: RowLot[] = [] // the corner shops' end walls, where no rack or stairs stand
   let corners = 0
   for (const [i, l] of lots.entries()) {
-    kit.lot(i)
+    kit.lot(i, l)
     const s = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
     storeys.push(s)
     if (open.has(i)) {
@@ -847,7 +847,7 @@ function terraces(g: ZoneGround) {
     lots.filter((_, i) => !open.has(i)),
   )
   for (const { kind, ground, from } of scenes) {
-    kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y))
+    kit.scene(kind, () => kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y)))
     g.kept.push(ground)
     taken.push(ground)
   }
@@ -1156,7 +1156,7 @@ function courtyards(g: ZoneGround) {
     const room = fit(g, x, y, w0, d0, COURTYARDS.clear, COURTYARDS.least, 5, 2)
     if (!room) continue
     const { w, d } = room
-    kit.lot(i)
+    kit.lot(i, lot)
     const [x0, y0, x1, y1] = [x - w / 2, y - d / 2, x + w / 2, y + d / 2]
     const deep = kit.range(...COURTYARDS.wing)
     const floors = Math.round(kit.range(...COURTYARDS.floors))
@@ -1243,7 +1243,7 @@ function courtyards(g: ZoneGround) {
   const later = new Set(taken.slice(stage1))
   if (!kit.finished) return
   for (const { kind, ground, from } of scenes) {
-    kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y))
+    kit.scene(kind, () => kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y)))
     g.kept.push(ground)
   }
   for (const b of built) courtGround(g, b, taken)
@@ -1692,7 +1692,7 @@ function towers(g: ZoneGround) {
     const [w, d] = [Math.min(most[0], lot.x1 - lot.x0 - 2 * gap), Math.min(most[1], lot.y1 - lot.y0 - 2 * gap)]
     const base = fit(g, x, y, w + 2 * podium, d + 2 * podium, TOWERS.clear, TOWERS.least + 2 * podium, 2.5, 2)
     if (!base) continue
-    kit.lot(i)
+    kit.lot(i, lot)
     const floors = Math.round(kit.range(...TOWERS.floors))
     // A helipad and beacons on the roofs of the tallest (#155), by the floors each tower draws for Stage 2.
     const tallest = (from: readonly number[], stage: number) => stage > 1 && floors >= from[stage - 2]
@@ -1812,7 +1812,7 @@ function offices(g: ZoneGround) {
   const styled: { lot: Bounds; style: OfficeStyle }[] = []
   for (const [i, body] of bodies.entries()) {
     if (!body) continue
-    kit.lot(i)
+    kit.lot(i, lots[i])
     // Each lot draws from the kit's stream as it always has, whatever now stands on it, so that every lot after it keeps
     // its draws: whether it is left to trees, its tower's own stream (or where its tree drew its seed), and the seed of
     // its Stage 3 planters.
@@ -1854,8 +1854,10 @@ function offices(g: ZoneGround) {
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
   for (const { ground: s, kind, from, entry } of scenes) {
-    kit.staged((stage) => officeScene(kit, kind, s, stage, from), spot(s.x, s.y))
-    if (entry) kit.from(from, () => foodTruck(kit, s, entry), spot(s.x, s.y) + 1)
+    kit.scene(kind, () => {
+      kit.staged((stage) => officeScene(kit, kind, s, stage, from), spot(s.x, s.y))
+      if (entry) kit.from(from, () => foodTruck(kit, s, entry), spot(s.x, s.y) + 1)
+    })
     g.kept.push(s)
   }
   if (taxi) {
@@ -2350,7 +2352,7 @@ function shops(g: ZoneGround) {
   const paving = SHOP_FINISH.paving[Math.floor(plans() * SHOP_FINISH.paving.length)]
   let [front, form] = [-1, -1]
   for (const [i, l] of lots.entries()) {
-    kit.lot(i)
+    kit.lot(i, l)
     const storeys = kit.chance(0.45) ? 1 : 2
     front = (front + 1 + Math.floor(plans() * (FRONT.cloths.length - 1))) % FRONT.cloths.length
     const drawn = Math.floor(plans() * SHOP_FINISH.forms.length)
@@ -2361,7 +2363,7 @@ function shops(g: ZoneGround) {
     const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
     g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
     if (scene?.kind === 'stall') {
-      kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving))
+      kit.scene('stall', () => kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving)))
       continue
     }
     const plan = { front: FRONT.cloths[front], form: SHOP_FINISH.forms[form], noodle, door, onRoad: l.onRoad }
@@ -2428,7 +2430,7 @@ function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopS
   const at = (lu: number, o: number) => turned(l.x, l.y, l.ry, lu, l.d / 2 + o)
   const build = { greengrocer, florist, capsules }[scene.kind as Exclude<ShopScene, 'stall'>]
   const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
-  kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage), spot(p.x, p.y))
+  kit.scene(scene.kind, () => kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage), spot(p.x, p.y)))
   const q = at(-door * (l.w / 2 - 2.5), 0.6)
   kit.staged((stage) => stage < scene.from && menuBoard(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   doorPots(g, l, door)
@@ -2711,7 +2713,7 @@ function industrial(g: ZoneGround) {
     const shed = { x: c.x, y: c.y, w: along ? f.w : f.w - back, d: along ? f.d - back : f.d, ry, side, len, wid: wid - back }
     laid.push({ shed, lot: i })
     taken.push({ x: shed.x, y: shed.y, w: shed.w, d: shed.d, ry: 0, onRoad: false })
-    kit.lot(i)
+    kit.lot(i, f)
     const first = chimney
     kit.staged((stage) => kit.warehouse(shed.x, shed.y, KERB, shed.w, shed.d, first, side, stage))
     chimney = false

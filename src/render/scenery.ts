@@ -7,7 +7,7 @@ import { middle, sameBounds, type Bounds, type Vec } from '../sim/geometry'
 import type { Sim } from '../sim/sim'
 import type { Point } from '../sim/spec'
 import { cellAt } from '../sim/tiles'
-import { block, pavement, wide } from './blocks'
+import { block, pavement, wide, type Block } from './blocks'
 import { inside, type Field } from './field'
 import { blockSeed, fillBlock } from './fill'
 import { createKit, type Brick, type Kit, type Materials, type Part, type Stages } from './kit'
@@ -64,6 +64,15 @@ export interface Scenery {
   avenues: string[]
   /** What the seed adds. None: only what is authored. */
   seeded?: Seeded
+}
+
+/**
+ * What the scene check (#191) reads of a build, as each kit is done: a label for each brick of what built it, and every
+ * kit's output with the Block it filled (none for the slab's, the poles' and the wires' kits). Nothing drawn changes.
+ */
+export interface Watch {
+  label: () => string
+  took: (built: ReturnType<Kit['done']>, block: Block | null) => void
 }
 
 /** A brick of a build, with the Block it stands on: its index in the build's `blocks`, or -1 for the slab itself. */
@@ -135,6 +144,7 @@ export function createScenery(
   materials: Materials,
   zoneOf: (cell: Cell) => Zone | undefined,
   stageOf: (cell: Cell) => Stage,
+  watch?: Watch,
 ) {
   /**
    * The pieces laid, in order, each with the meshes of the build that laid it (pieces laid together share them) and the
@@ -175,6 +185,7 @@ export function createScenery(
     /** Take over what a kit built, its bricks standing on Block `index`. */
     const take = (kit: Kit, index: number) => {
       const done = kit.done()
+      watch?.took(done, index < 0 ? null : blocks[index])
       for (const part of done.parts) parts.push({ ...part, brick: part.brick + bricks.length })
       for (const mover of done.movers) movers.push({ ...mover, brick: mover.brick + bricks.length })
       for (const plume of done.plumes) plumes.push({ ...plume, brick: plume.brick + bricks.length })
@@ -184,7 +195,7 @@ export function createScenery(
       for (const pool of done.pools) pools.push({ ...pool, brick: pool.brick + bricks.length })
       bricks.push(...done.bricks.map((brick) => ({ ...brick, block: index })))
     }
-    const slab = createKit(mulberry32(0), materials)
+    const slab = createKit(mulberry32(0), materials, watch?.label)
     pieces.forEach((piece, i) => laySlab(slab, piece, [...before, ...pieces.slice(0, i)]))
     take(slab, -1)
     const blocks = field.outlines(0, pieces).map(block).filter(wide)
@@ -193,7 +204,7 @@ export function createScenery(
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
     // Where the kerbside is dressed, every Tile has street lights and marks on its road plate (#175, #176), as its
     // Blocks' kerbsides have their street furniture, which keeps off the poles.
-    const poles = createKit(mulberry32(0), materials)
+    const poles = createKit(mulberry32(0), materials, watch?.label)
     const posts: Vec[] = []
     for (const piece of pieces) {
       const stood = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.dressed)
@@ -206,7 +217,7 @@ export function createScenery(
     yield
 
     for (const [i, b] of blocks.entries()) {
-      const kit = createKit(mulberry32(blockSeed(scenery, b)), materials)
+      const kit = createKit(mulberry32(blockSeed(scenery, b)), materials, watch?.label)
       const cell = cellAt(middle(b))
       kit.stages(stages ?? { from: stageOf(cell), to: stageOf(cell) })
       kit.ground((x, y, clear) => field.sample(x, y) >= clear && inside(b.loop, x, y))

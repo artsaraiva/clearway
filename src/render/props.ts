@@ -476,6 +476,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
  * board lights at night and leaves a pool. The taxis waiting in it are the kit's.
  */
 export function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
+  kit.claim('taxi', x, y, w, d, ry)
   kit.put(kit.cuboid(w, 0.02, d), TAXI_BAY.tarmac, x, y, ry, 0, 0, KERB)
   kit.put(kit.cuboid(w, 0.03, 0.12), TAXI_BAY.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
   for (const k of [-1, 1]) kit.put(kit.cuboid(0.12, 0.03, d), TAXI_BAY.line, x, y, ry, k * (w / 2 - 0.06), 0, KERB)
@@ -686,6 +687,7 @@ export function binStore(kit: Kit, x: number, y: number, ry: number) {
 
 /** Parking bays on `ground` (#178), `bays` of them side by side across its width, open to its front, as one brick. */
 export function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: number) {
+  kit.claim('bay', x, y, w, d, ry)
   kit.put(kit.cuboid(w, 0.02, d), BAYS.tarmac, x, y, ry, 0, 0, KERB)
   kit.put(kit.cuboid(w, 0.03, 0.12), BAYS.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
   for (let k = 0; k <= bays; k++)
