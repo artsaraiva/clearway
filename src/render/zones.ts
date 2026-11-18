@@ -119,9 +119,11 @@ const MEDIUM_FINISH = {
   corner: 0.45,
   laundry: 0.45,
   alley: { deep: 1.7, paving: '#ddd3c4' },
-  // The scenes a Block picks from, and the area (m²) from which it has a second at Stage 3.
+  // The scenes a Block picks from, and the area (m²) from which it has a second at Stage 3; and the ground of a shrine
+  // where none fits otherwise (#193), along the edge and shallow, m.
   scenes: ['shrine', 'park', 'bathhouse'] as MediumScene[],
   second: 2500,
+  shallow: [5.6, 3.4] as const,
   // An apartment block's mansard over a flat roof where a block beside it would otherwise be the same building.
   mansard: ['#b85a4c', '#4d6575', '#7a5a46', '#5aa69b', '#a8765a'],
   // Parking bays by an apartment block, m in from the Block's edge and deep, and how many fit at most and at least.
@@ -1062,19 +1064,32 @@ function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): Mediu
 }
 
 /**
- * The scenes of a courtyard Block (#178), drawn from `draw` once its buildings have taken their ground (`taken`):
- * each along a run of its edge facing a Road where there is room clear of the buildings, sliding along each run a
- * metre at a time, the second 18 m or more from the first (`sceneOrder`, `placeScenes`).
+ * The scenes of a courtyard Block (#178), drawn from `draw` once its buildings have taken their ground (`taken`, and
+ * the metre `round` them): each along a run of its edge facing a Road where there is room clear of the buildings,
+ * sliding along each run a metre at a time, the second 18 m or more from the first (`sceneOrder`, `placeScenes`); where
+ * none finds room, a shrine on shallow ground (#193).
  */
-function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): MediumGround[] {
+function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[], round: RowLot[]): MediumGround[] {
   const order = sceneOrder(g, draw, MEDIUM_FINISH.scenes, MEDIUM_FINISH.second)
-  return placeScenes<MediumScene, MediumGround>(order, MEDIUM_FINISH.scenes, (kind, out) => {
+  const room = { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }
+  const ok = (out: MediumGround[], clear: (l: RowLot) => boolean) => (l: RowLot) =>
+    clearOfScenes(out, l) && clear(l) && g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
+  const roomy = (l: RowLot) => ![...taken, ...round].some((o) => overlap(o, l))
+  const out = placeScenes<MediumScene, MediumGround>(order, MEDIUM_FINISH.scenes, (kind, out) => {
     const { most, least } = MEDIUM_SCENES[kind]
-    const ground = alongEdge(g, draw, runs(g, 0.8), smaller(most, least), { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }, (l) => {
-      return clearOfScenes(out, l) && !taken.some((o) => overlap(o, l)) && g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
-    })
+    const ground = alongEdge(g, draw, runs(g, 0.8), smaller(most, least), room, ok(out, roomy))
     return ground && { ground, lots: [] }
   })
+  // Where no kind finds ground, as on a small Block an O fills, a shrine on the shallow band between the edge and the
+  // building, half a metre from its walls, its torii just before it (#193); a second shrine, if need be, on a long
+  // Block whose buildings leave nothing else room.
+  const near = (l: RowLot) => !taken.some((o) => overlap(o, l, -0.25))
+  while (out.length < order.length) {
+    const ground = alongEdge(g, draw, runs(g, 0.8), [MEDIUM_FINISH.shallow], room, ok(out, near))
+    if (!ground) break
+    out.push({ kind: 'shrine', ground, lots: [], from: out.length ? 3 : 2 })
+  }
+  return out
 }
 
 /** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground clear of `taken`, which it then takes. */
@@ -1242,7 +1257,7 @@ function courtyards(g: ZoneGround) {
   // building's outside stairs and the corner where its bike rack and vending machines stand (#156), on its lot.
   const taken: RowLot[] = [...g.lamps.map(around(1.4)), ...built.flatMap((b) => b.wings.map(wingLot))]
   const aroundWings = built.flatMap((b) => b.wings.map((w) => ({ ...wingLot(w), w: w.x1 - w.x0 + 2, d: w.y1 - w.y0 + 2 }))) // a metre round each
-  const scenes = kit.finished ? courtScenes(g, plans, [...taken, ...aroundWings]) : []
+  const scenes = kit.finished ? courtScenes(g, plans, taken, aroundWings) : []
   taken.push(...scenes.map((s) => s.ground))
   const stage1 = taken.length // what is taken from here on stands from Stage 2: the stairs and the racks
   for (const b of built) {

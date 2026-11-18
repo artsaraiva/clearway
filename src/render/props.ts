@@ -653,8 +653,8 @@ function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: num
   for (let k = 0; k < 3; k++)
     kit.put(kit.cuboid(0.4, 0.4, 0.04), kit.lit('#fbf8f2', 1.6), x, y, ry, (k - 1) * 0.66, face + 2.14, KERB + 4.4)
   kit.pool('sign', ...to(x, y, ry, 0, face + 1.6), KERB, 4.4, 2.8, ry)
-  // The chimney behind it, under a white band, steaming.
-  const [hx, hy] = to(x, y, ry, (seed % 2 ? 1 : -1) * Math.min(2, bw / 2 - 1), v - bd / 2 - 0.2)
+  // The chimney against its back wall, on its ground (#193), under a white band, steaming.
+  const [hx, hy] = to(x, y, ry, (seed % 2 ? 1 : -1) * Math.min(2, bw / 2 - 1), v - bd / 2 + 0.2)
   kit.drum(BATHHOUSE.chimney, hx, hy, KERB, 0.5, 0.5, BATHHOUSE.tall)
   kit.drum(BATHHOUSE.band, hx, hy, KERB + BATHHOUSE.tall - 1.6, 0.54, 0.54, 0.9)
   kit.drum(BATHHOUSE.chimney, hx, hy, KERB + BATHHOUSE.tall, 0.6, 0.6, 0.3)

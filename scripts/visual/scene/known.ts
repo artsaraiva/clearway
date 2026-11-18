@@ -42,43 +42,6 @@ export const KNOWN: Known[] = [
   ),
   // Every Zone: the kerbside (#176) leaves up to 16 m bare, as where a Block's corner faces a roundabout's ring.
   { rule: 'empty-pavement', most: 16, owner: FOUND, why: "the kerbside leaves 13 to 16 m bare, as at a Block's corner on a roundabout" },
-  // Medium density (#178).
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(townhouse|wallStairs|gardens|binStore|bikeRack|pocketPark|bathhouse) and (townhouse|wallStairs|gardens|bikeRack|pocketPark|binStore|bathhouse)/,
-    owner: FOUND,
-    why: 'terraced houses, and their stairs, gardens, racks and bin stores, run into the next house',
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|bathhouse|bikeRack) and (plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|tree|bathhouse)/,
-    owner: FOUND,
-    why: "an apartment block's wall hedges overlap its walls, each other, its court's hedge and its stairs",
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(bedTree|tree|vendingMachine|binStore|pocketPark|bikeRack|outsideStairs) on a door step/,
-    owner: FOUND,
-    why: "trees, vending machines, bin stores, racks, stairs and a pocket park stand before apartments' doors",
-  },
-  {
-    rule: 'keeps-clear',
-    zone: 'medium-density',
-    what: /^(bathhouse|outsideStairs) on a parking bay/,
-    owner: FOUND,
-    why: 'a bathhouse or stairs graze a parking bay',
-  },
-  {
-    rule: 'paths-clear',
-    zone: 'medium-density',
-    what: /^scooter's path runs through townhouse/,
-    owner: FOUND,
-    why: "the delivery scooter's path grazes a terraced house",
-  },
-  { rule: 'scenes', zone: 'medium-density', what: /^no scene/, owner: FOUND, why: 'some Blocks find no ground for a scene' },
   // Shops (#175).
   {
     rule: 'keeps-clear',
