@@ -2,6 +2,11 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#179](https://github.com/artsaraiva/clearway/issues/179) (2026-11-18)
+
+Low-density residential to the level of finish: [zones/low-density.md](zones/low-density.md).
+Surface pattern gains a house's storey (siding, and a window between shutters in every bay), its front (siding alone behind the door), a house's flat roof tiles and a garden wall's concrete blocks; a flag may fly at a size of its own, as the carp on one pole do, and a cat is a mover that walks a wall's top on no ground.
+
 ## Amended by [#193](https://github.com/artsaraiva/clearway/issues/193) (2026-11-18)
 
 What the scene check of [#191](https://github.com/artsaraiva/clearway/issues/191) found in the finished Zones is fixed, and four things they build changed.
@@ -264,7 +269,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 
 - **Authored:** landmarks and special Blocks (a tower plaza, a park with a pond, a shrine on a hill, a river with a bridge). They live in the District file.
 - **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136), `src/render/zones/`, one module a Zone), from the seed:
-  - Low-density residential: houses on lawns with garden trees. See [zones/low-density.md](zones/low-density.md).
+  - Low-density residential: houses on lawns behind low block walls, with their gardens and garden trees, built to the level of finish ([#179](https://github.com/artsaraiva/clearway/issues/179), below). See [zones/low-density.md](zones/low-density.md).
   - Medium-density residential: terraced rows of narrow houses that share walls, or apartment buildings round a court (an O, a U, an L or a bar), built to the level of finish ([#178](https://github.com/artsaraiva/clearway/issues/178), below). See [zones/medium-density.md](zones/medium-density.md).
     The seed picks one of the two for each Tile.
   - High-density residential: pale towers with windows lit one by one, a stack of balconies, a water tank and a roof garden, and a playground or a garden at their foot. See [zones/high-density.md](zones/high-density.md).
@@ -450,7 +455,7 @@ both take `--query` for a dev switch such as `deeper`.
 The shops sheet is the reference every later Zone's sheet is held to.
 Since [#176](https://github.com/artsaraiva/clearway/issues/176) both take `unzoned` for a City of unzoned Tiles.
 Offices' sheets since [#177](https://github.com/artsaraiva/clearway/issues/177) are shot with `--run 45`, about noon of the working day, so that the food trucks stand at their tables.
-Medium-density's since [#178](https://github.com/artsaraiva/clearway/issues/178) are shot with `--run 30`, so that the scooters are about and the washing hangs out.
+Medium-density's since [#178](https://github.com/artsaraiva/clearway/issues/178) are shot with `--run 30`, so that the scooters are about and the washing hangs out, and low-density's since [#179](https://github.com/artsaraiva/clearway/issues/179), so that the carp fly and the cats walk.
 
 Since [#191](https://github.com/artsaraiva/clearway/issues/191) `npm run check:scene` asserts the rules of finish that are facts about what was placed, in Node, without drawing, in a few seconds a Zone: everything stands on its Block and keeps clear of parking and taxi bays, door steps and the rest, movers' paths too;
 vehicles stand on their wheels;

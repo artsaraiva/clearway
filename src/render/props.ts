@@ -54,8 +54,38 @@ export function bedTree(kit: Kit, x: number, y: number, r: number, s: number, co
   kit.tree(x, y, KERB + 0.5, s, 'round', coarse)
 }
 
-/** A bench at `(x, y)` facing `ry`, Close-only (#177). */
-export const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() => kit.bench(x, y, KERB, ry))
+/** A bench at `(x, y)` facing `ry`, Close-only (#177), standing `h` above the road: on the pavement unless told. */
+export const bench = (kit: Kit, x: number, y: number, ry: number, h = KERB) => kit.closeOnly(() => kit.bench(x, y, h, ry))
+
+/**
+ * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179): a footing, a
+ * post, a fire box that lights at dusk and leaves its pool, and a cap.
+ */
+export function stoneLantern(kit: Kit, x: number, y: number, ry: number, h = KERB) {
+  kit.add(kit.cuboid(0.62, 0.22, 0.62), STONE.dark, x, y, h, ry)
+  kit.add(kit.cuboid(0.24, 0.85, 0.24), STONE.rim, x, y, h + 0.22, ry)
+  kit.add(kit.cuboid(0.5, 0.12, 0.5), STONE.rim, x, y, h + 1.07, ry)
+  kit.add(kit.cuboid(0.36, 0.34, 0.36), kit.lit('#fff4dc', GLOWS.low), x, y, h + 1.19, ry)
+  kit.add(SHAPES.cone, STONE.rim, x, y, h + 1.53, ry, 0.5, 0.34, 0.5)
+  kit.pool('cream', x, y, h, 2.6, 2.6)
+  kit.shadow(x, y, h, 1, 1, true)
+  kit.brick('building', x, y, h)
+}
+
+/** A steel garden shed's walls and its roof (#178). */
+const SHED = { wall: '#d9dcd2', roof: '#8f9aa5' }
+
+/**
+ * A steel garden shed at `(x, y)` facing `ry`, `h` above the road, as one brick (#178, behind a terraced house; in a
+ * house's garden since #179): its walls under a flat roof, and the line between its doors.
+ */
+export function gardenShed(kit: Kit, x: number, y: number, h: number, ry: number) {
+  kit.put(kit.cuboid(1.3, 1.7, 1.1), SHED.wall, x, y, ry, 0, 0, h)
+  kit.put(kit.cuboid(1.5, 0.1, 1.3), SHED.roof, x, y, ry, 0, 0, h + 1.7)
+  kit.put(kit.cuboid(0.04, 1.4, 0.04), SHED.roof, x, y, ry, 0, 0.57, h + 0.1)
+  kit.shadow(x, y, h, 1.9, 1.7, false, ry)
+  kit.brick('building', x, y, h)
+}
 
 /**
  * A scene's ground before its Stage (#177, #178), facing `ry`: a tree of size `s` in a round bed `r` m across in its
