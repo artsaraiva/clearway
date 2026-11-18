@@ -14,6 +14,10 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 Single-context: one root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
 
+### Zone tickets
+
+Briefing, building or reviewing a visual-style Zone ticket: see `docs/agents/zone-ticket.md`.
+
 ## Testing
 
 Most of this game is verified by playtesting. Tests cover the simulation, where playtesting misses regressions.
