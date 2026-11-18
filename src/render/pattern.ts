@@ -55,9 +55,11 @@ const WINDOW_LIGHT = '#ffc78a' // as the kit's glass glows
 /**
  * A curtain wall's glass (#177): the sky's colour it pales toward up a tower, as #130's floors did, as a share of the way
  * there at its foot and more for each third of its height; how much each pane's tone strays either way; how bright a lit
- * floor's panes glow, at least and at most, for the windows' glow; and how dimly a dark floor still shows.
+ * floor's panes glow, at least and at most, for the windows' glow, dimmed for a darker glass as the kit's glass dims
+ * (with the square of its green beside the kit's glass's, `glass`) but never below `least` of it; and how dimly a dark
+ * floor still shows.
  */
-const CURTAIN = { sky: '#e9f4fb', foot: 0.06, third: 0.12, tone: 0.07, lit: [0.5, 0.9], dark: 0.03 }
+const CURTAIN = { sky: '#e9f4fb', foot: 0.06, third: 0.12, tone: 0.07, lit: [0.45, 0.85], glass: '#9cc7df', least: 0.35, dark: 0.03 }
 
 /** The faces of a box in its own frame (its front -z, as the kit's shapes face) and the pattern each wears; m a bay and a storey take. */
 export interface Cladding {
@@ -401,7 +403,8 @@ if (patternKind > 0.5) {
     glass = mix(patternPaint, ${vec3(CURTAIN.sky)}, ${f(CURTAIN.foot)} + ${f(CURTAIN.third)} * third);
     glass *= 1.0 + ${f(CURTAIN.tone)} * (pane < 0.34 ? -1.0 : pane < 0.67 ? 0.0 : 1.0);
     float floorLit = patternHash(vec3(1.7, floor(patternAt.y), seed));
-    lit = floorLit < vPattern.y ? ${f(CURTAIN.lit[0])} + ${f(CURTAIN.lit[1] - CURTAIN.lit[0])} * pane : ${f(CURTAIN.dark)};
+    float dim = min(1.0, pow(patternPaint.g / ${f(new THREE.Color(CURTAIN.glass).g)}, 2.0));
+    lit = floorLit < vPattern.y ? (${f(CURTAIN.lit[0])} + ${f(CURTAIN.lit[1] - CURTAIN.lit[0])} * pane) * mix(${f(CURTAIN.least)}, 1.0, dim) : ${f(CURTAIN.dark)};
   }
   diffuseColor.rgb = mix(diffuseColor.rgb, glass, worn.g) * shade;
   patternGlass = worn.g;

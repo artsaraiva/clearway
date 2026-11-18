@@ -155,8 +155,8 @@ const POOL = {
     string: 0.7,
     pole: 0.8,
     stall: 0.85,
-    lobby: 0.6,
-    canopy: 0.8,
+    lobby: 0.95,
+    canopy: 1.1,
   },
 }
 /** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
@@ -270,7 +270,7 @@ const OFFICE_FINISH = {
   dish: '#f4f6f8',
   frame: '#4a525c',
   boards: ['#2fb39a', '#f0b43c', '#79c86a', '#a58ad8', '#fbf8f2', '#2f3440'],
-  lit: { board: 0.33, marks: 1.6, soffit: 1 },
+  lit: { board: 0.33, marks: 1.6, soffit: 1, fascia: 1.4 },
 }
 // A parked taxi (#177): the cars' dark glass, their pale head lamps and deep red tail lamps by day, and how brightly its
 // roof lamp glows at night.
@@ -2085,7 +2085,7 @@ export function createKit(rand: () => number, materials: Materials) {
       // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the street.
       for (let k = 0; k < 4; k++) {
         const { ry, half, len } = faceOf(k)
-        pool('lobby', ...to(x, y, ry, 0, half + 1.6), h, len + 1.2, 2, ry)
+        pool('lobby', ...to(x, y, ry, 0, half + 2), h, len + 2, 2.8, ry)
       }
       if (entrance !== undefined) {
         const { ry, half } = faceOf(entrance)
@@ -2099,8 +2099,9 @@ export function createKit(rand: () => number, materials: Materials) {
         local(cuboid(0.1, 2.3, 0.1), OFFICE_FINISH.frame, x, y, ry, 0, half + 0.3 + door, h + 0.8)
         local(cuboid(wide, 0.22, canopy), trim, x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.24)
         local(cuboid(wide - 0.4, 0.04, canopy - 0.5), lit(CREAM, OFFICE_FINISH.lit.soffit), x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.2)
+        local(cuboid(wide + 0.02, 0.1, 0.06), lit(CREAM, OFFICE_FINISH.lit.fascia), x, y, ry, 0, out + canopy - 0.5, h + 3.3)
         for (const k of [-1, 1]) local(cuboid(0.14, 3.24, 0.14), trim, x, y, ry, k * (wide / 2 - 0.15), out + canopy - 0.65, h)
-        pool('canopy', ...to(x, y, ry, 0, out + canopy / 2), h, wide + 1.4, canopy + 1.2, ry)
+        pool('canopy', ...to(x, y, ry, 0, out + canopy / 2 + 0.4), h, wide + 2.4, canopy + 2.2, ry)
       }
       if (style === 'round') {
         const r = Math.min(w, d) / 2
