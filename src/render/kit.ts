@@ -162,6 +162,11 @@ const POOL = {
 }
 /** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
 const KERBSIDE_POOLS: ReadonlySet<keyof typeof POOL.colours> = new Set(['lamp', 'pole'])
+/** Whether a board in `colour` is pale, so that the marks for lettering on it are dark (#175). */
+function pale(colour: string): boolean {
+  const c = new THREE.Color(colour)
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.42
+}
 // Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
 // with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
 // standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
@@ -271,7 +276,7 @@ const OFFICE_FINISH = {
   dish: '#f4f6f8',
   frame: '#4a525c',
   boards: ['#2fb39a', '#f0b43c', '#79c86a', '#a58ad8', '#fbf8f2', '#2f3440'],
-  lit: { board: 0.33, marks: 1.6, soffit: 1, fascia: 1.4 },
+  lit: { board: 0.33, soffit: 1, fascia: 1.4 },
 }
 // How brightly a parked taxi's roof lamp glows at night (#177).
 const TAXI_LAMP = 1.2
@@ -735,6 +740,9 @@ export function createKit(rand: () => number, materials: Materials) {
   }
   /** The bulb painted `colour` by day and lit in it at night, `glow` as bright as a lamp: #153's amber, #175's signs. */
   const lit = (colour: string, glow: number): Look => ({ material: bulb, tint: bulbTint(colour), glow })
+  /** Marks for lettering on a board in `colour` (#175): dark on a pale board, pale on a dark or a coloured one, lit if `on`. */
+  const markOf = (colour: string, on: boolean): Look =>
+    pale(colour) ? SHOPFRONT.marks.dark : on ? lit(SHOPFRONT.marks.pale, SHOPFRONT.lit.marks) : SHOPFRONT.marks.pale
   /**
    * Steam rising from `(x, y)`, `h` above the road, as from a noodle shop's vent or a food stall's pot (#175): small
    * puffs that `./movers` lets rise through the working day, riding the next brick closed.
@@ -1536,13 +1544,6 @@ export function createKit(rand: () => number, materials: Materials) {
       const face = d / 2 // the front's face, out from the middle
       const glazing: Look = { material: glass, tint: windows[0] }
       const arcade = stage === 3 && onRoad
-      // Marks for lettering on a board: pale and lit on a dark board, dark on a pale one.
-      const pale = (colour: string) => {
-        const c = new THREE.Color(colour)
-        return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.42
-      }
-      const markOf = (colour: string, on: boolean): Look =>
-        pale(colour) ? SHOPFRONT.marks.dark : on ? lit(SHOPFRONT.marks.pale, SHOPFRONT.lit.marks) : SHOPFRONT.marks.pale
       const boardOf = (colour: string, on: boolean, glow = SHOPFRONT.lit.board): Look => (on ? lit(colour, glow) : colour)
       /** A board `bw` by `bh` on a face at `v`, its foot `z`, with `n` marks across it. */
       const signboard = (colour: string, on: boolean, bw: number, bh: number, v: number, z: number, n: number) => {
@@ -2074,9 +2075,7 @@ export function createKit(rand: () => number, materials: Materials) {
        */
       const namePlates = (bw: number, bd: number, z: number, out = 0.08) => {
         if (!plate) return
-        const c = new THREE.Color(board)
-        const pale = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b > 0.42
-        const mark: Look = pale ? SHOPFRONT.marks.dark : lit(SHOPFRONT.marks.pale, OFFICE_FINISH.lit.marks)
+        const mark = markOf(board, true)
         for (let k = 0; k < 4; k++) {
           const { ry, half, len } = faceOf(k, bw, bd)
           const pw = Math.min(len * 0.62, 9)
