@@ -16,7 +16,7 @@ const WORDS = [
     // Not the camera distance as a flag, a value or a file name (`--views street`, `-street.jpg`), nor what is accepted.
     word: /(?<![-,=/`.\w])streets?\b(?![-.,`]|['’]s furniture| (lights?|furniture|trees?)\b)/,
     comments: true,
-    say: 'Road, or kerbside for the pavement and what stands on it',
+    say: 'Road, or Kerbside for the pavement and what stands on it',
   },
   { word: /\bentrance/i, say: 'door for a building, Gateway for a Road at the City’s edge' },
   { word: /\bPieces?\b/, say: 'Tile, or part for a model’s box' },

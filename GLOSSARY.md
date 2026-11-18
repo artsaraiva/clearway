@@ -113,8 +113,12 @@ An open road end of the City: where a Road reaches an edge of its Tile with no T
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Zone and the Stage of its Tile. A lot is one building's plot inside a Block.
+An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Zone and the Stage of its Tile.
 _Avoid_: Plot, parcel
+
+**Lot**:
+The ground of one building inside a Block.
+_Avoid_: Plot, parcel, site
 
 **Arm**:
 One Road's end at a Junction, carrying an Approach and an Exit. A Road between two Junctions is an Arm of both.
@@ -156,6 +160,48 @@ _Avoid_: Score, efficiency, speed ratio, throughput
 **Jam**:
 Sustained low Flow caused by queues at a Junction. It lowers Income and keeps the Tile of that Junction from its next Stage. The player clears it with Changes or by building around it.
 _Avoid_: Congestion, traffic, gridlock
+
+### Look
+
+**Finish**:
+The standard a Zone's Blocks are built to, so that none looks unfinished from any side, at any Stage or at any zoom. Its rules are the rules of Finish.
+_Avoid_: Level of finish, polish, detail, quality
+
+**City zoom**:
+The camera far enough out that the whole City fits the screen. A run opens at it.
+_Avoid_: Framed, overview, zoomed out
+
+**Tile zoom**:
+The camera with one Tile filling the screen, where the game is played.
+_Avoid_: Street, street level
+
+**Block zoom**:
+The camera with one Block filling the screen.
+_Avoid_: Close, close-up, zoomed in
+
+**Form**:
+The shape a building takes within its Zone: a gable or a hip roof, a round or a stepped tower. Buildings on Lots side by side never share one.
+_Avoid_: Style, kind, variant, type
+
+**Scene**:
+The one thing on a Block worth zooming in on, larger than a car and picked from its Zone's list: a shrine, a food stall, a sunken court.
+_Avoid_: Landmark, focal piece, set piece, feature
+
+**Landmark**:
+A one-off building or feature that fills a Block, placed by the City's seed and not by a Zone: a tall tower, a park's pond.
+_Avoid_: Scene, monument
+
+**Kerbside**:
+The strip of pavement along a Block's edge and the street furniture standing on it.
+_Avoid_: Street, sidewalk, pavement edge
+
+**Skin**:
+One of the looks a vehicle is drawn in: a kei car, a taxi, a van. Every Skin is the same vehicle to the simulation.
+_Avoid_: Vehicle type, model, variant
+
+**Walker**:
+A person drawn walking the pavements. Decoration only: traffic never meets one.
+_Avoid_: Pedestrian, person, peg
 
 ## Retired
 

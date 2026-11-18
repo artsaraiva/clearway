@@ -1,8 +1,8 @@
-# Zone tickets: building a Zone to the level of finish
+# Zone tickets: building a Zone to the Finish
 
 How to brief, build and close a visual-style Zone ticket of [#173](https://github.com/artsaraiva/clearway/issues/173). A brief to an implementer is this file, the ticket, and anything the ticket alone cannot say.
 
-The rules of finish and the three distances (whole City in frame, one Tile, one Block) are in #173. What each finished Zone builds is in `.scratch/visual-style/`.
+The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md`) are in #173, which calls them the level of finish and Framed, Street and Close; the code and the scripts' flags still do. What each finished Zone builds is in `.scratch/visual-style/`.
 
 ## Steps
 
@@ -17,22 +17,22 @@ The rules of finish and the three distances (whole City in frame, one Tile, one 
 
 ## What the check asserts, and what stays with the sheet
 
-The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; scenes; something moves; pools; Close-only props; the reserved colours; triangles and meshes under the Zone's ceiling; a lot the same at every Stage.
+The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; scenes; something moves; pools; Close-only props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
 
-The sheet holds the look: walls and roofs that carry something on all four sides (rules 1 and 2, until [#198](https://github.com/artsaraiva/clearway/issues/198)), a Stage that reads with the whole City in frame, a night signature of the Zone's own, and whether it is good. One sheet set, at the end.
+The sheet holds the look: walls and roofs that carry something on all four sides (rules 1 and 2, until [#198](https://github.com/artsaraiva/clearway/issues/198)), a Stage that reads at City zoom, a night signature of the Zone's own, and whether it is good. One sheet set, at the end.
 
 ## Build it the way the finished Zones are built
 
 Each line is a defect a review caught once.
 
 - **Surface is pattern, not triangles.** Tile rows, floor lines, plaster, windows on backs and ends go through the shared scenery material; lit windows through its lit mask. Varyings are smooth.
-- **Keep each lot's building as `main` draws it** unless a rule needs it changed: same random streams, same order. The check prints form counts beside the ref's.
-- **Neighbours:** a building's form differs from every lot beside it, by the test the finished Zones share.
+- **Keep each Lot's building as `main` draws it** unless a rule needs it changed: same random streams, same order. The check prints Form counts beside the ref's.
+- **Neighbours:** a building's Form differs from every Lot beside it, by the test the finished Zones share.
 - **Scenes** take their ground from a stream of their own, one a Block from Stage 2 and a second at Stage 3 on 2,500 m² or more, each with a standing piece larger than a car at every hour.
 - **Movers that come and go** cross the kerb at a Road, clear of poles, lamps and street trees.
 - **Ask the kit before placing:** a piece stands only where `kit.unclaimed` says the ground is free of bays and door steps.
 - **Every lit thing near the ground** leaves a pool on the one instanced decal mesh.
-- **Small props are Close-only,** hidden with the whole City in frame and during a reveal.
+- **Small props are Close-only,** hidden at City zoom and during a reveal.
 - **Parked vehicles** come from the cars' skins and paints.
 - **Reuse the shared helpers** before writing one; one name for one thing.
 - **Colour:** nothing within 30° of the Tool blue or the Jam red-orange over 65% of its chroma. Lettering is bands and marks.
