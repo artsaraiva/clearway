@@ -970,6 +970,19 @@ export function createKit(rand: () => number, materials: Materials) {
     if (brackets) for (const k of [-1, 1]) put(cuboid(0.05, 0.05, out), STEEL.pole, x, y, ry, k * 1.25, out / 2, h)
     sway('washing', ...to(x, y, ry, 0, out), h, ry, { paint: pick(WASHING) })
   }
+  /**
+   * A pole `len` long for washing centred on `(x, y)`, running along `ry`'s right, on a stand at each end with an arm
+   * across its top, in `look` (#157, #178): it joins the next brick. Returns how high over `h` the pole runs.
+   */
+  const poleStand = (x: number, y: number, h: number, ry: number, len: number, look: Look) => {
+    const top = 2.3
+    for (const k of [-1, 1]) {
+      local(cuboid(0.07, top + 0.1, 0.07), look, x, y, ry, (k * len) / 2, 0, h)
+      local(cuboid(0.07, 0.07, 0.6), look, x, y, ry, (k * len) / 2, 0, h + top - 0.04)
+    }
+    local(cuboid(len + 0.3, 0.06, 0.06), look, x, y, ry, 0, 0, h + top)
+    return top
+  }
   /** A futon over a rail `h` above the road, `out` m from a wall at `(x, y)` facing `ry`, in a bright cover (#156): it rides the next brick closed and sways. */
   const futon = (x: number, y: number, h: number, ry: number, out: number) =>
     sway('futon', ...to(x, y, ry, 0, out), h, ry, { paint: pick(COVERS) })
@@ -2715,12 +2728,7 @@ export function createKit(rand: () => number, materials: Materials) {
      * on a stand at each end, with what is hung on it, as one brick (#157).
      */
     laundry(x: number, y: number, h: number, ry: number, len: number, hung: Hung[]) {
-      const top = 2.3
-      for (const k of [-1, 1]) {
-        local(cuboid(0.07, top + 0.1, 0.07), HOME.pole, x, y, ry, (k * len) / 2, 0, h)
-        local(cuboid(0.07, 0.07, 0.6), HOME.pole, x, y, ry, (k * len) / 2, 0, h + top - 0.04)
-      }
-      local(cuboid(len + 0.3, 0.06, 0.06), HOME.pole, x, y, ry, 0, 0, h + top)
+      const top = poleStand(x, y, h, ry, len, HOME.pole)
       for (const p of hung)
         if (p.futon) sway('futon', ...to(x, y, ry, p.at, 0), h + top + 0.06, ry, { paint: p.colour })
         else sway('cloth', ...to(x, y, ry, p.at, 0), h + top, ry, { paint: p.colour, size: [p.w, p.tall] })
@@ -2728,13 +2736,13 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): two steel posts and the
-     * pole across them, and a line of washing (`./movers`' `washing`) in a paint from the kit's stream, which sways.
+     * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): a steel pole on a stand
+     * at each end, as a garden's laundry pole stands (#157), and a line of washing (`./movers`' `washing`) in a paint from
+     * the kit's stream, which sways.
      */
     washingPole(x: number, y: number, h: number, ry: number) {
-      for (const k of [-1, 1]) local(cuboid(0.06, 2.3, 0.06), STEEL.pole, x, y, ry, k * 1.4, 0, h)
-      local(cuboid(2.95, 0.05, 0.05), STEEL.pole, x, y, ry, 0, 0, h + 2.25)
-      sway('washing', x, y, h + 2.25, ry, { paint: pick(WASHING) })
+      const top = poleStand(x, y, h, ry, 2.8, STEEL.pole)
+      sway('washing', x, y, h + top, ry, { paint: pick(WASHING) })
       brick('tree', x, y, h)
     },
 
