@@ -7,10 +7,12 @@ import { CELL, cellAt } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { Kit } from './kit'
-import { bikeLane, island, park, plaza, site, tower, towerGround, verge } from './landmarks'
+import { bikeLane, island, site, tower, towerGround } from './landmarks'
 import type { Scenery } from './scenery'
 import { dressStreet, kerbLine, standing, type Footprint } from './streets'
 import { LOOKS } from './zones'
+import { park, plaza } from './zones/parks'
+import { verge } from './zones/unzoned'
 
 const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
 // m along an avenue and in from the kerb, and the trees' size.
