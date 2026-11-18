@@ -33,8 +33,8 @@ const BROKEN: Record<string, string[]> = {
   farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
-/** Found by the scene check on the Zones already built to the level of finish, and not yet filed. */
-const FOUND = 'found by #191, not filed'
+/** Found by the scene check on the Zones already built to the level of finish; #193 owns them. */
+const FOUND = '#193'
 
 export const KNOWN: Known[] = [
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
