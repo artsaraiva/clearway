@@ -11,6 +11,8 @@
     "shots": "node scripts/visual/shots.mjs",
     "bench:visual": "node scripts/visual/bench.mjs",
     "check:scene": "node scripts/visual/check.mjs",
+    "lint:glossary": "node scripts/lint-glossary.mjs",
+    "lint:exports": "knip",
     "tune": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/tune.ts'))\"",
     "prepare": "husky"
   },
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@types/three": "^0.187.0",
     "husky": "^9.1.7",
+    "knip": "^6.46.0",
     "lint-staged": "^17.6.0",
     "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",

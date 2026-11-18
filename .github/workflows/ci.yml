@@ -15,13 +15,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npx prettier --check .
+      # Avoided words on the lines the PR adds (scripts/lint-glossary.mjs).
+      - if: github.event_name == 'pull_request'
+        run: npm run lint:glossary -- --against origin/${{ github.base_ref }}
       - run: npm run typecheck
       - run: npm test
       # The rules of finish that are facts about what was placed (#191). Builds every Zone's City in Node: no browser.
       - run: npm run check:scene -- all
+      # Exports nothing imports. Reported, not enforced, until the standing ones are cleared (#201).
+      - run: npm run lint:exports
+        continue-on-error: true

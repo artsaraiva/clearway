@@ -33,6 +33,6 @@ Assert outcomes only: jammed, cleared, legal, refused, a price, yen, a Stage. Ve
 
 Visual-style PR evidence comes from `scripts/visual/`: `npm run shots -- <zones>` for the Stage sheets, `npm run bench:visual -- <zones> --against origin/main` for the 1,000-car frame time. Usage heads each script.
 
-The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script, not part of `npm test`, that builds each Zone's City in Node at every Stage and asserts that everything stands on its Block and keeps clear of bays, door steps and the rest, movers' paths too; vehicles stand on wheels; neighbours differ; each Block has its scenes; something moves; lights leave pools; small props are Close-only; no colour nears the reserved two; triangles and meshes stay under a ceiling. It prints the building forms and scenes built and whether each Zone's meshes match the ref. Known failures are listed with their owners in `scripts/visual/scene/known.ts`; its rules have their own tests over hand-made reports. Sheets are for the look alone: a Zone ticket asks for a pass and one sheet.
+The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script outside `npm test`, whose usage heads `scripts/visual/check.mjs`. Sheets are for the look alone.
 
 Write the test first when the rule is clear up front. When the behavior is still being explored, build it, playtest it, then lock it in with a test.
