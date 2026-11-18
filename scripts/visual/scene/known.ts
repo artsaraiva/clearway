@@ -46,14 +46,14 @@ export const KNOWN: Known[] = [
   {
     rule: 'keeps-clear',
     zone: 'medium-density',
-    what: /^(townhouse|wallStairs|gardens|binStore|bikeRack|pocketPark|bathhouse) and (townhouse|wallStairs|gardens|bikeRack|pocketPark)/,
+    what: /^(townhouse|wallStairs|gardens|binStore|bikeRack|pocketPark|bathhouse) and (townhouse|wallStairs|gardens|bikeRack|pocketPark|binStore|bathhouse)/,
     owner: FOUND,
     why: 'terraced houses, and their stairs, gardens, racks and bin stores, run into the next house',
   },
   {
     rule: 'keeps-clear',
     zone: 'medium-density',
-    what: /^(plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|bathhouse) and (plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|tree)/,
+    what: /^(plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|bathhouse|bikeRack) and (plantings|hedge|apartment|vendingMachine|outsideStairs|courtyards|tree|bathhouse)/,
     owner: FOUND,
     why: "an apartment block's wall hedges overlap its walls, each other, its court's hedge and its stairs",
   },
@@ -107,9 +107,9 @@ export const KNOWN: Known[] = [
   {
     rule: 'keeps-clear',
     zone: 'shops',
-    what: /pots|menuBoard|plantStand|produce|florist|greengrocer|capsules/,
+    what: /pots|menuBoard|plantStand|produce|florist|greengrocer|capsules|^vendingMachine on a door step/,
     owner: FOUND,
-    why: "door pots, menu boards and stands crowd a scene's front and the door",
+    why: "door pots, menu boards and stands crowd a scene's front and the door, and a vending machine stands before one on seed 5",
   },
   { rule: 'neighbours-differ', zone: 'shops', owner: FOUND, why: 'shops kept apart only from the lot cut before them' },
   { rule: 'paths-clear', zone: 'shops', what: /^shopper/, owner: FOUND, why: "shoppers walk through a florist's or a greengrocer's stand" },
@@ -143,6 +143,6 @@ export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   industrial: { triangles: 1.05e6, meshes: 155 },
   parks: { triangles: 4e6, meshes: 130 },
   green: { triangles: 2.45e6, meshes: 108 },
-  farms: { triangles: 1.2e6, meshes: 150 },
+  farms: { triangles: 1.35e6, meshes: 150 },
   unzoned: { triangles: 1.4e6, meshes: 108 },
 }

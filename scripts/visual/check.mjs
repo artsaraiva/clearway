@@ -41,20 +41,22 @@ function refTree(ref) {
 }
 
 const tree = values.against && refTree(values.against)
-const baseline = tree && {
-  build: (await runnerImport(join(tree.root, 'scripts/visual/scene/build.ts'), { root: tree.root, configFile: false, logLevel: 'error' }))
-    .module.buildReport,
-  label: tree.label,
+try {
+  const baseline = tree && {
+    build: (await runnerImport(join(tree.root, 'scripts/visual/scene/build.ts'), { root: tree.root, configFile: false, logLevel: 'error' }))
+      .module.buildReport,
+    label: tree.label,
+  }
+  const { module: check } = await runnerImport('./scripts/visual/scene/check.ts')
+  process.exitCode = await check.main({
+    baseline,
+    zones: positionals,
+    unzoned: UNZONED,
+    stages: values.stages.split(',').map(Number),
+    seeds: Number(values.seeds),
+    all: values.all,
+    city: CITY,
+  })
+} finally {
+  if (tree) rmSync(tree.root, { recursive: true, force: true })
 }
-const { module: check } = await runnerImport('./scripts/visual/scene/check.ts')
-process.exitCode = await check.main({
-  baseline,
-  zones: positionals,
-  unzoned: UNZONED,
-  stages: values.stages.split(',').map(Number),
-  seeds: Number(values.seeds),
-  against: values.against,
-  all: values.all,
-  city: CITY,
-})
-if (tree) rmSync(tree.root, { recursive: true, force: true })
