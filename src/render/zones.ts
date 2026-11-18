@@ -36,14 +36,12 @@ import {
   foodTruck,
   greengrocer,
   menuBoard,
+  officeScene,
   plantStand,
   plazaPiece,
   pots,
   produce,
-  sculpturePlaza,
-  sunkenCourt,
   taxiBay as propsTaxiBay,
-  truckCourt,
   truckPath,
   truckTurn,
   TRUCK_TURNS,
@@ -1137,8 +1135,7 @@ function offices(g: ZoneGround) {
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
   for (const { ground: s, kind, from, entry } of scenes) {
-    const build = { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind]
-    kit.staged((stage) => build(kit, s.x, s.y, s.w, s.d, s.ry, stage, from), spot(s.x, s.y))
+    kit.staged((stage) => officeScene(kit, kind, s.x, s.y, s.w, s.d, s.ry, stage, from), spot(s.x, s.y))
     if (entry) kit.from(from, () => foodTruck(kit, s.x, s.y, s.w, s.d, s.ry, entry), spot(s.x, s.y) + 1)
     g.kept.push({ x: s.x, y: s.y, w: s.w, d: s.d, ry: s.ry })
   }

@@ -249,23 +249,33 @@ function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
 const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() => kit.bench(x, y, KERB, ry))
 
 /**
- * A scene's ground before its Stage `from` (#177): paved, with a tree in a round bed in its middle and a bench either
- * side of it, Close-only.
+ * An offices Block's scene `kind` at Stage `stage` (#177), from Stage `from`, on its ground `w` by `d` at `(x, y)`, its
+ * front facing `ry` toward the Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
+ * middle and a bench either side of it, Close-only.
  */
-function sceneGround(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
+export function officeScene(
+  kit: Kit,
+  kind: OfficeScene,
+  x: number,
+  y: number,
+  w: number,
+  d: number,
+  ry: number,
+  stage: number,
+  from: number,
+) {
   kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+  if (stage >= from) return { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind](kit, x, y, w, d, ry, stage)
   bedTree(kit, x, y, 1.3, 0.5)
   for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * 2.8, 0), ry + (k * Math.PI) / 2)
 }
 
 /**
- * A sunken court at Stage `stage` (#177), from Stage `from`: three tiers of stone steps down on three sides to a paved
- * court open toward the Road, a tree in a round bed at its back and benches on its floor; at Stage 3 a long pool of
- * water across its front and two low lights at its open corners that leave their pools. Before `from`, its ground.
+ * A sunken court at Stage `stage` (#177), on its paving: three tiers of stone steps down on three sides to a paved court
+ * open toward the Road, a tree in a round bed at its back and benches on its floor; at Stage 3 a long pool of water
+ * across its front and two low lights at its open corners that leave their pools.
  */
-export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
-  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
-  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   for (let k = 0; k < 3; k++) {
     const [half, back, tall] = [w / 2 - 0.5 * k, -d / 2 + 0.5 * k, 0.9 - 0.3 * k]
     const look = k ? STONE.step : STONE.rim
@@ -290,13 +300,11 @@ export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number
 }
 
 /**
- * A sculpture plaza at Stage `stage` (#177), from Stage `from`: a round stone platform with a sculpture larger than a
- * car on it, picked from where it stands (a ring on edge, three cubes stacked askew, or a sphere on a drum); at Stage 3
- * two uplights that leave their pools and benches facing it. Before `from`, its ground.
+ * A sculpture plaza at Stage `stage` (#177), on its paving: a round stone platform with a sculpture larger than a car on
+ * it, picked from where it stands (a ring on edge, three cubes stacked askew, or a sphere on a drum); at Stage 3 two
+ * uplights that leave their pools and benches facing it.
  */
-export function sculpturePlaza(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
-  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
-  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+function sculpturePlaza(kit: Kit, x: number, y: number, _w: number, d: number, ry: number, stage: number) {
   const draw = mulberry32(spot(x, y))
   const [kind, colour, other] = [Math.floor(draw() * 3), ART[Math.floor(draw() * ART.length)], ART[Math.floor(draw() * ART.length)]]
   const r = Math.min(d / 2 - 0.4, 3.4)
@@ -360,14 +368,12 @@ export function truckPath(x: number, y: number, w: number, d: number, ry: number
 }
 
 /**
- * A food truck's court at Stage `stage` (#177), from Stage `from`: tables at its back under a pergola, its focal piece
+ * A food truck's court at Stage `stage` (#177), on its paving: tables at its back under a pergola, its focal piece
  * whether or not the truck that parks at its front through the middle of the day (`foodTruck`) is there, and a menu
  * board, Close-only. Lamps hung under the pergola leave their pools; at Stage 3 a third table, and string lights under
- * it in the lamps' place, which leave a pool. Before `from`, its ground.
+ * it in the lamps' place, which leave a pool.
  */
-export function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
-  if (stage < from) return sceneGround(kit, x, y, w, d, ry)
-  kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
+function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   kit.brick('ground', x, y, KERB)
   // The pergola: steel posts and beams under timber slats, `long` by `deep`, its back 0.4 m in from the court's, the
   // tables along its middle `v`, clear of the parked truck's awning.

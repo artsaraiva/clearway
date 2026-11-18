@@ -84,28 +84,26 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
   const { min, max } = geo.boundingBox!
   const [w, h, d] = [max.x - min.x, max.y - min.y, max.z - min.z]
   const { bay = 3, storey = h } = cladding
-  const uv = new Float32Array(pos.count * 2)
-  const worn = new Float32Array(pos.count * 3)
   const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
   const tag = 0.1 + 0.8 * seed // kept clear of the whole numbers, which say the pattern
-  for (let i = 0; i < pos.count; i += 3) {
-    a.fromBufferAttribute(pos, i)
-    b.fromBufferAttribute(pos, i + 1).sub(a)
-    c.fromBufferAttribute(pos, i + 2).sub(a)
-    const n = b.cross(c).normalize() // the triangle's normal
-    const [top, endOn] = [n.y > 0.5, Math.abs(n.z) >= Math.abs(n.x)] // a wall facing ∓z, or one facing ±x
-    const kind = top ? cladding.top : n.y < -0.5 ? undefined : endOn ? (n.z < 0 ? cladding.front : cladding.back) : cladding.sides
-    if (!kind) continue
-    const across = endOn ? w : d
-    const bays = Math.max(1, Math.round(across / bay))
-    for (let k = i; k < i + 3; k++) {
-      const [x, y, z] = [pos.getX(k) - min.x, pos.getY(k) - min.y, pos.getZ(k) - min.z]
-      uv.set(top ? [x, z] : [((endOn ? x : z) / across) * bays, y / storey], 2 * k)
-      worn.set(top ? [kind + tag, w, d] : [kind + tag, cladding.lit ?? bays, h / storey], 3 * k)
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i)
+      b.fromBufferAttribute(pos, i + 1).sub(a)
+      c.fromBufferAttribute(pos, i + 2).sub(a)
+      const n = b.cross(c).normalize() // the triangle's normal
+      const [top, endOn] = [n.y > 0.5, Math.abs(n.z) >= Math.abs(n.x)] // a wall facing ∓z, or one facing ±x
+      const kind = top ? cladding.top : n.y < -0.5 ? undefined : endOn ? (n.z < 0 ? cladding.front : cladding.back) : cladding.sides
+      if (!kind) continue
+      const across = endOn ? w : d
+      const bays = Math.max(1, Math.round(across / bay))
+      for (let k = i; k < i + 3; k++) {
+        const [x, y, z] = [pos.getX(k) - min.x, pos.getY(k) - min.y, pos.getZ(k) - min.z]
+        uv.set(top ? [x, z] : [((endOn ? x : z) / across) * bays, y / storey], 2 * k)
+        worn.set(top ? [kind + tag, w, d] : [kind + tag, cladding.lit ?? bays, h / storey], 3 * k)
+      }
     }
-  }
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-  return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
+  })
 }
 
 /**
@@ -117,15 +115,13 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
 export function wrap(geo: THREE.BufferGeometry, around: number, tall: number, bay: number, storey: number, lit: number, seed: number) {
   const [nor, at] = [geo.attributes.normal, geo.attributes.uv]
   const bays = Math.max(1, Math.round(around / bay))
-  const uv = new Float32Array(nor.count * 2)
-  const worn = new Float32Array(nor.count * 3)
-  for (let i = 0; i < nor.count; i++) {
-    if (Math.abs(nor.getY(i)) > 0.5) continue
-    uv.set([at.getX(i) * bays, (at.getY(i) * tall) / storey], 2 * i)
-    worn.set([PATTERN.curtain + 0.1 + 0.8 * seed, lit, tall / storey], 3 * i)
-  }
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-  return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < nor.count; i++) {
+      if (Math.abs(nor.getY(i)) > 0.5) continue
+      uv.set([at.getX(i) * bays, (at.getY(i) * tall) / storey], 2 * i)
+      worn.set([PATTERN.curtain + 0.1 + 0.8 * seed, lit, tall / storey], 3 * i)
+    }
+  })
 }
 
 /**
@@ -135,14 +131,12 @@ export function wrap(geo: THREE.BufferGeometry, around: number, tall: number, ba
  */
 export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, up: number, seed: number): THREE.BufferGeometry {
   const at = geo.attributes.uv
-  const uv = new Float32Array(at.count * 2)
-  const worn = new Float32Array(at.count * 3)
-  for (let i = 0; i < at.count; i++) {
-    uv.set([at.getX(i) * around, at.getY(i) * up], 2 * i)
-    worn.set([kind + 0.1 + 0.8 * seed, around, up], 3 * i)
-  }
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
-  return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < at.count; i++) {
+      uv.set([at.getX(i) * around, at.getY(i) * up], 2 * i)
+      worn.set([kind + 0.1 + 0.8 * seed, around, up], 3 * i)
+    }
+  })
 }
 
 /**
@@ -152,13 +146,24 @@ export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, 
 export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
-  const uv = new Float32Array(pos.count * 2)
-  const worn = new Float32Array(pos.count * 3)
-  for (let i = 0; i < pos.count; i++) {
-    if (nor.getY(i) < 0.9) continue
-    uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
-    worn[3 * i] = kind + 0.5
-  }
+  return wear(geo, (uv, worn) => {
+    for (let i = 0; i < pos.count; i++) {
+      if (nor.getY(i) < 0.9) continue
+      uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
+      worn[3 * i] = kind + 0.5
+    }
+  })
+}
+
+/**
+ * Give a geometry the `uv` and `pattern` attributes the surface pattern reads, as `fill` writes them over zeros, which
+ * wear none: two numbers a vertex for where it lies in its pattern, and three for the pattern, with its tag, and its
+ * size. `fill` may read the geometry's own uv, which this then replaces.
+ */
+function wear(geo: THREE.BufferGeometry, fill: (uv: Float32Array, worn: Float32Array) => void): THREE.BufferGeometry {
+  const n = geo.attributes.position.count
+  const [uv, worn] = [new Float32Array(n * 2), new Float32Array(n * 3)]
+  fill(uv, worn)
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
   return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
 }
