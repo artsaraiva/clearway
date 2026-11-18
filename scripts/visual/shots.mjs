@@ -2,7 +2,7 @@
 // (#173: Framed, the whole City; Street, one Tile; Close, one Block), from four quarter-turns of the camera, at noon,
 // dusk and night, laid out as sheets for a PR: the Stages side by side, a row for each turn.
 //
-// Usage: npm run shots -- <zones | all> [--times noon,dusk,night] [--turns 4] [--views framed,street,close]
+// Usage: npm run shots -- <zones | unzoned | all> [--times noon,dusk,night] [--turns 4] [--views framed,street,close]
 //          [--street x,y[,m]]... [--close x,y[,m]]... [--stages 1,2,3] [--run <s>] [--query <params>] [--ref <git ref>]
 //          [--out <dir>]
 //
@@ -23,7 +23,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, turnCamera, zonesFrom } from './city.mjs'
+import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, turnCamera, zoneNames, zonesFrom } from './city.mjs'
 import { closeAll, ROOT, serve } from './serve.mjs'
 
 const TIMES = { morning: 0, noon: 0.25, afternoon: 0.4, dusk: 0.5, night: 0.75 }
@@ -126,7 +126,7 @@ const server = await serve(values.ref)
 const { browser, context } = await launch()
 try {
   const zones = await zonesFrom(positionals, server)
-  const names = Object.fromEntries((await server.zones()).map((z) => [z.id, z.name]))
+  const names = await zoneNames(server)
   console.log(`Shooting the ${server.label} into ${out}`)
   for (const zone of zones) {
     const start = performance.now()

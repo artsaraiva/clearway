@@ -47,7 +47,10 @@ export async function open(context, base, query = '') {
   return page
 }
 
-/** Build the 26-Tile City all of `zone`, then pause it so it never jams, and frame it. */
+/** Not a Zone: the name the scripts take for a City of unzoned Tiles, Roads only (#176). */
+export const UNZONED = 'unzoned'
+
+/** Build the 26-Tile City all of `zone`, or unzoned, then pause it so it never jams, and frame it. */
 export async function buildCity(page, zone) {
   await page.evaluate(
     ({ zone, city }) => {
@@ -67,7 +70,7 @@ export async function buildCity(page, zone) {
       c.view.camera.frameCity()
       for (let i = 0; i < 10; i++) c.frame(0.1)
     },
-    { zone, city: CITY },
+    { zone: zone === UNZONED ? null : zone, city: CITY },
   )
 }
 
@@ -128,13 +131,21 @@ export function lookAt({ x, y, metres }) {
   for (let i = 0; i < 4; i++) c.frame(0.1)
 }
 
-/** The Zones named in `args` (commas or spaces, or `all`), checked against what `server` serves. */
+/**
+ * The Zones named in `args` (commas or spaces, or `all`), checked against what `server` serves, and `unzoned` for a City
+ * of Roads only, which `all` leaves out.
+ */
 export async function zonesFrom(args, server) {
   const known = (await server.zones()).map((z) => z.id)
   const zones = args.flatMap((a) => a.split(',')).filter(Boolean)
-  if (zones.includes('all')) return known
-  const unknown = zones.filter((z) => !known.includes(z))
+  if (zones.includes('all')) return [...known, ...zones.filter((z) => z === UNZONED)]
+  const unknown = zones.filter((z) => z !== UNZONED && !known.includes(z))
   if (!zones.length || unknown.length)
-    throw new Error(`name Zones from ${known.join(', ')} or all${unknown.length ? `, not ${unknown}` : ''}`)
+    throw new Error(`name Zones from ${known.join(', ')}, ${UNZONED} or all${unknown.length ? `, not ${unknown}` : ''}`)
   return zones
+}
+
+/** Each Zone's name by its id, as `server` serves them, and `unzoned`'s. */
+export async function zoneNames(server) {
+  return { ...Object.fromEntries((await server.zones()).map((z) => [z.id, z.name])), [UNZONED]: 'Unzoned' }
 }

@@ -1,7 +1,7 @@
 // Frame time with 1,000 cars, draw calls and triangles, each Zone all over the 26-Tile City: the working tree against a
 // git ref, interleaved round by round so that whatever else is drawing on the GPU lands on both alike.
 //
-// Usage: npm run bench:visual -- <zones | all> [--against <git ref>] [--stages 3] [--views framed] [--times noon]
+// Usage: npm run bench:visual -- <zones | unzoned | all> [--against <git ref>] [--stages 3] [--views framed] [--times noon]
 //          [--rounds 3] [--query <params>]
 //
 // Prints each bench as it runs, then a Markdown table of medians for the PR. Compare numbers only within one table: the
@@ -9,7 +9,7 @@
 // and street, one Tile filling the screen (#173); --times takes noon and night. --query adds dev parameters to the
 // game's URL on both sides, such as `finish=none`.
 import { parseArgs } from 'node:util'
-import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, zonesFrom } from './city.mjs'
+import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, zoneNames, zonesFrom } from './city.mjs'
 import { closeAll, serve } from './serve.mjs'
 
 const { values, positionals } = parseArgs({
@@ -96,7 +96,7 @@ const servers = against ? [against, here] : [here]
 const { browser, context } = await launch()
 try {
   const zones = await zonesFrom(positionals, here)
-  const names = Object.fromEntries((await here.zones()).map((z) => [z.id, z.name]))
+  const names = await zoneNames(here)
   console.log(`Benching the ${servers.map((s) => s.label).join(' against ')}, ${rounds} rounds.`)
   console.log("Close other browsers drawing on this GPU first (the desktop app's Browser pane, WebGL in Chrome).\n")
   // `${zone} ${stage}` → each server's ms per round, with its draw calls and triangles.
