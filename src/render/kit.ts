@@ -1582,6 +1582,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
         { ...cladding, storey: wall / storeys, bay: HOME_FINISH.bay },
         seed + k,
       )
+      // Its contact shadow, wing by wing, so that none lies in an L's open corner.
+      shadow(...at(wing.u, wing.v), h, wing.w * 1.3 + 1.6, wing.d * 1.3 + 1.6, false, ry)
       // A ledge between its storeys; the second wing's stops where the first's begins.
       if (stage === 3 && !k) put(cuboid(wing.w + 0.3, 0.24, wing.d + 0.3), LEDGE, x, y, ry, wing.u, wing.v, h + wall * 0.5)
       if (stage === 3 && k) {
@@ -1938,7 +1940,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       const wall = stage === 1 ? 3 + 0.5 * tall : stage === 2 ? 4.4 + 1.2 * tall : 6.6 + 0.8 * tall
       if (more.plan) {
         home(x, y, h, w, d, wall, stage, more.plan, walls, roofs, !!more.solar, end)
-        shadow(x, y, h, w * 1.45 + 2, d * 1.45 + 2)
         return brick('building', x, y, h)
       }
       add(box(w, wall, d, 0.48, 0.2), walls, x, y, h)
