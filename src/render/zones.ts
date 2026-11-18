@@ -856,8 +856,10 @@ function terraces(g: ZoneGround) {
   bins(g, plans, taken)
   const doors = lots.flatMap((l, i) => {
     if (open.has(i) || !l.onRoad) return []
+    // Before its door; or, for a corner shop, by its door beyond the row's end, clear of the awning over its front,
+    // which reaches 1.65 m out and to 0.25 m short of the row's end: the scooter is 2.6 m long, its box at the back.
     const corner = planned[i].corner
-    const u = corner ? corner.end * (l.w / 2 - 0.9) : l.w >= 5.6 ? l.w * 0.23 : 0 // its door, or its shop's
+    const u = corner ? corner.end * (l.w / 2 + 2) : l.w >= 5.6 ? l.w * 0.23 : 0
     return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry }]
   })
   for (const { ground: s } of scenes) doors.push({ ...turned(s.x, s.y, s.ry, 0, s.d / 2 + 0.9), ry: s.ry }) // a scene's front too
@@ -1220,7 +1222,7 @@ function courtyards(g: ZoneGround) {
     g.kept.push(ground)
   }
   for (const b of built) courtGround(g, b, taken)
-  parking(g, plans, [...taken, ...aroundWings])
+  parking(g, plans, taken, aroundWings)
   bins(g, plans, taken)
   // The scooter calls at a door along a building's face toward a Road.
   const doors = built.flatMap((b) =>
@@ -1250,12 +1252,14 @@ function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
       if (!looksOut(b.wings, k, face)) return
       const [len, mx, my] = faceOf(wing, face)
       const ry = Math.atan2(-nx, ny)
+      // How far along the face its front door stands, as `turned` runs: its canopy and step span 1.4 m either way.
+      const at = door && k === 0 && face === door.face ? (door.x - mx) * Math.cos(ry) + (door.y - my) * Math.sin(ry) : null
       const free: number[] = [] // the metres along the face, from its left, where a length of hedge may stand
       for (let u = -len / 2 + 1; u <= len / 2 - 1; u += 1) {
         const p = turned(mx, my, ry, u, 0.5 + deep / 2)
         const slot = { ...p, w: 1, d: deep, ry, onRoad: false }
         const ok =
-          !(k === 0 && face === door && Math.abs(u) < 2) &&
+          !(at !== null && Math.abs(u - at) < 2) &&
           stands(g, p.x, p.y, 1, deep, 0.4, ry) &&
           !taken.some((o) => overlap(o, slot)) &&
           !way.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.4)
@@ -1351,18 +1355,22 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
 }
 
 /**
- * Parking bays by an apartment block (#178), from Stage 1: two or three bays along a run of the Block's edge facing a
- * Road, open to it, where there is room clear of `taken`, with a kei car (the cars' `KEI`) nosed into one from Stage 2
- * and into another at Stage 3, in the cars' colours.
+ * Parking bays by an apartment block (#178), from Stage 1: three bays, or two where three do not fit, along a run of
+ * the Block's edge facing a Road, open to it, where there is room clear of `taken` and the buildings' room round them
+ * (`room`), with a kei car (the cars' `KEI`) nosed into one from Stage 2 and into another at Stage 3, in the cars'
+ * colours. The bays and their cars then take their ground in `taken`.
  */
-function parking(g: ZoneGround, draw: () => number, taken: RowLot[]) {
+function parking(g: ZoneGround, draw: () => number, taken: RowLot[], room: RowLot[]) {
   const { kit } = g
   const { most, least, deep } = MEDIUM_FINISH.bays
-  const room = { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }
-  const sizes = smaller([most * BAY_WIDTH, deep], [least * BAY_WIDTH, deep])
-  const l = alongEdge(g, draw, runs(g, MEDIUM_FINISH.bays.in), sizes, room, (l) => l.onRoad && !taken.some((o) => overlap(o, l)))
+  const sizes: [number, number][] = [
+    [most * BAY_WIDTH, deep],
+    [least * BAY_WIDTH, deep],
+  ]
+  const clear = (l: RowLot) => l.onRoad && !taken.some((o) => overlap(o, l)) && !room.some((o) => overlap(o, l))
+  const l = alongEdge(g, draw, runs(g, MEDIUM_FINISH.bays.in), sizes, { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }, clear)
   if (!l) return
-  taken.push(l)
+  taken.push({ ...l, ...turned(l.x, l.y, l.ry, 0, -0.2), w: l.w + 0.4, d: l.d + 0.4 }) // and a margin, so no hedge stands on its lines
   g.kept.push(l)
   const bays = Math.round(l.w / BAY_WIDTH)
   kit.from(1, () => parkingBays(kit, l, bays), spot(l.x, l.y))

@@ -442,11 +442,26 @@ export function wingBounds(wings: Bounds[]): Bounds {
   }
 }
 /**
- * The face (of `FACES`) of an apartment block's first wing its front door is on (#178): its walkway face (`walks`) if
- * that one looks out of the building, neither into its court nor onto another wing, or else the first face that does;
- * -1 if none. The kit's `apartment` builds it there, and the Zone's fill keeps its hedges off it.
+ * The bays of face `face` (of `FACES`) of an apartment wing (#156): how many fit, 3.2 m apart, and where on the face
+ * the middle of bay `i` lies, a window's at each floor.
  */
-export function doorOf(wings: Bounds[], walks: Walks): number {
+export function baysOf(wing: Bounds, face: number) {
+  const [nx, ny] = FACES[face]
+  const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
+  const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
+  const at = (i: number): [number, number] => {
+    const t = -(n - 1) * 1.6 + i * 3.2
+    return nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
+  }
+  return { n, at }
+}
+/**
+ * An apartment block's front door (#178): on the face (of `FACES`) of its first wing that is its walkway face (`walks`)
+ * if that one looks out of the building, neither into its court nor onto another wing, or else the first face that
+ * does, in its middle bay (`baysOf`), or the first of the two middle ones where the bays are even; where it stands;
+ * null if no face looks out. The kit's `apartment` builds it there, and the Zone's fill keeps its hedges off it.
+ */
+export function doorOf(wings: Bounds[], walks: Walks): { face: number; bay: number; x: number; y: number } | null {
   const [w] = wings
   const { x0, y0, x1, y1 } = wingBounds(wings)
   const out = (face: number) => {
@@ -454,7 +469,12 @@ export function doorOf(wings: Bounds[], walks: Walks): number {
     const [px, py] = [(w.x0 + w.x1) / 2 + nx * ((w.x1 - w.x0) / 2 + 0.4), (w.y0 + w.y1) / 2 + ny * ((w.y1 - w.y0) / 2 + 0.4)]
     return px < x0 || px > x1 || py < y0 || py > y1
   }
-  return [walks[0] ?? -1, 0, 1, 2, 3].find((face) => face >= 0 && out(face)) ?? -1
+  const face = [walks[0] ?? -1, 0, 1, 2, 3].find((face) => face >= 0 && out(face)) ?? -1
+  if (face < 0) return null
+  const { n, at } = baysOf(w, face)
+  const bay = Math.floor((n - 1) / 2)
+  const [x, y] = at(bay)
+  return { face, bay, x, y }
 }
 /** A terraced house's roof (#178): a gable along the row, as the rows always had; a hip; or a gable to the front. */
 export type TerraceRoof = 'gable' | 'hip' | 'front'
@@ -1710,7 +1730,7 @@ export function createKit(rand: () => number, materials: Materials) {
       // Its front door (#178), in the middle of a face of its first wing that looks out of the building, not into its
       // court or onto another wing: its walkway face if that one does, or else the first that does. Glass doors lit at
       // night under a canopy with a lamp, which leaves a pool.
-      const door = finished() ? doorOf(wings, walks) : -1
+      const door = finished() ? doorOf(wings, walks) : null
       // Where an AC unit may stand (#156): on the wall between two windows, or before a window on a walkway, and whether
       // a slab is there to stand on.
       const spots: { x: number; y: number; ry: number; slab: boolean }[] = []
@@ -1721,15 +1741,10 @@ export function createKit(rand: () => number, materials: Materials) {
         add(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), COURTYARD.cap, cx, cy, h + height)
         apartmentRoof({ x: cx, y: cy, w, d, ry: 0 }, h + height + 0.6, plan, k, (px, py) => against(px, py, k), seed)
         for (const [face, [nx, ny]] of FACES.entries()) {
-          const n = Math.floor(((nx === 0 ? w : d) - 2) / 3.2)
+          const { n, at: bay } = baysOf(wing, face)
           const ry = Math.atan2(-nx, ny)
           const len = nx === 0 ? w : d
           const [mx, my] = [cx + (nx * w) / 2, cy + (ny * d) / 2]
-          /** Where the `i`th of the face's `n` bays lies, a window's middle on the face, 3.2 m apart. */
-          const bay = (i: number): [number, number] => {
-            const t = -(n - 1) * 1.6 + i * 3.2
-            return nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
-          }
           // From Stage 2 an open walkway runs along the face its wing walks (#156), and Stage 3's balconies take the rest.
           const walk = stage > 1 && walks[k] === face
           const balcony = stage === 3 && !walk && !against(mx + nx * 0.4, my + ny * 0.4, k)
@@ -1740,7 +1755,7 @@ export function createKit(rand: () => number, materials: Materials) {
             if (blind(fx, fy)) continue
             for (let f = 0; f < floors; f++) {
               const look = pane(0.65) // drawn whether or not the front door takes its place
-              if (f === 0 && k === 0 && face === door && i === Math.floor((n - 1) / 2)) frontDoor(fx, fy, ry)
+              if (f === 0 && k === 0 && face === door?.face && i === door.bay) frontDoor(fx, fy, ry)
               else add(cuboid(1.5, 1.6, 0.3), look, fx, fy, h + 1.1 + f * 3.2, ry)
             }
             if (walk) spots.push({ x: fx, y: fy, ry, slab: true })
