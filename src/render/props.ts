@@ -251,6 +251,15 @@ function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
 const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() => kit.bench(x, y, KERB, ry))
 
 /**
+ * A scene's ground before its Stage (#177, #178), facing `ry`: a tree of size `s` in a round bed `r` m across in its
+ * middle, and a bench either side of it `out` m from it, facing it, Close-only.
+ */
+function waiting(kit: Kit, { x, y, ry }: Footprint, r: number, s: number, out: number) {
+  bedTree(kit, x, y, r, s)
+  for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * out, 0), ry + (k * Math.PI) / 2)
+}
+
+/**
  * An offices Block's scene `kind` at Stage `stage` (#177), from Stage `from`, on its `ground`, its front facing the
  * Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
  * middle and a bench either side of it, Close-only.
@@ -259,8 +268,7 @@ export function officeScene(kit: Kit, kind: OfficeScene, ground: Footprint, stag
   const { x, y, w, d, ry } = ground
   kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
   if (stage >= from) return { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind](kit, x, y, w, d, ry, stage)
-  bedTree(kit, x, y, 1.3, 0.5)
-  for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * 2.8, 0), ry + (k * Math.PI) / 2)
+  waiting(kit, ground, 1.3, 0.5, 2.8)
 }
 
 /**
@@ -494,9 +502,9 @@ export const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least:
   bathhouse: { most: [13, 10], least: [9.6, 7.6] },
 }
 
-// Colours (#178): a shrine's stone, its timber, its copper roof gone green, the straw rope and the paper over it, and the
-// gravel and setts it stands on; a bathhouse's plaster, its stone footing, its slate tiles, its
-// noren, its sign and its brick chimney under a white band.
+// Colours (#178): a shrine's stone, its timber, its copper roof gone green, and the straw rope and the paper over it; a
+// bathhouse's plaster, its stone footing, its slate tiles, its noren, its sign and its brick chimney under a white band;
+// and the setts a scene's ground is laid in before its Stage, and a shrine's gravel.
 const SHRINE = {
   stone: '#d9d3c7',
   dark: '#bdb4a6',
@@ -506,8 +514,8 @@ const SHRINE = {
   roof: '#6f9a8a',
   straw: '#e8cf7f',
   paper: '#fbf8f2',
-  ground: '#ddd6c9',
 }
+const SETTS = '#ddd6c9'
 const BATHHOUSE = {
   wall: '#f6e6cb',
   footing: '#bdb4a6',
@@ -527,10 +535,8 @@ const BATHHOUSE = {
 export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: number, from: number) {
   const { x, y, w, d, ry } = ground
   if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
-  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SHRINE.ground, PATTERN.setts, 0.02)
-  bedTree(kit, x, y, 1.1, 0.46)
-  const out = Math.min(2.7, w / 2 - 0.9)
-  for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * out, 0), ry + (k * Math.PI) / 2)
+  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
+  waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9))
 }
 
 /** A stone lantern at `(x, y)` facing `ry` (#178): a footing, a post, a fire box that lights at dusk and leaves its pool, and a cap. */
@@ -554,7 +560,7 @@ function stoneLantern(kit: Kit, x: number, y: number, ry: number) {
 function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   const at = (u: number, v: number) => to(x, y, ry, u, v)
   const side = spot(x, y) % 2 ? 1 : -1 // the side its tree stands
-  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SHRINE.ground, PATTERN.setts, 0.02)
+  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
   const [front, back] = [d / 2 - 0.8, -d / 2 + 1.3]
   for (let v = front - 1; v > back + 1.2; v -= 0.95) kit.put(kit.cuboid(0.9, 0.06, 0.6), SHRINE.step, x, y, ry, 0, v, KERB + 0.02)
   // The torii, in stone: two pillars, a lintel and a tie beam with a strut between.

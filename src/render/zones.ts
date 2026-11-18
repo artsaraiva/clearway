@@ -10,7 +10,7 @@ import {
   BIKE_RACK,
   CONTAINER,
   boxFace,
-  entranceOf,
+  doorOf,
   FACES,
   frontOf,
   GARDEN,
@@ -23,6 +23,7 @@ import {
   VENDING_MACHINE,
   WALL_STAIR,
   WALKWAY,
+  wingBounds,
   type ApartmentPlan,
   type Hung,
   type Kit,
@@ -961,123 +962,62 @@ function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
   }
 }
 
-/** A medium-density Block's scene (#178): its kind, its ground, the Stage it stands from and, on a terraced Block, the lots it takes. */
-interface Placed {
-  kind: MediumScene
-  ground: RowLot
-  from: number
-  lots: number[]
-}
+/** A medium-density Block's scene (#178), and on a terraced Block the lots it takes, whose houses are not built. */
+type MediumGround = Scene<MediumScene> & { lots: number[] }
 
 /**
- * The scenes of a terraced Block (#178), drawn from `draw` before its houses are built: from Stage 2 one, on a span of
- * up to three lots side by side facing a Road (any lots, on a Block with none), as wide as its kind needs at least, of
- * a kind picked from where the Block lies; at Stage 3 a second of another kind on a Block of 2,500 m² or more, not on or beside the first. A kind
- * that finds no span gives way to another. Each takes its lots whole, whose houses are not built.
+ * The scenes of a terraced Block (#178), drawn from `draw` before its houses are built (`sceneOrder`, `placeScenes`):
+ * each on a span of up to three lots side by side facing a Road (any lots, on a Block with none), as wide as its kind
+ * needs at least, the second not on or beside the first. Each takes its lots whole, whose houses are not built.
  */
-function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): Placed[] {
-  const kinds = [...MEDIUM_FINISH.scenes]
-  const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
-  const [second, start] = [kinds[Math.floor(draw() * kinds.length)], draw()]
-  const order = area(g.block.loop) >= MEDIUM_FINISH.second ? [first, second] : [first]
-  const out: Placed[] = []
+function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): MediumGround[] {
+  const order = sceneOrder(g, draw, MEDIUM_FINISH.scenes, MEDIUM_FINISH.second)
+  const start = draw()
   const nextTo = (a: RowLot, b: RowLot) => Math.abs(a.ry - b.ry) < 1e-6 && Math.hypot(a.x - b.x, a.y - b.y) < (a.w + b.w) / 2 + 0.6
-  for (const drawn of order) {
-    for (const kind of [drawn, ...MEDIUM_FINISH.scenes.filter((k) => k !== drawn)]) {
-      if (out.some((o) => o.kind === kind)) continue
-      const [wide, deep] = MEDIUM_SCENES[kind].least
-      let found: Placed | null = null
-      // On lots facing a Road, or else on any.
-      for (let n = 0; n < 2 * lots.length && !found; n++) {
-        const road = n < lots.length
-        const i = (Math.floor(start * lots.length) + n) % lots.length
-        const span = [i]
-        let width = lots[i].w
-        while (width < wide && span.length < 3) {
-          const j = span[span.length - 1] + 1
-          if (j >= lots.length || !nextTo(lots[j - 1], lots[j])) break
-          span.push(j)
-          width += lots[j].w
-        }
-        if (width < wide || lots[i].d < deep || (road && !span.every((k) => lots[k].onRoad))) continue
-        if (out.some((o) => o.lots.some((k) => span.some((j) => Math.abs(j - k) <= 1)))) continue
-        const [a, b] = [lots[span[0]], lots[span[span.length - 1]]]
-        const [p, q] = [turned(a.x, a.y, a.ry, -a.w / 2, 0), turned(b.x, b.y, b.ry, b.w / 2, 0)]
-        const ground = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, w: width, d: a.d, ry: a.ry, onRoad: true }
-        found = { kind, ground, from: out.length ? 3 : 2, lots: span }
+  return placeScenes<MediumScene, MediumGround>(order, MEDIUM_FINISH.scenes, (kind, out) => {
+    const [wide, deep] = MEDIUM_SCENES[kind].least
+    // On lots facing a Road, or else on any.
+    for (let n = 0; n < 2 * lots.length; n++) {
+      const road = n < lots.length
+      const i = (Math.floor(start * lots.length) + n) % lots.length
+      const span = [i]
+      let width = lots[i].w
+      while (width < wide && span.length < 3) {
+        const j = span[span.length - 1] + 1
+        if (j >= lots.length || !nextTo(lots[j - 1], lots[j])) break
+        span.push(j)
+        width += lots[j].w
       }
-      if (found) {
-        out.push(found)
-        break
-      }
+      if (width < wide || lots[i].d < deep || (road && !span.every((k) => lots[k].onRoad))) continue
+      if (out.some((o) => o.lots.some((k) => span.some((j) => Math.abs(j - k) <= 1)))) continue
+      const [a, b] = [lots[span[0]], lots[span[span.length - 1]]]
+      const [p, q] = [turned(a.x, a.y, a.ry, -a.w / 2, 0), turned(b.x, b.y, b.ry, b.w / 2, 0)]
+      return { ground: { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, w: width, d: a.d, ry: a.ry, onRoad: true }, lots: span }
     }
-  }
-  return out
+    return null
+  })
 }
 
 /**
- * Ground `size` m along a straight run of the Block's edge `inset` m in from it and deep from there, or as small as
- * `least`, on the Block, clear of the lamps and the street trees and as `ok` has it: the first that fits, sliding along
- * each run a metre at a time, the runs facing a Road first in an order drawn from `draw`, each run's ends `ends` m
- * clear; null if none fits (#178). Unlike `alongEdge`'s few tries at random, it slides along every run, for a Block whose
- * buildings leave little room.
+ * The scenes of a courtyard Block (#178), drawn from `draw` once its buildings have taken their ground (`taken`):
+ * each along a run of its edge facing a Road where there is room clear of the buildings, sliding along each run a
+ * metre at a time, the second 18 m or more from the first (`sceneOrder`, `placeScenes`).
  */
-function scan(
-  g: ZoneGround,
-  draw: () => number,
-  inset: number,
-  size: readonly [number, number],
-  least: readonly [number, number],
-  ends: number,
-  ok: (l: RowLot) => boolean,
-): RowLot | null {
-  const all = runs(g, inset)
-  const shift = Math.floor(draw() * Math.max(1, all.length))
-  const order = all.map((_, k) => all[(k + shift) % all.length])
-  const road = [...order.filter(facesRoad), ...order.filter((r) => !facesRoad(r))]
-  for (const [w, d] of [size, [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2], least])
-    for (const run of road) {
-      for (let s = w / 2 + ends; s <= run.len - w / 2 - ends; s += 1) {
-        const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
-        const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
-        if (!stands(g, l.x, l.y, w, d, 0.4, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, 1.2))) continue
-        if (ok(l)) return l
-      }
-    }
-  return null
+function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): MediumGround[] {
+  const order = sceneOrder(g, draw, MEDIUM_FINISH.scenes, MEDIUM_FINISH.second)
+  return placeScenes<MediumScene, MediumGround>(order, MEDIUM_FINISH.scenes, (kind, out) => {
+    const { most, least } = MEDIUM_SCENES[kind]
+    const ground = alongEdge(g, draw, runs(g, 0.8), smaller(most, least), { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }, (l) => {
+      return clearOfScenes(out, l) && !taken.some((o) => overlap(o, l))
+    })
+    return ground && { ground, lots: [] }
+  })
 }
 
-/**
- * The scenes of a courtyard Block (#178), drawn from `draw` once its buildings have taken their ground (`taken`): from
- * Stage 2 one, along a run of its edge facing a Road where there is room clear of the buildings, of a kind picked from
- * where the Block lies, and at Stage 3 a second of another kind on a Block of 2,500 m² or more, 18 m or more from the
- * first. A kind that finds no ground gives way to another.
- */
-function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): Placed[] {
-  const kinds = [...MEDIUM_FINISH.scenes]
-  const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
-  const second = kinds[Math.floor(draw() * kinds.length)]
-  const order = area(g.block.loop) >= MEDIUM_FINISH.second ? [first, second] : [first]
-  const out: Placed[] = []
-  for (const drawn of order) {
-    for (const kind of [drawn, ...MEDIUM_FINISH.scenes.filter((k) => k !== drawn)]) {
-      if (out.some((o) => o.kind === kind)) continue
-      const { most, least } = MEDIUM_SCENES[kind]
-      const ground = scan(g, draw, 0.8, most, least, 3, (l) => {
-        if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
-        return !taken.some((o) => overlap(o, l))
-      })
-      if (!ground) continue
-      out.push({ kind, ground, from: out.length ? 3 : 2, lots: [] })
-      break
-    }
-  }
-  return out
-}
-
-/** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground `scan` finds clear of `taken`, which it then takes. */
+/** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground clear of `taken`, which it then takes. */
 function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
-  const l = scan(g, draw, 0.65, [2.1, 1.1], [2.1, 1.1], 4, (l) => !taken.some((o) => overlap(o, l)))
+  const room = { lampRoom: 1.2, clear: 0.4, ends: 4, slide: true }
+  const l = alongEdge(g, draw, runs(g, 0.65), [[2.1, 1.1]], room, (l) => !taken.some((o) => overlap(o, l)))
   if (!l) return
   taken.push(l)
   g.kept.push(l)
@@ -1116,8 +1056,7 @@ function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: 
         [-s * 1.5, k - 0.42],
         [-s * 4.2, k - 0.12],
       ].map(([u, v]) => turned(door.x, door.y, door.ry, u, v))
-      const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
-      if (!g.poles.every((p) => clear(p, 1.2)) || !g.lamps.every((p) => clear(p, 1.4)) || !g.street.every((p) => clear(p, 1.8))) continue
+      if (!clearOfKerbside(g, way, [1.2, 1.4, 1.8])) continue
       // Every half metre of it on the Block and clear of what stands there, but where it meets the kerb.
       const loop = polyline(way)
       let free = true
@@ -1228,8 +1167,8 @@ function courtyards(g: ZoneGround) {
   // Then, once every building has taken its ground, its scenes (#178) on ground clear of every building, and each
   // building's outside stairs and the corner where its bike rack and vending machines stand (#156), on its lot.
   const taken: RowLot[] = [...g.lamps.map(around(1.4)), ...built.flatMap((b) => b.wings.map(wingLot))]
-  const round = built.flatMap((b) => b.wings.map((w) => ({ ...wingLot(w), w: w.x1 - w.x0 + 2, d: w.y1 - w.y0 + 2 })))
-  const scenes = kit.finished ? courtScenes(g, plans, [...taken, ...round]) : []
+  const aroundWings = built.flatMap((b) => b.wings.map((w) => ({ ...wingLot(w), w: w.x1 - w.x0 + 2, d: w.y1 - w.y0 + 2 }))) // a metre round each
+  const scenes = kit.finished ? courtScenes(g, plans, [...taken, ...aroundWings]) : []
   taken.push(...scenes.map((s) => s.ground))
   for (const b of built) {
     kit.lot(b.lot)
@@ -1253,8 +1192,7 @@ function courtyards(g: ZoneGround) {
       }
     })
     // Its rack and machines along the first stretch of outside wall with room, looking along each face in turn.
-    const [x0, x1] = [Math.min(...b.wings.map((w) => w.x0)), Math.max(...b.wings.map((w) => w.x1))]
-    const [y0, y1] = [Math.min(...b.wings.map((w) => w.y0)), Math.max(...b.wings.map((w) => w.y1))]
+    const { x0, y0, x1, y1 } = wingBounds(b.wings)
     const court = (px: number, py: number) => px > x0 && px < x1 && py > y0 && py < y1
     const tries = b.wings.flatMap((wing) =>
       FACES.flatMap(([nx, ny], face) => {
@@ -1282,14 +1220,14 @@ function courtyards(g: ZoneGround) {
     g.kept.push(ground)
   }
   for (const b of built) courtGround(g, b, taken)
-  parking(g, plans, [...taken, ...round])
+  parking(g, plans, [...taken, ...aroundWings])
   bins(g, plans, taken)
   // The scooter calls at a door along a building's face toward a Road.
   const doors = built.flatMap((b) =>
     b.wings.flatMap((wing, k) =>
       FACES.flatMap(([nx, ny], face) => {
         const [, mx, my] = faceOf(wing, face)
-        if (onWing(b.wings, mx + nx * 0.4, my + ny * 0.4, k)) return []
+        if (!looksOut(b.wings, k, face)) return []
         const len = nx ? wing.y1 - wing.y0 : wing.x1 - wing.x0
         return [0, -len / 4, len / 4].map((u) => ({ x: mx + nx * 1.1 + ny * u, y: my + ny * 1.1 - nx * u, ry: Math.atan2(-nx, ny) }))
       }),
@@ -1301,19 +1239,15 @@ function courtyards(g: ZoneGround) {
 
 /**
  * A low hedge along each outside face of apartment building `b` (#178), from Stage 1, 0.5 m out from its wall, in
- * lengths of 2 m or more where it stands on the Block clear of `taken`, of its entrance and of the scooter's `way`.
+ * lengths of 2 m or more where it stands on the Block clear of `taken`, of its front door and of the scooter's `way`.
  */
 function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
   const { kit } = g
   const { deep, tall, colour } = MEDIUM_FINISH.hedge
-  const open = (k: number, face: number) => {
-    const [, mx, my] = faceOf(b.wings[k], face)
-    return !onWing(b.wings, mx + FACES[face][0] * 0.4, my + FACES[face][1] * 0.4, k)
-  }
-  const entrance = entranceOf(b.wings, b.walks)
+  const door = doorOf(b.wings, b.walks)
   b.wings.forEach((wing, k) =>
     FACES.forEach(([nx, ny], face) => {
-      if (!open(k, face)) return
+      if (!looksOut(b.wings, k, face)) return
       const [len, mx, my] = faceOf(wing, face)
       const ry = Math.atan2(-nx, ny)
       const free: number[] = [] // the metres along the face, from its left, where a length of hedge may stand
@@ -1321,7 +1255,7 @@ function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
         const p = turned(mx, my, ry, u, 0.5 + deep / 2)
         const slot = { ...p, w: 1, d: deep, ry, onRoad: false }
         const ok =
-          !(k === 0 && face === entrance && Math.abs(u) < 2) &&
+          !(k === 0 && face === door && Math.abs(u) < 2) &&
           stands(g, p.x, p.y, 1, deep, 0.4, ry) &&
           !taken.some((o) => overlap(o, slot)) &&
           !way.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.4)
@@ -1386,8 +1320,7 @@ function courtPlan(built: Built[], lot: Bounds, shape: number, floors: number, p
  */
 function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
   const { kit } = g
-  const [x0, x1] = [Math.min(...b.wings.map((w) => w.x0)), Math.max(...b.wings.map((w) => w.x1))]
-  const [y0, y1] = [Math.min(...b.wings.map((w) => w.y0)), Math.max(...b.wings.map((w) => w.y1))]
+  const { x0, y0, x1, y1 } = wingBounds(b.wings)
   if (b.wings.length >= 3) {
     if (Math.min(x1 - x0, y1 - y0) - 2 * (b.wings[0].y1 - b.wings[0].y0) >= 5.4)
       kit.from(1, () => kit.closeOnly(() => kit.bench(b.x + 1.9, b.y, KERB + 0.16, -Math.PI / 2)), spot(b.x + 1.9, b.y))
@@ -1425,15 +1358,9 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
 function parking(g: ZoneGround, draw: () => number, taken: RowLot[]) {
   const { kit } = g
   const { most, least, deep } = MEDIUM_FINISH.bays
-  const l = scan(
-    g,
-    draw,
-    MEDIUM_FINISH.bays.in,
-    [most * BAY_WIDTH, deep],
-    [least * BAY_WIDTH, deep],
-    3,
-    (l) => l.onRoad && !taken.some((o) => overlap(o, l)),
-  )
+  const room = { lampRoom: 1.2, clear: 0.4, ends: 3, slide: true }
+  const sizes = smaller([most * BAY_WIDTH, deep], [least * BAY_WIDTH, deep])
+  const l = alongEdge(g, draw, runs(g, MEDIUM_FINISH.bays.in), sizes, room, (l) => l.onRoad && !taken.some((o) => overlap(o, l)))
   if (!l) return
   taken.push(l)
   g.kept.push(l)
@@ -1460,6 +1387,13 @@ const wingLot = (w: Bounds): RowLot => ({
 const onWing = (wings: Bounds[], px: number, py: number, self: number) =>
   wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
 
+/** Whether face `face` (of `FACES`) of wing `k` of `wings` looks out of the building, its middle against no other wing. */
+function looksOut(wings: Bounds[], k: number, face: number): boolean {
+  const [, mx, my] = faceOf(wings[k], face)
+  const [nx, ny] = FACES[face]
+  return !onWing(wings, mx + nx * 0.4, my + ny * 0.4, k)
+}
+
 /** Face `face` (of `FACES`) of a wing: how long it is, and its middle. */
 function faceOf(wing: Bounds, face: number): [len: number, x: number, y: number] {
   const [nx, ny] = FACES[face]
@@ -1476,11 +1410,7 @@ function walksOf(wings: Bounds[], northWest: boolean): Walks {
   return wings.map((wing, k) => {
     const long = wing.x1 - wing.x0 >= wing.y1 - wing.y0
     const faces = long ? [0, 1] : [3, 2] // north and south, or west and east
-    for (const face of northWest ? faces : faces.reverse()) {
-      const [, mx, my] = faceOf(wing, face)
-      const [nx, ny] = FACES[face]
-      if (!onWing(wings, mx + nx * 0.4, my + ny * 0.4, k)) return face
-    }
+    for (const face of northWest ? faces : faces.reverse()) if (looksOut(wings, k, face)) return face
     return -1
   })
 }
@@ -1682,7 +1612,7 @@ function offices(g: ZoneGround) {
       const p = turned(taxi.x, taxi.y, taxi.ry, k * 2.6, 0.08)
       const paint = TAXI.paints[spot(p.x, p.y) % TAXI.paints.length]
       // Facing along the kerb with the pavement on its left, as a car stands at a Japanese kerb.
-      kit.from(n ? 3 : 2, () => kit.taxi(p.x, p.y, KERB + 0.02, taxi.ry + Math.PI / 2, paint), spot(p.x, p.y))
+      kit.from(n ? 3 : 2, () => kit.parked(TAXI, p.x, p.y, KERB + 0.02, taxi.ry + Math.PI / 2, paint), spot(p.x, p.y))
     })
     g.kept.push(taxi)
   }
@@ -1739,15 +1669,12 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
  * and the tower is its focal piece. Ceiling: a Block where even the least ground fits nowhere stands with no scene.
  * Upgrade: try a sculpture plaza down to 6 by 4.5 m before giving up.
  */
-function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[], open: Bounds[]): Scene[] {
+function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[], open: Bounds[]): OfficeGround[] {
   const { ground } = OFFICE_FINISH
   const all = runs(g, ground.in)
-  const kinds = [...OFFICE_FINISH.scenes]
-  const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
-  const order = [first, kinds[Math.floor(draw() * kinds.length)]].slice(0, area(g.block.loop) >= OFFICE_FINISH.second ? 2 : 1)
-  const out: Scene[] = []
-  const ok = (kind: OfficeScene) => (l: RowLot) => {
-    if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
+  const order = sceneOrder(g, draw, OFFICE_FINISH.scenes, OFFICE_FINISH.second)
+  const ok = (kind: OfficeScene, out: OfficeGround[]) => (l: RowLot) => {
+    if (!clearOfScenes(out, l)) return false
     // A food truck turns in over the kerb from a Road.
     if (kind === 'truck' && !truckEntry(g, l)) return false
     return bodies.every((b) => {
@@ -1756,25 +1683,67 @@ function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[]
       return !!kept && Math.min(kept.w, kept.d) >= Math.min(ground.keep, b.w, b.d) - 1e-6
     })
   }
+  // A kind that finds no ground gives way to one the Block has not taken, as a food truck's court where no Road runs.
+  return placeScenes<OfficeScene, OfficeGround>(order, OFFICE_FINISH.scenes, (kind, out) => {
+    const room = { lampRoom: 1.2, clear: 0.5, ends: ground.ends }
+    const lot =
+      inLot(g, open, ok(kind, out)) ?? alongEdge(g, draw, all, smaller([ground.long, ground.deep], ground.least), room, ok(kind, out))
+    return lot && { ground: lot, entry: kind === 'truck' ? truckEntry(g, lot) : null }
+  })
+}
+
+/** A Block's scene (#177, #178): its kind, its ground, and the Stage it stands from. */
+interface Scene<K> {
+  kind: K
+  ground: RowLot
+  from: number
+}
+
+/** An offices Block's scene (#177), and for a truck court, where its truck turns in. */
+type OfficeGround = Scene<OfficeScene> & { entry: TruckEntry | null }
+
+/**
+ * The kinds of a Block's scenes, drawn from `draw` (#177, #178): one of `kinds` from Stage 2, picked from where the
+ * Block lies, and a second of another kind at Stage 3 on a Block of `second` m² or more. The second is drawn on any
+ * Block, so that the draws after it stay.
+ */
+function sceneOrder<K>(g: ZoneGround, draw: () => number, kinds: readonly K[], second: number): K[] {
+  const rest = [...kinds]
+  const first = rest.splice(Math.floor(draw() * rest.length), 1)[0]
+  return [first, rest[Math.floor(draw() * rest.length)]].slice(0, area(g.block.loop) >= second ? 2 : 1)
+}
+
+/**
+ * A Block's scenes of the kinds `order` has (`sceneOrder`), the first from Stage 2 and the second at Stage 3 (#177,
+ * #178), each on the ground `find` gives its kind as the scenes before it (`out`) leave room; a kind that finds none
+ * gives way to another of `kinds` the Block has not taken.
+ */
+function placeScenes<K, S extends Scene<K>>(
+  order: K[],
+  kinds: readonly K[],
+  find: (kind: K, out: S[]) => Omit<S, 'kind' | 'from'> | null,
+): S[] {
+  const out: S[] = []
   for (const drawn of order) {
-    // A kind that finds no ground gives way to one the Block has not taken, as a food truck's court where no Road runs.
-    for (const kind of [drawn, ...OFFICE_FINISH.scenes.filter((k) => k !== drawn)]) {
+    for (const kind of [drawn, ...kinds.filter((k) => k !== drawn)]) {
       if (out.some((o) => o.kind === kind)) continue
-      const lot = inLot(g, open, ok(kind)) ?? alongEdge(g, draw, all, [ground.long, ground.deep], ground.least, 1.2, ground.ends, ok(kind))
-      if (!lot) continue
-      out.push({ ground: lot, kind, from: out.length ? 3 : 2, entry: kind === 'truck' ? truckEntry(g, lot) : null })
+      const found = find(kind, out)
+      if (!found) continue
+      out.push({ ...found, kind, from: out.length ? 3 : 2 } as S)
       break
     }
   }
   return out
 }
 
-/** An offices Block's scene (#177): its ground and kind, the Stage it stands from, and for a truck court, where its truck turns in. */
-interface Scene {
-  ground: RowLot
-  kind: OfficeScene
-  from: number
-  entry: TruckEntry | null
+/** Whether ground `l` lies clear of the scenes `out` (#177, #178), 18 m or more from each. */
+const clearOfScenes = (out: Scene<unknown>[], l: RowLot) =>
+  !out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)
+
+/** Whether the way `way` keeps `room` m from each utility pole, lamp and street tree, in that order (#177, #178). */
+function clearOfKerbside(g: ZoneGround, way: Vec[], [poles, lamps, trees]: [number, number, number]): boolean {
+  const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
+  return g.poles.every((p) => clear(p, poles)) && g.lamps.every((p) => clear(p, lamps)) && g.street.every((p) => clear(p, trees))
 }
 
 /**
@@ -1785,10 +1754,7 @@ function truckEntry(g: ZoneGround, l: RowLot): TruckEntry | null {
   for (const turn of TRUCK_TURNS) {
     const kerb = kerbAhead(g, l, truckTurn(l.w, turn))
     if (kerb === null) continue
-    const way = truckPath(l, { turn, kerb })
-    const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
-    if (g.poles.every((p) => clear(p, 1.5)) && g.lamps.every((p) => clear(p, 1.6)) && g.street.every((p) => clear(p, 1.8)))
-      return { turn, kerb }
+    if (clearOfKerbside(g, truckPath(l, { turn, kerb }), [1.5, 1.6, 1.8])) return { turn, kerb }
   }
   return null
 }
@@ -1922,42 +1888,66 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
 function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
   const { long, deep, ends } = OFFICE_FINISH.taxi
   const road = runs(g, OFFICE_FINISH.taxi.in).filter(facesRoad)
-  return alongEdge(g, draw, road, [long, deep], [5.6, deep], 1.6, ends, (l) => {
+  return alongEdge(g, draw, road, smaller([long, deep], [5.6, deep]), { lampRoom: 1.6, clear: 0.5, ends }, (l) => {
     return !scenes.some((o) => overlap(o, l)) && bodies.every((b) => !b || !!standBack(b, [l]))
   })
 }
 
 /**
- * Ground `size` m along a straight run of `candidates` (the Block's runs, `runs`) and in from it, or smaller down to
- * `least`, picked from `draw`: its middle at least `ends` m in from its run's ends, on a run facing a Road where one
- * fits and any run where none does, on the Block, clear of the street trees and `lampRoom` m clear of the lamps, and
- * as `ok` has it; null if none is found in a few tries.
+ * Ground of each size of `sizes` in turn, m along a straight run of `candidates` (the Block's runs, `runs`) and in
+ * from it: its middle at least `ends` m in from its run's ends, on a run facing a Road where one fits and any run where
+ * none does, standing on the Block `clear` m in from its edge, clear of the street trees and `lampRoom` m clear of the
+ * lamps, and as `ok` has it; null if none is found. Where along which run is drawn from `draw`: a few tries at random
+ * (#177), or, if `slide`, every metre along every run from one drawn to start, for a Block whose buildings leave little
+ * room (#178).
  */
 function alongEdge(
   g: ZoneGround,
   draw: () => number,
   candidates: Run[],
-  size: readonly [number, number],
-  least: readonly [number, number],
-  lampRoom: number,
-  ends: number,
+  sizes: (readonly [number, number])[],
+  { lampRoom, clear, ends, slide = false }: { lampRoom: number; clear: number; ends: number; slide?: boolean },
   ok: (l: RowLot) => boolean,
 ): RowLot | null {
-  for (const [w, d] of [size, [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2], least]) {
-    const fits = candidates.filter((r) => r.len >= w + 2 * ends)
-    const road = fits.filter(facesRoad)
-    for (const pool of road.length ? [road, fits] : [fits]) {
-      for (let tries = 0; tries < 8 && pool.length; tries++) {
-        const run = pool[Math.floor(draw() * pool.length)]
-        const s = w / 2 + ends + draw() * (run.len - w - 2 * ends)
-        const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
-        const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
-        if (!stands(g, l.x, l.y, w, d, 0.5, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, lampRoom))) continue
-        if (ok(l)) return l
-      }
+  const shift = slide ? Math.floor(draw() * Math.max(1, candidates.length)) : 0
+  const shifted = candidates.map((_, k) => candidates[(k + shift) % candidates.length])
+  const ordered = [...shifted.filter(facesRoad), ...shifted.filter((r) => !facesRoad(r))]
+  for (const [w, d] of sizes) {
+    for (const [run, s] of slide ? slid(ordered, w, ends) : tried(candidates, w, ends, draw)) {
+      const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
+      const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
+      if (!stands(g, l.x, l.y, w, d, clear, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, lampRoom))) continue
+      if (ok(l)) return l
     }
   }
   return null
+}
+
+/** `size`, then halfway down to `least`, then `least`: the sizes `alongEdge` tries, largest first. */
+const smaller = (size: readonly [number, number], least: readonly [number, number]): (readonly [number, number])[] => [
+  size,
+  [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2],
+  least,
+]
+
+/**
+ * A few spots along `candidates` for ground `w` m long, its middle `ends` m in from its run's ends (#177): runs facing
+ * a Road first where one fits, then any, eight tries on each, each run and spot drawn from `draw`.
+ */
+function* tried(candidates: Run[], w: number, ends: number, draw: () => number): Generator<[Run, number]> {
+  const fits = candidates.filter((r) => r.len >= w + 2 * ends)
+  const road = fits.filter(facesRoad)
+  for (const pool of road.length ? [road, fits] : [fits]) {
+    for (let tries = 0; tries < 8 && pool.length; tries++) {
+      const run = pool[Math.floor(draw() * pool.length)]
+      yield [run, w / 2 + ends + draw() * (run.len - w - 2 * ends)]
+    }
+  }
+}
+
+/** Every metre along each of `runs` in turn for ground `w` m long, its middle `ends` m in from the run's ends (#178). */
+function* slid(runs: Run[], w: number, ends: number): Generator<[Run, number]> {
+  for (const run of runs) for (let s = w / 2 + ends; s <= run.len - w / 2 - ends; s += 1) yield [run, s]
 }
 
 /**

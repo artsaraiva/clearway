@@ -72,7 +72,7 @@ interface Lamps {
 }
 
 /** A box of a car's model (m, the car facing +x): `long` along the car, `tall`, `wide` across, its middle `at` along from the car's and its foot `up`. */
-export interface Piece {
+interface Piece {
   long: number
   tall: number
   wide: number
