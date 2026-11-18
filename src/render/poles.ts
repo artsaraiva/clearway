@@ -105,7 +105,7 @@ const STREET_LIGHT = { reach: 2.1, at: 6.4, pool: 6.5, every: 3 }
  * The poles stand where the cell puts them, half a spacing in from each edge and a spacing apart, whatever the Tiles
  * around it, so that a seam's wire always finds them; on an avenue, between its street trees. They stand on the
  * pavement just in from the kerb, which what the Zones build keeps clear of, and move along the Road to keep clear of a
- * lamp, or are left out. Where the streets are dressed (`lit`, #175; every Tile since #176), every third carries a
+ * lamp, or are left out. Where the kerbside is dressed (`lit`, #175; every Tile since #176), every third carries a
  * street light.
  */
 export function standPoles(

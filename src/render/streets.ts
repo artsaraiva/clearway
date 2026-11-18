@@ -9,7 +9,7 @@ import { SHAPES, spot, to, type Kit } from './kit'
 import type { MoverKind } from './movers'
 import { ZEBRA } from './roads'
 
-// The streets round every Tile (#173; #175 built them round a finished Tile, #176 takes them to every Tile, whatever its
+// The kerbside of every Tile, dressed (#173; #175 dressed it round a finished Tile, #176 round every Tile, whatever its
 // Zone, unzoned too). On each Block: a darker kerbstone line along its edge, a yellow tactile strip where each zebra
 // meets its kerb, a guard rail round each corner, a convex mirror on a pole at some corners, tree pits round the street
 // trees, drain grates along the kerb, and planters, bollards and benches to break long runs of pavement. On the road
@@ -96,7 +96,7 @@ export function standing(block: Block, field: Field, built: Built): Stands {
    * Mark a triangle's edge from `(ax, ay)` to `(bx, by)` point by point. Its edges are enough: the street's furniture
    * stands within a metre or so of the Block's edge, so anything under it has an edge nearer still.
    * ponytail: furniture stood deeper than about 1.5 m in could stand inside a part whose edges all lie beyond its
-   * reach. Fill each triangle's cells within the band, as well as its edges, if the street ever stands things deeper.
+   * reach. Fill each triangle's cells within the band, as well as its edges, if street furniture ever stands deeper.
    */
   const edge = (ax: number, ay: number, bx: number, by: number, v: number) => {
     const n = Math.ceil(Math.hypot(bx - ax, by - ay) / step)
@@ -224,7 +224,7 @@ function bollards(kit: Kit, x: number, y: number, ry: number) {
   kit.brick('building', x, y, KERB)
 }
 
-/** What the street round a Block keeps off besides what its Zone built: what stands at its corners and along its kerb. */
+/** What a Block's street furniture keeps off besides what its Zone built: what stands at its corners and along its kerb. */
 export interface Kerbside {
   /** The lamps at its corners. */
   lamps: Vec[]
@@ -239,8 +239,8 @@ export interface Kerbside {
 }
 
 /**
- * The street round Block `block` (#175, on every Tile since #176), each piece a brick: see the module's head. It keeps
- * clear of what `kerbside` says stands there. The kerbstone line is `kerbLine`'s.
+ * The street furniture round Block `block` (#175, on every Tile since #176), each piece a brick: see the module's head.
+ * It keeps clear of what `kerbside` says stands there. The kerbstone line is `kerbLine`'s.
  */
 export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, spec: NetworkSpec, kerbside: Kerbside) {
   const { lamps, trees, poles, stands, kept } = kerbside

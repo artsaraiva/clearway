@@ -187,13 +187,13 @@ export function createScenery(
     yield
 
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
-    // Where the streets are dressed, every Tile has street lights and marks on its road plate (#175, #176), as its
-    // Blocks' streets have their furniture, which keeps off the poles.
+    // Where the kerbside is dressed, every Tile has street lights and marks on its road plate (#175, #176), as its
+    // Blocks' kerbsides have their street furniture, which keeps off the poles.
     const poles = createKit(mulberry32(0), materials)
     const posts: Vec[] = []
     for (const piece of pieces) {
-      const stood = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.streets)
-      if (poles.streets) markPlate(poles, piece, net)
+      const stood = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.dressed)
+      if (poles.dressed) markPlate(poles, piece, net)
       posts.push(...stood.posts)
       const entry = laid.find((l) => sameBounds(l.piece, piece))
       if (entry) entry.ends = stood.ends
