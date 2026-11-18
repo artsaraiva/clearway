@@ -232,8 +232,9 @@ const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
 // A food truck (#177): where it parks on its court, m from the court's left end and in from its front; and the s it
 // waits off the Road before it drives in, late in the morning, and parked before it backs out, after midday.
 const FOOD_TRUCK = { park: [3, 1.6], waits: [30, 30] }
-// How brightly a lit clock face, a court's low lights and a sculpture's uplights glow, for the lamps' glow.
-const GLOWS = { clock: 0.8, low: 1.4 }
+// How brightly each lit part glows, for the lamps' glow: a clock's face and a taxi stand's board, a court's low lights
+// and a sculpture's uplights, a pergola's lamps and string lights, and a taxi stand's band.
+const GLOWS = { face: 0.8, low: 1.4, string: 1.5, band: 0.33 }
 // A truck court's pergola over its tables (#177): m up to its beams and deep at most, its steel, and its lamps' cream.
 const PERGOLA = { tall: 2.86, deep: 3, steel: '#9aa3ad', lamp: '#fff1c7' }
 
@@ -396,7 +397,7 @@ function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
     for (let k = 0; k < n; k++)
       kit.put(
         kit.cuboid(0.16, 0.16, 0.16),
-        kit.lit(PERGOLA.lamp, 1.5),
+        kit.lit(PERGOLA.lamp, GLOWS.string),
         x,
         y,
         ry,
@@ -408,7 +409,7 @@ function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
   } else {
     for (const t of tables) {
       kit.put(kit.cuboid(0.03, 0.5, 0.03), '#2f3440', x, y, ry, t * w, v, KERB + PERGOLA.tall - 0.5)
-      kit.put(kit.cuboid(0.3, 0.2, 0.3), kit.lit(PERGOLA.lamp, 1.5), x, y, ry, t * w, v, KERB + PERGOLA.tall - 0.7)
+      kit.put(kit.cuboid(0.3, 0.2, 0.3), kit.lit(PERGOLA.lamp, GLOWS.string), x, y, ry, t * w, v, KERB + PERGOLA.tall - 0.7)
       kit.pool('cream', ...to(x, y, ry, t * w, v), KERB, 2.8, 2.8)
     }
   }
@@ -453,7 +454,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
     kit.add(kit.cuboid(0.18, 3.5, 0.18), CLOCK.post, x, y, KERB + 0.3, ry)
     kit.add(kit.cuboid(1, 1, 0.34), CLOCK.post, x, y, KERB + 3.5, ry)
     for (const turn of [0, Math.PI]) {
-      kit.put(SHAPES.disc, kit.lit(CLOCK.face, GLOWS.clock), x, y, ry + turn, 0, 0.18, KERB + 4, 0.4, 0.4, 1)
+      kit.put(SHAPES.disc, kit.lit(CLOCK.face, GLOWS.face), x, y, ry + turn, 0, 0.18, KERB + 4, 0.4, 0.4, 1)
       kit.put(kit.cuboid(0.05, 0.3, 0.02), CLOCK.hands, x, y, ry + turn, 0, 0.19, KERB + 4)
       kit.put(kit.cuboid(0.22, 0.05, 0.02), CLOCK.hands, x, y, ry + turn, 0.1, 0.19, KERB + 3.98)
     }
@@ -480,8 +481,8 @@ export function taxiBay(kit: Kit, x: number, y: number, w: number, d: number, ry
   for (const k of [-1, 1]) kit.put(kit.cuboid(0.12, 0.03, d), TAXI_BAY.line, x, y, ry, k * (w / 2 - 0.06), 0, KERB)
   const [px, py] = to(x, y, ry, w / 2 - 0.5, -d / 2 - 0.4)
   kit.add(SHAPES.thin, TAXI_BAY.pole, px, py, KERB, 0, 0.05, 2.7, 0.05)
-  kit.put(kit.cuboid(0.9, 0.6, 0.06), kit.lit(TAXI_BAY.board, GLOWS.clock), px, py, ry, 0, 0, KERB + 2.1)
-  kit.put(kit.cuboid(0.9, 0.14, 0.07), kit.lit(TAXI_BAY.band, 0.33), px, py, ry, 0, 0, KERB + 2.56)
+  kit.put(kit.cuboid(0.9, 0.6, 0.06), kit.lit(TAXI_BAY.board, GLOWS.face), px, py, ry, 0, 0, KERB + 2.1)
+  kit.put(kit.cuboid(0.9, 0.14, 0.07), kit.lit(TAXI_BAY.band, GLOWS.band), px, py, ry, 0, 0, KERB + 2.56)
   for (const k of [-1, 0, 1]) kit.put(kit.cuboid(0.16, 0.16, 0.08), TAXI_BAY.marks, px, py, ry, k * 0.24, 0, KERB + 2.24)
   kit.pool('cream', px, py, KERB, 2.6, 2.6)
   kit.brick('ground', x, y, KERB)

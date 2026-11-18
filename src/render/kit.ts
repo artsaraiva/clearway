@@ -267,7 +267,7 @@ const FLAG = { pole: '#e9eef2', finial: '#f0c75e' }
 // cooling units, cream vents and a yellow duct, with steel railings and white satellite dishes; a name plate's board,
 // one a tower, in a company's colour, with marks for lettering; a revolving door's dark frame; and how brightly each
 // lit part glows, for the lamps' glow.
-const OFFICE_FINISH = {
+const TOWER_FINISH = {
   bay: 3.2,
   unit: '#a9cdb9',
   vent: '#efe6d2',
@@ -821,15 +821,15 @@ export function createKit(rand: () => number, materials: Materials) {
   const pane = (share: number): Look => ({ material: glass, tint: rand() < share ? pick(windows) : unlit })
   /** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
   const cooler = (x: number, y: number, h: number, w: number, d: number) => {
-    add(cuboid(w, 1.1, d), OFFICE_FINISH.unit, x, y, h)
+    add(cuboid(w, 1.1, d), TOWER_FINISH.unit, x, y, h)
     const fans = w >= 1.8 * d ? 2 : 1
     const r = Math.min(d, w / fans) * 0.34
     for (let k = 0; k < fans; k++) add(DISC, FAN, x + (fans === 2 ? (k - 0.5) * w * 0.5 : 0), y, h + 1.12, 0, r, 0.04, r)
   }
   /** A vent on a roof at `(x, y)`, `h` above the road (#154): a stub under a wider cap. */
   const vent = (x: number, y: number, h: number) => {
-    add(THIN, OFFICE_FINISH.vent, x, y, h, 0, 0.22, 0.8, 0.22)
-    add(THIN, OFFICE_FINISH.vent, x, y, h + 0.8, 0, 0.42, 0.18, 0.42)
+    add(THIN, TOWER_FINISH.vent, x, y, h, 0, 0.22, 0.8, 0.22)
+    add(THIN, TOWER_FINISH.vent, x, y, h + 0.8, 0, 0.42, 0.18, 0.42)
   }
   /** A detail that moves on its own (`./movers`): a brick of its own with no shapes, standing where its loop starts. */
   const mover = (
@@ -1910,12 +1910,12 @@ export function createKit(rand: () => number, materials: Materials) {
       const STOREY = 3.2
       const SKY = new THREE.Color('#e9f4fb')
       const [foot, trim, busy] = [new THREE.Color(pick(OFFICE_GLASS)), pick(OFFICE_TRIM), rand()]
-      const share = [0.2 + 0.25 * busy, 0.3 + 0.45 * busy, 0.45 + 0.4 * busy][stage - 1]
-      /** Floor `f`'s glass: up to 30% of the way to the sky's colour at the top, and lit at night for `share` of the floors. */
+      const litShare = [0.2 + 0.25 * busy, 0.3 + 0.45 * busy, 0.45 + 0.4 * busy][stage - 1]
+      /** Floor `f`'s glass: up to 30% of the way to the sky's colour at the top, and lit at night for `litShare` of the floors. */
       const storey = (f: number): Look => ({
         material: glass,
         tint: glassOf(foot.clone().lerp(SKY, (0.3 * f) / Math.max(1, floors - 1))),
-        glow: rand() < share ? range(0.45, 0.8) : 0.04,
+        glow: rand() < litShare ? range(0.45, 0.8) : 0.04,
       })
       const base = h + 3.6
       const body = floors * STOREY
@@ -1923,11 +1923,7 @@ export function createKit(rand: () => number, materials: Materials) {
       const own = mulberry32(spot(x, y))
       own() // once the beacons' beat, which `./movers` now draws: still drawn, so that every draw after it stays
       const [padDraw, south, slide, busier] = [own(), own() < 0.5, own(), own() < 0.6]
-      const [board, marks, dishes] = [
-        OFFICE_FINISH.boards[Math.floor(own() * OFFICE_FINISH.boards.length)],
-        3 + Math.floor(own() * 3),
-        own(),
-      ]
+      const [board, marks, dishes] = [TOWER_FINISH.boards[Math.floor(own() * TOWER_FINISH.boards.length)], 3 + Math.floor(own() * 3), own()]
       const pad = stage === 3 && (floors >= 17 || padDraw < 0.25)
       const lamps = stage === 3 || (stage === 2 && floors >= 14)
       const seed = spot(x, y) + 17 // which of the pattern's floors light
@@ -1949,9 +1945,9 @@ export function createKit(rand: () => number, materials: Materials) {
           front: PATTERN.curtain,
           back: PATTERN.curtain,
           sides: PATTERN.curtain,
-          bay: OFFICE_FINISH.bay,
+          bay: TOWER_FINISH.bay,
           storey: STOREY,
-          lit: share,
+          lit: litShare,
         }
         cladded(cuboid(bw, n * STOREY, bd), paint, x, y, at, 0, cladding, seed + k)
       }
@@ -2000,8 +1996,8 @@ export function createKit(rand: () => number, materials: Materials) {
       const railing = (rw: number, rd: number, at: number, cx = x, cy = y) => {
         for (const side of [-1, 1]) {
           for (const z of [0.5, 0.96]) {
-            add(cuboid(rw, 0.06, 0.06), OFFICE_FINISH.rail, cx, cy + (side * rd) / 2, at + z)
-            add(cuboid(0.06, 0.06, rd), OFFICE_FINISH.rail, cx + (side * rw) / 2, cy, at + z)
+            add(cuboid(rw, 0.06, 0.06), TOWER_FINISH.rail, cx, cy + (side * rd) / 2, at + z)
+            add(cuboid(0.06, 0.06, rd), TOWER_FINISH.rail, cx + (side * rw) / 2, cy, at + z)
           }
           for (const [len, eastWest] of [
             [rw, true],
@@ -2010,16 +2006,16 @@ export function createKit(rand: () => number, materials: Materials) {
             const n = Math.max(1, Math.round(len / 3))
             for (let i = 0; i < n; i++) {
               const t = -len / 2 + (i * len) / n
-              if (eastWest) add(cuboid(0.06, 1, 0.06), OFFICE_FINISH.rail, cx + t, cy + (side * rd) / 2, at)
-              else add(cuboid(0.06, 1, 0.06), OFFICE_FINISH.rail, cx + (side * rw) / 2, cy - t, at)
+              if (eastWest) add(cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + t, cy + (side * rd) / 2, at)
+              else add(cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + (side * rw) / 2, cy - t, at)
             }
           }
         }
       }
       /** A satellite dish on a roof at `(dx, dy)`, `at` high, on a stub, turned to the south. */
       const dish = (dx: number, dy: number, at: number) => {
-        add(THIN, OFFICE_FINISH.rail, dx, dy, at, 0, 0.07, 0.75, 0.07)
-        add(DISH, OFFICE_FINISH.dish, dx, dy, at + 0.85, Math.PI)
+        add(THIN, TOWER_FINISH.rail, dx, dy, at, 0, 0.07, 0.75, 0.07)
+        add(DISH, TOWER_FINISH.dish, dx, dy, at + 0.85, Math.PI)
       }
       /**
        * A penthouse with its own little roof on a roof `rw` by `rd` at `at`, its walls in panels and high windows, and a
@@ -2032,8 +2028,8 @@ export function createKit(rand: () => number, materials: Materials) {
         const walls = { front: PATTERN.wall, back: PATTERN.wall, sides: PATTERN.wall, storey: 3.4 }
         cladded(box(pw, 3.4, pd, 0.4, 0.12), trim, px, py, at, 0, walls, seed + 3)
         add(box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, px, py, at + 3.4)
-        add(box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), OFFICE_FINISH.unit, x + rw * 0.28, y - rd * 0.27, at)
-        add(box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), OFFICE_FINISH.unit, x - rw * 0.3, y - rd * 0.24, at)
+        add(box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), TOWER_FINISH.unit, x + rw * 0.28, y - rd * 0.27, at)
+        add(box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), TOWER_FINISH.unit, x - rw * 0.3, y - rd * 0.24, at)
         if (pad) helipad(px, py, at + 3.86, Math.min(pw, pd) / 2 - 0.8, OFFICE_HELIPAD)
         railing(pw + 0.1, pd + 0.1, at + 3.8, px, py)
         return at + 3.8
@@ -2064,7 +2060,7 @@ export function createKit(rand: () => number, materials: Materials) {
         cooler(x + rw * 0.32, y + rd * 0.28, at, cw, cd)
         if (stage === 3 || busier) cooler(x + rw * 0.32, y + rd * 0.04, at, cw, cd)
         if (stage === 3) cooler(x - rw * 0.12, y + rd * 0.4, at, rw * 0.3, Math.max(1.2, rd * 0.1))
-        add(cuboid(rw * 0.56, 0.4, 0.4), OFFICE_FINISH.duct, x - rw * 0.06, y - rd * 0.44, at)
+        add(cuboid(rw * 0.56, 0.4, 0.4), TOWER_FINISH.duct, x - rw * 0.06, y - rd * 0.44, at)
         if (dishes < [0, 0.6, 0.9][stage - 1]) dish(x - rw * 0.41, y - rd * 0.02, at)
         if (stage === 3 && dishes < 0.5) dish(x + rw * 0.12, y - rd * 0.22, at)
       }
@@ -2079,7 +2075,7 @@ export function createKit(rand: () => number, materials: Materials) {
         for (let k = 0; k < 4; k++) {
           const { ry, half, len } = boxFace(k, bw, bd)
           const pw = Math.min(len * 0.62, 9)
-          local(cuboid(pw, 0.95, 0.14), lit(board, OFFICE_FINISH.lit.board), x, y, ry, 0, half + out, z)
+          local(cuboid(pw, 0.95, 0.14), lit(board, TOWER_FINISH.lit.board), x, y, ry, 0, half + out, z)
           const size = 0.5
           for (let i = 0; i < marks; i++)
             local(cuboid(size, size, 0.04), mark, x, y, ry, (i - (marks - 1) / 2) * size * 1.5, half + out + 0.08, z + 0.22)
@@ -2103,18 +2099,18 @@ export function createKit(rand: () => number, materials: Materials) {
         local(cuboid(3.4, 0.4, 0.5), trim, x, y, ry, 0, out + 0.85, h) // and a step up to it
         const drum = to(x, y, ry, 0, half + 0.3)
         add(CYLINDER, { material: glass, tint: windows[0], glow: 1.4 }, ...drum, h + 0.8, 0, door, 2.3, door)
-        add(CYLINDER, OFFICE_FINISH.frame, ...drum, h + 3.05, 0, door + 0.08, 0.16, door + 0.08)
-        local(cuboid(0.1, 2.3, 0.1), OFFICE_FINISH.frame, x, y, ry, 0, half + 0.3 + door, h + 0.8)
+        add(CYLINDER, TOWER_FINISH.frame, ...drum, h + 3.05, 0, door + 0.08, 0.16, door + 0.08)
+        local(cuboid(0.1, 2.3, 0.1), TOWER_FINISH.frame, x, y, ry, 0, half + 0.3 + door, h + 0.8)
         local(cuboid(wide, 0.22, canopy), trim, x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.24)
-        local(cuboid(wide - 0.4, 0.04, canopy - 0.5), lit(CREAM, OFFICE_FINISH.lit.soffit), x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.2)
-        local(cuboid(wide + 0.02, 0.1, 0.06), lit(CREAM, OFFICE_FINISH.lit.fascia), x, y, ry, 0, out + canopy - 0.5, h + 3.3)
+        local(cuboid(wide - 0.4, 0.04, canopy - 0.5), lit(CREAM, TOWER_FINISH.lit.soffit), x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.2)
+        local(cuboid(wide + 0.02, 0.1, 0.06), lit(CREAM, TOWER_FINISH.lit.fascia), x, y, ry, 0, out + canopy - 0.5, h + 3.3)
         for (const k of [-1, 1]) local(cuboid(0.14, 3.24, 0.14), trim, x, y, ry, k * (wide / 2 - 0.15), out + canopy - 0.65, h)
         pool('canopy', ...to(x, y, ry, 0, out + canopy / 2 + 0.4), h, wide + 2.4, canopy + 2.2, ry)
       }
       if (style === 'round') {
         const r = Math.min(w, d) / 2
         if (patterned) {
-          const g = wrap(ROUND.toNonIndexed(), TAU * r, body, OFFICE_FINISH.bay, STOREY, share, mulberry32(seed)())
+          const g = wrap(ROUND.toNonIndexed(), TAU * r, body, TOWER_FINISH.bay, STOREY, litShare, mulberry32(seed)())
           push(
             g.applyMatrix4(m.compose(new THREE.Vector3(x, base, -y), q.identity(), new THREE.Vector3(r, body, r))),
             `#${foot.getHexString()}`,

@@ -41,7 +41,7 @@ import {
   plazaPiece,
   pots,
   produce,
-  taxiBay as propsTaxiBay,
+  taxiBay,
   truckPath,
   truckTurn,
   TRUCK_TURNS,
@@ -1086,7 +1086,7 @@ function offices(g: ZoneGround) {
   // A lot no tower fits, as at a rounded corner, takes the Block's scene, or else is left a grove.
   const open = lots.filter((_, i) => !bodies[i])
   const scenes = sceneGrounds(g, plans, bodies, open)
-  const taxi = taxiBay(g, plans, [...scenes.map((s) => s.ground)], bodies)
+  const taxi = taxiGround(g, plans, [...scenes.map((s) => s.ground)], bodies)
   const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
   const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
@@ -1140,7 +1140,7 @@ function offices(g: ZoneGround) {
     g.kept.push({ x: s.x, y: s.y, w: s.w, d: s.d, ry: s.ry })
   }
   if (taxi) {
-    kit.from(1, () => propsTaxiBay(kit, taxi.x, taxi.y, taxi.w, taxi.d, taxi.ry), spot(taxi.x, taxi.y))
+    kit.from(1, () => taxiBay(kit, taxi.x, taxi.y, taxi.w, taxi.d, taxi.ry), spot(taxi.x, taxi.y))
     const cars = taxi.w >= OFFICE_FINISH.taxi.long - 0.5 ? [-1, 1] : [0]
     cars.forEach((k, n) => {
       const p = turned(taxi.x, taxi.y, taxi.ry, k * 2.6, 0.08)
@@ -1374,11 +1374,12 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
 }
 
 /**
- * A taxi bay at the kerb of an offices Block (#177), drawn from `draw`: along a straight run facing a Road, long enough
- * for two taxis or else one, clear of the run's ends, where the lamps and the zebras are, of the scenes' ground
- * `scenes` and the street trees, and taking no tower of `bodies` under `OFFICES.least` across; null if none fits.
+ * The ground of the taxi bay at the kerb of an offices Block (#177), drawn from `draw`: along a straight run facing a
+ * Road, long enough for two taxis or else one, clear of the run's ends, where the lamps and the zebras are, of the
+ * scenes' ground `scenes` and the street trees, and taking no tower of `bodies` under `OFFICES.least` across; null if
+ * none fits.
  */
-function taxiBay(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
+function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
   const { long, deep, ends } = OFFICE_FINISH.taxi
   const road = runs(g, OFFICE_FINISH.taxi.in).filter(facesRoad)
   return alongEdge(g, draw, road, [long, deep], [5.6, deep], 1.6, ends, (l) => {
