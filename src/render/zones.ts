@@ -1197,6 +1197,10 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
  * clear of the lamps and the street trees, and where every tower of `bodies` that stands back from it keeps
  * `OFFICE_FINISH.ground.keep` m across, or what it had; a food truck's court only where a Road runs past the kerb its
  * truck turns in over, and a kind that finds no ground gives way to another.
+ * ponytail: no smaller fall-back when no ground fits. Probed with every Layout at every rotation on each side of the
+ * starting Crossroads, and on the 26-Tile City, only a Block that the seed's coral tower fills is left without a scene,
+ * and the tower is its focal piece. Ceiling: a Block where even the least ground fits nowhere stands with no scene.
+ * Upgrade: try a sculpture plaza down to 6 by 4.5 m before giving up.
  */
 function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[], open: Bounds[]): Scene[] {
   const { ground } = OFFICE_FINISH
