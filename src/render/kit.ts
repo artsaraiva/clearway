@@ -1297,9 +1297,10 @@ export function createKit(rand: () => number, materials: Materials) {
     brick('building', x, y, h)
   }
   /**
-   * The roof of an apartment wing standing on `f` (#178), the `k`th of its block, on its cap `top` above the road: a deck
-   * of roofing sheets, and along each face not against another wing (`against`), a parapet, or for a block whose plan
-   * has one, a mansard's skirt of tiles sloping out over the wall.
+   * The roof of an apartment wing standing on `f` (#178), the `k`th of its block, its cap `top` above the road: the cap,
+   * wearing roofing sheets on its top where the kit builds patterned, in the deck's sage, round a band of the cap's white;
+   * and along each face not against another wing (`against`), a parapet on it, or for a block whose plan has one, a
+   * mansard's skirt of tiles sloping out over the wall.
    */
   const apartmentRoof = (
     f: Footprint,
@@ -1311,7 +1312,9 @@ export function createKit(rand: () => number, materials: Materials) {
   ) => {
     const { x: cx, y: cy, w, d } = f
     const { deck, mansard } = APARTMENT_FINISH
-    cladded(cuboid(w - 0.5, 0.05, d - 0.5), deck, cx, cy, top, 0, { top: PATTERN.sheets }, seed + 10 + k)
+    const band = { top: PATTERN.sheets, front: PATTERN.gable, back: PATTERN.gable, sides: PATTERN.gable, storey: 4.8 }
+    cladded(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), patterned ? deck : COURTYARD.cap, cx, cy, top, 0, band, seed + 10 + k)
+    top += 0.6
     for (const [face, [nx, ny]] of FACES.entries()) {
       const { ry, half, len } = boxFace(face, w, d)
       if (against(cx + nx * (half + 0.4), cy + ny * (half + 0.4))) continue
@@ -1738,8 +1741,7 @@ export function createKit(rand: () => number, materials: Materials) {
         const [cx, cy, w, d] = [(wing.x0 + wing.x1) / 2, (wing.y0 + wing.y1) / 2, wing.x1 - wing.x0, wing.y1 - wing.y0]
         const plastered = { front: PATTERN.plaster, back: PATTERN.plaster, sides: PATTERN.plaster, storey: 3.2 }
         cladded(box(w, height, d, 0.6, 0.2), colour, cx, cy, h, 0, plastered, seed + k)
-        add(box(w + 0.24, 0.6, d + 0.24, 0.68, 0.1), COURTYARD.cap, cx, cy, h + height)
-        apartmentRoof({ x: cx, y: cy, w, d, ry: 0 }, h + height + 0.6, plan, k, (px, py) => against(px, py, k), seed)
+        apartmentRoof({ x: cx, y: cy, w, d, ry: 0 }, h + height, plan, k, (px, py) => against(px, py, k), seed)
         for (const [face, [nx, ny]] of FACES.entries()) {
           const { n, at: bay } = baysOf(wing, face)
           const ry = Math.atan2(-nx, ny)
