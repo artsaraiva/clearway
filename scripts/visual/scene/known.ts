@@ -25,12 +25,12 @@ const UNFINISHED: Record<string, string> = {
 }
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
-  'low-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement', 'colours'],
+  'low-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement'],
   parks: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
-  industrial: ['scenes', 'empty-pavement', 'colours'],
+  industrial: ['scenes', 'empty-pavement'],
   green: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
   'high-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement'],
-  farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement', 'colours'],
+  farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
 /** Found by the scene check on the Zones already built to the level of finish, and not yet filed. */

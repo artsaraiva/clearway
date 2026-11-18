@@ -275,18 +275,21 @@ export const pools: Rule = (r) =>
     .map((t) => fail('pools', r, t, `${t.what} is lit and leaves no pool`, `${m(t.bulbLow)} up`))
 
 /**
- * Small props are Close-only (#173's three distances), on the Zones built to the level of finish: a standing thing under
+ * Close-only props are not drawn with the whole City in frame: their material hides itself there. And small props are
+ * Close-only (#173's three distances), on the Zones built to the level of finish: a standing thing under
  * a metre on every side and 1.3 m tall, unlit, drawn on the scenery at every distance, should be hidden beyond Street.
  * Approximation: "small" is its size; a small thing meant to read from Framed would show here.
  */
-export const closeOnly: Rule = (r) =>
-  r.things
+export const closeOnly: Rule = (r) => [
+  ...(r.closeHidden ? [] : [fail('close-only', r, {}, 'Close-only props are drawn with the whole City in frame', 'zoom 1')]),
+  ...r.things
     .filter((t) => {
       if (t.block < 0 || !r.blocks[t.block].finished || !standing(t) || t.layer !== 'solid' || t.bulbs) return false
       const [w, d] = [t.box.x1 - t.box.x0, t.box.y1 - t.box.y0]
       return Math.max(w, d) < 1 && t.top - t.base < 1.3 && t.kind !== 'tree' && t.kind !== 'lamp'
     })
-    .map((t) => fail('close-only', r, t, `${t.what} is small and drawn at Framed`, `${m(t.top - t.base)} tall`))
+    .map((t) => fail('close-only', r, t, `${t.what} is small and drawn at Framed`, `${m(t.top - t.base)} tall`)),
+]
 
 /** A colour's OKLCH lightness, chroma and hue (°), from its hex. */
 export function oklch(hex: string): [number, number, number] {
@@ -314,7 +317,8 @@ export function reserved(hex: string): string | null {
   ]) {
     const [, rc, rh] = oklch(ref)
     const dh = Math.min(Math.abs(h - rh), 360 - Math.abs(h - rh))
-    if (dh <= RESERVED.hue && c > RESERVED.chroma * rc)
+    // In whole percent, as the Palette states each colour's share: the roofs' brick #d56454 is 65.3%, at the cap.
+    if (dh <= RESERVED.hue && Math.round((c / rc) * 100) > RESERVED.chroma * 100)
       return `${name}: ${Math.round((c / rc) * 100)}% of its chroma, ${Math.round(dh)}° off`
   }
   return null

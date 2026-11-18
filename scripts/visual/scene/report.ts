@@ -150,6 +150,8 @@ export interface Report {
   /** Each colour painted on the scenery (hex), with the triangles that wear it. */
   colours: Record<string, number>
   vehicles: Vehicle[]
+  /** Whether the Close-only props' material hides itself with the whole City in frame (zoom 1, under Framed's). */
+  closeHidden: boolean
   /** The static scenery's triangles and meshes (one draw call each, before the shadow pass). */
   triangles: number
   meshes: number

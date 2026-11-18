@@ -65,6 +65,7 @@ function report(things: Thing[], more: Partial<Report> = {}): Report {
     moving: { '0,0': 1 },
     colours: {},
     vehicles: [],
+    closeHidden: true,
     triangles: 0,
     meshes: 0,
     hash: '',

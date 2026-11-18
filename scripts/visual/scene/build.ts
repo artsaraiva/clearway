@@ -152,6 +152,8 @@ export function buildReport(ask: Ask): Report {
   hooked = false
   const start = performance.now()
   const materials = createMaterials({ pattern: true, pools: true })
+  materials.setZoom(1) // the whole City framed
+  const closeHidden = !materials.close.visible
   const field = createField()
   const blocks: Block[] = []
   const things: Thing[] = []
@@ -337,6 +339,7 @@ export function buildReport(ask: Ask): Report {
     moving,
     colours,
     vehicles: hooked ? vehicles(game.sim.net) : [],
+    closeHidden,
     triangles: meshes.reduce((n, m) => n + (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3, 0),
     meshes: meshes.length,
     hash: hashOf(meshes, materials),
