@@ -129,6 +129,23 @@ export function wrap(geo: THREE.BufferGeometry, around: number, tall: number, ba
 }
 
 /**
+ * Lay a roof's pattern `kind` (as an office roof's deck, #177) over a curved roof by its own uv, before it is placed:
+ * three's sphere or cone, non-indexed, `around` pavers round it and `up` from its foot to its top, as a dome's panels
+ * or a pointed cap's. `seed` (0 to 1) as `clad`'s.
+ */
+export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, up: number, seed: number): THREE.BufferGeometry {
+  const at = geo.attributes.uv
+  const uv = new Float32Array(at.count * 2)
+  const worn = new Float32Array(at.count * 3)
+  for (let i = 0; i < at.count; i++) {
+    uv.set([at.getX(i) * around, at.getY(i) * up], 2 * i)
+    worn.set([kind + 0.1 + 0.8 * seed, around, up], 3 * i)
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+  return geo.setAttribute('pattern', new THREE.BufferAttribute(worn, 3))
+}
+
+/**
  * Lay paving joints, or `kind`'s other paving, over the faces of a geometry in place (Three coordinates) that look up, in
  * m on the map.
  */

@@ -6,7 +6,7 @@ import { polyline, type Bounds, type Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import type { Glow } from './day'
 import type { Beacon, BeaconColour, Flag, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
-import { clad, createPatterns, pave, PATTERN, wrap, type Cladding, type Pattern } from './pattern'
+import { clad, createPatterns, panel, pave, PATTERN, wrap, type Cladding, type Pattern } from './pattern'
 import { canvasTexture, gable, roundedBox, sawtooth, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -1949,6 +1949,15 @@ export function createKit(rand: () => number, materials: Materials) {
         }
         cladded(cuboid(bw, n * STOREY, bd), paint, x, y, at, 0, cladding, seed + k)
       }
+      /**
+       * A curved roof, `geo` (a sphere or a cone) at `(x, y)`, `at` high, turned `ry` and scaled, wearing pavers, `around`
+       * of them round it and `rise` up it, where the kit builds patterned: a dome or a pointed cap.
+       */
+      const curved = (geo: THREE.BufferGeometry, at: number, ry: number, sx: number, sy: number, around: number, rise: number) => {
+        if (!patterned) return add(geo, trim, x, y, at, ry, sx, sy, sx)
+        const g = panel(geo.toNonIndexed(), PATTERN.deck, around, rise, mulberry32(seed + 11)())
+        push(g.applyMatrix4(m.compose(new THREE.Vector3(x, at, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(sx, sy, sx))), trim)
+      }
       /** Corner posts up a box `pw` by `pd`, from `from` for `tall` m. */
       const posts = (pw: number, pd: number, from: number, tall: number) => {
         for (const i of [-1, 1]) {
@@ -2124,7 +2133,7 @@ export function createKit(rand: () => number, materials: Materials) {
           for (const u of [-0.2, 0.15]) vent(x + r * u, y - r * 0.35, top + 1.2)
           dish(x - r * 0.4, y + r * 0.2, top + 1.2)
         } else {
-          add(SPHERE, trim, x, y, top + 1.4, 0, r * 0.78, r * 0.52, r * 0.78)
+          curved(SPHERE, top + 1.4, 0, r * 0.78, r * 0.52, 16, 10)
           spire(top + 1.4 + r * 0.5, stage === 3 ? range(9, 13) : range(4, 6), 0.3)
         }
       } else if (style === 'stepped') {
@@ -2148,7 +2157,7 @@ export function createKit(rand: () => number, materials: Materials) {
         })
         const r = Math.min(tw, td) * 0.707
         const cap = stage === 1 ? Math.min(3.5, Math.min(tw, td) * 0.4) : Math.min(7, Math.min(tw, td) * 0.78)
-        add(PYRAMID, trim, x, y, at, Math.PI / 4, r, cap, r)
+        curved(PYRAMID, at, Math.PI / 4, r, cap, 4 * Math.max(2, Math.round(r)), Math.max(2, Math.round(cap / 0.9)))
         if (stage > 1) spire(at + cap - 0.4, stage === 3 ? range(8, 12) : range(5, 9), 0.24)
       } else if (style === 'fins') {
         curtain(w - 0.7, d - 0.7, base, floors, 0)
