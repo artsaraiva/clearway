@@ -214,12 +214,12 @@ export type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
 
 // Colours: stone for a court's rim, its steps, its floor and a sculpture's plinth; sculptures in amber, teal, steel,
 // violet or white; a clock's post and face; a taxi bay's tarmac, its lines and its sign's pole, board, band and marks;
-// and a food truck's paints, the cars' colours.
+// and a food truck's paints, the cars' colours but the taxis' yellow.
 const STONE = { rim: '#d9d3c7', step: '#e8e2d6', floor: '#d6cec1', dark: '#bdb4a6' }
 const ART = ['#f0b43c', '#2fb39a', '#c4ccd4', '#a58ad8', '#fbf8f2']
 const CLOCK = { post: '#4a525c', face: '#fbf8f2', hands: '#2f3440' }
 const TAXI_BAY = { tarmac: '#bcc1c8', line: '#fbf8f2', pole: '#9aa3ad', board: '#fbf8f2', band: '#f6d36a', marks: '#2f3440' }
-export const FOOD_TRUCKS = ['#64cb9f', '#ffc52d', '#ff9cbb', '#ffffff', '#bc9ef2']
+const FOOD_TRUCKS = ['#64cb9f', '#ff9cbb', '#ffffff', '#bc9ef2']
 // A sculpture plaza's ring, standing on edge: 1 m across, its tube 0.16 m thick, scaled to its size.
 const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
 // A food truck (#177): m from where it parks to where it turns off the street, and the s it waits there before it
@@ -264,8 +264,7 @@ export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number
     for (const s of [-1, 1])
       kit.put(kit.cuboid(0.5, tall, d / 2 - back - 0.5), look, x, y, ry, s * (half - 0.25), (back + 0.5 + d / 2) / 2, KERB)
   }
-  kit.shadow(x, y, KERB, w + 1, d + 1, false, ry)
-  kit.brick('building', x, y, KERB)
+  kit.brick('building', x, y, KERB) // no contact shadow: the tiers are low, and it would darken the court
   bedTree(kit, ...to(x, y, ry, 0, -d / 2 + 2.6), 1.1, stage === 3 ? 0.55 : 0.46)
   for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * (w / 2 - 2.6), 0.4), ry + (k * Math.PI) / 2)
   if (stage === 3) {
@@ -309,7 +308,7 @@ export function sculpturePlaza(kit: Kit, x: number, y: number, w: number, d: num
     kit.drum(STONE.dark, x, y, top, 0.9, 0.9, 1.3)
     kit.ball(colour, x, y, top + 1.3 + 1.5, 1.6)
   }
-  kit.shadow(x, y, KERB, 2 * r + 1, 2 * r + 1, true)
+  kit.shadow(x, y, top, 3.6, 3.6, true) // under the sculpture alone, not the platform
   kit.brick('building', x, y, KERB)
   if (stage === 3) {
     for (const k of [-1, 1]) {

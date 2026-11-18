@@ -130,15 +130,15 @@ const PLANTER = '#ddd6c9' // a Stage 3 plaza's, round a tree
 // Offices to the level of finish (#177). Each Block's plan is drawn from a stream of its own, so the kit's draws are
 // as they were: its scenes, on ground reserved along a Road before any tower is laid, which every tower's plinth keeps
 // `clear` m from; its taxi bay; its plaza paving's colour; and each tower's style, never its neighbour's. A scene's
-// ground is `long` m along the Block's edge and `deep` m in from a line `in` m in from it, or at least `least`, and
-// cuts no tower it stands back from under `keep` m across; a Block of `second` m² or more has a second at Stage 3. A
+// ground is `long` m along the Block's edge and `deep` m in from a line `in` m in from it, or at least `least`, `ends`
+// m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across; a Block of `second` m² or more has a second at Stage 3. A
 // taxi bay is `long` m along the kerb, room for two taxis, and `deep` m, from `in` m in from the edge, `ends` m from its
 // run's ends at least. Plaza paving reaches up to `plaza` m out from a tower's plinth, `edge` m in from the Block's edge,
 // clear of the kerbstone line. At Stage 3 a tower of `plate` floors or more carries a lit name plate, as the tall ones
 // do from Stage 2. The pieces a plaza picks from, and the taxis' paints, the cars' yellow twice as often as mint.
 const OFFICE_FINISH = {
   scenes: ['court', 'sculpture', 'truck'] as OfficeScene[],
-  ground: { long: 12, deep: 7.5, in: 0.8, least: [9, 6], keep: 10 } as const,
+  ground: { long: 12, deep: 7.5, in: 0.8, least: [8.5, 5.5], keep: 9, ends: 3 } as const,
   clear: 1.4,
   second: 2500,
   taxi: { long: 11, deep: 2.5, in: 0.75, ends: 5 },
@@ -1077,7 +1077,9 @@ function offices(g: ZoneGround) {
     const fits = fit(g, x, y, w, d, OFFICES.clear, OFFICES.least, 3, 2)
     return fits && { x, y, ...fits }
   })
-  const scenes = sceneGrounds(g, plans, bodies)
+  // A lot no tower fits, as at a rounded corner, takes the Block's scene, or else is left a grove.
+  const open = lots.filter((_, i) => !bodies[i])
+  const scenes = sceneGrounds(g, plans, bodies, open)
   const taxi = taxiBay(g, plans, [...scenes.map((s) => s.ground)], bodies)
   const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
@@ -1112,6 +1114,7 @@ function offices(g: ZoneGround) {
     officePlaza(g, tower, entrance, taken, paving)
   }
   kit.lot(-1)
+  for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
   for (const { ground: s, kind, from } of scenes) {
     const build = { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind]
     kit.staged((stage) => build(kit, s.x, s.y, s.w, s.d, s.ry, stage, from), spot(s.x, s.y))
@@ -1145,12 +1148,14 @@ interface Body {
  */
 function standBack(b: Body, taken: RowLot[]): Body | null {
   let [x0, y0, x1, y1] = [b.x - b.w / 2, b.y - b.d / 2, b.x + b.w / 2, b.y + b.d / 2]
+  let cut = false
   for (const t of taken) {
     const pad = 0.8 + OFFICE_FINISH.clear
     const pts = corners(t, 0)
     const [bx0, by0] = [Math.min(...pts.map((p) => p.x)) - pad, Math.min(...pts.map((p) => p.y)) - pad]
     const [bx1, by1] = [Math.max(...pts.map((p) => p.x)) + pad, Math.max(...pts.map((p) => p.y)) + pad]
     if (bx1 <= x0 || bx0 >= x1 || by1 <= y0 || by0 >= y1) continue
+    cut = true
     const cuts: [number, number, number, number][] = [
       [Math.max(x0, bx1), y0, x1, y1],
       [x0, y0, Math.min(x1, bx0), y1],
@@ -1159,6 +1164,7 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
     ]
     ;[x0, y0, x1, y1] = cuts.reduce((a, c) => ((c[2] - c[0]) * (c[3] - c[1]) > (a[2] - a[0]) * (a[3] - a[1]) ? c : a))
   }
+  if (!cut) return b
   const [w, d] = [x1 - x0, y1 - y0]
   return Math.min(w, d) < OFFICES.least ? null : { x: (x0 + x1) / 2, y: (y0 + y1) / 2, w, d }
 }
@@ -1170,25 +1176,100 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
  * clear of the lamps and the street trees, and where every tower of `bodies` that stands back from it keeps
  * `OFFICE_FINISH.ground.keep` m across, or what it had.
  */
-function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[]): { ground: RowLot; kind: OfficeScene; from: number }[] {
+function sceneGrounds(
+  g: ZoneGround,
+  draw: () => number,
+  bodies: (Body | null)[],
+  open: Bounds[],
+): { ground: RowLot; kind: OfficeScene; from: number }[] {
   const { ground } = OFFICE_FINISH
   const all = runs(g, ground.in)
   const kinds = [...OFFICE_FINISH.scenes]
   const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
   const order = [first, kinds[Math.floor(draw() * kinds.length)]].slice(0, area(g.block.loop) >= OFFICE_FINISH.second ? 2 : 1)
   const out: { ground: RowLot; kind: OfficeScene; from: number }[] = []
-  for (const kind of order) {
-    const lot = alongEdge(g, draw, all, [ground.long, ground.deep], ground.least, 1.2, (l) => {
-      if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
-      return bodies.every((b) => {
-        if (!b) return true
-        const kept = standBack(b, [l])
-        return !!kept && Math.min(kept.w, kept.d) >= Math.min(ground.keep, b.w, b.d)
-      })
+  const ok = (l: RowLot) => {
+    if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
+    return bodies.every((b) => {
+      if (!b) return true
+      const kept = standBack(b, [l])
+      return !!kept && Math.min(kept.w, kept.d) >= Math.min(ground.keep, b.w, b.d) - 1e-6
     })
+  }
+  for (const kind of order) {
+    const lot = inLot(g, open, ok) ?? alongEdge(g, draw, all, [ground.long, ground.deep], ground.least, 1.2, ground.ends, ok)
     if (lot) out.push({ ground: lot, kind, from: out.length ? 3 : 2 })
   }
   return out
+}
+
+/** Whether the middle of `l` lies within `b`. */
+const inBounds = (b: Bounds, l: Vec) => l.x > b.x0 && l.x < b.x1 && l.y > b.y0 && l.y < b.y1
+
+/**
+ * A scene's ground on one of the lots `open` that no tower fits (#177), facing the nearest edge of the Block: as large
+ * as stands there, on the Block and clear of the lamps, at the lot's middle or moved in from that edge, and as `ok`
+ * has it; null if none fits.
+ */
+function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLot | null {
+  for (const lot of open) {
+    const [cx, cy] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
+    const [fx, fy] = FACES.map((f) => ({ f, edge: g.field.sample(cx + f[0] * 6, cy + f[1] * 6) })).sort((a, b) => a.edge - b.edge)[0].f
+    const ry = Math.atan2(-fx, fy)
+    // Spots over the lot, the middle first: a lot at a rounded corner may have its middle near the Block's edge.
+    const steps = [0, -0.15, 0.15, -0.3, 0.3]
+    const spots = steps
+      .flatMap((u) => steps.map((v) => [cx + u * (lot.x1 - lot.x0), cy + v * (lot.y1 - lot.y0)]))
+      .sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy))
+    for (const [w, d] of [
+      [14, 10],
+      [OFFICE_FINISH.ground.long, OFFICE_FINISH.ground.deep],
+      [9, 6],
+    ])
+      for (const [x, y] of spots) {
+        const l = { x, y, w, d, ry, onRoad: false }
+        if (stands(g, x, y, w, d, 0.8, ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.2)) && ok(l)) return l
+      }
+  }
+  return null
+}
+
+/**
+ * A lot that no tower fits and no scene takes, left a grove (#177): paved as a plaza as far as the Block lets it, and up
+ * to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the street trees and
+ * what `taken` holds, with a bench by the first, Close-only.
+ */
+function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
+  const { kit } = g
+  const [cx, cy] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
+  const paved = fit(g, cx, cy, lot.x1 - lot.x0 + 3, lot.y1 - lot.y0 + 3, OFFICE_FINISH.edge, 6, 1, 8)
+  if (paved) kit.from(1, () => kit.paving(cx, cy, KERB, paved.w, paved.d, 0, PLANTER, PATTERN.plaza), spot(cx, cy) + 5)
+  let planted = 0
+  for (const [u, v] of [
+    [0, 0],
+    [-0.28, 0.24],
+    [0.28, -0.24],
+  ]) {
+    const [px, py] = [cx + u * (lot.x1 - lot.x0), cy + v * (lot.y1 - lot.y0)]
+    const bed = { x: px, y: py, w: 3, d: 3, ry: 0, onRoad: false }
+    if (
+      planted >= 3 ||
+      !stands(g, px, py, 3, 3, 1, 0) ||
+      g.lamps.some((p) => near(bed, p.x, p.y, 1.4)) ||
+      taken.some((t) => overlap(t, bed))
+    )
+      continue
+    kit.from(
+      1,
+      () => {
+        kit.drum(PLANTER, px, py, KERB, 1.2, 1.2, 0.5)
+        kit.brick('building', px, py, KERB)
+      },
+      spot(px, py),
+    )
+    kit.staged((stage) => kit.tree(px, py, KERB + 0.5, GROW[stage - 1] * 0.55, 'round'), spot(px, py) + 1)
+    if (!planted++) kit.from(1, () => kit.closeOnly(() => kit.bench(px, py - 2.2, KERB, Math.PI)), spot(px, py) + 2)
+  }
 }
 
 /**
@@ -1199,16 +1280,16 @@ function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[]
 function taxiBay(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
   const { long, deep, ends } = OFFICE_FINISH.taxi
   const road = runs(g, OFFICE_FINISH.taxi.in).filter((r) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2))
-  return alongEdge(g, draw, road, [long, deep], [5.6, deep], 1.6, (l, run, s) => {
-    if (s < ends + l.w / 2 || s > run.len - ends - l.w / 2) return false
+  return alongEdge(g, draw, road, [long, deep], [5.6, deep], 1.6, ends, (l) => {
     return !scenes.some((o) => overlap(o, l)) && bodies.every((b) => !b || !!standBack(b, [l]))
   })
 }
 
 /**
  * Ground `size` m along a straight run of `candidates` (the Block's runs, `runs`) and in from it, or smaller down to
- * `least`, picked from `draw`: on the Block, clear of the street trees and `lampRoom` m clear of the lamps, and as `ok`
- * has it (given the ground, its run and how far along the run its middle lies); null if none is found in a few tries.
+ * `least`, picked from `draw`: its middle at least `ends` m in from its run's ends, on a run facing a Road where one
+ * fits and any run where none does, on the Block, clear of the street trees and `lampRoom` m clear of the lamps, and
+ * as `ok` has it; null if none is found in a few tries.
  */
 function alongEdge(
   g: ZoneGround,
@@ -1217,19 +1298,22 @@ function alongEdge(
   size: readonly [number, number],
   least: readonly [number, number],
   lampRoom: number,
-  ok: (l: RowLot, run: Run, s: number) => boolean,
+  ends: number,
+  ok: (l: RowLot) => boolean,
 ): RowLot | null {
-  const road = candidates.filter((r) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2))
-  const pool = road.length ? road : candidates
+  const facing = (r: Run) => r.onRoad(r.a.x + (r.ux * r.len) / 2, r.a.y + (r.uy * r.len) / 2)
   for (const [w, d] of [size, [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2], least]) {
-    const fit = pool.filter((r) => r.len >= w + 1)
-    for (let tries = 0; tries < 8 && fit.length; tries++) {
-      const run = fit[Math.floor(draw() * fit.length)]
-      const s = w / 2 + 0.5 + draw() * (run.len - w - 1)
-      const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
-      const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
-      if (!stands(g, l.x, l.y, w, d, 0.5, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, lampRoom))) continue
-      if (ok(l, run, s)) return l
+    const fits = candidates.filter((r) => r.len >= w + 2 * ends)
+    const road = fits.filter(facing)
+    for (const pool of road.length ? [road, fits] : [fits]) {
+      for (let tries = 0; tries < 8 && pool.length; tries++) {
+        const run = pool[Math.floor(draw() * pool.length)]
+        const s = w / 2 + ends + draw() * (run.len - w - 2 * ends)
+        const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
+        const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
+        if (!stands(g, l.x, l.y, w, d, 0.5, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, lampRoom))) continue
+        if (ok(l)) return l
+      }
     }
   }
   return null
