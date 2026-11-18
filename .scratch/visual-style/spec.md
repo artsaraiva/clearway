@@ -263,7 +263,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 ## Block fill
 
 - **Authored:** landmarks and special Blocks (a tower plaza, a park with a pond, a shrine on a hill, a river with a bridge). They live in the District file.
-- **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136), `src/render/zones.ts`), from the seed:
+- **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136), `src/render/zones/`, one module a Zone), from the seed:
   - Low-density residential: houses on lawns with garden trees. See [zones/low-density.md](zones/low-density.md).
   - Medium-density residential: terraced rows of narrow houses that share walls, or apartment buildings round a court (an O, a U, an L or a bar), built to the level of finish ([#178](https://github.com/artsaraiva/clearway/issues/178), below). See [zones/medium-density.md](zones/medium-density.md).
     The seed picks one of the two for each Tile.

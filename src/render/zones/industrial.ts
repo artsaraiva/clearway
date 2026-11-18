@@ -12,7 +12,7 @@ const SHEDS = { lot: 34, margin: 3.2, gap: 2.5, clear: 1.5, least: 9, chimney: 0
 // shed's doors face the long side with more room before it, and the shed stands back from that side as far as it must,
 // up to `back` m and keeping at least `least` m deep, to leave a loading yard `deep` m deep before its doors.
 const YARD = { deep: 12, back: 6, least: 10 }
-// A truck backed up to a door: m long and wide (as `./movers` draws it), how far it pulls away at most and at least, how
+// A truck backed up to a door: m long and wide (as `../movers` draws it), how far it pulls away at most and at least, how
 // long it waits at the door and pulled away (s, a range from which each truck draws its own), and the paints it takes.
 const TRUCKS = {
   long: 6.5,
@@ -23,7 +23,7 @@ const TRUCKS = {
   paints: ['#ffffff', '#e9eef2', '#fbe3a2', '#c0e9e0', '#d6e4d3'],
 } as const
 // A forklift shuttling between a door and a stack of pallets along the wall: m out from the wall it stands, the radius
-// of its turns, how far its rear reaches behind its middle (as `./movers` draws it), how far out from the wall its stack
+// of its turns, how far its rear reaches behind its middle (as `../movers` draws it), how far out from the wall its stack
 // stands and how far along the wall it may (the nearest that fits, so that a door beyond keeps room for a truck), and
 // how long it waits (s) at the door or the stack (a range from which each forklift draws its own) and where it turns.
 const FORKLIFT = { out: 3.2, turn: 1.8, rear: 1.9, stack: 0.95, apart: [3.4, 4.2, 5], lift: [1.6, 3.6], cusp: 0.4 }

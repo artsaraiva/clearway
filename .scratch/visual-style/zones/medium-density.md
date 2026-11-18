@@ -13,7 +13,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Medium-density details** ([#156](https://github.com/artsaraiva/clearway/issues/156), `src/render/zones.ts`, `src/render/kit.ts`), each drawn from where it stands, so nothing else on its Block changes.
+- **Medium-density details** ([#156](https://github.com/artsaraiva/clearway/issues/156), `src/render/zones/medium-density.ts`, `src/render/kit.ts`), each drawn from where it stands, so nothing else on its Block changes.
   What stands on the ground keeps clear of the buildings, the yards' trees, the street trees and the lamps at the Block's corners, and at least 0.6 m in from the Block's edge:
   - From Stage 2 an open walkway runs along one long face of each wing of an apartment block, the north or west one on half the blocks and the south or east one on the rest, or the other long face where that one's middle is against another wing: a slab 1.3 m deep at every floor above the ground, the length of the face, behind a parapet 1 m tall with a steel rail on top, and a door between each two windows.
     Stage 3's balconies take the other faces.
@@ -27,7 +27,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     A vending machine is 1.1 m wide and 2 m tall, a little large as the props are, its front a panel of the lamps' bulb that lights at dusk.
   - Washing and futons hang and sway as the towers' do ([#155](https://github.com/artsaraiva/clearway/issues/155), Moving details, below): the futons are the towers' futons in their own covers, and the washing a kind of its own, `washing`, the shorter line above, swinging up to 0.24 rad either way.
     Its towel and hand towel take the paint each line is given and its shirt and mint towel keep their colours: a swaying thing's model may say which of its parts take its paint.
-- **Medium-density to the level of finish** ([#178](https://github.com/artsaraiva/clearway/issues/178), the kit's `townhouse` and `apartment`, `src/render/zones.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
+- **Medium-density to the level of finish** ([#178](https://github.com/artsaraiva/clearway/issues/178), the kit's `townhouse` and `apartment`, `src/render/zones/medium-density.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
   Each Block's plan is drawn from a stream of its own, so the kit's draws, and with them every lot's house or building, its storeys, colours and windows, are as before but for what the plan sets; a lot a scene takes still draws as it did.
   Shown in the sheets of `npm run shots -- medium-density --times noon,night --run 30`, which the user approved on 2026-11-18:
   - Neighbours: a terraced house keeps the gable along the row it always had unless a house on a lot it touches stands as many storeys at Stage 1 under one, when it takes a hip, its ridge across the row, or a gable to the front, one that none of them has, drawn from the plan;

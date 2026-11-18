@@ -12,7 +12,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Industrial details** ([#150](https://github.com/artsaraiva/clearway/issues/150), `src/render/zones.ts`), each drawn from where it stands, so nothing else on its Block changes:
+- **Industrial details** ([#150](https://github.com/artsaraiva/clearway/issues/150), `src/render/zones/industrial.ts`), each drawn from where it stands, so nothing else on its Block changes:
   - A shed's doors face the long side with more room before it, and the shed stands back from that side as far as it must, up to 6 m and keeping at least 10 m deep, so that a loading yard about 12 m deep opens before its doors.
     Most sheds are 6 m shallower than before.
     What stands in a yard keeps clear of the other sheds, the street trees and the lamps at the Block's corners, and at least 0.6 m in from the Block's edge.

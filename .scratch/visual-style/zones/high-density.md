@@ -11,7 +11,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **High-density residential details** ([#155](https://github.com/artsaraiva/clearway/issues/155), `src/render/zones.ts` and the kit's `residentialTower`), each drawn from where it stands, so nothing else on its Block changes:
+- **High-density residential details** ([#155](https://github.com/artsaraiva/clearway/issues/155), `src/render/zones/high-density.ts` and the kit's `residentialTower`), each drawn from where it stands, so nothing else on its Block changes:
   - A tower whose Stage 2 floors are 16 or more (about one in four) has a helipad on its roof at Stage 2, and one of 14 or more (more than half) at Stage 3: a dark green disc over the whole roof, with a yellow ring about 1.4 m in from the roof's edge and an H inside, in place of the water tank and the roof garden.
     It reads from the default zoom as a dark roof with a pale ring.
   - A tower whose Stage 2 floors are 15 or more (about two in five) has a beacon at Stage 2, and one of 13 or more (three in four) at Stage 3, on a 2.2 m mast at a roof corner, or at two opposite corners round a helipad: a white bulb 1.7 m across, oversized as the key props are, that blinks at night, lit when the lamps are and dark by day.

@@ -11,7 +11,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Shop details** ([#153](https://github.com/artsaraiva/clearway/issues/153), `src/render/zones.ts`) stand before each shop front that faces a Road, drawn from where the shop stands, so nothing else on its Block changes.
+- **Shop details** ([#153](https://github.com/artsaraiva/clearway/issues/153), `src/render/zones/shops.ts`) stand before each shop front that faces a Road, drawn from where the shop stands, so nothing else on its Block changes.
   A shop rolls once for each detail against the detail's share of the fronts from Stages 1, 2 and 3, so it keeps its details as it grows, and Stage 1 is nearly bare.
   What stands on the pavement keeps 0.55 m in from the Block's edge and 1.4 m from a lamp's post or a street tree:
   - The medium-density vending machine ([#156](https://github.com/artsaraiva/clearway/issues/156)) backs onto the front at one end, its front lit at dusk with the lamps: on 15% of the fronts from Stage 1, 35% from Stage 2 and half at Stage 3, and half of those have a second beside it at Stage 3.
@@ -29,7 +29,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   - Its flat roof: tile rows 0.5 m deep in a bond, inside a pale parapet 0.45 m wide that throws a shadow 0.25 m in; inside it the roof is greyer and darker than its walls.
   - Its Block's pavement: slabs 0.6 m square in a running bond, each a shade of its own, with darker joints.
   - Pools of light at night: round each lamp on a shops Block, as far as the pavement goes round its post, 4.8 to 8 m across; under each paper lantern, 3 m across; and on the pavement before each vending machine's lit front and each shop's lit window, out to the kerb.
-- **Shops to the level of finish** ([#175](https://github.com/artsaraiva/clearway/issues/175), the kit's `shop`, `src/render/zones.ts`, `src/render/props.ts`), the reference: each lot's plan is drawn from a stream of its Block's own, so the kit's draws, and with them every lot's size and storeys, are as before.
+- **Shops to the level of finish** ([#175](https://github.com/artsaraiva/clearway/issues/175), the kit's `shop`, `src/render/zones/shops.ts`, `src/render/props.ts`), the reference: each lot's plan is drawn from a stream of its Block's own, so the kit's draws, and with them every lot's size and storeys, are as before.
   Shown in the sheets of `npm run shots -- shops --times noon,night --run 20`, which the user approved on 2026-11-17:
   - Each shop's front colour is never its neighbour's, nor is its form: a flat roof, a false front raised over the street carrying its signboard, or upper storeys set back 1.6 m behind a balcony (a stair house on the roof of one of a single storey).
     One shop in eight is a noodle shop whose vent steams from Stage 2.

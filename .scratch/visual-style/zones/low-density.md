@@ -12,7 +12,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Low-density details** ([#157](https://github.com/artsaraiva/clearway/issues/157), `src/render/zones.ts`), each house's drawn from where its lawn lies, so nothing else on its Block changes:
+- **Low-density details** ([#157](https://github.com/artsaraiva/clearway/issues/157), `src/render/zones/low-density.ts`), each house's drawn from where its lawn lies, so nothing else on its Block changes:
   - A house's front faces the nearest edge of its Block, with a door in its middle under a little canopy from Stage 1.
     By the door stand a pot plant at Stage 1, two and the medium-density bicycle ([#156](https://github.com/artsaraiva/clearway/issues/156)) from Stage 2, standing along the wall, and a third pot in flower at Stage 3, true to size and seen only up close.
     At Stage 3 the hedge opens at the door.

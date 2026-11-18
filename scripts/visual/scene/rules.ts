@@ -190,7 +190,7 @@ export const pathsClear: Rule = (r) => {
 }
 
 /**
- * Whether two lots lie side by side (#177's `beside` in `src/render/zones.ts`, for boxes turned as lots are): within
+ * Whether two lots lie side by side (#177's `beside` in `src/render/zones/scenes.ts`, for boxes turned as lots are): within
  * 1.5 m of each other one way and sharing more than 1 m of side the other, read in the first lot's frame.
  */
 export function beside(a: Hull, b: Hull): boolean {

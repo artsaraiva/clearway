@@ -12,7 +12,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Green details** ([#152](https://github.com/artsaraiva/clearway/issues/152), `src/render/landmarks.ts`), each drawn from where it stands, so nothing else on its Block changes.
+- **Green details** ([#152](https://github.com/artsaraiva/clearway/issues/152), `src/render/zones/green.ts`), each drawn from where it stands, so nothing else on its Block changes.
   Benches and blankets keep clear of the trees, the beds, the street trees and the pavilion of every Stage, so none stands where a later Stage builds, and wildflowers keep off the benches and blankets:
   - Wildflowers lie in drifts through a meadow's grass: about two drifts to every 1,000 m² at Stage 1, three more at Stage 2 and four more at Stage 3, of 12, 16 and 20 flowers, each drift mostly of one colour and about 5 m across.
     A flower is a flat five-petalled star 0.56 m across, 0.08 to 0.22 m above the grass, true to size as the petals are, on the meadow's lawn only and well in from its edge.

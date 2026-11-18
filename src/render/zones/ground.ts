@@ -24,11 +24,11 @@ export interface ZoneGround {
   street: Vec[]
   /** The lamps at the Block's corners, which what stands on the ground keeps clear of (#150). */
   lamps: Vec[]
-  /** The utility poles round the Block (`./poles`), which a food truck turning in over the kerb keeps clear of (#177). */
+  /** The utility poles round the Block (`../poles`), which a food truck turning in over the kerb keeps clear of (#177). */
   poles: Vec[]
   /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
   tileDraw: number
-  /** What the look stands near the Block's edge, which the street's furniture keeps off (`./streets`, #175). */
+  /** What the look stands near the Block's edge, which the street's furniture keeps off (`../streets`, #175). */
   kept: Footprint[]
 }
 

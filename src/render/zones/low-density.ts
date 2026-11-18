@@ -218,7 +218,7 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
       const len = Math.min(3.4, along.len)
       if (len < 1.6) return
       const futon = stage === 3 && home.futon
-      const quilt = 1.7 // m wide: `./movers`' futon
+      const quilt = 1.7 // m wide: `../movers`' futon
       const n = Math.floor(len / 0.85)
       const hung: Hung[] = []
       for (let j = 0; j < n; j++) {

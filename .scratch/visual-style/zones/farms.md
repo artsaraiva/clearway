@@ -11,7 +11,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Farm details** ([#149](https://github.com/artsaraiva/clearway/issues/149), `src/render/landmarks.ts`), each field's drawn from where it lies, so no other field and nothing else on its Block changes:
+- **Farm details** ([#149](https://github.com/artsaraiva/clearway/issues/149), `src/render/zones/farms.ts`), each field's drawn from where it lies, so no other field and nothing else on its Block changes:
   - About one field in five is a rice paddy at every Stage: pale aqua water inside a low bank, under two rows of shoots to each row of crop, 0.16, 0.34 and 0.46 m tall at Stages 1 to 3.
     A paddy left fallow at Stage 1 is flooded and bare.
   - About one field in eight goes under vinyl greenhouses at Stage 2, and one in five at Stage 3: long pale arched tunnels, 3.5 m across and 2.3 m high, two side by side over a field and at most 26 m long, with a hoop every 2.4 m and a door at each end.

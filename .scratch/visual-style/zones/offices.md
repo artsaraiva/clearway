@@ -10,7 +10,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Office details** ([#154](https://github.com/artsaraiva/clearway/issues/154), `src/render/kit.ts`'s `officeTower`, `src/render/zones.ts`), each drawn from where its tower stands, so nothing else on its Block changes:
+- **Office details** ([#154](https://github.com/artsaraiva/clearway/issues/154), `src/render/kit.ts`'s `officeTower`, `src/render/zones/offices.ts`), each drawn from where its tower stands, so nothing else on its Block changes:
   - A flat roof, a framed or a finned tower's, carries two vents at Stage 1.
     From Stage 2 a cooling unit with a fan or two on top stands on its east side, and a second on six roofs in ten; at Stage 3 both stand, and a long third unit on the north side.
     The round and stepped towers' roofs carry none.
@@ -27,7 +27,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     Which towers fly them is drawn from where each lot's tower stood before a scene stood it back, so the same towers fly them as before: 53 at Stage 2 and 101 at Stage 3 on the 26-Tile City, as on `main`, all beside the canopy.
     Each pole is 8.5 m tall, its flag 2.3 by 1.45 m in a colour of its own.
     The flags fly downwind on the wind that leans the chimneys' smoke, a wave running along each from the pole, are raised through the first moments of the working day and lowered and furled as it ends, so no flag flies at night.
-- **Offices to the level of finish** ([#177](https://github.com/artsaraiva/clearway/issues/177), the kit's `officeTower`, `src/render/zones.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
+- **Offices to the level of finish** ([#177](https://github.com/artsaraiva/clearway/issues/177), the kit's `officeTower`, `src/render/zones/offices.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
   Each Block's plan is drawn from a stream of its own, so the kit's draws, and with them every lot and its tower's floors, glass and trim, are as before but for what the plan sets.
   Shown in the sheets of `npm run shots -- offices --times noon,night --run 45`, which the user approved on 2026-11-18:
   - Each tower keeps the style it always drew, from its own stream as before, unless a tower on a lot beside it already has that style (their lots within 1.5 m of each other one way and sharing more than 1 m of side the other), when it takes one of the others by their shares, drawn from the plan;
