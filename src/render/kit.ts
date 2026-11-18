@@ -447,6 +447,12 @@ export interface Finish {
    * for the user to compare a packed Tile with the open one. 1 unless given; lanes, Roads and the sim never change.
    */
   deeper?: number
+  /**
+   * Dev only (#176): draw the street furniture (guard rails, convex mirrors, planters, bollards and benches) at every
+   * distance on `solid`, with its contact shadows, as #175 drew it round a shops Tile, for the user to compare with it
+   * Close-only. Close-only unless set.
+   */
+  furniture?: boolean
 }
 
 // Close-only props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which they
@@ -965,6 +971,15 @@ export function createKit(rand: () => number, materials: Materials) {
     },
     /** Dev only (#175): how much deeper what stands on a Block is laid than built, for a comparison. 1 unless set. */
     deeper: materials.finish.deeper ?? 1,
+
+    /**
+     * Build what `fn` adds as street furniture: Close-only (`closeOnly`, #176), or at every distance where the dev
+     * switch `furniture` asks for it, as #175 built it.
+     */
+    furniture(fn: () => void) {
+      if (materials.finish.furniture) fn()
+      else closeOnly(fn)
+    },
 
     steam,
 

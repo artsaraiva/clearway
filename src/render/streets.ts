@@ -308,7 +308,7 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
         )
       })
     rail.sort((a, b) => ((along[a] - along[apex] + 1.5 * length) % length) - ((along[b] - along[apex] + 1.5 * length) % length))
-    kit.closeOnly(() => {
+    kit.furniture(() => {
       for (let k = 0; k < rail.length; k++) {
         const p = at(rail[k], RAIL.in)
         if (k % 2 === 0) kit.add(kit.cuboid(0.07, RAIL.tall, 0.07), RAIL.colour, p.x, p.y, KERB)
@@ -374,7 +374,7 @@ export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, 
     if (bare > RUN.most && straight) {
       const q = at(i, RUN.in + 0.2)
       const kind = breaks++ % 3
-      kit.closeOnly(() => {
+      kit.furniture(() => {
         if (kind === 0) planter(kit, q.x, q.y, ry, 1.8)
         else if (kind === 1) bollards(kit, p.x, p.y, ry)
         else kit.bench(q.x, q.y, KERB, ry + Math.PI) // facing the road
