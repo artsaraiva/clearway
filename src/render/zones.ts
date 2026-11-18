@@ -1132,7 +1132,7 @@ function offices(g: ZoneGround) {
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
       kit.officeTower(x, y, KERB, w, d, floors, style, stage, { gondola, plate, entrance })
     }, seed)
-    officePlaza(g, tower, entrance, taken, paving, planted)
+    officePlaza(g, tower, entrance, taken, paving, planted, body)
   }
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
@@ -1404,9 +1404,10 @@ function alongEdge(
  * chequered paving in the Block's `paving` from Stage 1, out to the plinth's reach or the Block's edge; the flags of
  * #154 beside the canopy; from Stage 2 a sculpture, a clock or a fountain on the canopy's other side; and on the faces
  * either side of the door a bench, Close-only, from Stage 1 and planters by it from Stage 2, on what `taken` leaves; at
- * Stage 3 trees in planters at two corners, drawn from `planted`, as they always were.
+ * Stage 3 trees in planters at two corners, drawn from `planted`, as they always were. Its flags are drawn from `stood`,
+ * where its lot's tower stood before any scene, as they always were.
  */
-function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], paving: string, planted: number) {
+function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], paving: string, planted: number, stood: Vec) {
   const { kit, field, block } = g
   const { x, y, w, d } = t
   // The paving, as far out as the Block lets it, clear of the kerbstone line.
@@ -1431,7 +1432,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
   const [ry, half] = [Math.atan2(-fx, fy), (fx ? w : d) / 2]
   // The canopy's ground, which nothing else takes.
   placed.push({ ...turned(x, y, ry, 0, half + 0.8 + LOBBY.canopy / 2), w: LOBBY.wide + 0.6, d: LOBBY.canopy + 0.4, ry, onRoad: false })
-  const side = flags(g, x, y, w, d, entrance, free, placed)
+  const side = flags(g, x, y, w, d, entrance, free, placed, stood)
   for (const s of side ? [-side] : [1, -1]) {
     const p = turned(x, y, ry, s * (LOBBY.wide / 2 + 2), half + 2.8)
     const l = { ...p, w: 3, d: 3, ry, onRoad: false }
@@ -1474,10 +1475,12 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
 }
 
 /**
- * Three flagpoles by the lobby of the tower `w` by `d` at `(x, y)` (#154), drawn from where it stands: a third of the
- * towers from Stage 2 and two in three at Stage 3, each flag in a colour of its own, in a row beside the canopy on its
- * door's face `entrance` (#177), on whichever side all three stand on ground `free` has free, which they then take
- * from `placed`. Returns that side (1 or -1, along the face as `to` runs), or 0 for none.
+ * Three flagpoles by the lobby of the tower `w` by `d` at `(x, y)` (#154), drawn from `stood`, where its lot's tower
+ * stood before any scene stood it back (#177), as they always were: a third of the towers from Stage 2 and two in three
+ * at Stage 3, each flag in a colour of its own, in a row beside the canopy on its door's face `entrance` (#177), on
+ * whichever side all three stand on ground `free` has free, or else, as before #177, in a row out from the middle of
+ * another face, the one whose pavement lies nearest the Block's edge first; they then take their ground from `placed`.
+ * Returns the side of the canopy they stand on (1 or -1, along the face as `to` runs), or 0 for neither.
  */
 function flags(
   g: ZoneGround,
@@ -1488,20 +1491,28 @@ function flags(
   entrance: number,
   free: (l: RowLot) => boolean,
   placed: RowLot[],
+  stood: Vec,
 ): number {
   const { kit } = g
-  const draw = mulberry32(spot(x, y + 3))
+  const draw = mulberry32(spot(stood.x, stood.y + 3))
   const [roll, colours] = [draw(), [draw(), draw(), draw()]]
   const first = roll < FLAGS.share[0] ? 2 : roll < FLAGS.share[1] ? 3 : 0
   if (!first) return 0
   const len = Math.hypot(WIND.x, WIND.y)
   const fly = { x: (WIND.x / len) * FLAGS.fly, y: (WIND.y / len) * FLAGS.fly } // from a pole to its flag's free end
-  const [fx, fy] = FACES[entrance]
-  const [ry, out] = [Math.atan2(-fx, fy), (fx ? w : d) / 2 + FLAGS.out]
-  for (const side of [1, -1]) {
-    const poles = [0, 1, 2].map((k) => turned(x, y, ry, side * (LOBBY.wide / 2 + 0.9 + k * FLAGS.apart), out))
-    const room = (p: Vec) =>
-      free({ x: p.x, y: p.y, w: 0.8, d: 0.8, ry: 0, onRoad: false }) && stands(g, p.x + fly.x, p.y + fly.y, 0.4, 0.4, 0.2)
+  const room = (p: Vec) =>
+    free({ x: p.x, y: p.y, w: 0.8, d: 0.8, ry: 0, onRoad: false }) && stands(g, p.x + fly.x, p.y + fly.y, 0.4, 0.4, 0.2)
+  /** Each face's way out (as a front faces) and m from the middle out to where its poles stand. */
+  const faceOf = (k: number) => ({ ry: Math.atan2(-FACES[k][0], FACES[k][1]), out: (FACES[k][0] ? w : d) / 2 + FLAGS.out })
+  const { ry, out } = faceOf(entrance)
+  const rows: { poles: Vec[]; side: number }[] = [1, -1].map((side) => ({
+    poles: [0, 1, 2].map((k) => turned(x, y, ry, side * (LOBBY.wide / 2 + 0.9 + k * FLAGS.apart), out)),
+    side,
+  }))
+  const others = [0, 1, 2, 3].filter((k) => k !== entrance).map(faceOf)
+  for (const f of others.sort((a, b) => g.field.sample(...to(x, y, a.ry, 0, a.out)) - g.field.sample(...to(x, y, b.ry, 0, b.out))))
+    rows.push({ poles: [-1, 0, 1].map((k) => turned(x, y, f.ry, k * FLAGS.apart, f.out)), side: 0 })
+  for (const { poles, side } of rows) {
     if (!poles.every(room)) continue
     poles.forEach((p, k) => {
       placed.push({ x: p.x, y: p.y, w: 1, d: 1, ry: 0, onRoad: false })
