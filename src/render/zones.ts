@@ -859,14 +859,21 @@ function terraces(g: ZoneGround) {
   bins(g, plans, taken)
   const doors = lots.flatMap((l, i) => {
     if (open.has(i) || !l.onRoad) return []
-    // Before its door; or, for a corner shop, by its door beyond the row's end, clear of the awning over its front,
-    // which reaches 1.65 m out and to 0.25 m short of the row's end: the scooter is 2.6 m long, its box at the back.
+    // Before its door; or, for a corner shop, beyond the row's end, coming in and going from the far side, so that it
+    // waits and turns round clear of the awning over its front, which reaches 1.65 m out and to 0.25 m short of the
+    // row's end: the scooter is 2.6 m long, and turns round 1.9 m to the side it does not come in from.
     const corner = planned[i].corner
-    const u = corner ? corner.end * (l.w / 2 + 2) : l.w >= 5.6 ? l.w * 0.23 : 0
-    return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry }]
+    const u = corner ? corner.end * (l.w / 2 + 3.2) : l.w >= 5.6 ? l.w * 0.23 : 0
+    return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry, ...(corner ? { side: -corner.end } : {}) }]
   })
   for (const { ground: s } of scenes) doors.push({ ...turned(s.x, s.y, s.ry, 0, s.d / 2 + 0.9), ry: s.ry }) // a scene's front too
-  deliveryScooter(g, plans, doors, taken)
+  // The scooter keeps out from under the corner shops' awnings, which reach 1.65 m out along the glazing.
+  const awnings = lots.flatMap((l, i) =>
+    planned[i].corner?.kind === 'shop' && !open.has(i)
+      ? [{ ...turned(l.x, l.y, l.ry, 0, l.d / 2 + 0.85), w: l.w - 0.5, d: 1.6, ry: l.ry, onRoad: false }]
+      : [],
+  )
+  deliveryScooter(g, plans, doors, [...taken, ...awnings])
 }
 
 /**
@@ -1035,7 +1042,8 @@ function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
 
 /**
  * The delivery scooter of a medium-density Block (#178), from Stage 2: to the first of `doors` (a point on the pavement
- * before a front, its front's facing), in an order drawn from `draw`, whose way in and out lies on the Block across a
+ * before a front, its front's facing, and the side it turns round to if it must: 1 its right, -1 its left), in an order
+ * drawn from `draw`, whose way in and out lies on the Block across a
  * pavement facing a Road, clear of the utility poles, the lamps, the street trees and `taken`. It waits off down the
  * Road, unseen; comes in over the kerb, growing as it leaves the Road as a car does at a Gateway; pulls up at the door
  * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road. Returns
@@ -1044,7 +1052,7 @@ function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
  * Blocks, while every Tile keeps one. Ceiling: rule 6 (something moving on every Tile from Stage 2) fails on a Tile
  * whose every Block misses. Upgrade: try a tighter turn on the pavement, or a stop at the kerb itself.
  */
-function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]): Vec[] {
+function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number; side?: number })[], taken: RowLot[]): Vec[] {
   const { kit, field } = g
   const [away, wait] = [MEDIUM_FINISH.scooter.away, MEDIUM_FINISH.scooter.door]
   const waits = [away[0] + draw() * (away[1] - away[0]), wait[0] + draw() * (wait[1] - wait[0])]
@@ -1054,7 +1062,7 @@ function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: 
     const door = doors[(n + shift) % doors.length]
     const k = kerbAhead(g, { ...door, w: 0, d: 0, onRoad: true }, 0)
     if (k === null || k < 0.9 || k > 9) continue
-    for (const s of [side0, -side0]) {
+    for (const s of door.side ? [door.side] : [side0, -side0]) {
       // In the door's frame, along its front and out of it: in from the kerb, up to the door, round, and out.
       const way = [
         [-s * 4.2, k - 0.12],
