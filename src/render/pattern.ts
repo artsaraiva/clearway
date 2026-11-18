@@ -69,7 +69,10 @@ export interface Cladding {
   sides?: Pattern
   bay?: number
   storey?: number
-  /** The share of a curtain wall's floors lit at night (#177). */
+  /**
+   * The share of a curtain wall's floors lit at night (#177), which a face wearing `PATTERN.curtain` carries in its
+   * pattern's second number, where another wall carries its bays: none lit unless given.
+   */
   lit?: number
 }
 
@@ -100,7 +103,9 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
       for (let k = i; k < i + 3; k++) {
         const [x, y, z] = [pos.getX(k) - min.x, pos.getY(k) - min.y, pos.getZ(k) - min.z]
         uv.set(top ? [x, z] : [((endOn ? x : z) / across) * bays, y / storey], 2 * k)
-        worn.set(top ? [kind + tag, w, d] : [kind + tag, cladding.lit ?? bays, h / storey], 3 * k)
+        // The pattern's second number: a roof's width, a curtain wall's lit share, another wall's bays.
+        const second = top ? w : kind === PATTERN.curtain ? (cladding.lit ?? 0) : bays
+        worn.set([kind + tag, second, top ? d : h / storey], 3 * k)
       }
     }
   })
