@@ -12,6 +12,7 @@ import {
   boxFace,
   FACES,
   frontOf,
+  GARDEN,
   LOBBY,
   shedDoors,
   spot,
@@ -134,7 +135,7 @@ const MEDIUM_FINISH = {
     washing: 0.5,
   },
   // A low hedge along an apartment block's walls, m deep and tall, in the gardens' hedge's green.
-  hedge: { deep: 0.8, tall: 0.55, colour: '#4e9f49' },
+  hedge: { deep: 0.8, tall: 0.55, colour: GARDEN.hedge },
   // A delivery scooter's waits (s), off down the Road and at the door, at least and at most.
   scooter: { away: [8, 20], door: [5, 9] },
 }
@@ -858,7 +859,7 @@ function terraces(g: ZoneGround) {
     return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry }]
   })
   for (const { ground: s } of scenes) doors.push({ ...turned(s.x, s.y, s.ry, 0, s.d / 2 + 0.9), ry: s.ry }) // a scene's front too
-  scooter(g, plans, doors, taken)
+  deliveryScooter(g, plans, doors, taken)
 }
 
 /**
@@ -1015,7 +1016,8 @@ function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): Place
  * Ground `size` m along a straight run of the Block's edge `inset` m in from it and deep from there, or as small as
  * `least`, on the Block, clear of the lamps and the street trees and as `ok` has it: the first that fits, sliding along
  * each run a metre at a time, the runs facing a Road first in an order drawn from `draw`, each run's ends `ends` m
- * clear; null if none fits (#178).
+ * clear; null if none fits (#178). Unlike `alongEdge`'s few tries at random, it slides along every run, for a Block whose
+ * buildings leave little room.
  */
 function scan(
   g: ZoneGround,
@@ -1087,7 +1089,7 @@ function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
  * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road. Returns
  * its way, or none if no door has room.
  */
-function scooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]): Vec[] {
+function deliveryScooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]): Vec[] {
   const { kit, field } = g
   const [away, wait] = [MEDIUM_FINISH.scooter.away, MEDIUM_FINISH.scooter.door]
   const waits = [away[0] + draw() * (away[1] - away[0]), wait[0] + draw() * (wait[1] - wait[0])]
@@ -1290,7 +1292,7 @@ function courtyards(g: ZoneGround) {
       }),
     ),
   )
-  const way = scooter(g, plans, doors, taken)
+  const way = deliveryScooter(g, plans, doors, taken)
   for (const b of built) plantings(g, b, taken, way)
 }
 

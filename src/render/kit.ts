@@ -291,6 +291,8 @@ const PLAY = {
   rim: '#c49a6c',
   rider: '#ff9cbb',
 }
+/** A garden's lawn and hedge and a playground's sand, for the builders beside the kit (`./props`, `./zones`, #178). */
+export const GARDEN = { lawn: LAWN, hedge: HEDGE, sand: PLAY.sand }
 const BEACON = { mast: 2.2, r: 0.85 } // a roof beacon's mast, m tall, and its bulb's radius
 const BUSH = new THREE.IcosahedronGeometry(1, 0) // a balcony plant's leaves: a few faces, laid by the thousand
 const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes

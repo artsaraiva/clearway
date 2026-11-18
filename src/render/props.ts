@@ -3,7 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import { polyline, type Vec } from '../sim/geometry'
 import { KERB } from './blocks'
 import { PAINTS } from './cars'
-import { SHAPES, spot, to, type Kit } from './kit'
+import { GARDEN, SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
 import type { Footprint } from './streets'
 
@@ -495,7 +495,7 @@ export const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least:
 }
 
 // Colours (#178): a shrine's stone, its timber, its copper roof gone green, the straw rope and the paper over it, and the
-// gravel and setts it stands on; a pocket park's sand; a bathhouse's plaster, its stone footing, its slate tiles, its
+// gravel and setts it stands on; a bathhouse's plaster, its stone footing, its slate tiles, its
 // noren, its sign and its brick chimney under a white band.
 const SHRINE = {
   stone: '#d9d3c7',
@@ -508,9 +508,6 @@ const SHRINE = {
   paper: '#fbf8f2',
   ground: '#ddd6c9',
 }
-const SAND = '#e8d3a6'
-const LAWN = '#a9db7f'
-const HEDGE = '#4e9f49'
 const BATHHOUSE = {
   wall: '#f6e6cb',
   footing: '#bdb4a6',
@@ -597,12 +594,12 @@ function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number
 function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   const at = (u: number, v: number) => to(x, y, ry, u, v)
   const side = spot(x, y) % 2 ? 1 : -1 // the side its swing stands
-  kit.surface(x, y, KERB, w - 0.4, d - 0.4, ry, LAWN)
-  for (const s of [-1, 1]) kit.put(kit.cuboid(0.5, 0.65, d - 1.4), HEDGE, x, y, ry, s * (w / 2 - 0.45), -0.5, KERB)
-  kit.put(kit.cuboid(w - 0.9, 0.65, 0.5), HEDGE, x, y, ry, 0, -d / 2 + 0.45, KERB)
+  kit.surface(x, y, KERB, w - 0.4, d - 0.4, ry, GARDEN.lawn)
+  for (const s of [-1, 1]) kit.put(kit.cuboid(0.5, 0.65, d - 1.4), GARDEN.hedge, x, y, ry, s * (w / 2 - 0.45), -0.5, KERB)
+  kit.put(kit.cuboid(w - 0.9, 0.65, 0.5), GARDEN.hedge, x, y, ry, 0, -d / 2 + 0.45, KERB)
   kit.brick('ground', x, y, KERB)
   const swing = at(side * (w / 2 - 2.4), -0.6)
-  kit.surface(...swing, KERB + 0.02, 3.4, 2.8, ry, SAND)
+  kit.surface(...swing, KERB + 0.02, 3.4, 2.8, ry, GARDEN.sand)
   kit.swings(...swing, KERB + 0.12, ry, true)
   kit.tree(...at(-side * (w / 2 - 1.8), -d / 2 + 1.9), KERB + 0.1, 0.58, 'round')
   bench(kit, ...at(-side * (w / 2 - 2.2), 0.6), ry + (side * Math.PI) / 2)
