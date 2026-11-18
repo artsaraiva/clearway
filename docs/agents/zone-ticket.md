@@ -6,14 +6,16 @@ The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md
 
 ## Steps
 
-1. **Read** the ticket, #173's rules, and the finished Zone nearest yours in the visual-style spec.
-2. **Run the scene check on `main`** for your Zone: `npm run check:scene -- <zone> --all`. Its known rows for your Zone in `scripts/visual/scene/known.ts` are your work list.
-3. **Build in a loop of seconds:** change the fill, rerun the check, read what failed and where. Commit each time a group of failures clears.
-4. **Done building when** `npm run check:scene -- <zone> --seeds 5` passes with your Zone's rows deleted from `known.ts`, and `npm run check:scene -- all --against origin/main` shows every other Zone's meshes unchanged.
-5. **Shoot once:** `npm run shots -- <zone> --times noon,night`. Read the sheets against rules 1, 2 and 9, which the check does not assert, and against the approved shops sheets. Fix and reshoot only what a sheet shows wrong.
-6. **Bench once:** `npm run bench:visual -- <zone> --against origin/main`, whole City and one Tile, noon and night. Under 12 ms.
-7. **Write** what the Zone builds, its colours and its frame time into the visual-style spec. List in one place every departure from a rule and every piece outside the ticket's menu, for the user to accept or drop.
-8. **Open a draft PR** (`/pr`, `Closes #<n>`). The user approves the sheets; then mark it ready.
+1. **Ask which of the menu to build.** The ticket's Wanted list is a menu: show it to the user, and build what they pick, or all of it when they say so. Done when the user has answered.
+2. **Read** the ticket, #173's rules, and the finished Zone nearest yours in the visual-style spec.
+3. **Run the scene check on `main`** for your Zone: `npm run check:scene -- <zone> --all`. Its known rows for your Zone in `scripts/visual/scene/known.ts` are your work list.
+4. **Build in a loop of seconds:** change the fill, rerun the check, read what failed and where. Commit each time a group of failures clears.
+5. **Done building when** `npm run check:scene -- <zone> --seeds 5` passes with your Zone's rows deleted from `known.ts`, and `npm run check:scene -- all --against origin/main` shows every other Zone's meshes unchanged.
+6. **Shoot once:** `npm run shots -- <zone> --times noon,night`. Read the sheets against rules 1, 2 and 9, which the check does not assert, and against the approved shops sheets. Fix and reshoot only what a sheet shows wrong.
+7. **Review:** `/code-review` against `origin/main`, on both axes as Review (below) has them. Fix what it finds, rerun the check, and reshoot only what a fix changes.
+8. **Bench once:** `npm run bench:visual -- <zone> --against origin/main`, whole City and one Tile, noon and night. Under 12 ms.
+9. **Write** what the Zone builds, its colours and its frame time into the visual-style spec. List in one place every departure from a rule and every piece outside the ticket's menu, for the user to accept or drop.
+10. **Open a draft PR** (`/pr`, `Closes #<n>`). The user approves the sheets; then mark it ready.
 
 ## What the check asserts, and what stays with the sheet
 

@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Tickets are GitHub Issues at `artsaraiva/clearway`; specs and maps stay under `.scratch/<feature>/`. The repo is on the personal `artsaraiva` account: prefix `gh` with `GH_TOKEN=$(gh auth token -u artsaraiva)`. See `docs/agents/issue-tracker.md`.
+Tickets are GitHub Issues at `artsaraiva/clearway`; specs and maps stay under `.scratch/<feature>/`. The repo is on the personal `artsaraiva` account: prefix `gh` with `GH_TOKEN=$(gh auth token -u artsaraiva)`, and read a ticket with `gh issue view <n> -R artsaraiva/clearway --json title,body,comments`. See `docs/agents/issue-tracker.md`.
 
 Each ticket gets its own branch off `main`, named `<n>-<slug>` (e.g. `1-split-sim`). Finish with a PR whose body comes from `/pr` and says `Closes #<n>`.
 
@@ -35,6 +35,6 @@ Visual-style PR evidence comes from `scripts/visual/`: `npm run shots -- <zones>
 
 The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script outside `npm test`, whose usage heads `scripts/visual/check.mjs`. Sheets are for the look alone.
 
-Zone work lives in `src/render/zones/<zone>.ts` (its look, fill, plans and scenes) and `.scratch/visual-style/zones/<zone>.md` (its part of the visual-style spec); what every Zone shares stays in `src/render/zones/ground.ts`, `scenes.ts`, the kit and `.scratch/visual-style/spec.md`. The pre-commit hook runs the scene check on each staged Zone module, and on every Zone when another render file or the check itself is staged (about 50 s).
+Zone work lives in `src/render/zones/<zone>.ts` (its look, fill, plans and scenes) and `.scratch/visual-style/zones/<zone>.md` (its part of the visual-style spec); what every Zone shares stays in `src/render/zones/ground.ts`, `scenes.ts`, the kit and `.scratch/visual-style/spec.md`.
 
 Write the test first when the rule is clear up front. When the behavior is still being explored, build it, playtest it, then lock it in with a test.
