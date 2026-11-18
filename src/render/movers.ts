@@ -39,7 +39,8 @@ export interface Mover {
   laps?: boolean
   /**
    * The stop where it is away (#177), as a food truck is off down the Road until it turns in: unseen while it waits
-   * there, and shrinking as it nears it, as a car does at a Gateway. Always seen unless given.
+   * there, and shrinking over the last `AWAY` m of its loop to it, and growing over the first from it, as a car does at a
+   * Gateway. Always seen unless given.
    */
   away?: number
   /** The stop it sets out from on the first day. */
@@ -152,7 +153,7 @@ const KINDS: Record<MoverKind, Kind> = {
 export const moverWidth = (kind: MoverKind) => KINDS[kind].wide
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
-/** m from the stop where a mover is away (#177) over which it shrinks out of sight, or grows back. */
+/** m of its loop either side of the stop where a mover is away (#177) over which it shrinks out of sight, or grows back. */
 const AWAY = 3
 // Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
 const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
@@ -828,7 +829,8 @@ export function createMovers() {
   /**
    * Where mover `v` is: on the day's stretches, from the stop the day before ended at, as far as the work done today
    * takes it, waiting at each stop on the way, so it stops at the end of a stretch and sets out from there next
-   * morning. It faces back along the way it drives a stretch in reverse.
+   * morning. It faces back along the way it drives a stretch in reverse. `away` is how far along its loop it is from
+   * the stop where it is away (#177), Infinity off the stretches either side of that stop or for a mover never away.
    */
   const place = (v: Mover) => {
     const { speed } = KINDS[v.kind]
@@ -845,17 +847,19 @@ export function createMovers() {
       if (left * speed < reach) {
         const p = along(loop, (stops[from] + left * speed) % loop.length)
         const off = Math.min(left * speed, reach - left * speed) // m from the nearer end of the stretch
-        return onFace(v, { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working, off })
+        const away = from === v.away ? left * speed : (from + 1) % n === v.away ? reach - left * speed : Infinity
+        return onFace(v, { ...p, heading: p.heading + (reverse?.[from] ? Math.PI : 0), moving: working, off, away })
       }
       left -= reach / speed
       from = (from + 1) % n
     }
     // At stop `from`, facing as it came in: a stop at the loop's start is its end too.
     const p = along(loop, stops[from] || loop.length)
-    return onFace(v, { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false, off: 0 })
+    const away = from === v.away ? 0 : Infinity
+    return onFace(v, { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false, off: 0, away })
   }
   /** Where a place on `v`'s loop lies on the map, and m above `v.h`: for a mover that works a wall, on the wall's face. */
-  const onFace = (v: Mover, p: { x: number; y: number; heading: number; moving: boolean; off: number }) => {
+  const onFace = (v: Mover, p: { x: number; y: number; heading: number; moving: boolean; off: number; away: number }) => {
     if (!v.face) return { ...p, up: 0 }
     const { x, y, heading } = v.face
     return { ...p, x: x + p.x * Math.sin(heading), y: y - p.x * Math.cos(heading), up: p.y, heading }
@@ -966,10 +970,8 @@ export function createMovers() {
           const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
           const phase = phaseOf(v)
           const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
-          // Away (#177): unseen at its stop there, and shrinking as it nears it.
-          const there = v.away === undefined ? null : along(v.loop, v.stops[v.away] || v.loop.length)
-          const gone = there ? smooth(Math.min(1, Math.hypot(p.x - there.x, p.y - there.y) / AWAY)) : 1
-          const size = Math.max(0.001, pose.scale * gone)
+          // Away (#177): unseen at its stop there, and shrinking as it nears it along its loop.
+          const size = Math.max(0.001, pose.scale * smooth(Math.min(1, p.away / AWAY)))
           q.setFromAxisAngle(up, p.heading)
           m.compose(at.set(p.x, v.h + p.up + pose.lift + rise + hop, -p.y), q, scale.setScalar(size))
           mesh.setMatrixAt(i, m)
