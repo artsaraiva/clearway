@@ -203,7 +203,7 @@ export function produce(kit: Kit, x: number, y: number, ry: number) {
 }
 
 // Offices (#177): the scenes an offices Block picks from, each on ground it reserves along the Block's edge, `w` m along
-// it and `d` deep, its front facing `ry` toward the street; the piece on each tower's plaza; and a taxi bay at the kerb.
+// it and `d` deep, its front facing `ry` toward the Road; the piece on each tower's plaza; and a taxi bay at the kerb.
 // Benches and planters are Close-only, as the street's furniture is. Before its Stage a scene's ground is paved, with a
 // tree in a round bed, so that no ground stands empty.
 
@@ -218,11 +218,14 @@ export type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
 const STONE = { rim: '#d9d3c7', step: '#e8e2d6', floor: '#d6cec1', dark: '#bdb4a6' }
 const ART = ['#f0b43c', '#2fb39a', '#c4ccd4', '#a58ad8', '#fbf8f2']
 const CLOCK = { post: '#4a525c', face: '#fbf8f2', hands: '#2f3440' }
+// Water in a court's pool or a fountain, painted on the soft-lit material: the kit's water would bring a mesh, and its
+// shadow, to every offices build, which draws none of it otherwise.
+const WATER = '#63d1f4'
 const TAXI_BAY = { tarmac: '#bcc1c8', line: '#fbf8f2', pole: '#9aa3ad', board: '#fbf8f2', band: '#f6d36a', marks: '#2f3440' }
 const FOOD_TRUCKS = ['#64cb9f', '#ff9cbb', '#ffffff', '#bc9ef2']
 // A sculpture plaza's ring, standing on edge: 1 m across, its tube 0.16 m thick, scaled to its size.
 const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
-// A food truck (#177): m from where it parks to where it turns off the street, and the s it waits there before it
+// A food truck (#177): m from where it parks to where it turns off the Road, and the s it waits there before it
 // drives in, late in the morning, and parked before it leaves, after midday.
 const FOOD_TRUCK = { drive: 6, waits: [30, 30] }
 // How brightly a lit clock face, a court's low lights and a sculpture's uplights glow, for the lamps' glow.
@@ -251,7 +254,7 @@ function sceneGround(kit: Kit, x: number, y: number, w: number, d: number, ry: n
 
 /**
  * A sunken court at Stage `stage` (#177), from Stage `from`: three tiers of stone steps down on three sides to a paved
- * court open toward the street, a tree in a round bed at its back and benches on its floor; at Stage 3 a long pool of
+ * court open toward the Road, a tree in a round bed at its back and benches on its floor; at Stage 3 a long pool of
  * water across its front and two low lights at its open corners that leave their pools. Before `from`, its ground.
  */
 export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
@@ -269,7 +272,7 @@ export function sunkenCourt(kit: Kit, x: number, y: number, w: number, d: number
   for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * (w / 2 - 2.6), 0.4), ry + (k * Math.PI) / 2)
   if (stage === 3) {
     kit.put(kit.cuboid(w - 4, 0.36, 1.3), STONE.rim, x, y, ry, 0, d / 2 - 1, KERB)
-    kit.put(kit.cuboid(w - 4.3, 0.06, 1), kit.water, x, y, ry, 0, d / 2 - 1, KERB + 0.32)
+    kit.put(kit.cuboid(w - 4.3, 0.06, 1), WATER, x, y, ry, 0, d / 2 - 1, KERB + 0.32)
     for (const k of [-1, 1]) {
       const [lx, ly] = to(x, y, ry, k * (w / 2 - 1.8), d / 2 - 0.4)
       kit.add(kit.cuboid(0.22, 0.7, 0.22), STONE.dark, lx, ly, KERB)
@@ -322,12 +325,12 @@ export function sculpturePlaza(kit: Kit, x: number, y: number, w: number, d: num
 }
 
 /**
- * Where a food truck parks and the street it turns off, on a truck court's ground (#177): it parks along the front,
- * its serving hatch toward the tables, and turns off the street `FOOD_TRUCK.drive` m along.
+ * Where a food truck parks and the Road it turns off, on a truck court's ground (#177): it parks along the front,
+ * its serving hatch toward the tables, and turns off the Road `FOOD_TRUCK.drive` m along.
  */
 const truckSpots = (x: number, y: number, w: number, d: number, ry: number) => ({
   parked: to(x, y, ry, -w / 2 + 3, d / 2 - 1.6),
-  street: to(x, y, ry, -w / 2 + 3 + FOOD_TRUCK.drive, d / 2 - 1.6),
+  road: to(x, y, ry, -w / 2 + 3 + FOOD_TRUCK.drive, d / 2 - 1.6),
 })
 
 /**
@@ -355,16 +358,16 @@ export function truckCourt(kit: Kit, x: number, y: number, w: number, d: number,
 }
 
 /**
- * The food truck of a truck court (#177), as a mover: it waits off the street through the morning, unseen, turns in
+ * The food truck of a truck court (#177), as a mover: it waits off the Road through the morning, unseen, turns in
  * late in the morning and parks, its hatch toward the tables, through the middle of the day, and drives back out after
- * midday, shrinking as it leaves the street, as a car does at a Gateway; one lap a day. Its paint is drawn from where
+ * midday, shrinking as it leaves the Road, as a car does at a Gateway; one lap a day. Its paint is drawn from where
  * it parks.
  */
 export function foodTruck(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
-  const { parked, street } = truckSpots(x, y, w, d, ry)
+  const { parked, road } = truckSpots(x, y, w, d, ry)
   const [p, s] = [
     { x: parked[0], y: parked[1] },
-    { x: street[0], y: street[1] },
+    { x: road[0], y: road[1] },
   ]
   const paint = FOOD_TRUCKS[spot(...parked) % FOOD_TRUCKS.length]
   kit.mover('foodtruck', polyline([s, p, s]), [0, FOOD_TRUCK.drive], 0, KERB, { waits: [...FOOD_TRUCK.waits], paint, laps: true, away: 0 })
@@ -396,7 +399,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
     kit.shadow(x, y, KERB, 1.4, 1.4, true)
   } else {
     kit.drum(STONE.rim, x, y, KERB, 1.5, 1.5, 0.5)
-    kit.drum(kit.water, x, y, KERB + 0.1, 1.3, 1.3, 0.36)
+    kit.drum(WATER, x, y, KERB + 0.1, 1.3, 1.3, 0.36)
     kit.drum(STONE.dark, x, y, KERB, 0.22, 0.22, 1.1)
     kit.steam(x, y, KERB + 1.2)
     kit.shadow(x, y, KERB, 3.4, 3.4, true)
@@ -405,7 +408,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
 }
 
 /**
- * A taxi bay at the kerb, `w` m along it and `d` deep, its front facing `ry` toward the street, as one brick (#177): a
+ * A taxi bay at the kerb, `w` m along it and `d` deep, its front facing `ry` toward the Road, as one brick (#177): a
  * strip of tarmac set into the pavement, lined along its back and ends, and a stand's sign on a post at one end whose
  * board lights at night and leaves a pool. The taxis waiting in it are the kit's.
  */

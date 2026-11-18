@@ -2091,7 +2091,7 @@ export function createKit(rand: () => number, materials: Materials) {
       add(box(w + 1.6, 0.8, d + 1.6, 1.4, 0.16), trim, x, y, h)
       add(box(w + 0.6, 2.4, d + 0.6, 1.2, 0.08), { material: glass, tint: windows[0] }, x, y, h + 0.8)
       add(box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, x, y, h + 3.2)
-      // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the street.
+      // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the Road.
       for (let k = 0; k < 4; k++) {
         const { ry, half, len } = faceOf(k)
         pool('lobby', ...to(x, y, ry, 0, half + 2), h, len + 2, 2.8, ry)

@@ -38,7 +38,7 @@ export interface Mover {
   /** Whether it works whole laps of its loop a day, so that it ends each day at the stop it set out from (#154). */
   laps?: boolean
   /**
-   * The stop where it is away (#177), as a food truck is off down the street until it turns in: unseen while it waits
+   * The stop where it is away (#177), as a food truck is off down the Road until it turns in: unseen while it waits
    * there, and shrinking as it nears it, as a car does at a Gateway. Always seen unless given.
    */
   away?: number

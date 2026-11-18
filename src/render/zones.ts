@@ -1054,7 +1054,7 @@ function towerFoot(g: ZoneGround, podium: RowLot, taken: RowLot[], own: RowLot) 
 }
 
 /**
- * Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left to a tree. A
+ * Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left a grove. A
  * tower gains floors and finish with each Stage (`FLOORS`, and the kit's `officeTower`), and at Stage 3 its plaza has
  * trees in planters at two corners.
  *
@@ -1062,7 +1062,7 @@ function towerFoot(g: ZoneGround, podium: RowLot, taken: RowLot[], own: RowLot) 
  * reserves the ground of its scene along a Road, a sunken court, a sculpture plaza or a food truck's court, which every
  * tower stands back from; and of a second at Stage 3 on a Block of 2,500 m² or more. A taxi bay lies at the kerb, with
  * a taxi in it from Stage 2 and a second at Stage 3. No tower is its neighbour's style. Each tower opens its revolving
- * door on the face toward the street, stands on a chequered plaza, has a bench either side of it, Close-only, with
+ * door on the face toward the Road, stands on a chequered plaza, has a bench either side of it, Close-only, with
  * planters by them from Stage 2, and from Stage 2 a sculpture, a clock or a fountain before its lobby; the tall ones,
  * and at Stage 3 the high ones, carry a lit name plate on their crowns.
  */
@@ -1093,11 +1093,11 @@ function offices(g: ZoneGround) {
     let style = STYLES[Math.floor(plans() * STYLES.length)]
     if (style === last) style = STYLES[(STYLES.indexOf(style) + 2) % STYLES.length] // never its neighbour's
     if (kit.chance(0.06)) {
-      if (!taken.some((t) => near(t, x, y, 3))) kit.staged((stage) => kit.tree(x, y, KERB, SAPLING[stage - 1] * kit.range(0.7, 1), 'round'))
+      grove(g, lots[i], taken) // the odd lot left to trees
       continue
     }
     last = style
-    // Its door opens on the face whose plaza lies nearest the Block's edge, toward the street.
+    // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road.
     const entrance = FACES.map(([fx, fy], k) => ({ k, edge: field.sample(x + fx * (w / 2 + 3), y + fy * (d / 2 + 3)) })).sort(
       (a, b) => a.edge - b.edge,
     )[0].k
@@ -1235,7 +1235,8 @@ function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLo
 }
 
 /**
- * A lot that no tower fits and no scene takes, left a grove (#177): paved as a plaza as far as the Block lets it, and up
+ * A lot left a grove (#177), the odd one or one that no tower fits and no scene takes: paved as a plaza as far as the
+ * Block lets it, and up
  * to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the street trees and
  * what `taken` holds, with a bench by the first, Close-only.
  */
