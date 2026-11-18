@@ -3,3 +3,16 @@
 npx lint-staged
 npm run typecheck
 npm run test
+
+# The scene check (#191) for the Zones the commit can change (#199): a Zone's own module (src/render/zones/<zone>.ts)
+# checks that Zone, about 5 to 8 s; any other render file, a module the Zones share or the check itself checks every
+# Zone, about 50 s. A commit with no render file checks nothing.
+zones=""
+for f in $(git diff --cached --name-only); do
+  case "$f" in
+    src/render/zones/index.ts | src/render/zones/ground.ts | src/render/zones/scenes.ts) zones=all ;;
+    src/render/zones/*.ts) [ "$zones" = all ] || zones="$zones $(basename "$f" .ts)" ;;
+    src/render/* | scripts/visual/scene/* | scripts/visual/check.mjs | scripts/visual/city.mjs) zones=all ;;
+  esac
+done
+[ -z "$zones" ] || npm run check:scene -- $zones
