@@ -542,8 +542,11 @@ function runs(g: ZoneGround, margin: number): Run[] {
   return out
 }
 
-/** Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`): where they stand. */
-function yards(g: ZoneGround, lots: RowLot[], count: number): Vec[] {
+/**
+ * Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`), and
+ * `coarse` (the kit's `tree`) if asked: where they stand.
+ */
+function yards(g: ZoneGround, lots: RowLot[], count: number, coarse = false): Vec[] {
   const { kit, block, field } = g
   const planted: Vec[] = []
   for (let tries = 0; tries < count * 12 && planted.length < count; tries++) {
@@ -552,7 +555,7 @@ function yards(g: ZoneGround, lots: RowLot[], count: number): Vec[] {
     if (lots.some((l) => near(l, x, y, 2.6)) || planted.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue
     if (!stands(g, x, y, 3, 3, 2)) continue
     const [size, kind] = [kit.range(0.55, 0.85), kit.chance(0.25) ? 'sakura' : 'round'] as const
-    kit.staged((stage) => kit.tree(x, y, KERB, GROW[stage - 1] * size, kind))
+    kit.staged((stage) => kit.tree(x, y, KERB, GROW[stage - 1] * size, kind, coarse))
     planted.push({ x, y })
   }
   return planted
@@ -804,7 +807,7 @@ function terraces(g: ZoneGround) {
     kit.staged((stage) => kit.townhouse(l.x, l.y, KERB, l.w, l.d, l.ry, TERRACE_STOREYS(s, stage), stage, plan))
   }
   kit.lot(-1)
-  const trees = yards(g, lots, TERRACES.trees)
+  const trees = yards(g, lots, TERRACES.trees, kit.finished)
   const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3)), ...signs]
   // A corner by a row's end (#156), beyond its end wall from its front back: one from Stage 2, a second from Stage 3.
   let from = 2
@@ -1166,7 +1169,7 @@ function courtyards(g: ZoneGround) {
       } else kit.lawn(x, y, KERB, cw, cd)
       kit.brick('ground', x, y, KERB)
       const [size, kind] = [kit.range(0.7, 0.95), kit.chance(0.3) ? 'sakura' : 'round'] as const
-      kit.staged((stage) => kit.tree(x, y, KERB + lift, GROW[stage - 1] * size, kind))
+      kit.staged((stage) => kit.tree(x, y, KERB + lift, GROW[stage - 1] * size, kind, kit.finished))
       kit.from(3, () => kit.hedge(x, y, KERB + (kit.finished ? 0 : 0.16), cw - 1.2, cd - 1.2, Math.floor(kit.range(0, 4))))
     } else if (Math.min(w, d) >= deep + 6) {
       const [top, left] = [kit.chance(0.5), kit.chance(0.5)]
@@ -1271,7 +1274,7 @@ function pocketCourt(g: ZoneGround, l: RowLot) {
     },
     spot(l.x, l.y),
   )
-  kit.staged((stage) => kit.tree(l.x, l.y, KERB + 0.45, GROW[stage - 1] * 0.55, 'round'), spot(l.x, l.y) + 1)
+  kit.staged((stage) => kit.tree(l.x, l.y, KERB + 0.45, GROW[stage - 1] * 0.55, 'round', true), spot(l.x, l.y) + 1)
 }
 
 /** A tree in a round bed at `(x, y)` (#178), from Stage 1, growing with the Stage, drawn from where it stands. */
@@ -1285,7 +1288,7 @@ function bedTree(g: ZoneGround, x: number, y: number) {
     },
     spot(x, y),
   )
-  kit.staged((stage) => kit.tree(x, y, KERB + 0.5, GROW[stage - 1] * 0.5, 'round'), spot(x, y) + 1)
+  kit.staged((stage) => kit.tree(x, y, KERB + 0.5, GROW[stage - 1] * 0.5, 'round', true), spot(x, y) + 1)
 }
 
 // What fills the bare paving round a courtyard Block's buildings (#178): m a cell of the grid it is read on; how far
@@ -1580,7 +1583,7 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
     },
     spot(tx, ty),
   )
-  kit.staged((stage) => kit.tree(tx, ty, KERB + 0.45, GROW[stage - 1] * 0.55, 'round'), spot(tx, ty) + 1)
+  kit.staged((stage) => kit.tree(tx, ty, KERB + 0.45, GROW[stage - 1] * 0.55, 'round', true), spot(tx, ty) + 1)
 }
 
 /**

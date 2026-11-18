@@ -239,12 +239,12 @@ const GLOWS = { face: 0.8, low: 1.4, string: 1.5, band: 0.33 }
 // A truck court's pergola over its tables (#177): m up to its beams and deep at most, its steel, and its lamps' cream.
 const PERGOLA = { tall: 2.86, deep: 3, steel: '#9aa3ad', lamp: '#fff1c7' }
 
-/** A tree of size `s` in a round stone bed `r` m across at `(x, y)`, as two bricks. */
-function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
+/** A tree of size `s` in a round stone bed `r` m across at `(x, y)`, as two bricks, `coarse` (the kit's `tree`) if asked. */
+function bedTree(kit: Kit, x: number, y: number, r: number, s: number, coarse = false) {
   kit.drum(STONE.rim, x, y, KERB, r, r, 0.5)
   kit.drum('#8a7560', x, y, KERB + 0.42, r - 0.18, r - 0.18, 0.1)
   kit.brick('building', x, y, KERB)
-  kit.tree(x, y, KERB + 0.5, s, 'round')
+  kit.tree(x, y, KERB + 0.5, s, 'round', coarse)
 }
 
 /** A bench at `(x, y)` facing `ry`, Close-only (#177). */
@@ -252,10 +252,10 @@ const bench = (kit: Kit, x: number, y: number, ry: number) => kit.closeOnly(() =
 
 /**
  * A scene's ground before its Stage (#177, #178), facing `ry`: a tree of size `s` in a round bed `r` m across in its
- * middle, and a bench either side of it `out` m from it, facing it, Close-only.
+ * middle, `coarse` (the kit's `tree`) if asked, and a bench either side of it `out` m from it, facing it, Close-only.
  */
-function waiting(kit: Kit, { x, y, ry }: Footprint, r: number, s: number, out: number) {
-  bedTree(kit, x, y, r, s)
+function waiting(kit: Kit, { x, y, ry }: Footprint, r: number, s: number, out: number, coarse = false) {
+  bedTree(kit, x, y, r, s, coarse)
   for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * out, 0), ry + (k * Math.PI) / 2)
 }
 
@@ -536,7 +536,7 @@ export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stag
   const { x, y, w, d, ry } = ground
   if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
   kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
-  waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9))
+  waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9), true)
 }
 
 /** A stone lantern at `(x, y)` facing `ry` (#178): a footing, a post, a fire box that lights at dusk and leaves its pool, and a cap. */
@@ -581,7 +581,7 @@ function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number
   kit.shadow(...at(0, back), KERB, 2.6, 2.4, false, ry)
   kit.brick('building', ...at(0, back), KERB)
   for (const s of [-1, 1]) stoneLantern(kit, ...at(s * Math.min(1.7, w / 2 - 0.6), back + 1.6), ry)
-  kit.tree(...at(side * (w / 2 - 1.2), back + 0.2), KERB, 0.62, 'round')
+  kit.tree(...at(side * (w / 2 - 1.2), back + 0.2), KERB, 0.62, 'round', true)
   if (stage < 3) return
   kit.put(kit.cuboid(0.9, 0.5, 0.45), SHRINE.wood, x, y, ry, 0, back + 1.25, KERB)
   for (let k = 0; k < 4; k++) kit.put(kit.cuboid(0.8, 0.03, 0.06), SHRINE.door, x, y, ry, 0, back + 1.08 + k * 0.1, KERB + 0.5)
@@ -607,7 +607,7 @@ function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
   const swing = at(side * (w / 2 - 2.4), -0.6)
   kit.surface(...swing, KERB + 0.02, 3.4, 2.8, ry, GARDEN.sand)
   kit.swings(...swing, KERB + 0.12, ry, true)
-  kit.tree(...at(-side * (w / 2 - 1.8), -d / 2 + 1.9), KERB + 0.1, 0.58, 'round')
+  kit.tree(...at(-side * (w / 2 - 1.8), -d / 2 + 1.9), KERB + 0.1, 0.58, 'round', true)
   bench(kit, ...at(-side * (w / 2 - 2.2), 0.6), ry + (side * Math.PI) / 2)
   kit.lamp(...at(-side * (w / 2 - 0.9), d / 2 - 0.9), KERB + 0.1) // on the lawn, its pool over it
   if (stage < 3) return

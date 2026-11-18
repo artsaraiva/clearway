@@ -349,6 +349,7 @@ const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1',
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
+const COARSE_SPHERE = new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
 const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial
@@ -1150,11 +1151,14 @@ export function createKit(rand: () => number, materials: Materials) {
     /** Add `geo` `u` m along the ridge and `down` m out from it over the slope facing `side` (1 front, -1 back, as the frame's), `z` up. */
     const on = (geo: THREE.BufferGeometry, look: Look, u: number, down: number, side: number, z: number, sx = 1, sy = 1, sz = 1) =>
       put(geo, look, x, y, rf + (side < 0 ? Math.PI : 0), u * side, down, z, sx, sy, sz)
+    // Its thin steel, the aerial and the deck's posts and rails, is Close-only: under a pixel with the City in frame.
     if (aerialRoll < aerial.share[stage - 1]) {
       const [px, py] = to(x, y, rf, end * (half - 0.45), 0)
-      add(cuboid(0.07, 2.7, 0.07), TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3) // plain boxes: aerials come by the hundred
-      for (const [k, len] of [1.4, 0.9].entries())
-        add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.6 + k * 0.4, rf + turn * Math.PI)
+      closeOnly(() => {
+        add(cuboid(0.07, 2.7, 0.07), TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3) // plain boxes: aerials come by the hundred
+        for (const [k, len] of [1.4, 0.9].entries())
+          add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.6 + k * 0.4, rf + turn * Math.PI)
+      })
     }
     if (deckRoll < deck.share[stage - 1] && span > 2.2) {
       // Over the back slope by the ridge, at the end away from the aerial: a deck on posts behind a rail, and a pole.
@@ -1163,13 +1167,15 @@ export function createKit(rand: () => number, materials: Materials) {
       const floor = ridge + 0.1
       const mid = 0.15 + D / 2
       on(cuboid(L, 0.08, D), deck.slats, u, mid, -1, floor - 0.08)
-      for (const k of [-1, 1]) {
-        on(cuboid(0.07, floor - at(0.15 + D) + 1, 0.07), deck.steel, u + k * (L / 2 - 0.04), 0.15 + D - 0.04, -1, at(0.15 + D) - 0.05)
-        on(cuboid(0.05, 0.05, D), deck.steel, u + k * (L / 2 - 0.03), mid, -1, floor + 0.9)
-        on(cuboid(0.05, 1.75, 0.05), deck.steel, u + k * (L / 2 - 0.12), mid, -1, floor)
-      }
-      for (const z of [0.45, 0.9]) on(cuboid(L, 0.05, 0.05), deck.steel, u, 0.15 + D - 0.03, -1, floor + z)
-      on(cuboid(L, 0.04, 0.04), deck.steel, u, mid, -1, floor + 1.72)
+      closeOnly(() => {
+        for (const k of [-1, 1]) {
+          on(cuboid(0.07, floor - at(0.15 + D) + 1, 0.07), deck.steel, u + k * (L / 2 - 0.04), 0.15 + D - 0.04, -1, at(0.15 + D) - 0.05)
+          on(cuboid(0.05, 0.05, D), deck.steel, u + k * (L / 2 - 0.03), mid, -1, floor + 0.9)
+          on(cuboid(0.05, 1.75, 0.05), deck.steel, u + k * (L / 2 - 0.12), mid, -1, floor)
+        }
+        for (const z of [0.45, 0.9]) on(cuboid(L, 0.05, 0.05), deck.steel, u, 0.15 + D - 0.03, -1, floor + z)
+        on(cuboid(L, 0.04, 0.04), deck.steel, u, mid, -1, floor + 1.72)
+      })
       if (stage === 3 && wash < 0.6)
         sway('washing', ...to(x, y, rf + Math.PI, -u, mid), floor + 1.72, rf + Math.PI, { paint: pick(WASHING) })
     }
@@ -1198,9 +1204,12 @@ export function createKit(rand: () => number, materials: Materials) {
     const { pipe, meter, ac } = TERRACE_FINISH
     const [low, high] = [rand(), rand()]
     const back = -d / 2
-    local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, w / 2 - 0.3, back - 0.08, h)
-    if (roof.gutter) local(cuboid(w + 0.2, 0.12, 0.16), pipe, x, y, ry, 0, -(d + 1) / 2 - 0.08, h + wall - 0.12)
-    for (const end of ends) local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, end * (w / 2 + 0.08), back + 0.35, h)
+    // The downpipes and the gutter are Close-only: under a pixel with the City in frame.
+    closeOnly(() => {
+      local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, w / 2 - 0.3, back - 0.08, h)
+      if (roof.gutter) local(cuboid(w + 0.2, 0.12, 0.16), pipe, x, y, ry, 0, -(d + 1) / 2 - 0.08, h + wall - 0.12)
+      for (const end of ends) local(cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, end * (w / 2 + 0.08), back + 0.35, h)
+    })
     const bays = Math.max(1, Math.round(w / TERRACE_FINISH.bay))
     const door = -w / 2 + (Math.floor(bays / 2) + 0.5) * (w / bays) // as the pattern lays the back door
     const side = door + 0.85 < w / 2 - 0.4 ? 1 : -1 // the meter's side of the door, where it fits
@@ -1349,10 +1358,12 @@ export function createKit(rand: () => number, materials: Materials) {
       put(FACING_DISC, AIRCON.grille, ux, uy, ry, -0.16, 0.26, top + 0.36, 0.24, 0.24, 1)
     }
     const [px, py] = [wing.x0 + 1, wing.y0 + 1]
-    add(THIN, TERRACE_FINISH.aerial.steel, px, py, top, 0, 0.05, 3.2, 0.05)
     const turn = rand() * Math.PI
-    for (const [k, len] of [1.6, 1.3, 1].entries())
-      add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, top + 2 + k * 0.35, turn)
+    closeOnly(() => {
+      add(THIN, TERRACE_FINISH.aerial.steel, px, py, top, 0, 0.05, 3.2, 0.05)
+      for (const [k, len] of [1.6, 1.3, 1].entries())
+        add(cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, top + 2 + k * 0.35, turn)
+    })
   }
 
   return {
@@ -1510,9 +1521,10 @@ export function createKit(rand: () => number, materials: Materials) {
      * A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. A sakura
      * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
-     * Block's edge, so that none hangs over the pavement beyond the lawn.
+     * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
+     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Street at under half the triangles.
      */
-    tree(x: number, y: number, h: number, s: number, kind: TreeKind) {
+    tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
         for (let i = 0; i < 3; i++) {
@@ -1524,7 +1536,7 @@ export function createKit(rand: () => number, materials: Materials) {
         for (let i = 0; i < n; i++) {
           const [a, out, k] = [rand() * TAU, i ? 1.2 * s : 0, s * (i ? range(1.44, 1.92) : 2.4)]
           add(
-            SPHERE,
+            coarse ? COARSE_SPHERE : SPHERE,
             pick(LEAVES[kind]),
             x + Math.cos(a) * out,
             y + Math.sin(a) * out,
