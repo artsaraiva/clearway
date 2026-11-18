@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { KERB, PAVEMENT } from './blocks'
 
 /**
  * Surface pattern (#174): siding, windows, tile rows and paving joints drawn on canvas and laid over the scenery's shared
@@ -236,8 +237,8 @@ function createPatternMap(): THREE.DataArrayTexture {
   return map
 }
 
-const vec3 = (hex: string) => {
-  const c = new THREE.Color(hex)
+const vec3 = (colour: THREE.ColorRepresentation) => {
+  const c = new THREE.Color(colour)
   return `vec3(${c.r.toFixed(4)}, ${c.g.toFixed(4)}, ${c.b.toFixed(4)})`
 }
 const f = (n: number) => n.toFixed(4)
@@ -255,9 +256,24 @@ export function createPatterns() {
   return {
     patch(shader: THREE.WebGLProgramParametersWithUniforms) {
       Object.assign(shader.uniforms, uniforms)
+      // Every Block's pavement wears paving joints (#176): its top, facing up at the kerb's height in the pavement's
+      // colour, is picked out here, so that no build carries a pattern for it and a Zone that wears none carries none.
+      // ponytail: any part lying flat at the kerb's height in the pavement's very colour is paved too, which nothing
+      // builds today. Give such a part a colour a shade off the pavement's, or the pavement a mesh of its own on a
+      // patterned copy of the material (a draw call a build), if one ever must stay plain.
+      const pavement = new THREE.Color(PAVEMENT)
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec3 pattern;\nvarying vec3 vPattern;\nvarying vec2 vPatternAt;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvPattern = pattern;\n\tvPatternAt = uv;')
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+\tvPattern = pattern;
+\tvPatternAt = uv;
+\tif (pattern.x < 0.5 && normal.y > 0.99 && abs(position.y - ${f(KERB)}) < 0.004 && all(lessThan(abs(color.rgb - ${vec3(pavement)}), vec3(0.003)))) {
+\t\tvPattern = vec3(${f(PATTERN.paving + 0.5)}, 0.0, 0.0);
+\t\tvPatternAt = vec2(position.x, -position.z) / ${f(REPEAT.paving)};
+\t}`,
+        )
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',

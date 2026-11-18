@@ -29,9 +29,11 @@ while (!game.sim.prewarmed) game.step()
 // Dev only: `?finish=none` builds the Zones built to the level of finish without their surface pattern and light
 // pools, and `?finish=pattern` or `?finish=pools` with only the one named (#174), for a sheet or a bench of each.
 // `?deeper` lays what stands on their Blocks 20% deeper (`?deeper=1.4`, 40%), for the user to compare a packed Tile
-// with the open one (#175): lanes, Roads, the City and the sim are as they were.
+// with the open one (#175): lanes, Roads, the City and the sim are as they were. `?furniture` draws the street
+// furniture at every distance, as #175 drew it, for the user to compare with it Close-only (#176).
 const finish = import.meta.env.DEV ? params.get('finish')?.split(',') : undefined
 const deeper = import.meta.env.DEV && params.has('deeper') ? Number(params.get('deeper')) || 1.2 : undefined
+const furniture = import.meta.env.DEV && params.has('furniture')
 const view = createView(
   canvas,
   game.sim,
@@ -41,7 +43,9 @@ const view = createView(
     zoneOf: (cell) => game.city.tileAt(cell)?.zone,
     stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
   },
-  finish || deeper ? { pattern: !finish || finish.includes('pattern'), pools: !finish || finish.includes('pools'), deeper } : undefined,
+  finish || deeper || furniture
+    ? { pattern: !finish || finish.includes('pattern'), pools: !finish || finish.includes('pools'), deeper, furniture }
+    : undefined,
 )
 // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
 if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))

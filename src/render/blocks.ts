@@ -4,7 +4,8 @@ import { raised } from './shapes'
 
 export const KERB = 1.2 // m a Block stands above the road: chunky on purpose, it is the toy look
 const BEVEL = 0.24
-const PAVEMENT = '#f1ede5'
+/** The pavement's colour, which the surface pattern picks the pavement out by to lay its paving joints (`./pattern`, #176). */
+export const PAVEMENT = '#f1ede5'
 const SLIVER = 5 // m: an outline narrower than this on average is left as road plate, not raised as a Block
 
 /** A Block's outline, with its bounding box. */
@@ -43,8 +44,8 @@ export function wide({ loop }: Block): boolean {
 }
 
 /**
- * A Block's pavement as one brick: a bevelled slab raised from its outline, paved where the kit builds patterned
- * (#174). A roundabout's island is one too.
+ * A Block's pavement as one brick: a bevelled slab raised from its outline, which the surface pattern paves (#174, on
+ * every Tile since #176). A roundabout's island is one too.
  */
 export function pavement(kit: Kit, b: Block) {
   const { x, y } = middle(b)

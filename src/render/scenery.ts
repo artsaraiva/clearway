@@ -46,6 +46,10 @@ export interface Seeded {
 /** What the seed adds to a City built from Tiles, which authors nothing. */
 export const SEEDED: Seeded = { landmarks: 4, avenue: 0.3 }
 
+// m beyond a Block's bounds within which a utility pole stands round it (#176): more than the street furniture, which
+// stands within a metre of the Block's edge, keeps off a pole (`./streets`), so a pole farther out never matters to it.
+const POLES_ROUND = 3
+
 /** What stands on the Blocks. */
 export interface Scenery {
   /** The first theme is a city; countryside and harbor join the type when their fills exist. */
@@ -187,16 +191,16 @@ export function createScenery(
     yield
 
     // Each Tile's utility poles and the wires between them, on a kit of their own so that no Block's stream changes.
+    // Where the kerbside is dressed, every Tile has street lights and marks on its road plate (#175, #176), as its
+    // Blocks' kerbsides have their street furniture, which keeps off the poles.
     const poles = createKit(mulberry32(0), materials)
+    const posts: Vec[] = []
     for (const piece of pieces) {
-      // A Tile built to the level of finish has street lights and marks on its road plate (#175), as far as the
-      // materials' finish allows: the kit's test, which its Blocks' streets take too.
-      const zone = zoneOf(cellAt(middle(piece)))
-      poles.finish(!!(zone && LOOKS[zone.id].finish))
-      const ends = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.finished)
-      if (poles.finished) markPlate(poles, piece, net)
+      const stood = standPoles(poles, cellAt(middle(piece)), net, spec, field, blocks, scenery, poles.dressed)
+      if (poles.dressed) markPlate(poles, piece, net)
+      posts.push(...stood.posts)
       const entry = laid.find((l) => sameBounds(l.piece, piece))
-      if (entry) entry.ends = ends
+      if (entry) entry.ends = stood.ends
     }
     take(poles, -1)
     yield
@@ -209,7 +213,11 @@ export function createScenery(
       const zone = zoneOf(cell)
       kit.finish(!!(zone && LOOKS[zone.id].finish))
       pavement(kit, b)
-      fillBlock(kit, b, { net, spec, scenery, field, zone })
+      // Only the poles round the Block, so that its street furniture's checks scan a handful, not every pole of the build.
+      const round = posts.filter(
+        (p) => p.x > b.x0 - POLES_ROUND && p.x < b.x1 + POLES_ROUND && p.y > b.y0 - POLES_ROUND && p.y < b.y1 + POLES_ROUND,
+      )
+      fillBlock(kit, b, { net, spec, scenery, field, zone, poles: round })
       take(kit, i)
       yield
     }

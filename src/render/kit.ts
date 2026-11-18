@@ -144,6 +144,8 @@ const POOL = {
   },
   strengths: { lamp: 1, cream: 0.85, amber: 0.8, vending: 0.7, window: 0.6, sign: 0.75, arcade: 0.85, string: 0.7, pole: 0.8, stall: 0.85 },
 }
+/** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
+const KERBSIDE_POOLS: ReadonlySet<keyof typeof POOL.colours> = new Set(['lamp', 'pole'])
 // Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
 // with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
 // standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
@@ -445,6 +447,12 @@ export interface Finish {
    * for the user to compare a packed Tile with the open one. 1 unless given; lanes, Roads and the sim never change.
    */
   deeper?: number
+  /**
+   * Dev only (#176): draw the street furniture (guard rails, convex mirrors, planters, bollards and benches) at every
+   * distance on `solid`, with its contact shadows, as #175 drew it round a shops Tile, for the user to compare with it
+   * Close-only. Close-only unless set.
+   */
+  furniture?: boolean
 }
 
 // Close-only props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which they
@@ -673,11 +681,11 @@ export function createKit(rand: () => number, materials: Materials) {
   }
   /**
    * A pool of light on the ground at `(x, y)`, `h` above the road (#174), `w` by `d` and turned `ry`, in the colour and
-   * strength of `kind`'s light, where the kit builds with pools: `./movers` draws it, riding the next brick closed, lit
-   * as the lamps are.
+   * strength of `kind`'s light, where the kit builds with pools, or for the kerbside's own lights on every Tile as far
+   * as the materials' finish allows (#176): `./movers` draws it, riding the next brick closed, lit as the lamps are.
    */
   const pool = (kind: keyof typeof POOL.colours, x: number, y: number, h: number, w: number, d: number, ry = 0) => {
-    if (!pooled) return
+    if (!pooled && !(KERBSIDE_POOLS.has(kind) && materials.finish.pools)) return
     const colour = new THREE.Color(POOL.colours[kind]).multiplyScalar(POOL.strengths[kind])
     pools.push({ at: new THREE.Vector3(x, h + 0.06, -y), w, d, ry, colour, brick: bricks.length })
   }
@@ -938,15 +946,40 @@ export function createKit(rand: () => number, materials: Materials) {
      */
     pool,
     /**
-     * Whether what the kit builds now is built to the level of finish (`finish`), as far as the materials' `finish`
-     * allows: wearing surface pattern or leaving pools of light (#174). The streets round it, their street lights and
-     * the marks on their road plate go with it (#175).
+     * Whether the kerbside is dressed (#175, on every Tile since #176): a kerbstone line, tactile paving, street
+     * furniture, street lights and marks on the road plate. It goes with the level of finish, as far as the materials'
+     * `finish` allows it at all, so that a sheet or a bench with none shows the kerbside as it was.
      */
-    get finished() {
-      return patterned || pooled
+    get dressed() {
+      return materials.finish.pattern || materials.finish.pools
+    },
+
+    /** How much the kit has built so far, to read back what it builds from here on (`since`). */
+    mark() {
+      return { parts: parts.length, movers: movers.length }
+    },
+
+    /**
+     * What the kit built since `from` (a `mark`), for the street furniture to keep off (`./streets`, #176): its parts'
+     * geometries in place, and the loops of its movers.
+     */
+    since(from: { parts: number; movers: number }) {
+      return {
+        geometries: parts.slice(from.parts).map((p) => p.geometry),
+        loops: movers.slice(from.movers).map(({ kind, loop }) => ({ kind, loop })),
+      }
     },
     /** Dev only (#175): how much deeper what stands on a Block is laid than built, for a comparison. 1 unless set. */
     deeper: materials.finish.deeper ?? 1,
+
+    /**
+     * Build what `fn` adds as street furniture: Close-only (`closeOnly`, #176), or at every distance where the dev
+     * switch `furniture` asks for it, as #175 built it.
+     */
+    furniture(fn: () => void) {
+      if (materials.finish.furniture) fn()
+      else closeOnly(fn)
+    },
 
     steam,
 
@@ -963,9 +996,12 @@ export function createKit(rand: () => number, materials: Materials) {
       ;[patterned, pooled] = [on && materials.finish.pattern, on && materials.finish.pools]
     },
 
-    /** A Block's pavement, raised from its outline (`./blocks`), with paving joints where the kit builds patterned. */
+    /**
+     * A Block's pavement, raised from its outline (`./blocks`). The surface pattern lays paving joints over it on every
+     * Tile, picking it out by its colour and height, as far as the materials' finish allows (#174; every Tile since #176).
+     */
     pavement(geo: THREE.BufferGeometry, look: Look) {
-      push(patterned ? pave(geo) : geo, look)
+      push(geo, look)
     },
 
     /**

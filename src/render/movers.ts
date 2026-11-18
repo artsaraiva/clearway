@@ -1,11 +1,10 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
 import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
 import type { Build } from './scenery'
-import { canvasTexture, tint } from './shapes'
+import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes'
 
 // The details that move on their own (#149): each Zone's, drawn instanced and placed every frame, outside the merged
 // static scenery. A mover works a loop that its Block's fill lays out, a stretch at a time, and rests at the end of a
@@ -121,25 +120,30 @@ export interface Sway {
 const SLACK = 0.2
 /** Real seconds of work in a day. */
 const SHIFT = (WORK.to - WORK.from) * DAY
-// Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, and its model. One that flies (#152) rises
-// `fly.up` m off its path between stops, easing up and down over `fly.ease` m at each end of a stretch, and one with
-// wings beats them `beat` times a second in flight and rests them nearly closed (`WINGS`).
+// Per kind: m/s, how high it bobs (m) and how fast (rad/s) while it drives, its model, and how wide a strip of ground
+// its loop takes (m), which the street furniture keeps off (#176): none for one that works a wall or flies. One that
+// flies (#152) rises `fly.up` m off its path between stops, easing up and down over `fly.ease` m at each end of a
+// stretch, and one with wings beats them `beat` times a second in flight and rests them nearly closed (`WINGS`).
 interface Kind {
   speed: number
   bob: number
   rate: number
   model: () => THREE.BufferGeometry
+  wide: number
   fly?: { up: number; ease: number }
   beat?: number
 }
 const KINDS: Record<MoverKind, Kind> = {
-  tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor },
-  truck: { speed: 2.2, bob: 0.02, rate: 11, model: truck },
-  forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift },
-  butterfly: { speed: 1.4, bob: 0.28, rate: 4.5, model: butterfly, fly: { up: 0.9, ease: 1.6 }, beat: 7 },
-  gondola: { speed: 1, bob: 0, rate: 0, model: gondola },
-  shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper }, // #175
+  tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor, wide: 2.6 },
+  truck: { speed: 2.2, bob: 0.02, rate: 11, model: truck, wide: 2.8 },
+  forklift: { speed: 1.8, bob: 0.015, rate: 13, model: forklift, wide: 1.8 },
+  butterfly: { speed: 1.4, bob: 0.28, rate: 4.5, model: butterfly, wide: 0, fly: { up: 0.9, ease: 1.6 }, beat: 7 },
+  gondola: { speed: 1, bob: 0, rate: 0, model: gondola, wide: 0 },
+  shopper: { speed: 1.15, bob: 0.04, rate: 9, model: shopper, wide: 0.8 }, // #175
 }
+
+/** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
+export const moverWidth = (kind: MoverKind) => KINDS[kind].wide
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 // Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
@@ -196,14 +200,9 @@ const POOLS = {
   ],
 }
 
-/** A box `w` by `h` by `d` centred on `(x, z)` with its bottom at `y`, painted. */
-const part = (w: number, h: number, d: number, x: number, y: number, z: number, color: string) =>
-  tint(new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z), color)
 /** A wheel of radius `r` and width `w` on an axle across the model at `x`, `z` out from the middle, `sides` round. */
 const wheel = (r: number, w: number, x: number, z: number, color: string, sides = 14) =>
   tint(new THREE.CylinderGeometry(r, r, w, sides).rotateX(Math.PI / 2).translate(x, r, z), color)
-/** The parts merged into one model. */
-const merged = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)))!
 
 /**
  * A little tractor (#149), facing +x, centred under its middle and standing on y = 0, oversized as the cars are so it
@@ -280,7 +279,7 @@ function forklift(): THREE.BufferGeometry {
  * A shopper (#175) walking a shops Tile's pavement and stopping at the fronts, as tall as the walkers: legs, a coat in
  * white for its paint, a head and hair, and a bag at its side. Faces +x.
  */
-function shopper(): THREE.BufferGeometry {
+export function shopper(): THREE.BufferGeometry {
   const [LEGS, SKIN, HAIR, BAG] = ['#3a4252', '#f1d1b5', '#3a3330', '#f4ead2']
   return merged([
     part(0.26, 0.82, 0.4, 0, 0, 0, LEGS),
@@ -317,21 +316,6 @@ function futon(): THREE.BufferGeometry {
     part(1.7, 1.05, 0.14, 0, -1, -0.24, PAINT), // hanging out
     part(1.7, 0.55, 0.14, 0, -0.5, 0.24, PAINT), // and in
   ])
-}
-
-/** A part whose paint share is `share`: 1 takes its instance's paint, 0 keeps its own colour (#156). */
-const painted = (geo: THREE.BufferGeometry, share: number) =>
-  geo.setAttribute('painted', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(share), 1))
-
-/** Have a material paint each vertex its instance's colour as its `painted` share has it (#156). */
-const takesPaint = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-  shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float painted;').replace(
-    '#include <color_vertex>',
-    `#include <color_vertex>
-#ifdef USE_INSTANCING_COLOR
-\tvColor.xyz = color.xyz * mix(vec3(1.0), instanceColor.xyz, painted);
-#endif`,
-  )
 }
 
 /**
