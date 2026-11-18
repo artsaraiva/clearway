@@ -48,13 +48,12 @@ const merged = (parts: THREE.BufferGeometry[]) => mergeGeometries(parts)!
 
 /**
  * Where a skin's lamps are (m, the car facing +x): a pair of head lamps `head.y` up and `head.z` either way of the
- * middle on its front (`front` m ahead of its middle, the front bumper unless given), and a pair of tail lamps `tall` by
- * `wide` from `tail.y` up, `tail.z` either way, on its back; and for a taxi, its roof lamp, `roof` m up and `at` m along.
+ * middle on its front bumper, and a pair of tail lamps `tall` by `wide` from `tail.y` up, `tail.z` either way, on its
+ * back; and for a taxi, its roof lamp, `roof.y` up and `roof.at` along from its middle.
  */
 interface Lamps {
   head: { y: number; z: number }
   tail: { y: number; z: number; tall: number; wide: number }
-  front?: number
   roof?: { at: number; y: number }
 }
 
@@ -120,12 +119,12 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
 }
 
 /** A skin's lamps as boxes: by day its lenses on its body (`lit` false), or by night a little larger and lit (`lit` true). */
-function lampsOf({ head, tail, front = LENGTH / 2, roof }: Lamps, lit: boolean): THREE.BufferGeometry[] {
+function lampsOf({ head, tail, roof }: Lamps, lit: boolean): THREE.BufferGeometry[] {
   const grow = lit ? 0.04 : 0
   const lamp = (w: number, h: number, d: number, x: number, y: number, z: number, day: string, night: string) =>
     lit ? tint(flat(new THREE.BoxGeometry(w + grow, h + grow, d + grow)).translate(x, y + h / 2, z), night) : box(w, h, d, x, y, z, day)
   return [
-    ...[head.z, -head.z].map((z) => lamp(0.1, 0.22, 0.4, front - 0.02, head.y, z, PART.head, LIGHT.head)),
+    ...[head.z, -head.z].map((z) => lamp(0.1, 0.22, 0.4, LENGTH / 2 - 0.02, head.y, z, PART.head, LIGHT.head)),
     ...[tail.z, -tail.z].map((z) => lamp(0.1, tail.tall, tail.wide, -LENGTH / 2 + 0.02, tail.y, z, PART.tail, LIGHT.tail)),
     ...(roof ? [lamp(0.42, 0.3, 0.86, roof.at, roof.y, 0, PART.roof, LIGHT.roof)] : []),
   ]
@@ -154,7 +153,7 @@ export function skinOf(id: number): { skin: number; paint: THREE.Color } {
   return { skin, paint: paints[(h >>> 20) % paints.length] }
 }
 
-/** A stuck car angry enough to show it. */
+/** A car angry enough to show it. */
 export interface StuckCar {
   /** Where it is drawn, in Three coordinates. */
   at: THREE.Vector3

@@ -258,6 +258,9 @@ export function createPatterns() {
       Object.assign(shader.uniforms, uniforms)
       // Every Block's pavement wears paving joints (#176): its top, facing up at the kerb's height in the pavement's
       // colour, is picked out here, so that no build carries a pattern for it and a Zone that wears none carries none.
+      // ponytail: any part lying flat at the kerb's height in the pavement's very colour is paved too, which nothing
+      // builds today. Give such a part a colour a shade off the pavement's, or the pavement a mesh of its own on a
+      // patterned copy of the material (a draw call a build), if one ever must stay plain.
       const pavement = new THREE.Color(PAVEMENT)
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec3 pattern;\nvarying vec3 vPattern;\nvarying vec2 vPatternAt;')

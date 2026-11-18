@@ -95,6 +95,8 @@ export function standing(block: Block, field: Field, built: Built): Stands {
   /**
    * Mark a triangle's edge from `(ax, ay)` to `(bx, by)` point by point. Its edges are enough: the street's furniture
    * stands within a metre or so of the Block's edge, so anything under it has an edge nearer still.
+   * ponytail: furniture stood deeper than about 1.5 m in could stand inside a part whose edges all lie beyond its
+   * reach. Fill each triangle's cells within the band, as well as its edges, if the street ever stands things deeper.
    */
   const edge = (ax: number, ay: number, bx: number, by: number, v: number) => {
     const n = Math.ceil(Math.hypot(bx - ax, by - ay) / step)
