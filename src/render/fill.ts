@@ -26,8 +26,8 @@ export interface Surroundings {
   field: Field
   /** The Zone of the Tile the Block lies on. None: the Tile is unzoned, roads only. */
   zone?: Zone
-  /** The utility poles standing round the Block, which the street's furniture keeps off (#176). None unless given. */
-  poles?: Vec[]
+  /** The utility poles standing round the Block, which its street furniture keeps off (#176). */
+  poles: Vec[]
 }
 
 /**
@@ -92,7 +92,7 @@ export function blockSeed(scenery: Scenery, { x0, y0, x1, y1 }: Bounds): number 
  * the Block, its surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. Where the
  * Block lies seeds its random choices and nothing more: a Zone builds alike anywhere in the City.
  */
-export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone, poles = [] }: Surroundings) {
+export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone, poles }: Surroundings) {
   const at = (p: [number, number]) => inside(block.loop, ...p)
   // Every Block's kerb has its kerbstone line (#176), a roundabout's island's and a bike lane's too.
   if (kit.dressed) kerbLine(kit, block)

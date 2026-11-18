@@ -46,6 +46,10 @@ export interface Seeded {
 /** What the seed adds to a City built from Tiles, which authors nothing. */
 export const SEEDED: Seeded = { landmarks: 4, avenue: 0.3 }
 
+// m beyond a Block's bounds within which a utility pole stands round it (#176): more than the street furniture, which
+// stands within a metre of the Block's edge, keeps off a pole (`./streets`), so a pole farther out never matters to it.
+const POLES_ROUND = 3
+
 /** What stands on the Blocks. */
 export interface Scenery {
   /** The first theme is a city; countryside and harbor join the type when their fills exist. */
@@ -209,7 +213,11 @@ export function createScenery(
       const zone = zoneOf(cell)
       kit.finish(!!(zone && LOOKS[zone.id].finish))
       pavement(kit, b)
-      fillBlock(kit, b, { net, spec, scenery, field, zone, poles: posts })
+      // Only the poles round the Block, so that its street furniture's checks scan a handful, not every pole of the build.
+      const round = posts.filter(
+        (p) => p.x > b.x0 - POLES_ROUND && p.x < b.x1 + POLES_ROUND && p.y > b.y0 - POLES_ROUND && p.y < b.y1 + POLES_ROUND,
+      )
+      fillBlock(kit, b, { net, spec, scenery, field, zone, poles: round })
       take(kit, i)
       yield
     }
