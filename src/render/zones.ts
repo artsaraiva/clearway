@@ -123,6 +123,8 @@ const MEDIUM_FINISH = {
   mansard: ['#b85a4c', '#4d6575', '#7a5a46', '#5aa69b', '#a8765a'],
   // Parking bays by an apartment block, m in from the Block's edge and deep, and how many fit at most and at least.
   bays: { in: 0.75, deep: 5.2, most: 3, least: 2 },
+  // A low hedge along an apartment block's walls, m deep and tall, in the gardens' hedge's green.
+  hedge: { deep: 0.8, tall: 0.55, colour: '#4e9f49' },
   // A delivery scooter's waits (s), off down the Road and at the door, at least and at most.
   scooter: { away: [8, 20], door: [5, 9] },
 }
@@ -1018,9 +1020,10 @@ function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
  * before a front, its front's facing), in an order drawn from `draw`, whose way in and out lies on the Block across a
  * pavement facing a Road, clear of the utility poles, the lamps, the street trees and `taken`. It waits off down the
  * Road, unseen; comes in over the kerb, growing as it leaves the Road as a car does at a Gateway; pulls up at the door
- * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road.
+ * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road. Returns
+ * its way, or none if no door has room.
  */
-function scooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]) {
+function scooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]): Vec[] {
   const { kit, field } = g
   const [away, wait] = [MEDIUM_FINISH.scooter.away, MEDIUM_FINISH.scooter.door]
   const waits = [away[0] + draw() * (away[1] - away[0]), wait[0] + draw() * (wait[1] - wait[0])]
@@ -1060,9 +1063,10 @@ function scooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number }
       }
       if (!free) continue
       kit.from(2, () => kit.mover('scooter', loop, [0, loop.cum[3]], 0, KERB, { waits, away: 0 }), spot(door.x, door.y) + 7)
-      return
+      return way
     }
   }
+  return []
 }
 
 /** A square `side` m across round a point, as a row lot. */
@@ -1222,7 +1226,60 @@ function courtyards(g: ZoneGround) {
       }),
     ),
   )
-  scooter(g, plans, doors, taken)
+  const way = scooter(g, plans, doors, taken)
+  for (const b of built) plantings(g, b, taken, way)
+}
+
+/**
+ * A low hedge along each outside face of apartment building `b` (#178), from Stage 1, 0.5 m out from its wall, in
+ * lengths of 2 m or more where it stands on the Block clear of `taken`, of its entrance and of the scooter's `way`.
+ */
+function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
+  const { kit } = g
+  const { deep, tall, colour } = MEDIUM_FINISH.hedge
+  // The face its entrance is on (as the kit's `apartment` has it): its first wing's walkway face, or its first open one.
+  const open = (k: number, face: number) => {
+    const [, mx, my] = faceOf(b.wings[k], face)
+    return !onWing(b.wings, mx + FACES[face][0] * 0.4, my + FACES[face][1] * 0.4, k)
+  }
+  const entrance = b.walks[0] >= 0 ? b.walks[0] : FACES.findIndex((_, face) => open(0, face))
+  b.wings.forEach((wing, k) =>
+    FACES.forEach(([nx, ny], face) => {
+      if (!open(k, face)) return
+      const [len, mx, my] = faceOf(wing, face)
+      const ry = Math.atan2(-nx, ny)
+      const free: number[] = [] // the metres along the face, from its left, where a length of hedge may stand
+      for (let u = -len / 2 + 1; u <= len / 2 - 1; u += 1) {
+        const p = turned(mx, my, ry, u, 0.5 + deep / 2)
+        const slot = { ...p, w: 1, d: deep, ry, onRoad: false }
+        const ok =
+          !(k === 0 && face === entrance && Math.abs(u) < 2) &&
+          stands(g, p.x, p.y, 1, deep, 0.4, ry) &&
+          !taken.some((o) => overlap(o, slot)) &&
+          !way.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 1.4)
+        if (ok) free.push(u)
+      }
+      for (let i = 0; i < free.length;) {
+        let j = i
+        while (j + 1 < free.length && free[j + 1] - free[j] < 1.01) j++
+        if (j > i) {
+          const [u0, u1] = [free[i] - 0.5, free[j] + 0.5]
+          const p = turned(mx, my, ry, (u0 + u1) / 2, 0.5 + deep / 2)
+          kit.from(
+            1,
+            () => {
+              kit.add(kit.cuboid(u1 - u0, tall, deep), colour, p.x, p.y, KERB, ry)
+              kit.brick('ground', p.x, p.y, KERB)
+            },
+            spot(p.x, p.y),
+          )
+          taken.push({ ...p, w: u1 - u0, d: deep, ry, onRoad: false })
+          g.kept.push({ ...p, w: u1 - u0, d: deep, ry })
+        }
+        i = j + 1
+      }
+    }),
+  )
 }
 
 /** An apartment building as `courtyards` lays it (#178): its lot, by index and bounds, its middle, wings, floors at Stage 2, walkways and plan. */

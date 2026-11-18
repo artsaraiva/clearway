@@ -253,7 +253,8 @@ const APARTMENT_FINISH = {
   deck: '#9fb5a7',
   mansard: { tip: 0.9, tiles: ['#b85a4c', '#4d6575', '#7a5a46', '#5aa69b', '#a8765a'] },
   condensers: [2, 3, 5],
-  light: 1.4,
+  light: 2,
+  frame: '#4a525c',
   washing: [0, 0.12, 0.16], // of a walkway's bays at Stages 1 to 3
 }
 // A cylinder lying along x, centred on its middle: a solar water heater's tank (#178).
@@ -1682,9 +1683,26 @@ export function createKit(rand: () => number, materials: Materials) {
       const height = floors * 3.2 + 0.8
       const seed = spot(wings[0].x0, wings[0].y0) + 29 // which patterned windows light, and the finish's own draws
       const finished = patterned || pooled
+      const entry = (ex: number, ey: number, ry: number) => {
+        put(cuboid(1.9, 2.5, 0.12), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.1, h)
+        put(cuboid(1.6, 2.3, 0.14), { material: glass, tint: windows[0], glow: 1.2 }, ex, ey, ry, 0, 0.12, h)
+        put(cuboid(0.06, 2.3, 0.18), APARTMENT_FINISH.frame, ex, ey, ry, 0, 0.13, h)
+        put(cuboid(2.8, 0.18, 1.5), COURTYARD.cap, ex, ey, ry, 0, 0.75, h + 2.62)
+        put(cuboid(0.4, 0.08, 0.4), lit(CREAM, APARTMENT_FINISH.light), ex, ey, ry, 0, 0.9, h + 2.56)
+        put(cuboid(2.4, 0.16, 0.9), COURTYARD.cap, ex, ey, ry, 0, 0.45, h)
+        pool('door', ...to(ex, ey, ry, 0, 1.6), h, 3.4, 2.6, ry)
+      }
       /** Whether `(px, py)` lies on a wing other than wing `self`. */
       const against = (px: number, py: number, self: number) =>
         wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
+      // Its entrance (#178), in the middle of the first wing's walkway face, or its first face not against another wing:
+      // glass doors lit at night under a canopy with a lamp, which leaves a pool.
+      const [first0] = wings
+      const open0 = FACES.findIndex(([nx, ny]) => {
+        const [mx, my] = [(first0.x0 + first0.x1) / 2, (first0.y0 + first0.y1) / 2]
+        return !against(mx + nx * ((first0.x1 - first0.x0) / 2 + 0.4), my + ny * ((first0.y1 - first0.y0) / 2 + 0.4), 0)
+      })
+      const entrance = finished ? (walks[0] >= 0 ? walks[0] : open0) : -1
       // Where an AC unit may stand (#156): on the wall between two windows, or before a window on a walkway, and whether
       // a slab is there to stand on.
       const spots: { x: number; y: number; ry: number; slab: boolean }[] = []
@@ -1708,7 +1726,11 @@ export function createKit(rand: () => number, materials: Materials) {
             const t = -(n - 1) * 1.6 + i * 3.2
             const [fx, fy] = nx === 0 ? [cx + t, cy + (ny * d) / 2] : [cx + (nx * w) / 2, cy + t]
             if (blind(fx, fy)) continue
-            for (let f = 0; f < floors; f++) add(cuboid(1.5, 1.6, 0.3), pane(0.65), fx, fy, h + 1.1 + f * 3.2, ry)
+            for (let f = 0; f < floors; f++) {
+              const look = pane(0.65) // drawn whether or not the entrance takes its place
+              if (f === 0 && k === 0 && face === entrance && i === Math.floor((n - 1) / 2)) entry(fx, fy, ry)
+              else add(cuboid(1.5, 1.6, 0.3), look, fx, fy, h + 1.1 + f * 3.2, ry)
+            }
             if (walk) spots.push({ x: fx, y: fy, ry, slab: true })
             // Between this window and the next: a door onto the walkway at each floor, or a wall for an AC unit.
             const [gx, gy] = nx === 0 ? [fx + 1.6, fy] : [fx, fy + 1.6]
@@ -1716,8 +1738,9 @@ export function createKit(rand: () => number, materials: Materials) {
             if (walk)
               for (let f = 1; f < floors; f++) {
                 add(cuboid(0.95, 2.05, 0.16), TERRACE.door, gx, gy, h + 0.94 + f * 3.2, ry)
-                // A light over each door, so that a block's walkways read as rows of dots at night (#178).
-                if (finished) put(cuboid(0.3, 0.14, 0.12), lit(CREAM, APARTMENT_FINISH.light), gx, gy, ry, 0, 0.1, h + 3.2 + f * 3.2)
+                // A lamp beside each door, low enough to show over the parapet, so that a block's walkways read as rows of
+                // dots at night (#178).
+                if (finished) put(cuboid(0.42, 0.42, 0.12), lit(CREAM, APARTMENT_FINISH.light), gx, gy, ry, 0.68, 0.08, h + 2.4 + f * 3.2)
               }
             else spots.push({ x: gx, y: gy, ry, slab: balcony })
           }
@@ -1730,7 +1753,6 @@ export function createKit(rand: () => number, materials: Materials) {
               add(cuboid(len - 0.1, 0.24, deep), COURTYARD.cap, mx + (nx * deep) / 2, my + (ny * deep) / 2, at, ry)
               add(cuboid(len - 0.1, parapet, 0.14), COURTYARD.cap, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24, ry)
               add(cuboid(len - 0.1, 0.07, 0.2), STEEL.frame, mx + nx * (deep - 0.07), my + ny * (deep - 0.07), at + 0.24 + parapet, ry)
-              pool('door', mx + (nx * deep) / 2, my + (ny * deep) / 2, at + 0.24, len - 0.6, deep - 0.1, ry) // the door lights' (#178)
             }
             // Washing hung out on the walkways, on a pole under the slab above, in some bays (#178).
             if (finished)
