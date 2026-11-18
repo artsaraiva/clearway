@@ -603,7 +603,7 @@ function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
   kit.swings(...swing, KERB + 0.12, ry, true)
   kit.tree(...at(-side * (w / 2 - 1.8), -d / 2 + 1.9), KERB + 0.1, 0.58, 'round')
   bench(kit, ...at(-side * (w / 2 - 2.2), 0.6), ry + (side * Math.PI) / 2)
-  kit.lamp(...at(-side * (w / 2 - 0.9), d / 2 - 0.9), KERB)
+  kit.lamp(...at(-side * (w / 2 - 0.9), d / 2 - 0.9), KERB + 0.1) // on the lawn, its pool over it
   if (stage < 3) return
   kit.rider(...at(side * (w / 2 - 2.4), d / 2 - 1.6), KERB + 0.1, ry)
   kit.flowerBed(...at(0, -d / 2 + 1.3), KERB + 0.1, Math.min(3, w - 4.6), 0.9, ry, '#ffadc8')

@@ -431,6 +431,22 @@ export function frontOf(w: number, door: 1 | -1) {
     clear: w - 2.1,
   }
 }
+/**
+ * The face (of `FACES`) of an apartment block's first wing its entrance is on (#178): its walkway face (`walks`) if
+ * that one looks out of the building, neither into its court nor onto another wing, or else the first face that does;
+ * -1 if none. The kit's `apartment` builds it there, and the Zone's fill keeps its hedges off it.
+ */
+export function entranceOf(wings: Bounds[], walks: Walks): number {
+  const [w] = wings
+  const [x0, x1] = [Math.min(...wings.map((o) => o.x0)), Math.max(...wings.map((o) => o.x1))]
+  const [y0, y1] = [Math.min(...wings.map((o) => o.y0)), Math.max(...wings.map((o) => o.y1))]
+  const out = (face: number) => {
+    const [nx, ny] = FACES[face]
+    const [px, py] = [(w.x0 + w.x1) / 2 + nx * ((w.x1 - w.x0) / 2 + 0.4), (w.y0 + w.y1) / 2 + ny * ((w.y1 - w.y0) / 2 + 0.4)]
+    return px < x0 || px > x1 || py < y0 || py > y1
+  }
+  return [walks[0] ?? -1, 0, 1, 2, 3].find((face) => face >= 0 && out(face)) ?? -1
+}
 /** A terraced house's roof (#178): a gable along the row, as the rows always had; a hip; or a gable to the front. */
 export type TerraceRoof = 'gable' | 'hip' | 'front'
 /** A corner shop or a coin laundry in the ground floor of a terraced house at a row's end, its door at end `end` (#178). */
@@ -1699,14 +1715,10 @@ export function createKit(rand: () => number, materials: Materials) {
       /** Whether `(px, py)` lies on a wing other than wing `self`. */
       const against = (px: number, py: number, self: number) =>
         wings.some((o, k) => k !== self && px > o.x0 - 0.05 && px < o.x1 + 0.05 && py > o.y0 - 0.05 && py < o.y1 + 0.05)
-      // Its entrance (#178), in the middle of the first wing's walkway face, or its first face not against another wing:
-      // glass doors lit at night under a canopy with a lamp, which leaves a pool.
-      const [first0] = wings
-      const open0 = FACES.findIndex(([nx, ny]) => {
-        const [mx, my] = [(first0.x0 + first0.x1) / 2, (first0.y0 + first0.y1) / 2]
-        return !against(mx + nx * ((first0.x1 - first0.x0) / 2 + 0.4), my + ny * ((first0.y1 - first0.y0) / 2 + 0.4), 0)
-      })
-      const entrance = finished ? (walks[0] >= 0 ? walks[0] : open0) : -1
+      // Its entrance (#178), in the middle of a face of its first wing that looks out of the building, not into its court
+      // or onto another wing: its walkway face if that one does, or else the first that does. Glass doors lit at night
+      // under a canopy with a lamp, which leaves a pool.
+      const entrance = finished ? entranceOf(wings, walks) : -1
       // Where an AC unit may stand (#156): on the wall between two windows, or before a window on a walkway, and whether
       // a slab is there to stand on.
       const spots: { x: number; y: number; ry: number; slab: boolean }[] = []

@@ -10,6 +10,7 @@ import {
   BIKE_RACK,
   CONTAINER,
   boxFace,
+  entranceOf,
   FACES,
   frontOf,
   GARDEN,
@@ -868,6 +869,8 @@ function terraces(g: ZoneGround) {
  * many storeys at Stage 1 under one, when it takes a hip or a gable to the front, one that none of them has; its ends
  * that close the row; and, if `shop` and its front faces a Road at a row's end, on some a corner shop or a coin laundry
  * in its ground floor. No two houses side by side are then the same building in another colour at any Stage.
+ * ponytail: a house touching houses of its storeys under all three roofs keeps a gable. Ceiling: it matches one of them;
+ * none does on the 26-Tile City (0 of 595 pairs). Upgrade: a fourth roof, such as a flat one behind a parapet.
  */
 function terracePlan(
   lots: RowLot[],
@@ -1303,12 +1306,11 @@ function courtyards(g: ZoneGround) {
 function plantings(g: ZoneGround, b: Built, taken: RowLot[], way: Vec[]) {
   const { kit } = g
   const { deep, tall, colour } = MEDIUM_FINISH.hedge
-  // The face its entrance is on (as the kit's `apartment` has it): its first wing's walkway face, or its first open one.
   const open = (k: number, face: number) => {
     const [, mx, my] = faceOf(b.wings[k], face)
     return !onWing(b.wings, mx + FACES[face][0] * 0.4, my + FACES[face][1] * 0.4, k)
   }
-  const entrance = b.walks[0] >= 0 ? b.walks[0] : FACES.findIndex((_, face) => open(0, face))
+  const entrance = entranceOf(b.wings, b.walks)
   b.wings.forEach((wing, k) =>
     FACES.forEach(([nx, ny], face) => {
       if (!open(k, face)) return
