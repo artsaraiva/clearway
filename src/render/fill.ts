@@ -9,7 +9,7 @@ import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { bikeLane, island, park, plaza, site, tower, towerGround, verge } from './landmarks'
 import type { Scenery } from './scenery'
-import { dressStreet, type Footprint } from './streets'
+import { dressStreet, kerbLine, standing, type Footprint } from './streets'
 import { LOOKS } from './zones'
 
 const NARROW = 12 // m: a Block narrower than this has no room for lots and carries a bike lane
@@ -26,6 +26,8 @@ export interface Surroundings {
   field: Field
   /** The Zone of the Tile the Block lies on. None: the Tile is unzoned, roads only. */
   zone?: Zone
+  /** The utility poles standing round the Block, which the street's furniture keeps off (#176). None unless given. */
+  poles?: Vec[]
 }
 
 /**
@@ -86,17 +88,21 @@ export function blockSeed(scenery: Scenery, { x0, y0, x1, y1 }: Bounds): number 
 /**
  * What stands on one Block, added to `kit` brick by brick: a roundabout's island, a landmark or special Block from
  * the scenery, a bike lane on a narrow Block, and otherwise what its Tile's Zone builds (`./zones`), or grass on an
- * unzoned Tile, with lamps at its corners and trees along the avenues. It reads only the Block, its surroundings and
- * the scenery, so a Block that a Rebuild leaves alone comes out the same. Where the Block lies seeds its random
- * choices and nothing more: a Zone builds alike anywhere in the City. A District with no scenery leaves its Blocks bare.
+ * unzoned Tile, with lamps at its corners, trees along the avenues and the street round it (`./streets`). It reads only
+ * the Block, its surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. Where the
+ * Block lies seeds its random choices and nothing more: a Zone builds alike anywhere in the City. A District with no
+ * scenery leaves its Blocks bare.
  */
-export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone }: Surroundings) {
+export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone, poles = [] }: Surroundings) {
   const at = (p: [number, number]) => inside(block.loop, ...p)
+  // Every Block's kerb has its kerbstone line (#176), a roundabout's island's and a bike lane's too.
+  if (kit.streets) kerbLine(kit, block)
   const roundabout = net.junctions.find((j) => j.type === 'roundabout' && inside(block.loop, j.at.x, j.at.y))
   if (roundabout) return island(kit, field, block, roundabout.at)
 
   const lamps = lampSpots(block, field)
   for (const { x, y } of lamps) kit.lamp(x, y, KERB)
+  const built = kit.mark() // what stands on the Block from here on, which the street keeps off
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
@@ -135,7 +141,8 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const kept: Footprint[] = []
   if (look) look.fill({ kit, block, field, reserved, street, lamps, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
   else verge(kit, field, block, street)
+  const stands = kit.streets ? standing(block, field, kit.since(built)) : () => false
   for (const t of street) kit.tree(t.x, t.y, KERB, STREET_TREES.size, 'round')
-  // The streets round a Tile built to the level of finish (#175), as its street lights and road plate are (`./scenery`).
-  if (kit.finished) dressStreet(kit, block, field, net, spec, lamps, street, kept)
+  // The street round every Tile (#175, #176), as its street lights and road plate are (`./scenery`).
+  if (kit.streets) dressStreet(kit, block, field, net, spec, { lamps, trees: street, poles, stands, kept })
 }

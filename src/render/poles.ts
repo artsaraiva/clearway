@@ -87,13 +87,14 @@ function stand(kit: Kit, p: Post, light = false) {
   }
   kit.brick('pole', p.x, p.y, KERB)
 }
-// A street light on every third pole of a Tile built to the level of finish (#175): how far its arm reaches over the
-// road, how high it is (m above the kerb), and how wide its pool.
+// A street light on every third pole (#175, of every Tile since #176): how far its arm reaches over the road, how high
+// it is (m above the kerb), and how wide its pool.
 const STREET_LIGHT = { reach: 2.1, at: 6.4, pool: 6.5, every: 3 }
 
 /**
  * The utility poles of the Tile on `cell`, and the wires strung between them, added to `kit` a brick each. Returns the
- * poles at the ends of its lines, for the wires across its seams (`stringWires`, once the next Tile is there).
+ * poles at the ends of its lines, for the wires across its seams (`stringWires`, once the next Tile is there), and every
+ * pole it stood, for the street's furniture to keep off (#176).
  *
  * Each Road has a line of poles on one side: the south side of a Road running east–west and the east side of one
  * running north–south, so that a line meets the next Tile's on the same side. On a Curve both lines take the outside
@@ -104,7 +105,8 @@ const STREET_LIGHT = { reach: 2.1, at: 6.4, pool: 6.5, every: 3 }
  * The poles stand where the cell puts them, half a spacing in from each edge and a spacing apart, whatever the Tiles
  * around it, so that a seam's wire always finds them; on an avenue, between its street trees. They stand on the
  * pavement just in from the kerb, which what the Zones build keeps clear of, and move along the Road to keep clear of a
- * lamp, or are left out. On a Tile built to the level of finish (`lit`, #175), every third carries a street light.
+ * lamp, or are left out. Where the streets are dressed (`lit`, #175; every Tile since #176), every third carries a
+ * street light.
  */
 export function standPoles(
   kit: Kit,
@@ -115,9 +117,9 @@ export function standPoles(
   blocks: Block[],
   scenery: Scenery,
   lit = false,
-): LineEnd[] {
+): { ends: LineEnd[]; posts: Post[] } {
   const junction = net.junctions.find((j) => j.id === junctionId(cell))
-  if (!junction) return []
+  if (!junction) return { ends: [], posts: [] }
   const box = cellBounds(cell)
   const lamps = blocks.flatMap((b) => lampSpots(b, field))
   /** Whether a pole can stand at `p`: on the cell's pavement, with room for its girth, and clear of the lamps. */
@@ -248,5 +250,8 @@ export function standPoles(
   for (const line of lines.values()) line.forEach((post, i) => stand(kit, post, lit && i % STREET_LIGHT.every === 1))
   for (const post of corners) stand(kit, post)
   for (const [a, b] of spans) stringWires(kit, a, b)
-  return [...lines].flatMap(([dir, line]) => (line.length ? [{ road: arms.get(dir)!, post: line[line.length - 1] }] : []))
+  return {
+    ends: [...lines].flatMap(([dir, line]) => (line.length ? [{ road: arms.get(dir)!, post: line[line.length - 1] }] : [])),
+    posts: [...[...lines.values()].flat(), ...corners],
+  }
 }
