@@ -6,7 +6,7 @@ import type { NetworkSpec } from '../sim/spec'
 import { KERB, twiceArea, type Block } from './blocks'
 import { inside, type Field } from './field'
 import { SHAPES, spot, to, type Kit } from './kit'
-import type { MoverKind } from './movers'
+import { moverWidth, type MoverKind } from './movers'
 import { ZEBRA } from './roads'
 
 // The kerbside of every Tile, dressed (#173; #175 dressed it round a finished Tile, #176 round every Tile, whatever its
@@ -40,9 +40,8 @@ const FLAT_DISC = new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2)
 // What stands on a Block near its edge, read from what its Zone built (#176), so that the street's furniture keeps off
 // it whatever the Zone: a grid of cells `cell` m across over the band `band` m in from the edge, where a part counts
 // once it rises `low` m over the pavement and stands tall once it rises `tall` m; what stands tall is kept `clear` m
-// further off. A mover's loop stands as wide as its kind (m), but for what works a wall or flies.
+// further off. A mover's loop stands as wide as its kind (`./movers`), but for what works a wall or flies.
 const STANDS = { cell: 0.5, band: 4, low: 0.06, tall: 0.4, clear: 0.5 }
-const MOVER_WIDE: Record<MoverKind, number> = { truck: 2.8, tractor: 2.6, forklift: 1.8, shopper: 0.8, butterfly: 0, gondola: 0 }
 
 /** Something that stands on a Block near its edge, as a look lays it: what the street's furniture keeps off. */
 export interface Footprint {
@@ -129,7 +128,7 @@ export function standing(block: Block, field: Field, built: Built): Stands {
     }
   }
   for (const { kind, loop } of built.loops) {
-    const r = MOVER_WIDE[kind] / 2
+    const r = moverWidth(kind) / 2
     if (!r) continue
     for (let seg = 1; seg < loop.pts.length; seg++) {
       const [a, b] = [loop.pts[seg - 1], loop.pts[seg]]
