@@ -6,7 +6,7 @@ import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report
 /** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
 export const TOLERANCE = 0.1
 /** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's focal piece is larger (rule 5). */
-export const CAR = { long: 4.3, wide: 2 }
+export const CAR = { long: 4.3, tall: 3 }
 /** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
 export const SECOND_SCENE = 2500
 /** m of pavement that may stand empty (rule 3), and how far in from the kerb something must stand to fill it. */
@@ -87,13 +87,20 @@ function pairs(things: Thing[]): [Thing, Thing][] {
   return out
 }
 
+/** m tall under which a thing is a bed, a planter or a kerb a tree may be planted in. */
+const BED = 0.8
+
 /**
- * Two standing things may share ground when one is built to stand with the other: the parts of one scene, or of one
- * lot's building and what the kit hangs on it. Everything else keeps clear.
+ * Two standing things may share ground when one is built to stand with the other: the parts of one scene, a tree in a
+ * bed or a planter, Close-only props of one kind in a cluster (pot plants), or the kerbside's own furniture, which
+ * `./streets` lays together. Everything else keeps clear.
  */
-function together(a: Thing, b: Thing): boolean {
+export function together(a: Thing, b: Thing): boolean {
   if (a.scene >= 0 && a.scene === b.scene) return true
-  return false
+  const planted = (t: Thing, bed: Thing) => t.kind === 'tree' && t.what === 'tree' && bed.top - bed.base < BED
+  if (planted(a, b) || planted(b, a)) return true
+  if (a.layer === 'close' && b.layer === 'close' && a.what === b.what) return true
+  return KERBSIDE.has(a.what) && KERBSIDE.has(b.what)
 }
 
 /**
@@ -114,7 +121,7 @@ export const keepsClear: Rule = (r) => {
     }
   }
   for (const [a, b] of pairs(standers)) {
-    if (together(a, b) || (KERBSIDE.has(a.what) && KERBSIDE.has(b.what))) continue
+    if (together(a, b)) continue
     const d = depth(a, b)
     if (d > TOLERANCE) out.push(fail('keeps-clear', r, a.block >= 0 ? a : b, `${a.what} and ${b.what} overlap`, m(d)))
   }
@@ -212,14 +219,22 @@ const zoned = (r: Report, block: number) =>
   !!r.blocks[block].zone && !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
 
 /**
+ * Whether a thing is a scene's focal piece, larger than a car (rule 5): standing, drawn at every distance, and longer than
+ * a car is (its feet spread over more than `CAR.long` m one way) or taller than `CAR.tall`. Approximation: "larger"
+ * is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a pergola
+ * over the tables or a 4 m sculpture is.
+ */
+export const focal = (t: Thing) =>
+  standing(t) && t.layer === 'solid' && (Math.max(t.box.x1 - t.box.x0, t.box.y1 - t.box.y0) >= CAR.long || t.top - t.base >= CAR.tall)
+
+/**
  * From Stage 2 each Block has a scene, and a second at Stage 3 on a Block of `SECOND_SCENE` m² or more (rule 5). A
- * scene counts once it has a focal piece larger than a car: something standing, drawn at every distance, on more ground
- * than a car and a metre tall at least. Approximation: "larger than a car" is read from its footprint, not its look.
+ * scene counts once it has a focal piece (`focal`), whatever moves on it: a food truck's court with its truck away
+ * must still have one.
  */
 export const scenes: Rule = (r) => {
   if (r.stage < 2) return []
   const out: Failure[] = []
-  const focal = (t: Thing) => standing(t) && t.layer === 'solid' && t.area >= CAR.long * CAR.wide && t.top - t.base >= 1
   r.blocks.forEach((b, i) => {
     if (!zoned(r, i)) return
     const own = r.scenes.filter((s) => s.block === i)

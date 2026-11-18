@@ -838,8 +838,12 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const claim = (kind: Claim['kind'], x: number, y: number, w: number, d: number, ry: number) => {
     claims.push({ kind, x, y, w, d, ry, brick: bricks.length })
   }
-  /** The step before a door `w` wide in a wall at `(x, y)` facing `ry`, `out` m out from it, as a claim (#191): 1.2 m deep. */
-  const doorway = (x: number, y: number, ry: number, w: number, out = 0) => claim('door', ...to(x, y, ry, 0, out + 0.6), w, 1.2, ry)
+  /**
+   * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
+   * deep, and as wide as the door less 0.2 m either side, where its frame stands and pot plants may flank it.
+   */
+  const doorway = (x: number, y: number, ry: number, w: number, out = 0) =>
+    claim('door', ...to(x, y, ry, 0, out + 0.6), Math.max(0.6, w - 0.4), 1.2, ry)
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
   // Close-only prop, painted on `close` (`closeOnly`).
   let [patterned, pooled, closing] = [false, false, false]

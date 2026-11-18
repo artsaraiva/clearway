@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import { LAYOUTS, ZONES, type Layout, type Zone } from '../../../src/city/city'
 import { Game, type Stage } from '../../../src/game/game'
-import { area as blockArea, type Block as Outline } from '../../../src/render/blocks'
+import { area as blockArea, KERB, type Block as Outline } from '../../../src/render/blocks'
 import { createCars } from '../../../src/render/cars'
 import { createField } from '../../../src/render/field'
 import { createMaterials, type Kit, type Materials } from '../../../src/render/kit'
@@ -33,8 +33,11 @@ Object.assign(globalThis, { document: { createElement: () => ({ width: 0, height
 // Deep enough to reach past the kit's plumbing to the fill that called it (V8 keeps 10 frames unless told).
 Object.assign(Error, { stackTraceLimit: 40 })
 
-/** A part rises from what it stands on, as feet do, if its lowest point is within this many m of it. */
-const FOOT = 0.7
+/**
+ * A part rises from what it stands on, as feet do, if its lowest point is within `FOOT` m of it, and the brick stands on
+ * the ground: no more than `HUNG` m above the kerb, so a lantern on its cord or a wire on its poles has no feet.
+ */
+const [FOOT, HUNG] = [0.7, KERB + 1]
 /** A part lies flat, as paving or paint does, if it is less than this many m from top to bottom. */
 const FLAT = 0.15
 /** The scene check's own functions and the kit's plumbing, which a brick's label skips to find what built it. */
@@ -216,7 +219,7 @@ export function buildReport(ask: Ask): Report {
         all.push(...pts)
         if (y1 - y0 >= FLAT) {
           rising.push(...pts)
-          if (y0 < base + FOOT) feet.push(hull(pts))
+          if (y0 < base + FOOT && base <= HUNG) feet.push(hull(pts))
         }
         if (material === 'bulb') {
           const glow = geo.attributes.glow
