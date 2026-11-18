@@ -8,13 +8,18 @@ import { merged, part, takesPaint, tint } from './shapes'
 
 const INSET = 1.6 // m in from the kerb: the pavement's centre line
 const SPACING = 85 // m of pavement per walker
-const SHIRTS = ['#db6982', '#009dcb', '#ffc52d', '#ffffff', '#64cb9f', '#bc9ef2', '#2f3440', '#ff9cbb'].map((c) => new THREE.Color(c)) // the cars' colours
-const WHITE = new THREE.Color('#ffffff')
+// The cars' colours, a walker's paint: every walker wears one, on whatever of its model takes paint (`model`).
+const SHIRTS = ['#db6982', '#009dcb', '#ffc52d', '#ffffff', '#64cb9f', '#bc9ef2', '#2f3440', '#ff9cbb'].map((c) => new THREE.Color(c))
 
 /** A kind of walker (#176), each with a model of its own, seen at Close: a shopper with a bag, a schoolchild in a yellow hat, an office worker. */
-export type WalkerKind = 'shopper' | 'schoolchild' | 'worker'
+type WalkerKind = 'shopper' | 'schoolchild' | 'worker'
 
-/** The parts merged into one model, facing +x, its white parts taking its instance's paint. */
+/**
+ * The parts merged into one model, facing +x, its white parts taking its instance's paint.
+ * ponytail: a part takes paint by being pure white, so the schoolchild's and the office worker's white shirts are
+ * `#fbf8f2`, a shade off, to keep their own colour; a part that must show pure white would take its walker's paint.
+ * Give each part its share with `painted` (`./shapes`), as the cars' parts have theirs, if one ever must.
+ */
 const model = (parts: THREE.BufferGeometry[]) => {
   const g = merged(parts)
   const colour = g.attributes.color
@@ -24,35 +29,32 @@ const model = (parts: THREE.BufferGeometry[]) => {
 }
 
 // The kinds (#176), each drawn a little large as the walkers always were: how many of every ten walkers are of each,
-// its model, and the paints its white parts take. A shopper is the shops' (#175), in a coat in the cars' colours; a
-// schoolchild in a white shirt and navy shorts under a yellow hat, a satchel on its back; an office worker in a dark
-// suit with a white shirt and a briefcase.
-const SKIN = '#f1d1b5'
+// and its model. A shopper is the shops' (#175), in a coat in its paint; a schoolchild in a white shirt and navy shorts
+// under a yellow hat, a satchel on its back; an office worker in a dark suit with a white shirt and a briefcase.
+const SKIN_TONE = '#f1d1b5'
 const HAIR = '#3a3330'
-const KINDS: Record<WalkerKind, { share: number; model: () => THREE.BufferGeometry; paints: THREE.Color[] }> = {
-  shopper: { share: 4, model: () => model([shopper()]), paints: SHIRTS },
+const KINDS: Record<WalkerKind, { share: number; model: () => THREE.BufferGeometry }> = {
+  shopper: { share: 4, model: () => model([shopper()]) },
   schoolchild: {
     share: 3,
-    paints: [WHITE],
     model: () =>
       model([
         part(0.22, 0.5, 0.34, 0, 0, 0, '#3a4252'), // legs and shorts
         part(0.3, 0.52, 0.48, 0, 0.5, 0, '#fbf8f2'), // the shirt
         part(0.26, 0.4, 0.42, -0.24, 0.56, 0, '#5a3f34'), // the satchel
-        part(0.3, 0.3, 0.3, 0.02, 1.02, 0, SKIN),
+        part(0.3, 0.3, 0.3, 0.02, 1.02, 0, SKIN_TONE),
         tint(new THREE.CylinderGeometry(0.24, 0.27, 0.16, 10).translate(0.02, 1.38, 0), '#f6d36a'), // the hat
         tint(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 10).translate(0.02, 1.31, 0), '#f6d36a'), // its brim
       ]),
   },
   worker: {
     share: 3,
-    paints: [WHITE],
     model: () =>
       model([
         part(0.26, 0.84, 0.38, 0, 0, 0, '#3a4252'), // trousers
         part(0.36, 0.76, 0.6, 0, 0.82, 0, '#4a5262'), // the jacket
         part(0.05, 0.42, 0.16, 0.18, 1.14, 0, '#fbf8f2'), // the shirt at its front
-        part(0.32, 0.32, 0.32, 0.02, 1.58, 0, SKIN),
+        part(0.32, 0.32, 0.32, 0.02, 1.58, 0, SKIN_TONE),
         part(0.34, 0.1, 0.34, -0.01, 1.86, 0, HAIR),
         part(0.42, 0.3, 0.1, 0.02, 0.5, 0.38, '#5a3f34'), // the briefcase
       ]),
@@ -123,14 +125,13 @@ export function createWalkers() {
           const line = polyline([...loop, loop[0]])
           for (let k = Math.max(2, Math.round(line.length / SPACING)); k > 0; k--) {
             const kind = DEAL[Math.floor(Math.random() * DEAL.length)]
-            const { paints } = KINDS[kind]
             walkers.push({
               kind,
               line,
               s: Math.random() * line.length,
               speed: (0.9 + Math.random() * 0.6) * (Math.random() < 0.5 ? 1 : -1) * (kind === 'schoolchild' ? 0.85 : 1),
               phase: Math.random() * 10,
-              paint: paints[Math.floor(Math.random() * paints.length)],
+              paint: SHIRTS[Math.floor(Math.random() * SHIRTS.length)],
               piece,
             })
           }
