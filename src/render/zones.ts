@@ -3,7 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import { middle, overlaps, polyline, type Bounds, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { area, KERB, twiceArea, type Block } from './blocks'
-import { TAXI } from './cars'
+import { KEI, TAXI } from './cars'
 import { WIND } from './day'
 import { inside, type Field } from './field'
 import {
@@ -21,6 +21,7 @@ import {
   VENDING_MACHINE,
   WALL_STAIR,
   WALKWAY,
+  type ApartmentPlan,
   type Hung,
   type Kit,
   type TerracePlan,
@@ -31,14 +32,19 @@ import {
 } from './kit'
 import { allotments, farm, GROW, meadow, park, plaza, site } from './landmarks'
 import {
+  BAY_WIDTH,
+  binStore,
   cafeTable,
   capsules,
   florist,
   foodStall,
   foodTruck,
   greengrocer,
+  MEDIUM_SCENES,
+  mediumScene,
   menuBoard,
   officeScene,
+  parkingBays,
   plantStand,
   plazaPiece,
   pots,
@@ -47,6 +53,7 @@ import {
   truckPath,
   truckTurn,
   TRUCK_TURNS,
+  type MediumScene,
   type OfficeScene,
   type PlazaPiece,
   type ShopScene,
@@ -109,6 +116,15 @@ const MEDIUM_FINISH = {
   corner: 0.45,
   laundry: 0.45,
   alley: { deep: 1.7, paving: '#ddd3c4' },
+  // The scenes a Block picks from, and the area (m²) from which it has a second at Stage 3.
+  scenes: ['shrine', 'park', 'bathhouse'] as MediumScene[],
+  second: 2500,
+  // An apartment block's mansard over a flat roof where a block beside it would otherwise be the same building.
+  mansard: ['#b85a4c', '#4d6575', '#7a5a46', '#5aa69b', '#a8765a'],
+  // Parking bays by an apartment block, m in from the Block's edge and deep, and how many fit at most and at least.
+  bays: { in: 0.75, deep: 5.2, most: 3, least: 2 },
+  // A delivery scooter's waits (s), off down the Road and at the door, at least and at most.
+  scooter: { away: [8, 20], door: [5, 9] },
 }
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
 // of at most 17 m east–west by 15 north–south and at least 9, 11 to 17 storeys tall, leaving 4.5 m of the lot open on
@@ -749,6 +765,8 @@ function terraces(g: ZoneGround) {
   )
   const centre = middle(block)
   const plans = mulberry32(spot(centre.x, centre.y) ^ 0x7e44ace) // the plans' own stream: the kit's draws as they did
+  const scenes = kit.finished ? terraceScenes(g, lots, plans) : []
+  const open = new Set(scenes.flatMap((s) => s.lots)) // the lots the scenes take
   const storeys: number[] = []
   const planned: TerracePlan[] = []
   const signs: RowLot[] = [] // the corner shops' end walls, where no rack or stairs stand
@@ -757,7 +775,12 @@ function terraces(g: ZoneGround) {
     kit.lot(i)
     const s = kit.chance(0.3) ? 1 : kit.chance(0.72) ? 2 : 3
     storeys.push(s)
-    const plan = terracePlan(lots, i, storeys, planned, plans, corners < MEDIUM_FINISH.corners)
+    if (open.has(i)) {
+      kit.range(0, 1) // the draw its house's own stream took, so that every lot after it keeps its draws
+      planned.push({ roof: 'gable', ends: [] })
+      continue
+    }
+    const plan = terracePlan(lots, i, storeys, planned, plans, corners < MEDIUM_FINISH.corners, open)
     planned.push(plan)
     if (plan.corner) {
       corners++
@@ -770,8 +793,8 @@ function terraces(g: ZoneGround) {
   const taken: RowLot[] = [...lots, ...g.lamps.map(around(1.4)), ...trees.map(around(3)), ...signs]
   // A corner by a row's end (#156), beyond its end wall from its front back: one from Stage 2, a second from Stage 3.
   let from = 2
-  for (const l of lots) {
-    for (const s of from > 3 ? [] : [1, -1]) {
+  for (const [i, l] of lots.entries()) {
+    for (const s of from > 3 || open.has(i) ? [] : [1, -1]) {
       const [u0, u1] = [l.w / 2 + 0.1, l.w / 2 + 0.3 + CORNER.wide]
       const c = turned(l.x, l.y, l.ry, (s * (u0 + u1)) / 2, l.d / 2 - CORNER.long / 2)
       const ry = l.ry - (s * Math.PI) / 2 // facing out of the end wall, the corner's rack along it
@@ -783,7 +806,7 @@ function terraces(g: ZoneGround) {
   const [W, rise] = [WALL_STAIR.wide, 3.04]
   const L = rise * WALL_STAIR.run + landing
   for (const [i, l] of lots.entries()) {
-    for (const s of [1, -1]) {
+    for (const s of open.has(i) ? [] : [1, -1]) {
       const c = turned(l.x, l.y, l.ry, s * (l.w / 2 + 0.05 + W / 2), l.d / 2 - 0.2 - L / 2)
       const ry = l.ry - (s * Math.PI) / 2 // the wall at its back, its flight along the house's depth
       const stair = { x: c.x, y: c.y, w: L, d: W + 0.1, ry, onRoad: false }
@@ -800,7 +823,25 @@ function terraces(g: ZoneGround) {
     }
   }
   kit.lot(-1)
-  if (kit.finished) alleys(g, lots, taken)
+  if (!kit.finished) return
+  alleys(
+    g,
+    lots.filter((_, i) => !open.has(i)),
+  )
+  for (const { kind, ground, from } of scenes) {
+    kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y))
+    g.kept.push(ground)
+    taken.push(ground)
+  }
+  bins(g, plans, taken)
+  const doors = lots.flatMap((l, i) => {
+    if (open.has(i) || !l.onRoad) return []
+    const corner = planned[i].corner
+    const u = corner ? corner.end * (l.w / 2 - 0.9) : l.w >= 5.6 ? l.w * 0.23 : 0 // its door, or its shop's
+    return [{ ...turned(l.x, l.y, l.ry, u, l.d / 2 + 0.9), ry: l.ry }]
+  })
+  for (const { ground: s } of scenes) doors.push({ ...turned(s.x, s.y, s.ry, 0, s.d / 2 + 0.9), ry: s.ry }) // a scene's front too
+  scooter(g, plans, doors, taken)
 }
 
 /**
@@ -817,16 +858,17 @@ function terracePlan(
   planned: TerracePlan[],
   plans: () => number,
   shop: boolean,
+  open: Set<number>,
 ): TerracePlan {
   const l = lots[i]
   const first = (k: number) => TERRACE_STOREYS(storeys[k], 1)
   const grown = { ...l, w: l.w + 0.8, d: l.d + 0.8 }
-  const near = planned.flatMap((p, k) => (first(k) === first(i) && overlap(grown, lots[k]) ? [p.roof] : []))
+  const near = planned.flatMap((p, k) => (!open.has(k) && first(k) === first(i) && overlap(grown, lots[k]) ? [p.roof] : []))
   const free = MEDIUM_FINISH.roofs.filter((r) => !near.includes(r))
   const roof = free.includes('gable') ? 'gable' : (free[Math.floor(plans() * free.length)] ?? 'gable')
   const ends = ([1, -1] as const).filter((end) => {
     const p = turned(l.x, l.y, l.ry, end * (l.w / 2 + 0.4), 0)
-    return !lots.some((o, k) => k !== i && inside(corners(o, -0.1), p.x, p.y))
+    return !lots.some((o, k) => k !== i && !open.has(k) && inside(corners(o, -0.1), p.x, p.y))
   })
   const roll = plans()
   const kind = plans() < MEDIUM_FINISH.laundry ? 'laundry' : ('shop' as const)
@@ -835,10 +877,10 @@ function terracePlan(
 }
 
 /**
- * The alley behind each terraced row (#178): setts `MEDIUM_FINISH.alley.deep` m deep along each house's back, where it
- * lies on the Block clear of its edge, under what `taken` holds; the pot plants along it are the houses' own.
+ * The alley behind each terraced row (#178): setts `MEDIUM_FINISH.alley.deep` m deep along the back of each house of
+ * `lots`, where it lies on the Block clear of its edge; the pot plants along it are the houses' own.
  */
-function alleys(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
+function alleys(g: ZoneGround, lots: RowLot[]) {
   const { kit } = g
   const { deep, paving } = MEDIUM_FINISH.alley
   for (const l of lots) {
@@ -846,7 +888,181 @@ function alleys(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
     if (!stands(g, p.x, p.y, l.w, deep, 0.6, l.ry)) continue
     kit.from(1, () => kit.paving(p.x, p.y, KERB, l.w, deep, l.ry, paving, PATTERN.setts), spot(p.x, p.y))
   }
-  void taken
+}
+
+/** A medium-density Block's scene (#178): its kind, its ground, the Stage it stands from and, on a terraced Block, the lots it takes. */
+interface Placed {
+  kind: MediumScene
+  ground: RowLot
+  from: number
+  lots: number[]
+}
+
+/**
+ * The scenes of a terraced Block (#178), drawn from `draw` before its houses are built: from Stage 2 one, on a span of
+ * up to three lots side by side facing a Road (any lots, on a Block with none), as wide as its kind needs at least, of
+ * a kind picked from where the Block lies; at Stage 3 a second of another kind on a Block of 2,500 m² or more, not on or beside the first. A kind
+ * that finds no span gives way to another. Each takes its lots whole, whose houses are not built.
+ */
+function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): Placed[] {
+  const kinds = [...MEDIUM_FINISH.scenes]
+  const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
+  const [second, start] = [kinds[Math.floor(draw() * kinds.length)], draw()]
+  const order = area(g.block.loop) >= MEDIUM_FINISH.second ? [first, second] : [first]
+  const out: Placed[] = []
+  const nextTo = (a: RowLot, b: RowLot) => Math.abs(a.ry - b.ry) < 1e-6 && Math.hypot(a.x - b.x, a.y - b.y) < (a.w + b.w) / 2 + 0.6
+  for (const drawn of order) {
+    for (const kind of [drawn, ...MEDIUM_FINISH.scenes.filter((k) => k !== drawn)]) {
+      if (out.some((o) => o.kind === kind)) continue
+      const [wide, deep] = MEDIUM_SCENES[kind].least
+      let found: Placed | null = null
+      // On lots facing a Road, or else on any.
+      for (let n = 0; n < 2 * lots.length && !found; n++) {
+        const road = n < lots.length
+        const i = (Math.floor(start * lots.length) + n) % lots.length
+        const span = [i]
+        if (!road && span.every((k) => lots[k].onRoad)) continue // tried already
+        let width = lots[i].w
+        while (width < wide && span.length < 3) {
+          const j = span[span.length - 1] + 1
+          if (j >= lots.length || !nextTo(lots[j - 1], lots[j])) break
+          span.push(j)
+          width += lots[j].w
+        }
+        if (width < wide || lots[i].d < deep || (road && !span.every((k) => lots[k].onRoad))) continue
+        if (out.some((o) => o.lots.some((k) => span.some((j) => Math.abs(j - k) <= 1)))) continue
+        const [a, b] = [lots[span[0]], lots[span[span.length - 1]]]
+        const [p, q] = [turned(a.x, a.y, a.ry, -a.w / 2, 0), turned(b.x, b.y, b.ry, b.w / 2, 0)]
+        const ground = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2, w: width, d: a.d, ry: a.ry, onRoad: true }
+        found = { kind, ground, from: out.length ? 3 : 2, lots: span }
+      }
+      if (found) {
+        out.push(found)
+        break
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Ground `size` m along a straight run of the Block's edge `inset` m in from it and deep from there, or as small as
+ * `least`, on the Block, clear of the lamps and the street trees and as `ok` has it: the first that fits, sliding along
+ * each run a metre at a time, the runs facing a Road first in an order drawn from `draw`, each run's ends `ends` m
+ * clear; null if none fits (#178).
+ */
+function scan(
+  g: ZoneGround,
+  draw: () => number,
+  inset: number,
+  size: readonly [number, number],
+  least: readonly [number, number],
+  ends: number,
+  ok: (l: RowLot) => boolean,
+): RowLot | null {
+  const all = runs(g, inset)
+  const shift = Math.floor(draw() * Math.max(1, all.length))
+  const order = all.map((_, k) => all[(k + shift) % all.length])
+  const road = [...order.filter(facesRoad), ...order.filter((r) => !facesRoad(r))]
+  for (const [w, d] of [size, [(size[0] + least[0]) / 2, (size[1] + least[1]) / 2], least])
+    for (const run of road) {
+      for (let s = w / 2 + ends; s <= run.len - w / 2 - ends; s += 1) {
+        const [fx, fy] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
+        const l = { x: fx - (run.nx * d) / 2, y: fy - (run.ny * d) / 2, w, d, ry: run.ry, onRoad: run.onRoad(fx, fy) }
+        if (!stands(g, l.x, l.y, w, d, 0.4, l.ry) || g.lamps.some((p) => near(l, p.x, p.y, 1.2))) continue
+        if (ok(l)) return l
+      }
+    }
+  return null
+}
+
+/**
+ * The scenes of a courtyard Block (#178), drawn from `draw` once its buildings have taken their ground (`taken`): from
+ * Stage 2 one, along a run of its edge facing a Road where there is room clear of the buildings, of a kind picked from
+ * where the Block lies, and at Stage 3 a second of another kind on a Block of 2,500 m² or more, 18 m or more from the
+ * first. A kind that finds no ground gives way to another.
+ */
+function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[]): Placed[] {
+  const kinds = [...MEDIUM_FINISH.scenes]
+  const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
+  const second = kinds[Math.floor(draw() * kinds.length)]
+  const order = area(g.block.loop) >= MEDIUM_FINISH.second ? [first, second] : [first]
+  const out: Placed[] = []
+  for (const drawn of order) {
+    for (const kind of [drawn, ...MEDIUM_FINISH.scenes.filter((k) => k !== drawn)]) {
+      if (out.some((o) => o.kind === kind)) continue
+      const { most, least } = MEDIUM_SCENES[kind]
+      const ground = scan(g, draw, 0.8, most, least, 3, (l) => {
+        if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
+        return !taken.some((o) => overlap(o, l))
+      })
+      if (!ground) continue
+      out.push({ kind, ground, from: out.length ? 3 : 2, lots: [] })
+      break
+    }
+  }
+  return out
+}
+
+/** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground `scan` finds clear of `taken`, which it then takes. */
+function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
+  const l = scan(g, draw, 0.65, [2.1, 1.1], [2.1, 1.1], 4, (l) => !taken.some((o) => overlap(o, l)))
+  if (!l) return
+  taken.push(l)
+  g.kept.push(l)
+  g.kit.from(1, () => binStore(g.kit, l.x, l.y, l.ry + Math.PI), spot(l.x, l.y))
+}
+
+/**
+ * The delivery scooter of a medium-density Block (#178), from Stage 2: to the first of `doors` (a point on the pavement
+ * before a front, its front's facing), in an order drawn from `draw`, whose way in and out lies on the Block across a
+ * pavement facing a Road, clear of the utility poles, the lamps, the street trees and `taken`. It waits off down the
+ * Road, unseen; comes in over the kerb, growing as it leaves the Road as a car does at a Gateway; pulls up at the door
+ * and waits; turns round on the pavement and goes back out over the kerb, shrinking away as it rejoins the Road.
+ */
+function scooter(g: ZoneGround, draw: () => number, doors: (Vec & { ry: number })[], taken: RowLot[]) {
+  const { kit, field } = g
+  const [away, wait] = [MEDIUM_FINISH.scooter.away, MEDIUM_FINISH.scooter.door]
+  const waits = [away[0] + draw() * (away[1] - away[0]), wait[0] + draw() * (wait[1] - wait[0])]
+  const shift = Math.floor(draw() * Math.max(1, doors.length))
+  const side0 = draw() < 0.5 ? 1 : -1
+  for (let n = 0; n < doors.length; n++) {
+    const door = doors[(n + shift) % doors.length]
+    const k = kerbAhead(g, { ...door, w: 0, d: 0, onRoad: true }, 0)
+    if (k === null || k < 0.9 || k > 9) continue
+    for (const s of [side0, -side0]) {
+      // In the door's frame, along its front and out of it: in from the kerb, up to the door, round, and out.
+      const way = [
+        [-s * 4.2, k - 0.12],
+        [-s * 2.7, k * 0.55],
+        [-s * 1.2, 0.08],
+        [0, 0],
+        [s * 1.1, 0],
+        [s * 1.9, Math.min(0.45, k * 0.3)],
+        [s * 1.8, k * 0.72],
+        [s * 0.8, k - 0.42],
+        [-s * 1.5, k - 0.42],
+        [-s * 4.2, k - 0.12],
+      ].map(([u, v]) => turned(door.x, door.y, door.ry, u, v))
+      const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
+      if (!g.poles.every((p) => clear(p, 1.2)) || !g.lamps.every((p) => clear(p, 1.4)) || !g.street.every((p) => clear(p, 1.8))) continue
+      // Every half metre of it on the Block and clear of what stands there, but where it meets the kerb.
+      const loop = polyline(way)
+      let free = true
+      for (let i = 1; i < way.length && free; i++) {
+        const [a, b] = [way[i - 1], way[i]]
+        const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.5)
+        for (let j = 0; j <= steps && free; j++) {
+          const p = { x: a.x + ((b.x - a.x) * j) / steps, y: a.y + ((b.y - a.y) * j) / steps }
+          const atKerb = (i === 1 && j === 0) || (i === way.length - 1 && j === steps)
+          free = (atKerb || field.sample(p.x, p.y) > 0.05) && !taken.some((o) => near(o, p.x, p.y, 0.35))
+        }
+      }
+      if (!free) continue
+      kit.from(2, () => kit.mover('scooter', loop, [0, loop.cum[3]], 0, KERB, { waits, away: 0 }), spot(door.x, door.y) + 7)
+      return
+    }
+  }
 }
 
 /** A square `side` m across round a point, as a row lot. */
@@ -898,8 +1114,10 @@ function cornerStore(g: ZoneGround, taken: RowLot[], corner: RowLot, from: numbe
  * - Stage 3: a second machine and more bicycles.
  */
 function courtyards(g: ZoneGround) {
-  const { kit } = g
-  const built: { lot: number; x: number; y: number; wings: Bounds[]; floors: number; walks: Walks }[] = []
+  const { kit, block } = g
+  const centre = middle(block)
+  const plans = mulberry32(spot(centre.x, centre.y) ^ 0xc0a7) // the plans' own stream: the kit's draws as they did
+  const built: Built[] = []
   for (const [i, lot] of lotsOf(g, COURTYARDS.margin, COURTYARDS.lot).entries()) {
     const [x, y] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
     const [w0, d0] = [lot.x1 - lot.x0 - 2 * COURTYARDS.gap, lot.y1 - lot.y0 - 2 * COURTYARDS.gap]
@@ -930,12 +1148,16 @@ function courtyards(g: ZoneGround) {
       wings = [top ? north : south, left ? { x0, y0: from, x1: x0 + deep, y1: to } : { x0: x1 - deep, y0: from, x1, y1: to }]
     } else wings = [{ x0, y0, x1, y1 }]
     const walks = walksOf(wings, mulberry32(spot(x, y))() < 0.5)
-    kit.staged((stage) => kit.apartment(wings, KERB, COURT_FLOORS(floors, stage), stage, walks))
-    built.push({ lot: i, x, y, wings, floors, walks })
+    const plan = courtPlan(built, lot, wings.length, floors, plans)
+    kit.staged((stage) => kit.apartment(wings, KERB, COURT_FLOORS(floors, stage), stage, walks, plan))
+    built.push({ lot: i, bounds: lot, x, y, wings, floors, walks, plan })
   }
-  // Then, once every building has taken its ground, each one's outside stairs and the corner where its bike rack and
-  // vending machines stand (#156), on its lot.
+  // Then, once every building has taken its ground, its scenes (#178) on ground clear of every building, and each
+  // building's outside stairs and the corner where its bike rack and vending machines stand (#156), on its lot.
   const taken: RowLot[] = [...g.lamps.map(around(1.4)), ...built.flatMap((b) => b.wings.map(wingLot))]
+  const round = built.flatMap((b) => b.wings.map((w) => ({ ...wingLot(w), w: w.x1 - w.x0 + 2, d: w.y1 - w.y0 + 2 })))
+  const scenes = kit.finished ? courtScenes(g, plans, [...taken, ...round]) : []
+  taken.push(...scenes.map((s) => s.ground))
   for (const b of built) {
     kit.lot(b.lot)
     const draw = mulberry32(spot(b.x, b.y + 1))
@@ -981,6 +1203,122 @@ function courtyards(g: ZoneGround) {
     tries.some((t) => cornerStore(g, taken, { ...t, w: CORNER.long, d: CORNER.wide, onRoad: false }, 2, toward))
   }
   kit.lot(-1)
+  if (!kit.finished) return
+  for (const { kind, ground, from } of scenes) {
+    kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y))
+    g.kept.push(ground)
+  }
+  for (const b of built) courtGround(g, b, taken)
+  parking(g, plans, [...taken, ...round])
+  bins(g, plans, taken)
+  // The scooter calls at a door along a building's face toward a Road.
+  const doors = built.flatMap((b) =>
+    b.wings.flatMap((wing, k) =>
+      FACES.flatMap(([nx, ny], face) => {
+        const [, mx, my] = faceOf(wing, face)
+        if (onWing(b.wings, mx + nx * 0.4, my + ny * 0.4, k)) return []
+        const len = nx ? wing.y1 - wing.y0 : wing.x1 - wing.x0
+        return [0, -len / 4, len / 4].map((u) => ({ x: mx + nx * 1.1 + ny * u, y: my + ny * 1.1 - nx * u, ry: Math.atan2(-nx, ny) }))
+      }),
+    ),
+  )
+  scooter(g, plans, doors, taken)
+}
+
+/** An apartment building as `courtyards` lays it (#178): its lot, by index and bounds, its middle, wings, floors at Stage 2, walkways and plan. */
+interface Built {
+  lot: number
+  bounds: Bounds
+  x: number
+  y: number
+  wings: Bounds[]
+  floors: number
+  walks: Walks
+  plan: ApartmentPlan
+}
+
+/**
+ * An apartment building's plan (#178), on `lot`, with `shape` wings and `floors` at Stage 2, as the buildings `built`
+ * before it have theirs: a flat roof behind a parapet, as before, unless a building of as many wings on a lot beside it
+ * (`beside`) stands as many floors at Stage 1 under one, when it takes a mansard of tiles drawn from `plans`; so that no
+ * two buildings side by side are the same building in another colour at any Stage.
+ * ponytail: where buildings beside it already have both roofs, it keeps a flat one. Ceiling: a lot between two of the
+ * same shape and floors, one flat and one under a mansard, matches one of them; none does on the 26-Tile City. Upgrade:
+ * a third roof (a setback top floor) for that lot.
+ */
+function courtPlan(built: Built[], lot: Bounds, shape: number, floors: number, plans: () => number): ApartmentPlan {
+  const first = COURT_FLOORS(floors, 1)
+  const roofs = built
+    .filter((b) => b.wings.length === shape && COURT_FLOORS(b.floors, 1) === first && beside(b.bounds, lot))
+    .map((b) => b.plan.roof)
+  const tiles = MEDIUM_FINISH.mansard[Math.floor(plans() * MEDIUM_FINISH.mansard.length)]
+  return roofs.includes('flat') && !roofs.includes('mansard') ? { roof: 'mansard', tiles } : { roof: 'flat' }
+}
+
+/**
+ * The ground of apartment building `b` (#178), from Stage 1, where it stands clear of `taken`: in an L's inner corner, a
+ * court in setts with a tree in a round bed and a bench, Close-only; in an O's or a U's court, a bench by its tree.
+ */
+function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
+  const { kit } = g
+  const [x0, x1] = [Math.min(...b.wings.map((w) => w.x0)), Math.max(...b.wings.map((w) => w.x1))]
+  const [y0, y1] = [Math.min(...b.wings.map((w) => w.y0)), Math.max(...b.wings.map((w) => w.y1))]
+  if (b.wings.length >= 3) {
+    if (Math.min(x1 - x0, y1 - y0) - 2 * (b.wings[0].y1 - b.wings[0].y0) >= 5.4)
+      kit.from(1, () => kit.closeOnly(() => kit.bench(b.x + 1.9, b.y, KERB + 0.16, -Math.PI / 2)), spot(b.x + 1.9, b.y))
+    return
+  }
+  if (b.wings.length !== 2) return
+  const [a, c] = b.wings // the wing along the north or south, and the other
+  const [ix0, ix1] = c.x0 <= x0 + 0.01 ? [c.x1, x1] : [x0, c.x0]
+  const [iy0, iy1] = a.y0 <= y0 + 0.01 ? [a.y1, y1] : [y0, a.y0]
+  const court = { x: (ix0 + ix1) / 2, y: (iy0 + iy1) / 2, w: ix1 - ix0 - 1, d: iy1 - iy0 - 1, ry: 0, onRoad: false }
+  if (Math.min(court.w, court.d) < 4 || !stands(g, court.x, court.y, court.w, court.d, 0.6) || taken.some((o) => overlap(o, court))) return
+  taken.push(court)
+  // The tree in the corner the wings make, the bench facing it.
+  const tx = c.x0 <= x0 + 0.01 ? ix0 + 1.6 : ix1 - 1.6
+  const ty = a.y0 <= y0 + 0.01 ? iy1 - 1.6 : iy0 + 1.6
+  const out = Math.sign(court.x - tx) || 1
+  kit.from(
+    1,
+    () => {
+      kit.paving(court.x, court.y, KERB, court.w, court.d, 0, MEDIUM_FINISH.alley.paving, PATTERN.setts)
+      kit.drum(PLANTER, tx, ty, KERB, 1.1, 1.1, 0.45)
+      kit.brick('building', tx, ty, KERB)
+      kit.closeOnly(() => kit.bench(tx + out * 2.4, ty, KERB, (out * Math.PI) / 2))
+    },
+    spot(tx, ty),
+  )
+  kit.staged((stage) => kit.tree(tx, ty, KERB + 0.45, GROW[stage - 1] * 0.55, 'round'), spot(tx, ty) + 1)
+}
+
+/**
+ * Parking bays by an apartment block (#178), from Stage 1: two or three bays along a run of the Block's edge facing a
+ * Road, open to it, where there is room clear of `taken`, with a kei car (the cars' `KEI`) nosed into one from Stage 2
+ * and into another at Stage 3, in the cars' colours.
+ */
+function parking(g: ZoneGround, draw: () => number, taken: RowLot[]) {
+  const { kit } = g
+  const { most, least, deep } = MEDIUM_FINISH.bays
+  const l = scan(
+    g,
+    draw,
+    MEDIUM_FINISH.bays.in,
+    [most * BAY_WIDTH, deep],
+    [least * BAY_WIDTH, deep],
+    3,
+    (l) => l.onRoad && !taken.some((o) => overlap(o, l)),
+  )
+  if (!l) return
+  taken.push(l)
+  g.kept.push(l)
+  const bays = Math.round(l.w / BAY_WIDTH)
+  kit.from(1, () => parkingBays(kit, l, bays), spot(l.x, l.y))
+  ;[0, bays - 1].forEach((k, n) => {
+    const p = turned(l.x, l.y, l.ry, -l.w / 2 + (k + 0.5) * BAY_WIDTH, -0.15)
+    const paint = KEI.paints[spot(p.x, p.y) % KEI.paints.length]
+    kit.from(n ? 3 : 2, () => kit.parked(KEI, p.x, p.y, KERB + 0.02, l.ry + Math.PI, paint), spot(p.x, p.y))
+  })
 }
 
 /** A wing as a row lot. */
