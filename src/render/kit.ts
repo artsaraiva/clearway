@@ -982,11 +982,11 @@ export function createKit(rand: () => number, materials: Materials) {
     },
 
     /**
-     * A Block's pavement, raised from its outline (`./blocks`), with paving joints on every Tile as far as the materials'
-     * finish allows (#174; every Tile's since #176).
+     * A Block's pavement, raised from its outline (`./blocks`). The surface pattern lays paving joints over it on every
+     * Tile, picking it out by its colour and height, as far as the materials' finish allows (#174; every Tile since #176).
      */
     pavement(geo: THREE.BufferGeometry, look: Look) {
-      push(materials.finish.pattern ? pave(geo) : geo, look)
+      push(geo, look)
     },
 
     /**
