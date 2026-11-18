@@ -3,7 +3,7 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Polyline, type Vec } from '../../sim/geometry'
 import { area, KERB, type Block } from '../blocks'
 import { inside, type Field } from '../field'
-import { spot, type Kit } from '../kit'
+import { SHAPES, spot, to, type Kit } from '../kit'
 import { clearOf, GROW, overlay, scatter, site } from '../landmarks'
 import type { Look } from './ground'
 
@@ -367,8 +367,8 @@ export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) 
       kit.brick('tree', x, y, ground)
     }, seed)
     // Its details (#152): a water butt at the front corner of a shed, from Stage 2 as the shed; cold frames; a scarecrow.
-    if (roll < 0.14) kit.from(2, () => kit.waterButt(x + w / 2 - 0.95, y - d / 2 + 0.62, ground + 0.22), spot(x + 1, y))
-    if (framed) kit.from(framed, () => kit.coldFrames(x, y + d / 2 - 0.9, ground + 0.22, Math.PI, w - 1.2), spot(x, y + 1))
+    if (roll < 0.14) kit.from(2, () => waterButt(kit, x + w / 2 - 0.95, y - d / 2 + 0.62, ground + 0.22), spot(x + 1, y))
+    if (framed) kit.from(framed, () => coldFrames(kit, x, y + d / 2 - 0.9, ground + 0.22, Math.PI, w - 1.2), spot(x, y + 1))
     const scare = scared.get(plot)
     if (scare) {
       const turn = (mulberry32(spot(x, y))() - 0.5) * 0.6
@@ -376,4 +376,41 @@ export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) 
     }
   }
   kit.lot(-1)
+}
+
+// A water butt and its lid; and a cold frame's painted base and its glass, painted pale as the greenhouses' film is: the
+// kit's glass would add a mesh to every green build, which never draws it (#152).
+const BUTT = { body: '#4f8a6e', lid: '#3d6d57' }
+const FRAME = { base: '#f4f1ea', glass: '#d6ece6' }
+/** A cold frame's glass (#152): a box 1 m across, 1 m deep and 0.36 m tall at its back, its top sloping to 0.14 m at its front (-z). */
+const LIGHT = (() => {
+  const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0).toNonIndexed()
+  const pos = g.attributes.position
+  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0.5) pos.setY(i, pos.getZ(i) < 0 ? 0.14 : 0.36)
+  g.computeVertexNormals()
+  return g
+})()
+
+/** A water butt at `(x, y)`, as one brick that drops in (#152): a green barrel under a darker lid, oversized a little. */
+function waterButt(kit: Kit, x: number, y: number, h: number) {
+  kit.add(SHAPES.cylinder, BUTT.body, x, y, h, 0, 0.42, 1.1, 0.42)
+  kit.add(SHAPES.cylinder, BUTT.lid, x, y, h + 1.1, 0, 0.45, 0.07, 0.45)
+  kit.shadow(x, y, h, 1.3, 1.3, true)
+  kit.brick('building', x, y, h)
+}
+
+/**
+ * Cold frames in a row `w` m long at `(x, y)`, their fronts facing `ry`, as one brick that drops in (#152): glass
+ * lights 1.1 m deep, sloping down to the front, on a low painted base, one to every 1.3 m or so.
+ */
+function coldFrames(kit: Kit, x: number, y: number, h: number, ry: number, w: number) {
+  const n = Math.max(1, Math.round(w / 1.3))
+  const each = w / n
+  for (let k = 0; k < n; k++) {
+    const lx = -w / 2 + (k + 0.5) * each
+    kit.put(kit.cuboid(each - 0.08, 0.24, 1.1), FRAME.base, x, y, ry, lx, 0, h)
+    kit.add(LIGHT, FRAME.glass, ...to(x, y, ry, lx, 0), h + 0.24, ry, each - 0.14, 1, 1.1)
+  }
+  kit.shadow(x, y, h, w + 1, 2, true, ry) // round, as a scarecrow's or a water butt's: allotments draw no other shadow
+  kit.brick('building', x, y, h)
 }

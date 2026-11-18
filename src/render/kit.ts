@@ -51,13 +51,11 @@ const SHED = {
   chimney: '#a8604f',
   band: '#f4f1ea',
 }
-// Industrial details (#150): shipping containers in the roofs' colours, their frames and ribs a shade darker; pallets'
-// wood and the goods on them, cartons and shrink-wrap; the paint marking a truck's bay; and a lamp over each door.
+// Industrial details (#150): shipping containers in the roofs' colours, their frames and ribs a shade darker; and a
+// lamp over each door. Pallets and a truck's bay are industrial's own (`./zones/industrial`).
 const CONTAINERS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548', '#7f8c7c']
 /** A shipping container's size (m): long, wide and tall (#150). */
 export const CONTAINER = { long: 6.1, wide: 2.45, tall: 2.6 }
-const PALLET = { wood: '#c49a6c', goods: ['#d8b98b', '#f4f1ea', '#d8b98b', '#e9eef2'] }
-const BAY = '#f0c75e'
 // Medium-density details (#156), each a thing of its own that any Zone may use: an outdoor AC unit's casing and its
 // fan's grille; a vending machine's paints and its dark trim, its lit front the lamps' bulb; a covered bike rack's
 // steel and roof, and its bicycles' frames (the cars' colours) and tyres; washing and futons; and the steel of outside
@@ -264,21 +262,10 @@ const APARTMENT_FINISH = {
 }
 // A cylinder lying along x, centred on its middle: a solar water heater's tank (#178).
 const LYING = new THREE.CylinderGeometry(1, 1, 1, 10).rotateZ(Math.PI / 2)
-// Green details (#152): a bench's wooden slats and its iron ends; a picnic blanket's colours, its gingham's pale stripe,
-// the basket and a parasol's pole; a water butt and its lid; and a cold frame's painted base and its glass, painted
-// pale as the greenhouses' film is: the kit's glass would add a mesh to every green build, which never draws it.
+// Green details (#152): a bench's wooden slats and its iron ends; and a picnic blanket's colours, its gingham's pale
+// stripe, the basket and a parasol's pole. Water butts and cold frames are green's own (`./zones/green`).
 const BENCH = { wood: '#c49a6c', iron: '#6f7986' }
 const PICNIC = { blankets: ['#ffadc8', '#f6d36a', '#7fbf9d', '#c7b8f0', '#f0b43c'], stripe: '#fbf8f2', basket: '#c49a6c', lid: '#a1714c' }
-const BUTT = { body: '#4f8a6e', lid: '#3d6d57' }
-const FRAME = { base: '#f4f1ea', glass: '#d6ece6' }
-/** A cold frame's glass (#152): a box 1 m across, 1 m deep and 0.36 m tall at its back, its top sloping to 0.14 m at its front (-z). */
-const LIGHT = (() => {
-  const g = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0).toNonIndexed()
-  const pos = g.attributes.position
-  for (let i = 0; i < pos.count; i++) if (pos.getY(i) > 0.5) pos.setY(i, pos.getZ(i) < 0 ? 0.14 : 0.36)
-  g.computeVertexNormals()
-  return g
-})()
 // High-density residential details (#155): a rooftop helipad's pad and its paint; balcony plants' pots; the covers of
 // futons aired over the railings; and a playground's soft ground, slide, swings, sandbox and spring rider.
 const HELIPAD = { pad: '#4f7a62', ring: '#f6d36a', mark: '#f6d36a' }
@@ -365,8 +352,8 @@ const DISC = new THREE.CylinderGeometry(1, 1, 1, 32) // centred on its middle, u
 const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helipad's painted ring, 1 m out
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
-/** Shapes the kit lays, for the builders beside it (`./props`, `./streets`), each standing on y = 0 but the disc. */
-export const SHAPES = { thin: THIN, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC }
+/** Shapes the kit lays, for the builders beside it (`./props`, `./streets`, `./zones`), each standing on y = 0 but the disc. */
+export const SHAPES = { thin: THIN, sphere: SPHERE, bush: BUSH, pot: POT, cone: CONE8, disc: FACING_DISC, cylinder: CYLINDER }
 /**
  * Where `(lx, ly)` in the frame of something at `(x, y)` lies: `lx` to its right, `ly` out of its front, which faces
  * `ry` (0 north, π/2 west). The kit places shapes by it, as do the builders beside it.
@@ -2973,30 +2960,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     },
 
     /**
-     * Pallets stacked at `(x, y)`, turned `ry`, each with its load of goods, as one brick (#150): the layers from `first`
-     * up to `layers`. The forklifts' work, oversized a little as the props are.
-     */
-    pallets(x: number, y: number, h: number, ry: number, layers: number, first = 0) {
-      const [P, T, G] = [1.4, 0.18, 0.95] // the pallet's side, its thickness and the height of its load
-      for (let k = first; k < layers; k++) {
-        const at = h + k * (T + G)
-        add(cuboid(P, T, P), PALLET.wood, x, y, at, ry)
-        add(cuboid(P - 0.12, G, P - 0.12), pick(PALLET.goods), x, y, at + T, ry)
-      }
-      if (!first) shadow(x, y, h, P + 0.8, P + 0.8, false, ry)
-      brick('building', x, y, h + first * (T + G))
-    },
-
-    /**
-     * The paint marking a truck's bay, a line down each side `l` m long and `w` apart, its length across a shed whose
-     * long side runs `ry` (0 east–west), as a brick (#150).
-     */
-    bay(x: number, y: number, h: number, ry: number, l: number, w: number) {
-      for (const k of [-1, 1]) local(cuboid(0.14, 0.02, l), BAY, x, y, ry, (k * w) / 2, 0, h)
-      brick('ground', x, y, h)
-    },
-
-    /**
      * Steel outside stairs centred on `(x, y)`, their flights running along `ry`'s right, as one brick (#156): two
      * flights a storey from the first of `tops` (m above the road) to each of the others, as an apartment block has up
      * one end of its walkways.
@@ -3239,30 +3202,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
         add(BUSH, colour, bx, by, h + 0.66, k, 0.34, 0.26, 0.34)
       }
       brick('ground', x, y, h)
-    },
-
-    /** A water butt at `(x, y)`, as one brick that drops in (#152): a green barrel under a darker lid, oversized a little. */
-    waterButt(x: number, y: number, h: number) {
-      add(CYLINDER, BUTT.body, x, y, h, 0, 0.42, 1.1, 0.42)
-      add(CYLINDER, BUTT.lid, x, y, h + 1.1, 0, 0.45, 0.07, 0.45)
-      shadow(x, y, h, 1.3, 1.3, true)
-      brick('building', x, y, h)
-    },
-
-    /**
-     * Cold frames in a row `w` m long at `(x, y)`, their fronts facing `ry`, as one brick that drops in (#152): glass
-     * lights 1.1 m deep, sloping down to the front, on a low painted base, one to every 1.3 m or so.
-     */
-    coldFrames(x: number, y: number, h: number, ry: number, w: number) {
-      const n = Math.max(1, Math.round(w / 1.3))
-      const each = w / n
-      for (let k = 0; k < n; k++) {
-        const lx = -w / 2 + (k + 0.5) * each
-        local(cuboid(each - 0.08, 0.24, 1.1), FRAME.base, x, y, ry, lx, 0, h)
-        add(LIGHT, FRAME.glass, ...to(x, y, ry, lx, 0), h + 0.24, ry, each - 0.14, 1, 1.1)
-      }
-      shadow(x, y, h, w + 1, 2, true, ry) // round, as a scarecrow's or a water butt's: allotments draw no other shadow
-      brick('building', x, y, h)
     },
 
     /** A street lamp, as one brick, with a pool of light round its post as far as the pavement goes, where the kit builds with pools. */

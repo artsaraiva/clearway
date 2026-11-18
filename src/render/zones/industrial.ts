@@ -1,7 +1,7 @@
 import { mulberry32 } from '../../sim/demand'
 import { polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
-import { CONTAINER, shedDoors, spot } from '../kit'
+import { CONTAINER, shedDoors, spot, type Kit } from '../kit'
 import { fit, lotsOf, near, overlap, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 
 // Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
@@ -30,6 +30,9 @@ const FORKLIFT = { out: 3.2, turn: 1.8, rear: 1.9, stack: 0.95, apart: [3.4, 4.2
 // Containers along a shed's back and ends: m from the wall, the share of spots filled from Stage 2 and from Stage 3,
 // and the share of them that a second container tops at Stage 3.
 const CONTAINERS = { gap: 0.35, fill: [0.3, 0.65], double: 0.45 }
+// Pallets' wood and the goods on them, cartons and shrink-wrap; and the paint marking a truck's bay (#150).
+const PALLET = { wood: '#c49a6c', goods: ['#d8b98b', '#f4f1ea', '#d8b98b', '#e9eef2'] }
+const BAY = '#f0c75e'
 
 /**
  * A shed as `industrial` lays it (#150): its footprint `w` (east–west) by `d` centred on `(x, y)`, the way its long
@@ -152,7 +155,7 @@ function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
       const paint = TRUCKS.paints[Math.floor(draw() * TRUCKS.paints.length)]
       const drive = { waits, reverse: [false, true], paint }
       // The bay runs from the wall a little past the truck's nose; the truck pulls away out of it.
-      kit.from(2, () => kit.bay(at.x, at.y, KERB, shed.ry, 2 * dock, wide + 0.9), spot(at.x, at.y + 1))
+      kit.from(2, () => bay(kit, at.x, at.y, KERB, shed.ry, 2 * dock, wide + 0.9), spot(at.x, at.y + 1))
       kit.from(stage, () => kit.mover('truck', polyline([at, away, at]), [0, p], 0, KERB, drive), spot(at.x, at.y))
       return true
     }
@@ -194,8 +197,8 @@ function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
         const waits = [0, 1, 2, 3].map((k) => (k % 2 ? cusp : lift[0] + draw() * (lift[1] - lift[0])))
         const [drive, stack] = [{ waits, reverse: [true, false, true, false] }, onShed(shed, s, o)]
         kit.from(2, () => kit.mover('forklift', loop, stops, 0, KERB, drive), spot(door.x, door.y))
-        kit.from(1, () => kit.pallets(stack.x, stack.y, KERB, shed.ry, 2), spot(stack.x, stack.y))
-        kit.from(3, () => kit.pallets(stack.x, stack.y, KERB, shed.ry, 3, 2), spot(stack.x, stack.y + 1))
+        kit.from(1, () => pallets(kit, stack.x, stack.y, KERB, shed.ry, 2), spot(stack.x, stack.y))
+        kit.from(3, () => pallets(kit, stack.x, stack.y, KERB, shed.ry, 3, 2), spot(stack.x, stack.y + 1))
         return true
       }
     }
@@ -233,4 +236,28 @@ function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
     kit.from(first, () => kit.containers(p.x, p.y, KERB, ry, 1), spot(p.x, p.y))
     if (two) kit.from(3, () => kit.containers(p.x, p.y, KERB, ry, 2, 1), spot(p.x + 1, p.y))
   }
+}
+
+/**
+ * Pallets stacked at `(x, y)`, turned `ry`, each with its load of goods, as one brick (#150): the layers from `first`
+ * up to `layers`. The forklifts' work, oversized a little as the props are.
+ */
+function pallets(kit: Kit, x: number, y: number, h: number, ry: number, layers: number, first = 0) {
+  const [P, T, G] = [1.4, 0.18, 0.95] // the pallet's side, its thickness and the height of its load
+  for (let k = first; k < layers; k++) {
+    const at = h + k * (T + G)
+    kit.add(kit.cuboid(P, T, P), PALLET.wood, x, y, at, ry)
+    kit.add(kit.cuboid(P - 0.12, G, P - 0.12), kit.pick(PALLET.goods), x, y, at + T, ry)
+  }
+  if (!first) kit.shadow(x, y, h, P + 0.8, P + 0.8, false, ry)
+  kit.brick('building', x, y, h + first * (T + G))
+}
+
+/**
+ * The paint marking a truck's bay, a line down each side `l` m long and `w` apart, its length across a shed whose
+ * long side runs `ry` (0 east–west), as a brick (#150).
+ */
+function bay(kit: Kit, x: number, y: number, h: number, ry: number, l: number, w: number) {
+  for (const k of [-1, 1]) kit.put(kit.cuboid(0.14, 0.02, l), BAY, x, y, ry, (k * w) / 2, 0, h)
+  kit.brick('ground', x, y, h)
 }
