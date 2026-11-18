@@ -1315,16 +1315,20 @@ function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLo
 
 /**
  * A lot left a grove (#177), the odd one or one that no tower fits and no scene takes: paved as a plaza as far as the
- * Block lets it, and up
- * to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the street trees and
- * what `taken` holds, with a bench by the first, Close-only.
+ * Block lets it, and up to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the
+ * street trees and what `taken` holds, with a bench by the first, Close-only, on whichever side of it the bench stands
+ * as clear, and of the other beds.
  */
 function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
   const { kit } = g
   const [cx, cy] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
   const paved = fit(g, cx, cy, lot.x1 - lot.x0 + 3, lot.y1 - lot.y0 + 3, OFFICE_FINISH.edge, 6, 1, 8)
   if (paved) kit.from(1, () => kit.paving(cx, cy, KERB, paved.w, paved.d, 0, PLANTER, PATTERN.plaza), spot(cx, cy) + 5)
-  let planted = 0
+  const placed = [...taken]
+  /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and of all placed so far. */
+  const free = (l: RowLot, clear: number) =>
+    stands(g, l.x, l.y, l.w, l.d, clear, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l))
+  const beds: RowLot[] = []
   for (const [u, v] of [
     [0, 0],
     [-0.28, 0.24],
@@ -1332,13 +1336,8 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
   ]) {
     const [px, py] = [cx + u * (lot.x1 - lot.x0), cy + v * (lot.y1 - lot.y0)]
     const bed = { x: px, y: py, w: 3, d: 3, ry: 0, onRoad: false }
-    if (
-      planted >= 3 ||
-      !stands(g, px, py, 3, 3, 1, 0) ||
-      g.lamps.some((p) => near(bed, p.x, p.y, 1.4)) ||
-      taken.some((t) => overlap(t, bed))
-    )
-      continue
+    if (!free(bed, 1)) continue
+    beds.push(bed)
     kit.from(
       1,
       () => {
@@ -1348,7 +1347,20 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
       spot(px, py),
     )
     kit.staged((stage) => kit.tree(px, py, KERB + 0.5, GROW[stage - 1] * 0.55, 'round'), spot(px, py) + 1)
-    if (!planted++) kit.from(1, () => kit.closeOnly(() => kit.bench(px, py - 2.2, KERB, Math.PI)), spot(px, py) + 2)
+  }
+  if (!beds.length) return
+  placed.push(...beds.slice(1))
+  const { x, y } = beds[0]
+  for (const [ox, oy, ry] of [
+    [0, -2.2, Math.PI],
+    [0, 2.2, 0],
+    [2.2, 0, -Math.PI / 2],
+    [-2.2, 0, Math.PI / 2],
+  ]) {
+    const seat = { x: x + ox, y: y + oy, w: 2.4, d: 1.2, ry, onRoad: false }
+    if (!free(seat, 0.6)) continue
+    kit.from(1, () => kit.closeOnly(() => kit.bench(seat.x, seat.y, KERB, ry)), spot(x, y) + 2)
+    break
   }
 }
 
