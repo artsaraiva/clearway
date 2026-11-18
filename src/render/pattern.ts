@@ -49,7 +49,7 @@ export const PATTERN = {
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
-const REAR_DOOR = 10 // the layer of `rear`'s middle bay on the ground floor (#178)
+const REAR_DOOR = PATTERN.rear - 1 // the layer of `rear`'s middle bay on the ground floor (#178)
 
 /** m of the map or a roof that one repeat of the paving's or the roof's pattern covers. */
 const REPEAT = { paving: 2.4, roof: 2 }
@@ -102,17 +102,12 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
   const { min, max } = geo.boundingBox!
   const [w, h, d] = [max.x - min.x, max.y - min.y, max.z - min.z]
   const { bay = 3, storey = h } = cladding
-  const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
   const tag = 0.1 + 0.8 * seed // kept clear of the whole numbers, which say the pattern
-  return wear(geo, (uv, worn) => {
-    for (let i = 0; i < pos.count; i += 3) {
-      a.fromBufferAttribute(pos, i)
-      b.fromBufferAttribute(pos, i + 1).sub(a)
-      c.fromBufferAttribute(pos, i + 2).sub(a)
-      const n = b.cross(c).normalize() // the triangle's normal
+  return wear(geo, (uv, worn) =>
+    eachTriangle(geo, (n, i) => {
       const [top, endOn] = [n.y > 0.5, Math.abs(n.z) >= Math.abs(n.x)] // a wall facing ∓z, or one facing ±x
       const kind = top ? cladding.top : n.y < -0.5 ? undefined : endOn ? (n.z < 0 ? cladding.front : cladding.back) : cladding.sides
-      if (!kind) continue
+      if (!kind) return
       const across = endOn ? w : d
       const bays = Math.max(1, Math.round(across / bay))
       for (let k = i; k < i + 3; k++) {
@@ -122,8 +117,20 @@ export function clad(geo: THREE.BufferGeometry, cladding: Cladding, seed: number
         const second = top ? w : kind === PATTERN.curtain ? (cladding.lit ?? 0) : bays
         worn.set([kind + tag, second, top ? d : h / storey], 3 * k)
       }
-    }
-  })
+    }),
+  )
+}
+
+/** Call `fn` with each triangle of a non-indexed geometry: its normal, and the index of its first vertex. */
+function eachTriangle(geo: THREE.BufferGeometry, fn: (n: THREE.Vector3, i: number) => void) {
+  const pos = geo.attributes.position
+  const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i)
+    b.fromBufferAttribute(pos, i + 1).sub(a)
+    c.fromBufferAttribute(pos, i + 2).sub(a)
+    fn(b.cross(c).normalize(), i)
+  }
 }
 
 /**
@@ -169,15 +176,10 @@ export function tile(geo: THREE.BufferGeometry, seed: number): THREE.BufferGeome
   const pos = geo.attributes.position
   geo.computeBoundingBox()
   const top = geo.boundingBox!.max.y
-  const [a, b, c] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
   const tag = 0.1 + 0.8 * seed
-  return wear(geo, (uv, worn) => {
-    for (let i = 0; i < pos.count; i += 3) {
-      a.fromBufferAttribute(pos, i)
-      b.fromBufferAttribute(pos, i + 1).sub(a)
-      c.fromBufferAttribute(pos, i + 2).sub(a)
-      const n = b.cross(c).normalize()
-      if (n.y < -0.2) continue
+  return wear(geo, (uv, worn) =>
+    eachTriangle(geo, (n, i) => {
+      if (n.y < -0.2) return
       const slope = n.y > 0.2
       // Along the eaves: square to the way the slope falls, or along an upright face.
       const [ax, az] = slope ? [-n.z, n.x] : Math.abs(n.z) >= Math.abs(n.x) ? [1, 0] : [0, 1]
@@ -189,8 +191,8 @@ export function tile(geo: THREE.BufferGeometry, seed: number): THREE.BufferGeome
         uv.set([along, slope ? (top - y) / fall : y], 2 * k)
         worn.set([(slope ? PATTERN.tiles : PATTERN.gable) + tag, 0, 0], 3 * k)
       }
-    }
-  })
+    }),
+  )
 }
 
 /**
