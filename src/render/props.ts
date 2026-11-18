@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
-import { polyline } from '../sim/geometry'
+import { polyline, type Vec } from '../sim/geometry'
 import { KERB } from './blocks'
 import { SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
@@ -137,17 +137,20 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
 }
 
 /**
- * A café table under a parasol in `colour` at `(x, y)`, with two stools, as one brick (#175): the stools Close-only.
+ * A café table at `(x, y)` with two stools, under a parasol in `colour` if given (none under a pergola, #177), as one
+ * brick (#175): the stools Close-only.
  */
-export function cafeTable(kit: Kit, x: number, y: number, colour: string) {
+export function cafeTable(kit: Kit, x: number, y: number, colour?: string) {
   kit.add(kit.cuboid(0.9, 0.05, 0.9), '#fbf8f2', x, y, KERB + 0.78)
   kit.add(kit.cuboid(0.08, 0.78, 0.08), '#4a525c', x, y, KERB)
-  kit.add(SHAPES.thin, '#4a525c', x, y, KERB + 0.83, 0, 0.04, 1.3, 0.04)
-  kit.add(SHAPES.cone, colour, x, y, KERB + 2.05, 0, 1.4, 0.5, 1.4)
+  if (colour) {
+    kit.add(SHAPES.thin, '#4a525c', x, y, KERB + 0.83, 0, 0.04, 1.3, 0.04)
+    kit.add(SHAPES.cone, colour, x, y, KERB + 2.05, 0, 1.4, 0.5, 1.4)
+  }
   kit.closeOnly(() => {
     for (const o of [-0.8, 0.8]) kit.add(SHAPES.thin, STALL.stool, x + o, y, KERB, 0, 0.2, 0.62, 0.2)
   })
-  kit.shadow(x, y, KERB, 2.6, 2.6, true)
+  kit.shadow(x, y, KERB, colour ? 2.6 : 1.4, colour ? 2.6 : 1.4, true)
   kit.brick('building', x, y, KERB)
 }
 
@@ -225,11 +228,13 @@ const TAXI_BAY = { tarmac: '#bcc1c8', line: '#fbf8f2', pole: '#9aa3ad', board: '
 const FOOD_TRUCKS = ['#64cb9f', '#ff9cbb', '#ffffff', '#bc9ef2']
 // A sculpture plaza's ring, standing on edge: 1 m across, its tube 0.16 m thick, scaled to its size.
 const RING = new THREE.TorusGeometry(1, 0.16, 8, 24)
-// A food truck (#177): m from where it parks to where it turns off the Road, and the s it waits there before it
-// drives in, late in the morning, and parked before it leaves, after midday.
-const FOOD_TRUCK = { drive: 6, waits: [30, 30] }
+// A food truck (#177): where it parks on its court, m from the court's left end and in from its front; and the s it
+// waits off the Road before it drives in, late in the morning, and parked before it backs out, after midday.
+const FOOD_TRUCK = { park: [3, 1.6], waits: [30, 30] }
 // How brightly a lit clock face, a court's low lights and a sculpture's uplights glow, for the lamps' glow.
 const GLOWS = { clock: 0.8, low: 1.4 }
+// A truck court's pergola over its tables (#177): m up to its beams and deep at most, its steel, and its lamps' cream.
+const PERGOLA = { tall: 2.86, deep: 3, steel: '#9aa3ad', lamp: '#fff1c7' }
 
 /** A tree of size `s` in a round stone bed `r` m across at `(x, y)`, as two bricks. */
 function bedTree(kit: Kit, x: number, y: number, r: number, s: number) {
@@ -325,52 +330,102 @@ export function sculpturePlaza(kit: Kit, x: number, y: number, w: number, d: num
 }
 
 /**
- * Where a food truck parks and the Road it turns off, on a truck court's ground (#177): it parks along the front,
- * its serving hatch toward the tables, and turns off the Road `FOOD_TRUCK.drive` m along.
+ * Where a truck court's food truck turns in from the kerb (#177): `turn` m along the court's front from where it parks,
+ * the first of `TRUCK_TURNS` its way in keeps clear of what stands at the kerb, and the Block's edge `kerb` m out from
+ * the front there.
  */
-const truckSpots = (x: number, y: number, w: number, d: number, ry: number) => ({
-  parked: to(x, y, ry, -w / 2 + 3, d / 2 - 1.6),
-  road: to(x, y, ry, -w / 2 + 3 + FOOD_TRUCK.drive, d / 2 - 1.6),
-})
+export interface TruckEntry {
+  turn: number
+  kerb: number
+}
+/** m along a truck court's front from where its food truck parks that it may turn in from the kerb, the first that is clear (#177). */
+export const TRUCK_TURNS = [7, 6, 8, 5.5, 9]
+
+/** m along a truck court `w` m long from its middle, as its front runs, where its food truck turns in `turn` m from where it parks (#177). */
+export const truckTurn = (w: number, turn: number) => -w / 2 + FOOD_TRUCK.park[0] + turn
 
 /**
- * A food truck's court at Stage `stage` (#177), from Stage `from`: tables under parasols at its back for the truck that
- * parks at its front through the middle of the day (`foodTruck`), and a menu board, Close-only; at Stage 3 a third
- * table and string lights over them on two posts, which leave a pool. Before `from`, its ground.
+ * The way a truck court's food truck comes in (#177), on its court `w` by `d` at `(x, y)` facing `ry`: from the kerb at
+ * `entry`, slanting in over the pavement, curving to park along the front, where it heads along it.
+ */
+export function truckPath(x: number, y: number, w: number, d: number, ry: number, entry: TruckEntry): Vec[] {
+  const [px, py] = [-w / 2 + FOOD_TRUCK.park[0], d / 2 - FOOD_TRUCK.park[1]]
+  const [kx, ky] = [truckTurn(w, entry.turn), d / 2 + entry.kerb]
+  return Array.from({ length: 9 }, (_, i) => {
+    const t = i / 8
+    const [cx, cy] = to(x, y, ry, kx + (px - kx) * t, py + (ky - py) * (1 - t) ** 2)
+    return { x: cx, y: cy }
+  })
+}
+
+/**
+ * A food truck's court at Stage `stage` (#177), from Stage `from`: tables at its back under a pergola, its focal piece
+ * whether or not the truck that parks at its front through the middle of the day (`foodTruck`) is there, and a menu
+ * board, Close-only. Lamps hung under the pergola leave their pools; at Stage 3 a third table, and string lights under
+ * it in the lamps' place, which leave a pool. Before `from`, its ground.
  */
 export function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, from: number) {
   if (stage < from) return sceneGround(kit, x, y, w, d, ry)
   kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
   kit.brick('ground', x, y, KERB)
+  // The pergola: steel posts and beams under timber slats, `long` by `deep`, its back 0.4 m in from the court's, the
+  // tables along its middle `v`, clear of the parked truck's awning.
+  const [long, deep] = [w - 1.2, Math.min(PERGOLA.deep, d - 4)]
+  const v = -d / 2 + 0.4 + deep / 2
   const tables = stage === 3 ? [-0.32, 0, 0.32] : [-0.25, 0.25]
-  tables.forEach((t, i) => cafeTable(kit, ...to(x, y, ry, t * w, -d / 2 + 1.9), ART[(spot(x, y) + i) % 4]))
+  for (const t of tables) cafeTable(kit, ...to(x, y, ry, t * w, v))
   menuBoard(kit, ...to(x, y, ry, -w / 2 + 6.6, d / 2 - 2.9), ry + Math.PI / 2)
+  for (const u of long >= 8.8 ? [-1, 0, 1] : [-1, 1])
+    for (const s of [-1, 1])
+      kit.put(kit.cuboid(0.14, PERGOLA.tall, 0.14), PERGOLA.steel, x, y, ry, (u * long) / 2, v + (s * deep) / 2, KERB)
+  for (const s of [-1, 1]) kit.put(kit.cuboid(long + 0.3, 0.16, 0.12), PERGOLA.steel, x, y, ry, 0, v + (s * deep) / 2, KERB + PERGOLA.tall)
+  const slats = Math.round(long / 0.6)
+  for (let k = 0; k <= slats; k++)
+    kit.put(kit.cuboid(0.1, 0.08, deep + 0.4), WOOD.stand, x, y, ry, -long / 2 + (k * long) / slats, v, KERB + PERGOLA.tall + 0.16)
+  kit.brick('building', x, y, KERB)
   if (stage === 3) {
-    const v = -d / 2 + 1.9
-    for (const k of [-1, 1]) kit.put(kit.cuboid(0.08, 2.9, 0.08), '#9aa3ad', x, y, ry, k * (w / 2 - 0.6), v, KERB)
-    kit.put(kit.cuboid(w - 1.2, 0.03, 0.03), '#2f3440', x, y, ry, 0, v, KERB + 2.85)
-    const n = Math.round((w - 1.2) / 0.7)
+    kit.put(kit.cuboid(long, 0.03, 0.03), '#2f3440', x, y, ry, 0, v, KERB + PERGOLA.tall - 0.05)
+    const n = Math.round(long / 0.7)
     for (let k = 0; k < n; k++)
-      kit.put(kit.cuboid(0.16, 0.16, 0.16), kit.lit('#fff1c7', 1.5), x, y, ry, -w / 2 + 0.6 + ((k + 0.5) * (w - 1.2)) / n, v, KERB + 2.66)
+      kit.put(
+        kit.cuboid(0.16, 0.16, 0.16),
+        kit.lit(PERGOLA.lamp, 1.5),
+        x,
+        y,
+        ry,
+        -long / 2 + ((k + 0.5) * long) / n,
+        v,
+        KERB + PERGOLA.tall - 0.24,
+      )
     kit.pool('string', ...to(x, y, ry, 0, v), KERB, w, 3.2, ry)
-    kit.brick('building', x, y, KERB)
+  } else {
+    for (const t of tables) {
+      kit.put(kit.cuboid(0.03, 0.5, 0.03), '#2f3440', x, y, ry, t * w, v, KERB + PERGOLA.tall - 0.5)
+      kit.put(kit.cuboid(0.3, 0.2, 0.3), kit.lit(PERGOLA.lamp, 1.5), x, y, ry, t * w, v, KERB + PERGOLA.tall - 0.7)
+      kit.pool('cream', ...to(x, y, ry, t * w, v), KERB, 2.8, 2.8)
+    }
   }
+  kit.brick('building', x, y, KERB)
 }
 
 /**
- * The food truck of a truck court (#177), as a mover: it waits off the Road through the morning, unseen, turns in
- * late in the morning and parks, its hatch toward the tables, through the middle of the day, and drives back out after
- * midday, shrinking as it leaves the Road, as a car does at a Gateway; one lap a day. Its paint is drawn from where
- * it parks.
+ * The food truck of a truck court (#177), as a mover coming in from the kerb at `entry` (`truckPath`): it waits off the
+ * Road through the morning, unseen, and late in the morning comes in over the kerb, growing as it leaves the Road as a
+ * car does at a Gateway, and curves in to park along the front, its hatch toward the tables. After midday it backs out
+ * the way it came and shrinks away at the kerb; one lap a day. Its paint is drawn from where it parks.
  */
-export function foodTruck(kit: Kit, x: number, y: number, w: number, d: number, ry: number) {
-  const { parked, road } = truckSpots(x, y, w, d, ry)
-  const [p, s] = [
-    { x: parked[0], y: parked[1] },
-    { x: road[0], y: road[1] },
-  ]
-  const paint = FOOD_TRUCKS[spot(...parked) % FOOD_TRUCKS.length]
-  kit.mover('foodtruck', polyline([s, p, s]), [0, FOOD_TRUCK.drive], 0, KERB, { waits: [...FOOD_TRUCK.waits], paint, laps: true, away: 0 })
+export function foodTruck(kit: Kit, x: number, y: number, w: number, d: number, ry: number, entry: TruckEntry) {
+  const curve = truckPath(x, y, w, d, ry, entry)
+  const parked = curve[curve.length - 1]
+  const paint = FOOD_TRUCKS[spot(parked.x, parked.y) % FOOD_TRUCKS.length]
+  const loop = polyline([...curve, ...curve.slice(0, -1).reverse()])
+  kit.mover('foodtruck', loop, [0, loop.length / 2], 0, KERB, {
+    waits: [...FOOD_TRUCK.waits],
+    reverse: [false, true],
+    paint,
+    laps: true,
+    away: 0,
+  })
 }
 
 /**

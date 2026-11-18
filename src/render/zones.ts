@@ -42,9 +42,13 @@ import {
   sunkenCourt,
   taxiBay as propsTaxiBay,
   truckCourt,
+  truckPath,
+  truckTurn,
+  TRUCK_TURNS,
   type OfficeScene,
   type PlazaPiece,
   type ShopScene,
+  type TruckEntry,
 } from './props'
 import { PATTERN } from './pattern'
 import { planter, type Footprint } from './streets'
@@ -243,6 +247,8 @@ export interface ZoneGround {
   street: Vec[]
   /** The lamps at the Block's corners, which what stands on the ground keeps clear of (#150). */
   lamps: Vec[]
+  /** The utility poles round the Block (`./poles`), which a food truck turning in over the kerb keeps clear of (#177). */
+  poles: Vec[]
   /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
   tileDraw: number
   /** What the look stands near the Block's edge, which the street's furniture keeps off (`./streets`, #175). */
@@ -1118,10 +1124,10 @@ function offices(g: ZoneGround) {
   }
   kit.lot(-1)
   for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
-  for (const { ground: s, kind, from } of scenes) {
+  for (const { ground: s, kind, from, entry } of scenes) {
     const build = { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind]
     kit.staged((stage) => build(kit, s.x, s.y, s.w, s.d, s.ry, stage, from), spot(s.x, s.y))
-    if (kind === 'truck') kit.from(from, () => foodTruck(kit, s.x, s.y, s.w, s.d, s.ry), spot(s.x, s.y) + 1)
+    if (entry) kit.from(from, () => foodTruck(kit, s.x, s.y, s.w, s.d, s.ry, entry), spot(s.x, s.y) + 1)
     g.kept.push({ x: s.x, y: s.y, w: s.w, d: s.d, ry: s.ry })
   }
   if (taxi) {
@@ -1177,33 +1183,82 @@ function standBack(b: Body, taken: RowLot[]): Body | null {
  * second of another kind at Stage 3 on a Block of 2,500 m² or more, away from the first. Each lies along a straight run
  * of the Block's edge facing a Road (or any, on a Block with none), as long and deep as there is room for, on the Block,
  * clear of the lamps and the street trees, and where every tower of `bodies` that stands back from it keeps
- * `OFFICE_FINISH.ground.keep` m across, or what it had.
+ * `OFFICE_FINISH.ground.keep` m across, or what it had; a food truck's court only where a Road runs past the kerb its
+ * truck turns in over, and a kind that finds no ground gives way to another.
  */
-function sceneGrounds(
-  g: ZoneGround,
-  draw: () => number,
-  bodies: (Body | null)[],
-  open: Bounds[],
-): { ground: RowLot; kind: OfficeScene; from: number }[] {
+function sceneGrounds(g: ZoneGround, draw: () => number, bodies: (Body | null)[], open: Bounds[]): Scene[] {
   const { ground } = OFFICE_FINISH
   const all = runs(g, ground.in)
   const kinds = [...OFFICE_FINISH.scenes]
   const first = kinds.splice(Math.floor(draw() * kinds.length), 1)[0]
   const order = [first, kinds[Math.floor(draw() * kinds.length)]].slice(0, area(g.block.loop) >= OFFICE_FINISH.second ? 2 : 1)
-  const out: { ground: RowLot; kind: OfficeScene; from: number }[] = []
-  const ok = (l: RowLot) => {
+  const out: Scene[] = []
+  const ok = (kind: OfficeScene) => (l: RowLot) => {
     if (out.some((o) => overlap(o.ground, l) || Math.hypot(o.ground.x - l.x, o.ground.y - l.y) < 18)) return false
+    // A food truck turns in over the kerb from a Road.
+    if (kind === 'truck' && !truckEntry(g, l)) return false
     return bodies.every((b) => {
       if (!b) return true
       const kept = standBack(b, [l])
       return !!kept && Math.min(kept.w, kept.d) >= Math.min(ground.keep, b.w, b.d) - 1e-6
     })
   }
-  for (const kind of order) {
-    const lot = inLot(g, open, ok) ?? alongEdge(g, draw, all, [ground.long, ground.deep], ground.least, 1.2, ground.ends, ok)
-    if (lot) out.push({ ground: lot, kind, from: out.length ? 3 : 2 })
+  for (const drawn of order) {
+    // A kind that finds no ground gives way to one the Block has not taken, as a food truck's court where no Road runs.
+    for (const kind of [drawn, ...OFFICE_FINISH.scenes.filter((k) => k !== drawn)]) {
+      if (out.some((o) => o.kind === kind)) continue
+      const lot = inLot(g, open, ok(kind)) ?? alongEdge(g, draw, all, [ground.long, ground.deep], ground.least, 1.2, ground.ends, ok(kind))
+      if (!lot) continue
+      out.push({ ground: lot, kind, from: out.length ? 3 : 2, entry: kind === 'truck' ? truckEntry(g, lot) : null })
+      break
+    }
   }
   return out
+}
+
+/** An offices Block's scene (#177): its ground and kind, the Stage it stands from, and for a truck court, where its truck turns in. */
+interface Scene {
+  ground: RowLot
+  kind: OfficeScene
+  from: number
+  entry: TruckEntry | null
+}
+
+/**
+ * Where the food truck of a truck court on ground `l` turns in from the kerb (#177): the first of `TRUCK_TURNS` where a
+ * Road runs past the kerb and its way in keeps clear of the utility poles, the lamps and the street trees; null if none.
+ */
+function truckEntry(g: ZoneGround, l: RowLot): TruckEntry | null {
+  for (const turn of TRUCK_TURNS) {
+    const kerb = kerbAhead(g, l, truckTurn(l.w, turn))
+    if (kerb === null) continue
+    const way = truckPath(l.x, l.y, l.w, l.d, l.ry, { turn, kerb })
+    const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
+    if (g.poles.every((p) => clear(p, 1.5)) && g.lamps.every((p) => clear(p, 1.6)) && g.street.every((p) => clear(p, 1.8)))
+      return { turn, kerb }
+  }
+  return null
+}
+
+/**
+ * How far out from the front of ground `l`, `along` m along it from its middle (as its front runs), the Block's edge
+ * lies straight ahead, if a Road lies across the pavement there rather than the seam with the next Tile (#177); null if
+ * not, or not within 12 m.
+ */
+function kerbAhead(g: ZoneGround, l: RowLot, along: number): number | null {
+  const cell = cellBounds(cellAt(middle(g.block)))
+  let last = g.field.sample(...to(l.x, l.y, l.ry, along, l.d / 2))
+  for (let out = 0.25; out <= 12; out += 0.25) {
+    const here = g.field.sample(...to(l.x, l.y, l.ry, along, l.d / 2 + out))
+    if (here > 0) {
+      last = here
+      continue
+    }
+    const edge = out - 0.25 + (0.25 * Math.max(0, last)) / (Math.max(0, last) - here || 1)
+    const [px, py] = to(l.x, l.y, l.ry, along, l.d / 2 + edge + 3)
+    return px > cell.x0 + 1 && px < cell.x1 - 1 && py > cell.y0 + 1 && py < cell.y1 - 1 ? edge : null
+  }
+  return null
 }
 
 /** Whether the middle of `l` lies within `b`. */
