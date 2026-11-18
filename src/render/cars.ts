@@ -25,7 +25,7 @@ const LIGHT = { head: '#fff6d8', tail: '#ff3030', roof: '#ffd890' }
 const PAINT = '#ffffff' // a skin's painted parts, which take its instance's colour
 
 /** A car's skin (#176): how the sim's one car type is drawn, each a model of the same length. */
-export type Skin = 'hatchback' | 'kei' | 'taxi' | 'van' | 'keiTruck'
+type Skin = 'hatchback' | 'kei' | 'taxi' | 'van' | 'keiTruck'
 
 /** A rounded box `w` × `h` × `d` with its foot at `(x, y, z)` (m, the car facing +x), in `colour`, taking the paint `share`. */
 const rounded = (w: number, h: number, d: number, r: number, x: number, y: number, z: number, colour: string, share = 0) =>
@@ -54,13 +54,17 @@ interface Lamps {
 }
 
 /**
- * One skin (#176): its lamps, and its body's other parts, facing +x, centred under its middle and standing on y = 0,
+ * The skins (#176). For each: the share of cars that wear it and the paints it comes in, both drawn from a car's id
+ * (`skinOf`); its lamps; and its body's other parts, facing +x, centred under its middle and standing on y = 0,
  * `LENGTH` long and oversized across as the cars always were, so that every skin reads as traffic alike: wheels, a body
- * in its paint, and a band of dark glass that is its windscreen at the front.
+ * in its paint, and a band of dark glass that is its windscreen at the front. Hatchbacks and kei cars come in all the
+ * cars' colours; vans and kei trucks mostly white, as they are; taxis yellow or mint, so that they read as taxis.
  */
-const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }> = {
+const SKINS: Record<Skin, { share: number; paints: THREE.Color[]; lamps: Lamps; parts: () => THREE.BufferGeometry[] }> = {
   // The stubby rounded car the game has always drawn, on wheels: a low body and a cabin set back.
   hatchback: {
+    share: 0.32,
+    paints: COLORS,
     lamps: { head: { y: 0.85, z: 0.52 }, tail: { y: 0.92, z: 0.6, tall: 0.22, wide: 0.4 } },
     parts: () => [
       rounded(LENGTH, 0.95, 2.2, 0.55, 0, 0.32, 0, PAINT, 1),
@@ -71,6 +75,8 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
   },
   // A tall kei wagon: a short bonnet under a tall, square cabin with a wide glass band, and tall tail lamps.
   kei: {
+    share: 0.28,
+    paints: COLORS,
     lamps: { head: { y: 0.84, z: 0.58 }, tail: { y: 0.9, z: 0.8, tall: 0.55, wide: 0.24 } },
     parts: () => [
       rounded(LENGTH, 0.82, 2.06, 0.32, 0, 0.32, 0, PAINT, 1),
@@ -81,6 +87,8 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
   },
   // A saloon taxi: bonnet, cabin and boot, and its lamp on the roof, cream by day and lit at night.
   taxi: {
+    share: 0.12,
+    paints: [YELLOW, YELLOW, MINT],
     lamps: { head: { y: 0.8, z: 0.62 }, tail: { y: 0.84, z: 0.62, tall: 0.2, wide: 0.46 }, roof: { at: -0.15, y: 1.78 } },
     parts: () => [
       rounded(LENGTH, 0.8, 2.15, 0.4, 0, 0.32, 0, PAINT, 1),
@@ -91,6 +99,8 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
   },
   // A box van, flat-fronted: one tall body, glass round its front half, and tail lamps up its back corners.
   van: {
+    share: 0.15,
+    paints: [WHITE, WHITE, PALE, YELLOW, TURQUOISE],
     lamps: { head: { y: 0.72, z: 0.68 }, tail: { y: 0.7, z: 0.86, tall: 0.6, wide: 0.22 } },
     parts: () => [
       rounded(LENGTH, 1.86, 2.15, 0.42, 0, 0.32, 0, PAINT, 1),
@@ -101,6 +111,8 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
   },
   // A kei truck: a cab over its front wheels, its glass, and a flat bed behind with low gates.
   keiTruck: {
+    share: 0.13,
+    paints: [WHITE, WHITE, PALE, MINT],
     lamps: { head: { y: 0.66, z: 0.66 }, tail: { y: 0.84, z: 0.78, tall: 0.2, wide: 0.36 } },
     parts: () => [
       rounded(1.55, 1.55, 2.1, 0.36, 1.375, 0.32, 0, PAINT, 1),
@@ -113,6 +125,7 @@ const MODELS: Record<Skin, { lamps: Lamps; parts: () => THREE.BufferGeometry[] }
     ],
   },
 }
+const ORDER = Object.keys(SKINS) as Skin[]
 
 /** A skin's lamps as boxes: by day its lenses on its body (`lit` false), or by night a little larger and lit (`lit` true). */
 function lampsOf({ head, tail, roof }: Lamps, lit: boolean): THREE.BufferGeometry[] {
@@ -126,25 +139,11 @@ function lampsOf({ head, tail, roof }: Lamps, lit: boolean): THREE.BufferGeometr
   ]
 }
 
-// Which skin a car wears and its paint, drawn from its id (#176): the share of cars each skin takes, and the paints it
-// takes them in. Hatchbacks and kei cars come in all the cars' colours; vans and kei trucks mostly white, as they are;
-// taxis yellow or mint, so that they read as taxis.
-const SKINS: { skin: Skin; share: number; paints: THREE.Color[] }[] = [
-  { skin: 'hatchback', share: 0.32, paints: COLORS },
-  { skin: 'kei', share: 0.28, paints: COLORS },
-  { skin: 'taxi', share: 0.12, paints: [YELLOW, YELLOW, MINT] },
-  { skin: 'van', share: 0.15, paints: [WHITE, WHITE, PALE, YELLOW, TURQUOISE] },
-  { skin: 'keiTruck', share: 0.13, paints: [WHITE, WHITE, PALE, MINT] },
-]
-
-/** The skin car `id` wears and its paint: the same every frame and every run. */
-export function skinOf(id: number): { skin: number; paint: THREE.Color } {
+/** The skin car `id` wears, by the skins' shares, and its paint: the same every frame and every run. */
+function skinOf(id: number): { skin: Skin; paint: THREE.Color } {
   const h = Math.imul(id + 1, 0x9e3779b1) >>> 0
   let at = ((h >>> 8) % 1000) / 1000
-  const skin = Math.max(
-    0,
-    SKINS.findIndex((s) => (at -= s.share) < 0),
-  )
+  const skin = ORDER.find((s) => (at -= SKINS[s].share) < 0) ?? ORDER[0]
   const { paints } = SKINS[skin]
   return { skin, paint: paints[(h >>> 20) % paints.length] }
 }
@@ -176,16 +175,18 @@ export function createCars(net: Network) {
   paint.onBeforeCompile = takesPaint
   // Unlit: the lights glow by their own colour, scaled by the time of day.
   const lit = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })
-  const skins = SKINS.map(({ skin }) => {
-    const { lamps, parts } = MODELS[skin]
-    const body = new THREE.InstancedMesh(merged([...parts(), ...lampsOf(lamps, false)]), paint, CAP)
-    const lights = new THREE.InstancedMesh(merged(lampsOf(lamps, true)), lit, CAP)
-    body.name = `car ${skin}`
-    body.castShadow = body.receiveShadow = true
-    body.frustumCulled = lights.frustumCulled = false // instances move; the mesh's own bounds mean nothing
-    body.count = lights.count = 0
-    return { body, lights }
-  })
+  const skins = new Map(
+    ORDER.map((skin) => {
+      const { lamps, parts } = SKINS[skin]
+      const body = new THREE.InstancedMesh(merged([...parts(), ...lampsOf(lamps, false)]), paint, CAP)
+      const lights = new THREE.InstancedMesh(merged(lampsOf(lamps, true)), lit, CAP)
+      body.name = `car ${skin}`
+      body.castShadow = body.receiveShadow = true
+      body.frustumCulled = lights.frustumCulled = false // instances move; the mesh's own bounds mean nothing
+      body.count = lights.count = 0
+      return [skin, { body, lights }]
+    }),
+  )
 
   let entries = new Set<Lane>()
   let stuck = new Map<number, number>() // real seconds each car has been stuck, by id
@@ -205,7 +206,7 @@ export function createCars(net: Network) {
   ]
 
   return {
-    meshes: skins.flatMap((s) => [s.body, s.lights]),
+    meshes: [...skins.values()].flatMap((s) => [s.body, s.lights]),
     reset,
 
     /**
@@ -216,7 +217,7 @@ export function createCars(net: Network) {
       t += dt
       const next = new Map<number, number>()
       const angry: StuckCar[] = []
-      for (const s of skins) s.body.count = 0
+      for (const s of skins.values()) s.body.count = 0
       const drawn = Math.min(vehicles.length, CAP)
       for (let i = 0; i < drawn; i++) {
         const v = vehicles[i]
@@ -232,7 +233,7 @@ export function createCars(net: Network) {
         q.setFromEuler(e.set(anger && Math.sin(t * 34 + v.id) * 0.07 * anger, heading, 0))
         m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown) * grow)))
         const worn = skinOf(v.id)
-        const { body, lights } = skins[worn.skin]
+        const { body, lights } = skins.get(worn.skin)!
         const k = body.count++
         body.setMatrixAt(k, m)
         lights.setMatrixAt(k, m)
@@ -240,7 +241,7 @@ export function createCars(net: Network) {
         if (anger && grow >= 1) angry.push({ at: at.clone(), anger, stuck: wait })
       }
       stuck = next
-      for (const { body, lights } of skins) {
+      for (const { body, lights } of skins.values()) {
         lights.count = body.count
         body.instanceMatrix.needsUpdate = lights.instanceMatrix.needsUpdate = true
         if (body.instanceColor) body.instanceColor.needsUpdate = true
@@ -251,7 +252,7 @@ export function createCars(net: Network) {
     /** Light the head and tail lights as the time of day has them. */
     setGlow({ carLights }: Glow) {
       lit.color.setScalar(carLights)
-      for (const { lights } of skins) lights.visible = carLights > 0.05
+      for (const { lights } of skins.values()) lights.visible = carLights > 0.05
     },
   }
 }
