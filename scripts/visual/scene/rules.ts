@@ -1,0 +1,407 @@
+// The rules of finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
+// failed, with where and by how much. Rules that need judgement are approximations, and say what they leave out.
+import { boxesMeet, disc, overlap, toEdge, within } from './geometry'
+import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report'
+
+/** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
+export const TOLERANCE = 0.1
+/** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's focal piece is larger (rule 5). */
+export const CAR = { long: 4.3, wide: 2 }
+/** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
+export const SECOND_SCENE = 2500
+/** m of pavement that may stand empty (rule 3), and how far in from the kerb something must stand to fill it. */
+export const EMPTY = { run: 12, band: 4, step: 1 }
+/** The reserved colours (the visual-style spec's Palette): nothing within `hue`° of either goes over `chroma` of its chroma. */
+export const RESERVED = { tool: '#1f7aff', jam: '#ff4a1f', hue: 30, chroma: 0.65 }
+/** m above the ground a vehicle's lowest point may stand: it stands on its wheels. */
+export const WHEELS = 0.05
+/** m above its base below which a lit part is near the ground (rule 7), and so leaves a pool. */
+export const NEAR_GROUND = 4
+
+/** The kit's parked vehicles. */
+const PARKED = new Set(['keiTruck', 'keiCar', 'taxi', 'parked'])
+/** What is the Block itself, or lies along its whole edge: its outline's hull is not where it stands. */
+const GROUND = new Set(['pavement', 'kerbLine', 'island', 'laySlab', 'markPlate'])
+/** What a fill dresses the kerbside with, which `./streets` already keeps off what stands (#176). */
+const KERBSIDE = new Set(['dressStreet', 'planter', 'bollards'])
+
+/** A rule over one report. */
+export type Rule = (r: Report) => Failure[]
+
+/** A failure of rule `rule` on report `r`. */
+const fail = (rule: string, r: Report, at: { tile?: string; block?: number }, what: string, by: string): Failure => ({
+  rule,
+  zone: r.zone,
+  stage: r.stage,
+  seed: r.seed,
+  ...at,
+  what,
+  by,
+})
+const m = (v: number) => `${v.toFixed(2)} m`
+
+/** Whether a thing stands up off the ground and takes room: not flat, not a mover's brick, not the Block itself. */
+export const standing = (t: Thing) => !t.flat && t.kind !== 'mover' && !GROUND.has(t.what) && t.feet.length > 0
+
+/** How deep two things' feet overlap, 0 if they do not. */
+export function depth(a: { feet: Hull[]; box: Box }, b: { feet: Hull[]; box: Box }): number {
+  if (!boxesMeet(a.box, b.box)) return 0
+  let most = 0
+  for (const p of a.feet) for (const q of b.feet) most = Math.max(most, overlap(p, q))
+  return most
+}
+
+/** The vehicles stand on their wheels: the cars' skins, the movers that drive, and the kit's parked cars. */
+export const wheels: Rule = (r) => [
+  ...r.vehicles.filter((v) => v.low > WHEELS).map((v) => fail('wheels', r, {}, `${v.name} floats`, m(v.low))),
+  ...r.things
+    .filter((t) => PARKED.has(t.what) && t.low - t.base > WHEELS)
+    .map((t) => fail('wheels', r, t, `parked ${t.what} floats`, m(t.low - t.base))),
+]
+
+/** Everything stands inside its Block: each foot of each thing on a Block lies within its outline. */
+export const insideBlock: Rule = (r) => {
+  const out: Failure[] = []
+  for (const t of r.things) {
+    if (t.block < 0 || !standing(t)) continue
+    const { loop } = r.blocks[t.block]
+    let most = 0
+    for (const foot of t.feet) for (const p of foot) if (!within(loop, p.x, p.y)) most = Math.max(most, toEdge(loop, p.x, p.y))
+    if (most > TOLERANCE) out.push(fail('inside-block', r, t, `${t.what} stands off its Block`, m(most)))
+  }
+  return out
+}
+
+/** Things on the same Block, or on the slab between Blocks, that may meet: pairs whose boxes meet. */
+function pairs(things: Thing[]): [Thing, Thing][] {
+  const sorted = [...things].sort((a, b) => a.box.x0 - b.box.x0)
+  const out: [Thing, Thing][] = []
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i]
+    for (let j = i + 1; j < sorted.length && sorted[j].box.x0 < a.box.x1; j++) {
+      const b = sorted[j]
+      if (a.block !== b.block && a.block >= 0 && b.block >= 0) continue
+      if (boxesMeet(a.box, b.box)) out.push([a, b])
+    }
+  }
+  return out
+}
+
+/**
+ * Two standing things may share ground when one is built to stand with the other: the parts of one scene, or of one
+ * lot's building and what the kit hangs on it. Everything else keeps clear.
+ */
+function together(a: Thing, b: Thing): boolean {
+  if (a.scene >= 0 && a.scene === b.scene) return true
+  return false
+}
+
+/**
+ * Nothing overlaps what it should keep clear of (#173): no standing thing stands on a parking or taxi bay but a parked
+ * car, or on the step before a door but its own building; and no two standing things overlap, scenes, utility poles,
+ * lamps and street trees among them, unless they are one scene's.
+ */
+export const keepsClear: Rule = (r) => {
+  const out: Failure[] = []
+  const standers = r.things.filter(standing)
+  for (const c of r.claims) {
+    const claim = { feet: [c.hull], box: boxOfHull(c.hull) }
+    for (const t of standers) {
+      if (t.id === c.thing || (c.kind !== 'door' && PARKED.has(t.what))) continue
+      if (c.block >= 0 && t.block >= 0 && t.block !== c.block) continue
+      const d = depth(claim, t)
+      if (d > TOLERANCE) out.push(fail('keeps-clear', r, c, `${t.what} on a ${claimName(c)}`, m(d)))
+    }
+  }
+  for (const [a, b] of pairs(standers)) {
+    if (together(a, b) || (KERBSIDE.has(a.what) && KERBSIDE.has(b.what))) continue
+    const d = depth(a, b)
+    if (d > TOLERANCE) out.push(fail('keeps-clear', r, a.block >= 0 ? a : b, `${a.what} and ${b.what} overlap`, m(d)))
+  }
+  return out
+}
+
+const claimName = (c: Claim) => ({ bay: 'parking bay', taxi: 'taxi bay', door: 'door step' })[c.kind]
+const boxOfHull = (h: Hull): Box => ({
+  x0: Math.min(...h.map((p) => p.x)),
+  y0: Math.min(...h.map((p) => p.y)),
+  x1: Math.max(...h.map((p) => p.x)),
+  y1: Math.max(...h.map((p) => p.y)),
+})
+
+/** Points every `step` m along a path. */
+function along(path: Pt[], step: number): Pt[] {
+  const out: Pt[] = []
+  for (let i = 0; i + 1 < path.length; i++) {
+    const [a, b] = [path[i], path[i + 1]]
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / step))
+    for (let k = 0; k < n; k++) out.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n })
+  }
+  if (path.length) out.push(path[path.length - 1])
+  return out
+}
+
+/**
+ * A mover's path keeps clear of what stands (as `keepsClear`'s things do), and stays on its Block; one that goes away
+ * comes and goes at a Road: its path starts at the Block's edge.
+ */
+export const pathsClear: Rule = (r) => {
+  const out: Failure[] = []
+  const standers = r.things.filter(standing)
+  for (const mv of r.movers) {
+    if (mv.wide <= 0 || mv.block < 0) continue
+    const { loop } = r.blocks[mv.block]
+    const near = standers.filter((t) => t.block === mv.block)
+    let [worst, hit, off] = [0, '', 0]
+    for (const p of along(mv.path, 1)) {
+      const body = {
+        feet: [disc(p.x, p.y, mv.wide / 2)],
+        box: { x0: p.x - mv.wide, y0: p.y - mv.wide, x1: p.x + mv.wide, y1: p.y + mv.wide },
+      }
+      for (const t of near) {
+        const d = depth(body, t)
+        if (d > worst) [worst, hit] = [d, t.what]
+      }
+      // Off the Block, but for the stretch where one that goes away shrinks out of sight at the kerb.
+      const fromStart = Math.hypot(p.x - mv.path[0].x, p.y - mv.path[0].y)
+      if (!within(loop, p.x, p.y) && !(mv.away && fromStart < 4)) off = Math.max(off, toEdge(loop, p.x, p.y))
+    }
+    if (worst > TOLERANCE) out.push(fail('paths-clear', r, mv, `${mv.kind}'s path runs through ${hit}`, m(worst)))
+    if (off > TOLERANCE + mv.wide / 2) out.push(fail('paths-clear', r, mv, `${mv.kind}'s path leaves its Block`, m(off)))
+    if (mv.away) {
+      const p = mv.path[0]
+      const gap = within(loop, p.x, p.y) ? toEdge(loop, p.x, p.y) : 0
+      if (gap > 1.5) out.push(fail('paths-clear', r, mv, `${mv.kind} comes and goes away from a Road`, m(gap)))
+    }
+  }
+  return out
+}
+
+/**
+ * Whether two lots lie side by side (#177's `beside` in `src/render/zones.ts`, for boxes turned as lots are): within
+ * 1.5 m of each other one way and sharing more than 1 m of side the other, read in the first lot's frame.
+ */
+export function beside(a: Hull, b: Hull): boolean {
+  const [p, q, s] = [a[0], a[1], a[3]]
+  const ux = { x: q.x - p.x, y: q.y - p.y }
+  const uy = { x: s.x - p.x, y: s.y - p.y }
+  const [lx, ly] = [Math.hypot(ux.x, ux.y), Math.hypot(uy.x, uy.y)]
+  const local = (v: Pt) => [((v.x - p.x) * ux.x + (v.y - p.y) * ux.y) / lx, ((v.x - p.x) * uy.x + (v.y - p.y) * uy.y) / ly]
+  const pts = b.map(local)
+  const [bx0, bx1] = [Math.min(...pts.map((v) => v[0])), Math.max(...pts.map((v) => v[0]))]
+  const [by0, by1] = [Math.min(...pts.map((v) => v[1])), Math.max(...pts.map((v) => v[1]))]
+  const [gx, gy] = [Math.max(-bx1, bx0 - lx), Math.max(-by1, by0 - ly)]
+  return (gx <= 1.5 && gy < -1) || (gy <= 1.5 && gx < -1)
+}
+
+/** No two lots side by side share a building form (rule 10): the same building in another colour. */
+export const neighbours: Rule = (r) => {
+  const out: Failure[] = []
+  const formed = r.lots.filter((l): l is Lot & { form: string; ground: Hull } => !!l.form && !!l.ground)
+  for (let i = 0; i < formed.length; i++)
+    for (let j = i + 1; j < formed.length; j++) {
+      const [a, b] = [formed[i], formed[j]]
+      if (a.block !== b.block || a.form !== b.form || !beside(a.ground, b.ground)) continue
+      out.push(fail('neighbours-differ', r, a, `lots ${a.index} and ${b.index} side by side are both "${a.form}"`, 'same form'))
+    }
+  return out
+}
+
+/** Whether a Block is filled by its Zone, not given over to a bike lane or a roundabout's island. */
+const zoned = (r: Report, block: number) =>
+  !!r.blocks[block].zone && !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
+
+/**
+ * From Stage 2 each Block has a scene, and a second at Stage 3 on a Block of `SECOND_SCENE` m² or more (rule 5). A
+ * scene counts once it has a focal piece larger than a car: something standing, drawn at every distance, on more ground
+ * than a car and a metre tall at least. Approximation: "larger than a car" is read from its footprint, not its look.
+ */
+export const scenes: Rule = (r) => {
+  if (r.stage < 2) return []
+  const out: Failure[] = []
+  const focal = (t: Thing) => standing(t) && t.layer === 'solid' && t.area >= CAR.long * CAR.wide && t.top - t.base >= 1
+  r.blocks.forEach((b, i) => {
+    if (!zoned(r, i)) return
+    const own = r.scenes.filter((s) => s.block === i)
+    const counted = own.filter((s) => s.things.some((id) => focal(r.things[id])))
+    const need = r.stage === 3 && b.area >= SECOND_SCENE ? 2 : 1
+    if (counted.length >= need) return
+    const empty = own.filter((s) => !counted.includes(s)).map((s) => s.kind)
+    const what = empty.length ? `${empty.join(', ')} with nothing larger than a car standing` : 'no scene'
+    out.push(
+      fail('scenes', r, { tile: b.tile, block: i }, `${what} on a Block of ${Math.round(b.area)} m²`, `${counted.length} of ${need}`),
+    )
+  })
+  return out
+}
+
+/** From Stage 2 something moves on every zoned Tile (rule 6): a mover, washing, a flag or banner, a chimney's plume. */
+export const moves: Rule = (r) => {
+  if (r.stage < 2) return []
+  const tiles = new Set(r.blocks.filter((b) => b.zone).map((b) => b.tile))
+  return [...tiles].filter((t) => !r.moving[t]).map((tile) => fail('moves', r, { tile }, 'nothing moves on the Tile', 'none'))
+}
+
+/**
+ * Lit things near the ground leave their pool (rule 7): every thing with a lit part (the bulb's) within `NEAR_GROUND` m of
+ * what it stands on leaves a pool of light, but parked cars, whose lamps are the cars'. Approximation: a pool is counted
+ * on the brick it rides, so a light whose pool rides another brick reads as having none.
+ */
+export const pools: Rule = (r) =>
+  r.things
+    .filter((t) => t.bulbs > 0 && t.bulbLow < NEAR_GROUND && t.pools === 0 && !PARKED.has(t.what) && r.blocks[t.block]?.finished !== false)
+    .map((t) => fail('pools', r, t, `${t.what} is lit and leaves no pool`, `${m(t.bulbLow)} up`))
+
+/**
+ * Small props are Close-only (#173's three distances), on the Zones built to the level of finish: a standing thing under
+ * a metre on every side and 1.3 m tall, unlit, drawn on the scenery at every distance, should be hidden beyond Street.
+ * Approximation: "small" is its size; a small thing meant to read from Framed would show here.
+ */
+export const closeOnly: Rule = (r) =>
+  r.things
+    .filter((t) => {
+      if (t.block < 0 || !r.blocks[t.block].finished || !standing(t) || t.layer !== 'solid' || t.bulbs) return false
+      const [w, d] = [t.box.x1 - t.box.x0, t.box.y1 - t.box.y0]
+      return Math.max(w, d) < 1 && t.top - t.base < 1.3 && t.kind !== 'tree' && t.kind !== 'lamp'
+    })
+    .map((t) => fail('close-only', r, t, `${t.what} is small and drawn at Framed`, `${m(t.top - t.base)} tall`))
+
+/** A colour's OKLCH lightness, chroma and hue (°), from its hex. */
+export function oklch(hex: string): [number, number, number] {
+  const n = parseInt(hex.replace('#', ''), 16)
+  const lin = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const v = c / 255
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  })
+  const [r, g, b] = lin
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const mm = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  const L = 0.2104542553 * l + 0.793617785 * mm - 0.0040720468 * s
+  const A = 1.9779984951 * l - 2.428592205 * mm + 0.4505937099 * s
+  const B = 0.0259040371 * l + 0.7827717662 * mm - 0.808675766 * s
+  return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360]
+}
+
+/** Whether a colour encroaches on a reserved one: within its hue and over its share of that one's chroma. */
+export function reserved(hex: string): string | null {
+  const [, c, h] = oklch(hex)
+  for (const [name, ref] of [
+    ['Tool blue', RESERVED.tool],
+    ['Jam red-orange', RESERVED.jam],
+  ]) {
+    const [, rc, rh] = oklch(ref)
+    const dh = Math.min(Math.abs(h - rh), 360 - Math.abs(h - rh))
+    if (dh <= RESERVED.hue && c > RESERVED.chroma * rc)
+      return `${name}: ${Math.round((c / rc) * 100)}% of its chroma, ${Math.round(dh)}° off`
+  }
+  return null
+}
+
+/** No colour on the scenery within 30° of the Tool blue or the Jam red-orange is over 65% of its chroma. */
+export const colours: Rule = (r) =>
+  Object.keys(r.colours).flatMap((hex) => {
+    const why = reserved(`#${hex}`)
+    return why ? [fail('colours', r, {}, `#${hex} (${r.colours[hex]} triangles)`, why)] : []
+  })
+
+/** The static scenery's triangles and meshes stay under the Zone's ceiling (`ceilings`). */
+export const budget =
+  (ceilings: Record<string, { triangles: number; meshes: number }>): Rule =>
+  (r) => {
+    const cap = ceilings[r.zone]
+    if (!cap) return [fail('budget', r, {}, `no ceiling for ${r.zone}`, '-')]
+    const out: Failure[] = []
+    if (r.triangles > cap.triangles)
+      out.push(
+        fail('budget', r, {}, 'triangles over the ceiling', `${(r.triangles / 1e6).toFixed(2)} M of ${(cap.triangles / 1e6).toFixed(2)} M`),
+      )
+    if (r.meshes > cap.meshes) out.push(fail('budget', r, {}, 'meshes over the ceiling', `${r.meshes} of ${cap.meshes}`))
+    return out
+  }
+
+/**
+ * No 12 m of pavement stands empty (rule 3): walking each Block's edge a metre at a time, something standing (any
+ * layer, a wall too) within `EMPTY.band` m of the kerb, or a utility pole or lamp beside it. Approximation: only what
+ * stands counts, so paving or a planted bed alone leaves the pavement empty, as a bare run of joints is.
+ */
+export const emptyPavement: Rule = (r) => {
+  const out: Failure[] = []
+  const standers = r.things.filter(standing)
+  r.blocks.forEach((b, i) => {
+    if (!zoned(r, i) && b.zone) return
+    const near = standers.filter((t) => t.block === i || t.block < 0)
+    const pts = along([...b.loop, b.loop[0]], EMPTY.step)
+    const filled = pts.map((p) => {
+      const probe = {
+        feet: [disc(p.x, p.y, EMPTY.band)],
+        box: { x0: p.x - EMPTY.band, y0: p.y - EMPTY.band, x1: p.x + EMPTY.band, y1: p.y + EMPTY.band },
+      }
+      return near.some((t) => depth(probe, t) > 0)
+    })
+    // The longest run of empty samples, round the loop.
+    let [run, longest, at] = [0, 0, 0]
+    for (let k = 0; k < 2 * filled.length; k++) {
+      run = filled[k % filled.length] ? 0 : run + 1
+      if (run > longest) [longest, at] = [run, k % filled.length]
+      if (run >= filled.length) break
+    }
+    if (longest * EMPTY.step >= EMPTY.run) {
+      const p = pts[at]
+      out.push(
+        fail(
+          'empty-pavement',
+          r,
+          { tile: b.tile, block: i },
+          `pavement empty toward (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`,
+          `${longest * EMPTY.step} m`,
+        ),
+      )
+    }
+  })
+  return out
+}
+
+/** Every rule over one report, by name. */
+export function rules(ceilings: Record<string, { triangles: number; meshes: number }>): Record<string, Rule> {
+  return {
+    wheels,
+    'inside-block': insideBlock,
+    'keeps-clear': keepsClear,
+    'paths-clear': pathsClear,
+    'neighbours-differ': neighbours,
+    scenes,
+    moves,
+    'empty-pavement': emptyPavement,
+    pools,
+    'close-only': closeOnly,
+    colours,
+    budget: budget(ceilings),
+  }
+}
+
+/**
+ * A lot is the same lot at every Stage: each lot with a building at one Stage has one at every other on the same
+ * ground. Over the reports of one Zone and seed at each Stage.
+ */
+export function sameLots(reports: Report[]): Failure[] {
+  const out: Failure[] = []
+  const byStage = reports.map((r) => new Map(r.lots.filter((l) => l.form && l.ground).map((l) => [`${l.block}:${l.index}`, l])))
+  reports.forEach((r, s) => {
+    for (const [key, lot] of byStage[s]) {
+      for (let o = 0; o < reports.length; o++) {
+        if (o === s) continue
+        const other = byStage[o].get(key)
+        if (!other) {
+          if (o > s)
+            out.push(fail('same-lots', r, lot, `lot ${lot.index} has a building at Stage ${r.stage} and none at ${reports[o].stage}`, '-'))
+          continue
+        }
+        const moved = Math.max(...lot.ground!.map((p, k) => Math.hypot(p.x - other.ground![k].x, p.y - other.ground![k].y)))
+        if (o > s && moved > TOLERANCE)
+          out.push(fail('same-lots', r, lot, `lot ${lot.index} lies elsewhere at Stage ${reports[o].stage}`, m(moved)))
+      }
+    }
+  })
+  return out
+}

@@ -152,6 +152,8 @@ const KINDS: Record<MoverKind, Kind> = {
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
 export const moverWidth = (kind: MoverKind) => KINDS[kind].wide
+/** A mover of `kind`'s model, as it drives (#191): for the scene check, which stands each vehicle on its wheels. */
+export const moverModel = (kind: MoverKind) => KINDS[kind].model()
 // How a resting butterfly holds its wings (rad up from flat): nearly closed over its back, fanning a little by day.
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 /** m of its loop either side of the stop where a mover is away (#177) over which it shrinks out of sight, or grows back. */
