@@ -61,6 +61,7 @@ function report(things: Thing[], more: Partial<Report> = {}): Report {
     scenes: [],
     lots: [],
     movers: [],
+    pools: [],
     moving: { '0,0': 1 },
     colours: {},
     vehicles: [],

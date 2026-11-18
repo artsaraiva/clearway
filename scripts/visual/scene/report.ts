@@ -118,6 +118,11 @@ export interface Block {
   loop: Pt[]
   /** m². */
   area: number
+  /**
+   * Its edge where it faces a Road, as runs of points a metre apart: its kerb, where its pavement lies. None if not
+   * known, and then its whole edge is taken for kerb.
+   */
+  kerb?: Pt[][]
 }
 
 /** A model of a vehicle: a car skin, a mover's model, a parked car's brick. */
@@ -138,6 +143,8 @@ export interface Report {
   scenes: Scene[]
   lots: Lot[]
   movers: Mover[]
+  /** Pools of light on the ground: where each lies and how far it reaches. */
+  pools: { x: number; y: number; r: number }[]
   /** Things that sway, fly or smoke, by Tile: washing, flags, banners, chimneys' plumes. */
   moving: Record<string, number>
   /** Each colour painted on the scenery (hex), with the triangles that wear it. */

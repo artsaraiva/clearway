@@ -17,6 +17,8 @@ export const RESERVED = { tool: '#1f7aff', jam: '#ff4a1f', hue: 30, chroma: 0.65
 export const WHEELS = 0.05
 /** m above its base below which a lit part is near the ground (rule 7), and so leaves a pool. */
 export const NEAR_GROUND = 4
+/** m from a lit thing within which a pool that rides another brick counts as its. */
+const POOL_REACH = 1
 
 /** The kit's parked vehicles. */
 const PARKED = new Set(['keiTruck', 'keiCar', 'taxi', 'parked'])
@@ -214,9 +216,10 @@ export const neighbours: Rule = (r) => {
   return out
 }
 
-/** Whether a Block is filled by its Zone, not given over to a bike lane or a roundabout's island. */
-const zoned = (r: Report, block: number) =>
-  !!r.blocks[block].zone && !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
+/** Whether a Block is filled as Blocks are, not given over to a bike lane or a roundabout's island. */
+const filled = (r: Report, block: number) => !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
+/** Whether a Block is filled by its Zone. */
+const zoned = (r: Report, block: number) => !!r.blocks[block].zone && filled(r, block)
 
 /**
  * Whether a thing is a scene's focal piece, larger than a car (rule 5): standing, drawn at every distance, and longer than
@@ -260,11 +263,15 @@ export const moves: Rule = (r) => {
 /**
  * Lit things near the ground leave their pool (rule 7): every thing with a lit part (the bulb's) within `NEAR_GROUND` m of
  * what it stands on leaves a pool of light, but parked cars, whose lamps are the cars'. Approximation: a pool is counted
- * on the brick it rides, so a light whose pool rides another brick reads as having none.
+ * on the brick it rides or reaches within a metre of it, so a pool laid for a neighbour can stand in for a light's own.
  */
 export const pools: Rule = (r) =>
   r.things
-    .filter((t) => t.bulbs > 0 && t.bulbLow < NEAR_GROUND && t.pools === 0 && !PARKED.has(t.what) && r.blocks[t.block]?.finished !== false)
+    .filter((t) => {
+      if (!t.bulbs || t.bulbLow >= NEAR_GROUND || t.pools || PARKED.has(t.what) || r.blocks[t.block]?.finished === false) return false
+      // A pool riding another brick still lights it if it reaches within `POOL_REACH` m of it.
+      return !r.pools.some((p) => boxesMeet(t.box, { x0: p.x - p.r, y0: p.y - p.r, x1: p.x + p.r, y1: p.y + p.r }, POOL_REACH))
+    })
     .map((t) => fail('pools', r, t, `${t.what} is lit and leaves no pool`, `${m(t.bulbLow)} up`))
 
 /**
@@ -336,43 +343,39 @@ export const budget =
   }
 
 /**
- * No 12 m of pavement stands empty (rule 3): walking each Block's edge a metre at a time, something standing (any
- * layer, a wall too) within `EMPTY.band` m of the kerb, or a utility pole or lamp beside it. Approximation: only what
- * stands counts, so paving or a planted bed alone leaves the pavement empty, as a bare run of joints is.
+ * No 12 m of pavement stands empty (rule 3): walking each Block's kerb where it faces a Road a metre at a time, something
+ * standing (any layer, a wall too) within `EMPTY.band` m of the kerb, or a utility pole or lamp beside it. Approximation:
+ * only what stands counts, so paving or a planted bed alone leaves the pavement empty, as a bare run of joints is.
  */
 export const emptyPavement: Rule = (r) => {
   const out: Failure[] = []
   const standers = r.things.filter(standing)
   r.blocks.forEach((b, i) => {
-    if (!zoned(r, i) && b.zone) return
+    if (!filled(r, i)) return
     const near = standers.filter((t) => t.block === i || t.block < 0)
-    const pts = along([...b.loop, b.loop[0]], EMPTY.step)
-    const filled = pts.map((p) => {
-      const probe = {
-        feet: [disc(p.x, p.y, EMPTY.band)],
-        box: { x0: p.x - EMPTY.band, y0: p.y - EMPTY.band, x1: p.x + EMPTY.band, y1: p.y + EMPTY.band },
+    const runs = b.kerb ?? [along([...b.loop, b.loop[0]], EMPTY.step)]
+    let [longest, at]: [number, Pt | null] = [0, null]
+    for (const pts of runs) {
+      let run = 0
+      for (const p of pts) {
+        const probe = {
+          feet: [disc(p.x, p.y, EMPTY.band)],
+          box: { x0: p.x - EMPTY.band, y0: p.y - EMPTY.band, x1: p.x + EMPTY.band, y1: p.y + EMPTY.band },
+        }
+        run = near.some((t) => depth(probe, t) > 0) ? 0 : run + 1
+        if (run > longest) [longest, at] = [run, p]
       }
-      return near.some((t) => depth(probe, t) > 0)
-    })
-    // The longest run of empty samples, round the loop.
-    let [run, longest, at] = [0, 0, 0]
-    for (let k = 0; k < 2 * filled.length; k++) {
-      run = filled[k % filled.length] ? 0 : run + 1
-      if (run > longest) [longest, at] = [run, k % filled.length]
-      if (run >= filled.length) break
     }
-    if (longest * EMPTY.step >= EMPTY.run) {
-      const p = pts[at]
+    if (at && longest * EMPTY.step >= EMPTY.run)
       out.push(
         fail(
           'empty-pavement',
           r,
           { tile: b.tile, block: i },
-          `pavement empty toward (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`,
+          `pavement empty toward (${at.x.toFixed(0)}, ${at.y.toFixed(0)})`,
           `${longest * EMPTY.step} m`,
         ),
       )
-    }
   })
   return out
 }

@@ -1761,7 +1761,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       plan: TerracePlan = { roof: 'gable', ends: [] },
     ) {
       const wall = storeys * 3 + 0.6
-      formed(`terrace ${plan.roof}`)
+      formed(`terrace ${plan.roof} ${storeys}`)
       const [tile, walls, eave, bloom] = [pick(TERRACE.roofs), pick(TERRACE.walls), rand() < 0.55, pick(TERRACE.blooms)]
       const seed = spot(x, y) + 23 // which patterned windows light, and the finish's own draws, so the kit's stream is untouched
       const { corner } = plan
@@ -1821,7 +1821,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      */
     apartment(wings: Bounds[], h: number, floors: number, stage = 2, walks: Walks = [], plan: ApartmentPlan = { roof: 'flat' }) {
       const colour = pick(COURTYARD.walls)
-      formed(`apartment ${plan.roof}`)
+      formed(`apartment ${plan.roof} ${wings.length} ${floors}`)
       const height = floors * 3.2 + 0.8
       const seed = spot(wings[0].x0, wings[0].y0) + 29 // which patterned windows light, and the finish's own draws
       const frontDoor = (ex: number, ey: number, ry: number) => {
@@ -2081,7 +2081,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      */
     shop(x: number, y: number, h: number, w: number, d: number, ry: number, plan: ShopPlan) {
       const { storeys, stage, onRoad, door, front, form, noodle } = plan
-      formed(`shop ${form}`)
+      formed(`shop ${form} ${storeys}`)
       const [upper, stripe, roofSign, hung, board, billboard, tallSign] = [
         pick(SHOP.uppers),
         pick(SHOP.fronts),

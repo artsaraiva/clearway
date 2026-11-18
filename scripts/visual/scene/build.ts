@@ -38,8 +38,11 @@ Object.assign(Error, { stackTraceLimit: 40 })
  * the ground: no more than `HUNG` m above the kerb, so a lantern on its cord or a wire on its poles has no feet.
  */
 const [FOOT, HUNG] = [0.7, KERB + 1]
-/** A part lies flat, as paving or paint does, if it is less than this many m from top to bottom. */
-const FLAT = 0.15
+/**
+ * A part is ground, as paving, paint, a lawn or a field's soil is, if it rises less than `FLAT` m from bottom to top or
+ * no more than `STEP` m above what its brick stands on: ground one could step onto.
+ */
+const [FLAT, STEP] = [0.15, 0.35]
 /** The scene check's own functions and the kit's plumbing, which a brick's label skips to find what built it. */
 const PLUMBING = new Set(['label', 'made', 'brick', 'mover', 'own', 'from', 'staged', 'closeOnly', 'furniture', 'scene', 'cladded'])
 
@@ -50,7 +53,7 @@ const PLUMBING = new Set(['label', 'made', 'brick', 'mover', 'own', 'from', 'sta
 function label(): string {
   let [method, fill] = ['', '']
   for (const line of new Error().stack!.split('\n').slice(1)) {
-    const m = /at (?:\S+\.)?([\w$]+) \((.*?):\d+:\d+\)/.exec(line)
+    const m = /at (?:\S+\.)?([\w$]+)(?: \[as [\w$]+\])? \((.*?):\d+:\d+\)/.exec(line)
     if (!m) continue
     const [, name, file] = m
     if (PLUMBING.has(name) || name === 'anonymous' || name === 'eval' || file.includes('/scripts/visual/scene/')) continue
@@ -156,9 +159,9 @@ export function buildReport(ask: Ask): Report {
   const scenes: Scene[] = []
   const lots = new Map<string, Lot & { pts: Pt[] }>()
   const movers: Mover[] = []
+  const pools: Report['pools'] = []
   const moving: Record<string, number> = {}
-  const colours: Record<string, number> = {}
-  const colour = new THREE.Color()
+  const painted = new Map<number, number>() // triangles by linear colour, 12 bits a channel
 
   const watch: Watch = {
     label,
@@ -205,19 +208,20 @@ export function buildReport(ask: Ask): Report {
         else open++
         let [y0, y1] = [Infinity, -Infinity]
         const pts: Pt[] = []
-        const seen = new Set<string>()
+        const seen = new Set<number>()
         for (let k = 0; k < pos.count; k++) {
           const y = pos.getY(k)
-          ;[y0, y1] = [Math.min(y0, y), Math.max(y1, y)]
+          if (y < y0) y0 = y
+          if (y > y1) y1 = y
           const [px, py] = [pos.getX(k), -pos.getZ(k)]
-          const key = `${px.toFixed(3)},${py.toFixed(3)}`
+          const key = Math.round((px + 5000) * 1000) * 1e7 + Math.round((py + 5000) * 1000) // mm, as one number
           if (seen.has(key)) continue
           seen.add(key)
           pts.push({ x: px, y: py })
         }
         ;[top, low] = [Math.max(top, y1), Math.min(low, y0)]
         all.push(...pts)
-        if (y1 - y0 >= FLAT) {
+        if (y1 - y0 >= FLAT && y1 > base + STEP) {
           rising.push(...pts)
           if (y0 < base + FOOT && base <= HUNG) feet.push(hull(pts))
         }
@@ -231,8 +235,8 @@ export function buildReport(ask: Ask): Report {
         if ((material === 'solid' || material === 'close') && geo.attributes.color) {
           const c = geo.attributes.color
           for (let k = 0; k < c.count; k += 3) {
-            const hex = colour.setRGB(c.getX(k), c.getY(k), c.getZ(k), THREE.LinearSRGBColorSpace).getHexString()
-            colours[hex] = (colours[hex] ?? 0) + 1
+            const key = (Math.round(c.getX(k) * 4095) * 4096 + Math.round(c.getY(k) * 4095)) * 4096 + Math.round(c.getZ(k) * 4095)
+            painted.set(key, (painted.get(key) ?? 0) + 1)
           }
         }
       }
@@ -270,7 +274,10 @@ export function buildReport(ask: Ask): Report {
         if (!thing.flat && b.kind !== 'mover') lot.pts.push(...(feet.length ? feet.flat() : []))
       }
     })
-    for (const p of built.pools) things[first + p.brick].pools++
+    for (const p of built.pools) {
+      if (things[first + p.brick]) things[first + p.brick].pools++
+      pools.push({ x: p.at.x, y: -p.at.z, r: Math.max(p.w, p.d) / 2 })
+    }
     for (const c of built.claims ?? []) {
       const t = things[first + c.brick] ?? things[things.length - 1]
       claims.push({ kind: c.kind, tile: t.tile, block, hull: turnedBox(c.x, c.y, c.w, c.d, c.ry), thing: t.id })
@@ -306,6 +313,15 @@ export function buildReport(ask: Ask): Report {
   const builds = game.city.tiles.map((t) => scenery.lay(game.sim, [cellBounds(t.cell)]))
   const meshes = builds.flatMap((b) => b.meshes)
   const ms = performance.now() - start
+  for (const b of blocks) b.kerb = kerbOf(b.loop, game.sim.net)
+  const colours: Record<string, number> = {}
+  const colour = new THREE.Color()
+  for (const [key, n] of painted) {
+    const hex = colour
+      .setRGB(Math.floor(key / 4096 ** 2) / 4095, (Math.floor(key / 4096) % 4096) / 4095, (key % 4096) / 4095, THREE.LinearSRGBColorSpace)
+      .getHexString()
+    colours[hex] = (colours[hex] ?? 0) + n
+  }
 
   return {
     zone: ask.zone ?? 'unzoned',
@@ -317,6 +333,7 @@ export function buildReport(ask: Ask): Report {
     scenes,
     lots: [...lots.values()].map(({ pts, ...lot }) => ({ ...lot, box: pts.length ? boxOf(pts) : lot.box })),
     movers,
+    pools,
     moving,
     colours,
     vehicles: hooked ? vehicles(game.sim.net) : [],
@@ -325,6 +342,47 @@ export function buildReport(ask: Ask): Report {
     hash: hashOf(meshes, materials),
     ms,
   }
+}
+
+/** m from a lane's middle within which a Block's edge faces its Road: half a lane, and a little. */
+const KERBSIDE = 6
+
+/** Where a Block's edge faces a Road: runs of points a metre apart along its outline, each within `KERBSIDE` of a lane. */
+function kerbOf(loop: Pt[], net: Network): Pt[][] {
+  // The lanes' segments, by the 10 m squares they come near.
+  const grid = new Map<string, [Pt, Pt][]>()
+  const cell = (x: number, y: number) => `${Math.floor(x / 10)},${Math.floor(y / 10)}`
+  for (const lane of net.lanes)
+    for (let i = 0; i + 1 < lane.line.pts.length; i++) {
+      const [a, b] = [lane.line.pts[i], lane.line.pts[i + 1]]
+      for (let x = Math.floor((Math.min(a.x, b.x) - KERBSIDE) / 10); x <= Math.floor((Math.max(a.x, b.x) + KERBSIDE) / 10); x++)
+        for (let y = Math.floor((Math.min(a.y, b.y) - KERBSIDE) / 10); y <= Math.floor((Math.max(a.y, b.y) + KERBSIDE) / 10); y++)
+          (grid.get(`${x},${y}`) ?? grid.set(`${x},${y}`, []).get(`${x},${y}`)!).push([a, b])
+    }
+  const near = (p: Pt) =>
+    (grid.get(cell(p.x, p.y)) ?? []).some(([a, b]) => {
+      const [dx, dy] = [b.x - a.x, b.y - a.y]
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)))
+      return Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) < KERBSIDE
+    })
+  const pts: Pt[] = []
+  loop.forEach((a, i) => {
+    const b = loop[(i + 1) % loop.length]
+    const n = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y)))
+    for (let k = 0; k < n; k++) pts.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n })
+  })
+  // Runs of road-facing points, the last joined to the first where the run goes round the start of the loop.
+  const runs: Pt[][] = []
+  let run: Pt[] = []
+  for (const p of pts) {
+    if (near(p)) run.push(p)
+    else if (run.length) runs.push(run.splice(0))
+  }
+  if (run.length) {
+    if (runs.length && near(pts[0])) runs[0] = [...run, ...runs[0]]
+    else runs.push(run)
+  }
+  return runs
 }
 
 /** The vehicles' models and how high each one's lowest point stands: the cars' skins and the movers that drive. */
