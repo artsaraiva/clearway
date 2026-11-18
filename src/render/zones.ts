@@ -988,7 +988,6 @@ function terraceScenes(g: ZoneGround, lots: RowLot[], draw: () => number): Place
         const road = n < lots.length
         const i = (Math.floor(start * lots.length) + n) % lots.length
         const span = [i]
-        if (!road && span.every((k) => lots[k].onRoad)) continue // tried already
         let width = lots[i].w
         while (width < wide && span.length < 3) {
           const j = span[span.length - 1] + 1
