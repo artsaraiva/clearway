@@ -3,7 +3,7 @@
 import type { Failure } from './report'
 
 /** A known failure: a rule, on a Zone (all if none), whose `what` matches (all if none), and the issue that owns it. */
-export interface Known {
+interface Known {
   rule: string
   zone?: string
   what?: RegExp
@@ -34,7 +34,7 @@ const BROKEN: Record<string, string[]> = {
 /** Left by #193: the bare pavement runs it did not break; #195 owns them. */
 const FOUND = '#195'
 
-export const KNOWN: Known[] = [
+const KNOWN: Known[] = [
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
     rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the Finish` })),
   ),

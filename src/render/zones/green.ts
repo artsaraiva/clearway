@@ -76,7 +76,7 @@ const ALLOTMENT = { w: 6.4, d: 4.6, path: 1.3 } // m: a plot, and the gravel pat
  * - Stage 2: five trees to a grove, and the beds.
  * - Stage 3: the trees grown on, three more beds, and a pavilion by the first grove where there is room.
  */
-export function meadow(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
+function meadow(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 2, 0.24, MEADOW)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
@@ -304,7 +304,7 @@ function flutter(beds: Bed[], first: Bed, draw: () => number): { loop: Polyline;
  * - Stage 3: every plot worked, taller crops, and beans climbing canes on some; a second scarecrow on a big Block, and
  *   cold frames on twice as many plots.
  */
-export function allotments(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
+function allotments(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 1.6, 0.12, GRAVEL)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)

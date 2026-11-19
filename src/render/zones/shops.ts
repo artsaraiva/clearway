@@ -446,7 +446,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
 // Block-zoom props (the kit's `blockZoomProps`), hidden beyond Tile zoom.
 
 /** The scenes a shops Block picks from (#175). */
-export type ShopScene = 'greengrocer' | 'florist' | 'capsules' | 'stall'
+type ShopScene = 'greengrocer' | 'florist' | 'capsules' | 'stall'
 
 // Colours, beside the stands' timber, the food stall's and the menu board's (`../props`): produce (cabbages, oranges,
 // lemons, aubergines, daikon and apples in the cars' raspberry, under the cap on the Jam's red-orange); flowers and
@@ -488,7 +488,7 @@ const Free = (_x: number, _y: number) => true
  * long, with a price board at one end; at Stage 3 crates more spill to the kerb. Its middle at `(x, y)`, 0.6 m out from
  * the front facing `ry`.
  */
-export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
+function greengrocer(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
   const draw = mulberry32(spot(x, y))
   stand(kit, x, y, ry, len, 0.7, (lx, ly, z) =>
     kit.put(kit.cuboid(0.62, 0.16, 0.36), PRODUCE[Math.floor(draw() * PRODUCE.length)], x, y, ry, lx, ly, z),
@@ -507,7 +507,7 @@ export function greengrocer(kit: Kit, x: number, y: number, ry: number, len: num
  * A florist's stand before a shop front, as one brick (#175): buckets of flowers on three steps along the front, `len`
  * long, and pot plants by it; at Stage 3 a row of tall plants at the kerb's side.
  */
-export function florist(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
+function florist(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, free = Free) {
   const draw = mulberry32(spot(x, y))
   stand(kit, x, y, ry, len, 0.62, (lx, ly, z) => {
     kit.put(kit.cuboid(0.34, 0.34, 0.3), BUCKET, x, y, ry, lx, ly, z)
@@ -530,7 +530,7 @@ export function florist(kit: Kit, x: number, y: number, ry: number, len: number,
  * colour under a clear top full of capsules that lights at dusk as a vending machine's front does, and leaves a pool.
  * Stage 3 tops each pile with a sign.
  */
-export function capsules(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, _free = Free) {
+function capsules(kit: Kit, x: number, y: number, ry: number, len: number, stage: number, _free = Free) {
   const draw = mulberry32(spot(x, y))
   const n = Math.max(4, Math.floor(len / 0.66))
   for (let i = 0; i < n; i++) {
@@ -554,7 +554,7 @@ export function capsules(kit: Kit, x: number, y: number, ry: number, len: number
  * lantern at its corner that lights at dusk and leaves its pool, and stools before the counter, which are Block-zoom
  * props. About 3.4 m long and 2.6 m deep with its stools.
  */
-export function foodStall(kit: Kit, x: number, y: number, ry: number) {
+function foodStall(kit: Kit, x: number, y: number, ry: number) {
   const roof = STALL.roofs[spot(x, y) % STALL.roofs.length]
   kit.put(kit.cuboid(3, 0.95, 1.2), STALL.cart, x, y, ry, 0, 0, KERB + 0.32)
   kit.put(kit.cuboid(3.3, 0.08, 1.45), STALL.counter, x, y, ry, 0, 0.1, KERB + 1.27)
@@ -577,7 +577,7 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
 }
 
 /** Pot plants about 0.7 m tall standing at `spots` on the pavement, as one Block-zoom brick (#175), each in a pot of its own colour. */
-export function pots(kit: Kit, spots: [number, number][]) {
+function pots(kit: Kit, spots: [number, number][]) {
   if (!spots.length) return
   const draw = mulberry32(spot(...spots[0]))
   kit.blockZoomProps(() => {
@@ -590,7 +590,7 @@ export function pots(kit: Kit, spots: [number, number][]) {
  * A plant stand at `(x, y)` against a shop front facing `ry`, as one Block-zoom brick (#175): two timber steps with pot
  * plants on them.
  */
-export function plantStand(kit: Kit, x: number, y: number, ry: number) {
+function plantStand(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
   kit.blockZoomProps(() => {
     for (let k = 0; k < 2; k++) {
@@ -603,7 +603,7 @@ export function plantStand(kit: Kit, x: number, y: number, ry: number) {
 }
 
 /** Crates of produce at `(x, y)`, facing `ry`, as one Block-zoom brick (#175): two on the pavement and one on top. */
-export function produce(kit: Kit, x: number, y: number, ry: number) {
+function produce(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
   kit.blockZoomProps(() => {
     for (const [lx, z] of [

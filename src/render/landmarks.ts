@@ -6,7 +6,8 @@ import type { Kit } from './kit'
 import { raised } from './shapes'
 
 // The park's deck was shrine vermilion, which is nearly the Jam red-orange: it is wood.
-export const [GRASS, STONE, CREAM, CORAL, DECK, PLAZA, TEAL] = ['#b0df88', '#ddd6c9', '#fbf6ef', '#f08a6e', '#bb5d0d', '#ece3d1', '#57c6b5']
+export const [GRASS, STONE, DECK, PLAZA] = ['#b0df88', '#ddd6c9', '#bb5d0d', '#ece3d1']
+const [CREAM, CORAL, TEAL] = ['#fbf6ef', '#f08a6e', '#57c6b5']
 const TAU = Math.PI * 2
 /** How big a tree of a Zone's look grows at each Stage (#141), as a share of the size #136 gave it. */
 export const GROW = [0.55, 1, 1.12]

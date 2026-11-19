@@ -4,22 +4,22 @@ import { boxesMeet, disc, overlap, toEdge, within } from './geometry'
 import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report'
 
 /** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
-export const TOLERANCE = 0.1
+const TOLERANCE = 0.1
 /** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's standing piece is larger (rule 5). */
-export const CAR = { long: 4.3, tall: 3 }
+const CAR = { long: 4.3, tall: 3 }
 /** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
-export const SECOND_SCENE = 2500
+const SECOND_SCENE = 2500
 /**
  * m of pavement that may stand empty (rule 3), how far in from the kerb something must stand to fill it, and within how
  * far of the kerb a bay lies at it, as a taxi bay 0.75 m in does.
  */
-export const EMPTY = { run: 12, band: 4, step: 1, bay: 1.5 }
+const EMPTY = { run: 12, band: 4, step: 1, bay: 1.5 }
 /** The reserved colours (the visual-style spec's Palette): nothing within `hue`° of either goes over `chroma` of its chroma. */
-export const RESERVED = { tool: '#1f7aff', jam: '#ff4a1f', hue: 30, chroma: 0.65 }
+const RESERVED = { tool: '#1f7aff', jam: '#ff4a1f', hue: 30, chroma: 0.65 }
 /** m above the ground a vehicle's lowest point may stand: it stands on its wheels. */
-export const WHEELS = 0.05
+const WHEELS = 0.05
 /** m above its base below which a lit part is near the ground (rule 7), and so leaves a pool. */
-export const NEAR_GROUND = 4
+const NEAR_GROUND = 4
 /** m from a lit thing within which a pool that rides another brick counts as its. */
 const POOL_REACH = 1
 
@@ -46,10 +46,10 @@ const fail = (rule: string, r: Report, at: { tile?: string; block?: number }, wh
 const m = (v: number) => `${v.toFixed(2)} m`
 
 /** Whether a thing stands up off the ground and takes room: not flat, not a mover's brick, not the Block itself. */
-export const standing = (t: Thing) => !t.flat && t.kind !== 'mover' && !GROUND.has(t.what) && t.feet.length > 0
+const standing = (t: Thing) => !t.flat && t.kind !== 'mover' && !GROUND.has(t.what) && t.feet.length > 0
 
 /** How deep two things' feet overlap, 0 if they do not. */
-export function depth(a: { feet: Hull[]; box: Box }, b: { feet: Hull[]; box: Box }): number {
+function depth(a: { feet: Hull[]; box: Box }, b: { feet: Hull[]; box: Box }): number {
   if (!boxesMeet(a.box, b.box)) return 0
   let most = 0
   for (const p of a.feet) for (const q of b.feet) most = Math.max(most, overlap(p, q))
@@ -100,7 +100,7 @@ const BED = 0.8
  * bed or a planter, Block-zoom props of one kind in a cluster (pot plants), or the kerbside's own furniture, which
  * `src/render/kerbside.ts` lays together. Everything else keeps clear.
  */
-export function together(a: Thing, b: Thing): boolean {
+function together(a: Thing, b: Thing): boolean {
   if (a.scene >= 0 && a.scene === b.scene) return true
   const planted = (t: Thing, bed: Thing) => t.kind === 'tree' && t.what === 'tree' && bed.top - bed.base < BED
   if (planted(a, b) || planted(b, a)) return true
@@ -193,7 +193,7 @@ export const pathsClear: Rule = (r) => {
  * Whether two lots lie side by side (#177's `beside` in `src/render/zones/scenes.ts`, for boxes turned as lots are): within
  * 1.5 m of each other one way and sharing more than 1 m of side the other, read in the first lot's frame.
  */
-export function beside(a: Hull, b: Hull): boolean {
+function beside(a: Hull, b: Hull): boolean {
   const [p, q, s] = [a[0], a[1], a[3]]
   const ux = { x: q.x - p.x, y: q.y - p.y }
   const uy = { x: s.x - p.x, y: s.y - p.y }
@@ -234,7 +234,7 @@ const zoned = (r: Report, block: number) =>
  * "larger" is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a
  * pergola over the tables or a 4 m sculpture is.
  */
-export const standingPiece = (t: Thing) =>
+const standingPiece = (t: Thing) =>
   standing(t) && t.layer === 'solid' && (Math.max(t.box.x1 - t.box.x0, t.box.y1 - t.box.y0) >= CAR.long || t.top - t.base >= CAR.tall)
 
 /**
@@ -272,7 +272,7 @@ export const moves: Rule = (r) => {
  * what it stands on leaves a pool of light, but parked cars, whose lamps are the cars'. Approximation: a pool is counted
  * on the brick it rides or reaches within a metre of it, so a pool laid for a neighbour can stand in for a light's own.
  */
-export const pools: Rule = (r) =>
+const pools: Rule = (r) =>
   r.things
     .filter((t) => {
       if (!t.bulbs || t.bulbLow >= NEAR_GROUND || t.pools || PARKED.has(t.what) || r.blocks[t.block]?.finished === false) return false
@@ -287,7 +287,7 @@ export const pools: Rule = (r) =>
  * unlit, drawn on the scenery at every zoom, should be hidden beyond Tile zoom.
  * Approximation: "small" is its size; a small thing meant to read at City zoom would show here.
  */
-export const blockZoomProps: Rule = (r) => [
+const blockZoomProps: Rule = (r) => [
   ...(r.blockZoomHidden ? [] : [fail('block-zoom', r, {}, 'Block-zoom props are drawn at City zoom', 'zoom 1')]),
   ...r.things
     .filter((t) => {
@@ -299,7 +299,7 @@ export const blockZoomProps: Rule = (r) => [
 ]
 
 /** A colour's OKLCH lightness, chroma and hue (°), from its hex. */
-export function oklch(hex: string): [number, number, number] {
+function oklch(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', ''), 16)
   const lin = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
     const v = c / 255
@@ -316,7 +316,7 @@ export function oklch(hex: string): [number, number, number] {
 }
 
 /** Whether a colour encroaches on a reserved one: within its hue and over its share of that one's chroma. */
-export function reserved(hex: string): string | null {
+function reserved(hex: string): string | null {
   const [, c, h] = oklch(hex)
   for (const [name, ref] of [
     ['Tool blue', RESERVED.tool],
@@ -339,7 +339,7 @@ export const colours: Rule = (r) =>
   })
 
 /** The static scenery's triangles and meshes stay under the Zone's ceiling (`ceilings`). */
-export const budget =
+const budget =
   (ceilings: Record<string, { triangles: number; meshes: number }>): Rule =>
   (r) => {
     const cap = ceilings[r.zone]

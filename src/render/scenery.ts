@@ -18,14 +18,14 @@ import { markPlate } from './kerbside'
 import { LOOKS } from './zones'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
-export interface Landmark {
+interface Landmark {
   type: 'tower'
   name: string
   at: Point
 }
 
 /** A Block that is not split into lots: the one around `at`. A park has its pond at `at`. */
-export interface SpecialBlock {
+interface SpecialBlock {
   type: 'plaza' | 'park'
   name?: string
   at: Point

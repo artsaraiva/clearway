@@ -509,9 +509,9 @@ function flags(
 // with a tree in a round bed, so that no ground stands empty.
 
 /** The scenes an offices Block picks from (#177). */
-export type OfficeScene = 'court' | 'sculpture' | 'truck'
+type OfficeScene = 'court' | 'sculpture' | 'truck'
 /** What stands on an office tower's plaza from Stage 2 (#177). */
-export type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
+type PlazaPiece = 'sculpture' | 'clock' | 'fountain'
 
 // Colours, beside the stone (`../props`): sculptures in amber, teal, steel, violet or white; a clock's post and face; a
 // taxi bay's tarmac, its lines and its sign's pole, board, band and marks; and a food truck's paints, four of the cars'
@@ -536,7 +536,7 @@ const PERGOLA = { tall: 2.86, deep: 3, steel: '#9aa3ad', lamp: '#fff1c7' }
  * Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
  * middle and a bench either side of it, Block-zoom.
  */
-export function officeScene(kit: Kit, kind: OfficeScene, ground: Footprint, stage: number, from: number) {
+function officeScene(kit: Kit, kind: OfficeScene, ground: Footprint, stage: number, from: number) {
   const { x, y, w, d, ry } = ground
   kit.paving(x, y, KERB, w, d, ry, STONE.floor, PATTERN.plaza, 0.02)
   if (stage >= from) return { court: sunkenCourt, sculpture: sculpturePlaza, truck: truckCourt }[kind](kit, x, y, w, d, ry, stage)
@@ -616,21 +616,21 @@ function sculpturePlaza(kit: Kit, x: number, y: number, _w: number, d: number, r
  * the first of `TRUCK_TURNS` its way in keeps clear of what stands at the kerb, and the Block's edge `kerb` m out from
  * the front there.
  */
-export interface TruckEntry {
+interface TruckEntry {
   turn: number
   kerb: number
 }
 /** m along a truck court's front from where its food truck parks that it may turn in from the kerb, the first that is clear (#177). */
-export const TRUCK_TURNS = [7, 6, 8, 5.5, 9]
+const TRUCK_TURNS = [7, 6, 8, 5.5, 9]
 
 /** m along a truck court `w` m long from its middle, as its front runs, where its food truck turns in `turn` m from where it parks (#177). */
-export const truckTurn = (w: number, turn: number) => -w / 2 + FOOD_TRUCK.park[0] + turn
+const truckTurn = (w: number, turn: number) => -w / 2 + FOOD_TRUCK.park[0] + turn
 
 /**
  * The way a truck court's food truck comes in (#177), on its court `w` by `d` at `(x, y)` facing `ry`: from the kerb at
  * `entry`, slanting in over the pavement, curving to park along the front, where it heads along it.
  */
-export function truckPath({ x, y, w, d, ry }: Footprint, entry: TruckEntry): Vec[] {
+function truckPath({ x, y, w, d, ry }: Footprint, entry: TruckEntry): Vec[] {
   const [px, py] = [-w / 2 + FOOD_TRUCK.park[0], d / 2 - FOOD_TRUCK.park[1]]
   const [kx, ky] = [truckTurn(w, entry.turn), d / 2 + entry.kerb]
   return Array.from({ length: 9 }, (_, i) => {
@@ -694,7 +694,7 @@ function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: nu
  * car does at a Gateway, and curves in to park along the front, its hatch toward the tables. After midday it backs out
  * the way it came and shrinks away at the kerb; one lap a day. Its paint is drawn from where it parks.
  */
-export function foodTruck(kit: Kit, court: Footprint, entry: TruckEntry) {
+function foodTruck(kit: Kit, court: Footprint, entry: TruckEntry) {
   const curve = truckPath(court, entry)
   const parked = curve[curve.length - 1]
   const paint = FOOD_TRUCKS[spot(parked.x, parked.y) % FOOD_TRUCKS.length]
@@ -713,7 +713,7 @@ export function foodTruck(kit: Kit, court: Footprint, entry: TruckEntry) {
  * on a plinth, a clock on a post whose faces light at night and leave a pool, or a fountain whose spray rises through
  * the working day, as steam does.
  */
-export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: PlazaPiece) {
+function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: PlazaPiece) {
   const draw = mulberry32(spot(x, y))
   if (kind === 'sculpture') {
     const [a, b] = [ART[Math.floor(draw() * ART.length)], ART[Math.floor(draw() * ART.length)]]
@@ -747,7 +747,7 @@ export function plazaPiece(kit: Kit, x: number, y: number, ry: number, kind: Pla
  * strip of tarmac set into the pavement, lined along its back and ends, and a stand's sign on a post at one end whose
  * board lights at night and leaves a pool. The taxis waiting in it are the kit's.
  */
-export function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
+function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
   kit.claim('taxi', x, y, w, d, ry)
   kit.put(kit.cuboid(w, 0.02, d), TAXI_BAY.tarmac, x, y, ry, 0, 0, KERB)
   kit.put(kit.cuboid(w, 0.03, 0.12), TAXI_BAY.line, x, y, ry, 0, -d / 2 + 0.06, KERB)

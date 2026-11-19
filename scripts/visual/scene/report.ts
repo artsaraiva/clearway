@@ -19,7 +19,7 @@ export interface Box {
 }
 
 /** How a thing is drawn: on the soft-lit scenery (`solid`), or as a Block-zoom prop, hidden beyond Tile zoom (`blockZoom`). */
-export type Layer = 'solid' | 'blockZoom'
+type Layer = 'solid' | 'blockZoom'
 
 /** One brick of the build: a thing that stands on a Block, or on the slab between them. */
 export interface Thing {
@@ -126,7 +126,7 @@ export interface Block {
 }
 
 /** A model of a vehicle: a car skin, a mover's model, a parked car's brick. */
-export interface Vehicle {
+interface Vehicle {
   name: string
   /** m its lowest point stands above the ground it drives on. */
   low: number

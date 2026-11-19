@@ -1061,9 +1061,9 @@ const floorTops = (floors: number) => [KERB, ...Array.from({ length: floors - 1 
 // with a tree in a round bed and a bench either side, so that no ground stands empty.
 
 /** The scenes a medium-density Block picks from (#178). */
-export type MediumScene = 'shrine' | 'park' | 'bathhouse'
+type MediumScene = 'shrine' | 'park' | 'bathhouse'
 /** The ground each scene takes (#178), m along the Block's edge and deep: as much as it would have, and the least it fits on. */
-export const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least: [number, number] }> = {
+const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least: [number, number] }> = {
   shrine: { most: [7.5, 7], least: [5.2, 5.2] },
   park: { most: [10, 8], least: [7, 5.6] },
   bathhouse: { most: [13, 10], least: [9.6, 7.6] },
@@ -1099,7 +1099,7 @@ const BATHHOUSE = {
  * the Road: the scene, or before `from` setts with a tree in a round bed in its middle and a bench either side of it,
  * Block-zoom.
  */
-export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: number, from: number) {
+function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: number, from: number) {
   const { x, y, w, d, ry } = ground
   if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
   kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
@@ -1226,7 +1226,7 @@ const TAU = Math.PI * 2
 const BAYS = { tarmac: '#bcc1c8', line: '#fbf8f2', each: 2.5 }
 
 /** A bin store against a wall at `(x, y)`, facing `ry`, as one Block-zoom brick (#178): bags under a green net in a frame, and its sign. */
-export function binStore(kit: Kit, x: number, y: number, ry: number) {
+function binStore(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
   kit.blockZoomProps(() => {
     for (const u of [-0.95, 0.95]) kit.put(kit.cuboid(0.06, 0.9, 1), BINS.frame, x, y, ry, u, 0, KERB)
@@ -1242,7 +1242,7 @@ export function binStore(kit: Kit, x: number, y: number, ry: number) {
 }
 
 /** Parking bays on `ground` (#178), `bays` of them side by side across its width, open to its front, as one brick. */
-export function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: number) {
+function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: number) {
   kit.claim('bay', x, y, w, d, ry)
   kit.put(kit.cuboid(w, 0.02, d), BAYS.tarmac, x, y, ry, 0, 0, KERB)
   kit.put(kit.cuboid(w, 0.03, 0.12), BAYS.line, x, y, ry, 0, -d / 2 + 0.06, KERB)
@@ -1252,7 +1252,7 @@ export function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: numbe
 }
 
 /** m across a parking bay (#178). */
-export const BAY_WIDTH = BAYS.each
+const BAY_WIDTH = BAYS.each
 
 // The props only medium-density lays: their palette, sizes and builders, beside the fill that lays them (#210). The
 // paints a line of washing's white pieces take, and the bright covers of futons on a balcony's rail (brighter than the

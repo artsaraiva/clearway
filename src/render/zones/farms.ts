@@ -155,7 +155,7 @@ function furrows(worked: Row[], rows: Row[], home: number, along: boolean): { lo
  *   the furrows, and a windbreak of pines behind the house; a second tractor, more greenhouses and scarecrows, the
  *   truck's bed full and a stack of crates beside it.
  */
-export function farm(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
+function farm(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 1.6, 0.14, FURROWS)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
