@@ -28,6 +28,7 @@ export type MoverKind =
   | 'koi'
   | 'pigeon'
   | 'firefly'
+  | 'dog'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -127,7 +128,7 @@ export interface Pool {
 }
 
 /** The kinds of thing that hangs and sways in the wind, each with its own model. */
-export type SwayKind = 'laundry' | 'futon' | 'washing' | 'cloth'
+export type SwayKind = 'laundry' | 'futon' | 'washing' | 'cloth' | 'kite'
 
 /**
  * Something that hangs from a line and sways in the wind (#155): laundry on a pole, a futon over a railing. It hangs
@@ -194,6 +195,7 @@ const KINDS: Record<MoverKind, Kind> = {
     wings: { rest: -1.3, fan: 0, night: -1.3, open: 0.15, sweep: 0.75 },
   },
   firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, byNight: true },
+  dog: { speed: 3.4, bob: 0.07, rate: 13, model: dog, wide: 0.5 }, // #182: it runs a meadow's grass between the picnic blankets
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -259,6 +261,7 @@ const SWAYS: Record<SwayKind, { swing: number; rate: number; model: () => THREE.
   futon: { swing: 0.04, rate: 1.6, model: futon },
   washing: { swing: 0.24, rate: 2.4, model: washing }, // #156
   cloth: { swing: 0.2, rate: 2.4, model: () => part(1, 1, 0.05, 0, -1, 0, '#ffffff') }, // #157: one piece pegged to a pole, stretched to its size
+  kite: { swing: 0.07, rate: 1.1, model: kite }, // #182: it rides the wind on its string, out through the working day
 }
 // Each is hung out over the first share of the working day (of the day's clock) and taken in over its last, at its own
 // moment, and takes this share of the day to come or go.
@@ -519,6 +522,77 @@ function cat(): THREE.BufferGeometry {
     painted(part(0.02, 0.03, 0.035, 0.34, 0.33, -0.04, '#2f3440'), 0),
     tail,
   ]).scale(1.7, 1.7, 1.7)
+}
+
+/**
+ * A dog (#182), facing +x, centred under its middle and standing on y = 0, oversized as the moving details are so that it
+ * reads from Tile zoom: a body, legs, a head with a muzzle and a tail held up, white for the coat it takes, its ears and
+ * nose dark.
+ */
+function dog(): THREE.BufferGeometry {
+  const [PAINT, DARK] = ['#ffffff', '#4a3a30']
+  const tail = painted(tint(new THREE.BoxGeometry(0.07, 0.3, 0.07).rotateZ(0.7).translate(-0.42, 0.52, 0), PAINT), 1)
+  return merged([
+    ...[-0.24, 0.24].flatMap((x) => [-0.09, 0.09].map((z) => painted(part(0.08, 0.26, 0.08, x, 0, z, PAINT), 1))), // legs
+    painted(part(0.66, 0.26, 0.26, 0, 0.24, 0, PAINT), 1), // the body
+    painted(part(0.24, 0.24, 0.24, 0.4, 0.4, 0, PAINT), 1), // the head
+    painted(part(0.16, 0.12, 0.14, 0.56, 0.4, 0, PAINT), 1), // its muzzle
+    painted(part(0.05, 0.05, 0.08, 0.64, 0.47, 0, DARK), 0), // its nose
+    painted(part(0.07, 0.14, 0.05, 0.36, 0.56, 0.11, DARK), 0), // the ears
+    painted(part(0.07, 0.14, 0.05, 0.36, 0.56, -0.11, DARK), 0),
+    tail,
+  ]).scale(1.7, 1.7, 1.7)
+}
+
+/** How far a kite flies from the hand that holds its string (#182): m up, and m downwind. */
+const KITE = { up: 7.2, out: 5.2 }
+
+/**
+ * A kite on its string (#182), held at the origin and flying up and out along -z, as what sways hangs out of its
+ * building: a diamond in white for the paint it takes, on two dark spars, with a tail of three pale bows, at the end
+ * of a string. Oversized, as the moving details are. It swings about the hand on the wind, and is taken in for the night.
+ */
+function kite(): THREE.BufferGeometry {
+  const [SPAR, BOW, STRING] = ['#4a525c', '#fbf8f2', '#e9eef2']
+  const { up, out } = KITE
+  const [len, lean] = [Math.hypot(up, out), Math.atan2(out, up)]
+  const box = (w: number, h: number, d: number, colour: string) => tint(new THREE.BoxGeometry(w, h, d).deleteAttribute('uv'), colour)
+  // The diamond, in its own plane (x across, y up it), both of its sides: its top, its sides, its foot.
+  const [top, side, foot] = [1, 0.75, 1.35]
+  const v: number[] = []
+  for (const [a, b, c] of [
+    [
+      [0, top],
+      [-side, 0],
+      [side, 0],
+    ],
+    [
+      [0, -foot],
+      [side, 0],
+      [-side, 0],
+    ],
+  ])
+    for (const face of [
+      [a, b, c],
+      [a, c, b],
+    ])
+      for (const [x, y] of face) v.push(x, y, 0)
+  const sail = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+  sail.computeVertexNormals()
+  const flying = [
+    painted(tint(sail, '#ffffff'), 1),
+    painted(box(0.05, top + foot, 0.03, SPAR).translate(0, (top - foot) / 2, 0), 0),
+    painted(box(2 * side, 0.05, 0.03, SPAR), 0),
+    ...[0, 1, 2].map((k) => painted(box(0.34, 0.14, 0.02, BOW).translate(0.12 * (k % 2 ? 1 : -1), -foot - 0.45 - 0.5 * k, 0), 0)),
+    painted(box(0.02, 1.6, 0.02, STRING).translate(0, -foot - 0.8, 0), 0),
+  ].map((g) => g.rotateX(-lean + 0.5).translate(0, up, -out)) // leaning back on the wind, over the end of its string
+  const string = painted(
+    box(0.035, len, 0.035, STRING)
+      .translate(0, len / 2, 0)
+      .rotateX(-lean),
+    0,
+  )
+  return merged([...flying, string])
 }
 
 /**

@@ -6,9 +6,23 @@ import { inside, type Field } from '../field'
 import { type Kit, SHAPES, spot, to } from '../kit'
 import { clearOf, DECK, fountain, GRASS, GROW, overlay, PLAZA, site, STONE } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { BLOOMS, bench, GLOWS, shrine, STONE as STONES, stoneLantern, WOOD } from '../props'
+import { BLOOMS, bench, GLOWS, pavilionLantern, shrine, STONE as STONES, stoneLantern, WOOD } from '../props'
 import { ribbons } from '../ribbons'
-import { distance, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import {
+  alongRun,
+  aside,
+  borderLengths,
+  distance,
+  nearPath,
+  offRun,
+  runs,
+  stands,
+  turned,
+  winding,
+  type Look,
+  type RowLot,
+  type ZoneGround,
+} from './ground'
 import { clearOfKerbside, facesRoad, placeScenes, sceneOrder, type Scene } from './scenes'
 
 // Parks: a park with a pond, or on a Block under 1,600 m² by its bounding box, one time in three, a plaza with a fountain.
@@ -464,10 +478,6 @@ function roomForTree(kit: Kit, planted: Vec[], paths: Vec[][], x: number, y: num
   return kit.unclaimed(x, y, 1, 1, 0, 0.6)
 }
 
-/** Whether `(x, y)` lies within `room` m of a path's middle line `path`. */
-const nearPath = (path: Vec[], x: number, y: number, room: number) =>
-  path.some((a, i) => i > 0 && distance({ x, y }, path[i - 1], a) < room)
-
 /**
  * The stones round a pond's rim (#180), at every Stage: low enough to lie as part of its rim's ground, and none on the
  * deck's claim or where the bridge or the stepping stones meet the shore. Drawn from the pond's own stream.
@@ -484,14 +494,6 @@ function rocks(kit: Kit, p: Pond) {
     if (!kit.unclaimed(x, y, w, d, 0) || ends.some((e) => Math.hypot(e.x - x, e.y - y) < 1.8)) continue // the deck's foot
     kit.add(SHAPES.bush, colour, x, y, p.h + 0.1, draw() * TAU, w, tall, d)
   }
-}
-
-/** A lantern hung in a pavilion standing on its floor at `(x, y)`, `h` up (#180), lit at night, and its pool on the floor. */
-function pavilionLantern(kit: Kit, x: number, y: number, h: number) {
-  kit.add(SHAPES.thin, BUILT.post, x, y, h + 2.55, 0, 0.02, 0.35, 0.02)
-  kit.add(kit.cuboid(0.42, 0.5, 0.42), kit.lit(BUILT.shoji, GLOWS.low), x, y, h + 2.05)
-  kit.pool('cream', x, y, h + 0.3, 4, 4)
-  kit.brick('lamp', x, y, h)
 }
 
 /**
@@ -780,7 +782,7 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
     if (!e) continue
     const strays = (draw() < 0.5 ? -1 : 1) * PARK.path.strays
     const waves = draw() < 0.6 ? 1 : 2
-    const path = [strays, 0].map((a) => winding(e, rim(e), a, waves)).find((pts) => keeps(pts, 2.6))
+    const path = [strays, 0].map((a) => winding(e, rim(e), a, waves, PARK.path.step)).find((pts) => keeps(pts, 2.6))
     if (path) out.push(path)
   }
   for (const { ground: l } of scenes) {
@@ -789,23 +791,10 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
       (a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y),
     )[0]
     if (!near || Math.hypot(near.x - f.x, near.y - f.y) > 16 || Math.hypot(near.x - f.x, near.y - f.y) < 1.5) continue
-    const spur = winding(f, near, 0, 1)
+    const spur = winding(f, near, 0, 1, PARK.path.step)
     if (keeps(spur, 1)) out.push(spur)
   }
   return out
-}
-
-/** The middle line of a path from `a` to `b`, straying `strays` m to one side in `waves` arcs, a point every `step` m. */
-function winding(a: Vec, b: Vec, strays: number, waves: number): Vec[] {
-  const len = Math.hypot(b.x - a.x, b.y - a.y)
-  const n = Math.max(2, Math.ceil(len / PARK.path.step))
-  const [nx, ny] = [-(b.y - a.y) / len, (b.x - a.x) / len]
-  const amp = Math.sign(strays) * Math.min(Math.abs(strays), 0.12 * len)
-  return Array.from({ length: n + 1 }, (_, i) => {
-    const u = i / n
-    const off = amp * Math.sin(Math.PI * u * waves)
-    return { x: a.x + (b.x - a.x) * u + nx * off, y: a.y + (b.y - a.y) * u + ny * off }
-  })
 }
 
 /**
@@ -819,15 +808,6 @@ function gravelPath(kit: Kit, pts: Vec[], h: number) {
   kit.brick('ground', pts[0].x, pts[0].y, h)
 }
 
-/** The line `off` m to the left of a middle line `pts` (below 0, its right). */
-function aside(pts: Vec[], off: number): Vec[] {
-  return pts.map((p, i) => {
-    const [q, r] = [pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i + 1)]]
-    const len = Math.hypot(r.x - q.x, r.y - q.y) || 1
-    return { x: p.x - ((r.y - q.y) / len) * off, y: p.y + ((r.x - q.x) / len) * off }
-  })
-}
-
 /**
  * A border of azaleas along a park's Roads, `PARK.border.in` m in (#180): low clipped bushes, taller with each Stage
  * and in bloom at Stage 3, open where a path comes in and round each lamp, pole and street tree, and each length cut
@@ -836,46 +816,12 @@ function aside(pts: Vec[], off: number): Vec[] {
 function border(g: ZoneGround, paths: Vec[][], h: number) {
   const { kit } = g
   const { thick, tall, gap, leaves, bloom } = PARK.border
-  const kerbside = [...g.lamps, ...g.poles, ...g.kerbsideTrees]
   for (const run of runs(g, PARK.border.in).filter(facesRoad)) {
-    // Where along the run to leave open, as [from, to] in m.
-    const open: [number, number][] = [
-      [-1, 1],
-      [run.len - 1, run.len + 1],
-    ]
-    const along = (q: Vec) => (q.x - run.a.x) * run.ux + (q.y - run.a.y) * run.uy
-    const across = (q: Vec) => Math.abs((q.x - run.a.x) * run.nx + (q.y - run.a.y) * run.ny)
-    for (const path of paths) {
-      for (const q of path) if (across(q) < 1.2) open.push([along(q) - gap / 2, along(q) + gap / 2])
-    }
-    for (const q of kerbside) if (across(q) < 1.3) open.push([along(q) - 1, along(q) + 1])
-    open.sort((a, b) => a[0] - b[0])
-    const lengths: [number, number][] = []
-    let from = 0
-    for (const [a, b] of open) {
-      if (a - from >= 1.2) lengths.push([from, a])
-      from = Math.max(from, b)
-    }
-    /** The length from `a` to `b` m along the run, as ground. */
-    const piece = (a: number, b: number): RowLot => {
-      const m = (a + b) / 2
-      return { x: run.a.x + run.ux * m, y: run.a.y + run.uy * m, w: b - a, d: thick, ry: run.ry, onRoad: true }
-    }
-    const free = (l: RowLot) => kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
-    for (const length of lengths) {
-      // Cut back the end that meets a claim, and if both do, both.
-      while (length[1] - length[0] >= 1.2 && !free(piece(length[0], length[1]))) {
-        if (!free(piece(length[0], length[0] + 0.6))) length[0] += 0.2
-        if (!free(piece(length[1] - 0.6, length[1]))) length[1] -= 0.2
-        else if (free(piece(length[0], length[0] + 0.6))) length[0] += 0.2 // a claim along its middle: shrink until it clears
-      }
-    }
-    const kept = lengths.filter(([a, b]) => b - a >= 1.2)
-    for (const [a, b] of kept) {
-      const l = piece(a, b)
-      kit.stand(l.x, l.y, l.w, l.d, l.ry)
-    }
-    lengths.splice(0, lengths.length, ...kept)
+    // Open where a path comes in.
+    const gaps = paths.flatMap((path) =>
+      path.filter((q) => offRun(run, q) < 1.2).map((q): [number, number] => [alongRun(run, q) - gap / 2, alongRun(run, q) + gap / 2]),
+    )
+    const lengths = borderLengths(g, run, thick, gaps)
     if (!lengths.length) continue
     const turn = Math.atan2(run.uy, run.ux)
     const first = lengths[0]

@@ -67,6 +67,13 @@ export const PATTERN = {
    * its own, in m from the middle (`pave`'s `middle`).
    */
   radial: 23,
+  /**
+   * A meadow's grass (#182): unmown, deeper and flecked with seed heads, with glades and a winding way mown paler
+   * through it, in m on the map over `REPEAT.meadow`.
+   */
+  meadow: 24,
+  /** Worked soil (#182): furrows 0.4 m apart running east–west, in m on the map over `REPEAT.paving`. */
+  soil: 25,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -75,8 +82,11 @@ const DOORWAY = PATTERN.homeFront - 1 // the layer of `homeFront`'s middle bay o
 /** A house's foundation and the shadow under its eaves (#179): the share of a storey each covers, and how much darker each is. */
 const HOME = { footing: 0.075, eaves: 0.07, foot: 0.76, shadow: 0.3 }
 
-/** m of the map or a roof that one repeat of the paving's, the roof's or a lawn's pattern covers: a lawn's two stripes. */
-const REPEAT = { paving: 2.4, roof: 2, lawn: 4 }
+/**
+ * m of the map or a roof that one repeat of the paving's, the roof's, a lawn's or a meadow's pattern covers: a lawn's
+ * two stripes, a meadow's glades.
+ */
+const REPEAT = { paving: 2.4, roof: 2, lawn: 4, meadow: 16 }
 /** Radial paving (#180): m from one ring of stones to the next, and about how long each stone is round its ring. */
 const RADIAL = { ring: 0.6, stone: 0.75 }
 /**
@@ -228,7 +238,7 @@ export function tile(geo: THREE.BufferGeometry, seed: number, kind: Pattern = PA
 export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving, middle = { x: 0, y: 0 }): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
-  const per = kind === PATTERN.lawn ? REPEAT.lawn : kind === PATTERN.radial ? 1 : REPEAT.paving
+  const per = kind === PATTERN.lawn ? REPEAT.lawn : kind === PATTERN.meadow ? REPEAT.meadow : kind === PATTERN.radial ? 1 : REPEAT.paving
   return wear(geo, (uv, worn) => {
     for (let i = 0; i < pos.count; i++) {
       if (nor.getY(i) < 0.9) continue
@@ -533,6 +543,37 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       speckle(g, 59, 122, 134, 4)
       fill(g, [84, 0, 0], 0, 0, S, 6)
       fill(g, [84, 0, 0], 0, 0, 6, S)
+    },
+    // A meadow's grass (#182) over 16 m: unmown and deeper, each 25 cm a shade of its own and a pale seed head here and
+    // there; mown paler in three glades and the way that winds between them, which wrap at the repeat's edges.
+    (g) => {
+      const draw = stream(61)
+      const glades = [
+        [0.22, 0.3, 0.17],
+        [0.7, 0.68, 0.2],
+        [0.82, 0.14, 0.11],
+      ]
+      const mown = (u: number, v: number) => {
+        const wrap = (a: number) => Math.abs(a - Math.round(a))
+        if (glades.some(([cx, cy, r]) => Math.hypot(wrap(u - cx), wrap(v - cy)) < r)) return true
+        return wrap(v - 0.5 - 0.2 * Math.sin(2 * Math.PI * u)) < 0.045 // the way between them
+      }
+      for (let y = 0; y < S; y += 2)
+        for (let x = 0; x < S; x += 2) {
+          const pale = mown((x + 1) / S, (y + 1) / S)
+          const shade = pale ? 134 + draw() * 6 : draw() < 0.05 ? 138 : 110 + draw() * 12
+          fill(g, [Math.round(shade), 0, 0], x, y, 2, 2)
+        }
+    },
+    // Worked soil (#182) over 2.4 m: six furrows running across, each a dark trough under a paler ridge, finely speckled.
+    (g) => {
+      const draw = stream(67)
+      const t = S / 6
+      for (let y = 0; y < S; y += 2)
+        for (let x = 0; x < S; x += 4) {
+          const k = (y % t) / t // up its furrow
+          fill(g, [Math.round((k < 0.3 ? 100 : k < 0.75 ? 126 : 138) + draw() * 8), 0, 0], x, y, 4, 2)
+        }
     },
   ]
 }
