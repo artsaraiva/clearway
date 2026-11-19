@@ -315,17 +315,58 @@ export interface Brick {
 
 /**
  * Ground a fill lays and later pieces must keep clear of (#191), as the scene check reads it: a parking bay, a taxi
- * bay, or the step before a door. A box `w` along its front by `d`, centred on `(x, y)` (m) and turned `ry` as the kit's
- * frames are, and the brick it was laid with.
+ * bay, the step before a door, or what a standing piece stands on with the room it keeps (#198). A box `w` along its
+ * front by `d`, centred on `(x, y)` (m) and turned `ry` as the kit's frames are, and the brick it was laid with; for a
+ * standing piece, the Stage it stands from.
  */
 export interface Claim {
-  kind: 'bay' | 'taxi' | 'door'
+  kind: 'bay' | 'taxi' | 'door' | 'stand'
   x: number
   y: number
   w: number
   d: number
   ry: number
   brick: number
+  from?: number
+}
+
+/** Every kind of claim; and the ground laid to be kept clear, the bays and the door steps, without what stands. */
+const CLAIMS: readonly Claim['kind'][] = ['bay', 'taxi', 'door', 'stand']
+export const BAYS_AND_DOORS: readonly Claim['kind'][] = ['bay', 'taxi', 'door']
+
+/** Ground `w` by `d` at `(x, y)` turned `ry`, as a claim or a question about one has it. */
+type Ground = Pick<Claim, 'x' | 'y' | 'w' | 'd' | 'ry'>
+
+/**
+ * How far ground `a` grown `ga` m each side reaches into claim `c` grown `gc` m each side (shrunk, if below 0): along each
+ * of the two boxes' sides (the separating axes), how far either would move to clear the other, and the least of those;
+ * 0 or less where they are apart. Unlike their overlap, it holds for a point within a box. The sides are taken as
+ * `overlap` in `zones/ground` takes them, so that ground a Zone once kept in a list of its own is held as it was; or, for
+ * a bay or a door step (`kept`), as the kit always took them.
+ */
+function reach(a: Ground, ga: number, c: Ground, gc: number, kept: boolean): number {
+  const outline = (b: Ground, grow: number) =>
+    [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].map(([u, v]) => to(b.x, b.y, b.ry, u * (b.w / 2 + grow), v * (b.d / 2 + grow)))
+  const sides = (ry: number) =>
+    kept
+      ? [ry, ry + Math.PI / 2].map((t) => [Math.cos(t), Math.sin(t)])
+      : [
+          [Math.cos(ry), Math.sin(ry)],
+          [-Math.sin(ry), Math.cos(ry)],
+        ]
+  const [mine, theirs] = [outline(a, ga), outline(c, gc)]
+  return Math.min(
+    ...[...sides(a.ry), ...sides(c.ry)].map(([ax, ay]) => {
+      const along = (p: [number, number]) => p[0] * ax + p[1] * ay
+      const [m, s] = [mine.map(along), theirs.map(along)]
+      return Math.min(Math.max(...m) - Math.min(...s), Math.max(...s) - Math.min(...m))
+    }),
+  )
 }
 
 /** A scene (#173, rule 5) a fill laid (#191): its kind, as its Zone names it; its bricks carry its index. */
@@ -558,28 +599,21 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const claim = (kind: Claim['kind'], x: number, y: number, w: number, d: number, ry: number) => {
     claims.push({ kind, x, y, w, d, ry, brick: bricks.length })
   }
-  /** Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far: `kit.unclaimed`. */
-  const unclaimed = (x: number, y: number, w: number, d: number, ry = 0) => {
-    const outline = (b: { x: number; y: number; w: number; d: number; ry: number }) =>
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([u, v]) => to(b.x, b.y, b.ry, (u * b.w) / 2, (v * b.d) / 2))
-    const mine = outline({ x, y, w, d, ry })
-    // Apart along one of the two boxes' sides (the separating axes), or within a sliver of it.
-    return claims.every((c) => {
-      const theirs = outline(c)
-      return [ry, c.ry].some((turn) =>
-        [turn, turn + Math.PI / 2].some((a) => {
-          const along = (p: [number, number]) => p[0] * Math.cos(a) + p[1] * Math.sin(a)
-          const [m, t] = [mine.map(along), theirs.map(along)]
-          return Math.min(Math.max(...m), Math.max(...t)) - Math.max(Math.min(...m), Math.min(...t)) <= 0.02
-        }),
-      )
-    })
+  /** Lay claim to the ground a piece standing from Stage `from` stands on (#198): `kit.stand`. */
+  const stand = (x: number, y: number, w: number, d = w, ry = 0, from = 1) => {
+    claims.push({ kind: 'stand', x, y, w, d, ry, brick: bricks.length, ...(from > 1 && { from }) })
   }
+  /** Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far: `kit.unclaimed`. */
+  const unclaimed = (x: number, y: number, w: number, d: number, ry = 0, room = 0, of: readonly Claim['kind'][] = CLAIMS) => {
+    const mine = { x, y, w, d, ry }
+    const grow = w || d ? room : 0 // a point stays one, `room` m from each claim
+    // Apart from a bay or a door step, or within a sliver of it; apart from what stands, both grown `room`.
+    return claims.every(
+      (c) => !of.includes(c.kind) || (c.kind === 'stand' ? reach(mine, grow, c, room, false) <= 0 : reach(mine, 0, c, 0, true) <= 0.02),
+    )
+  }
+  /** The ground standing pieces claimed on the Block so far, of those standing at Stage `stage`: `kit.claimed`. */
+  const claimed = (stage = 3): readonly Claim[] => claims.filter((c) => c.kind === 'stand' && (c.from ?? 1) <= stage)
   /**
    * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
    * deep, and as wide as the door less 0.2 m either side, where its frame stands and pot plants may flank it.
@@ -1089,10 +1123,26 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     claim,
 
     /**
+     * Lay claim to the ground a standing piece stands on (#198), with what room it keeps round it: a box `w` by `d` at
+     * `(x, y)` turned `ry`, its piece standing from Stage `from`. Laid as the piece is placed, whatever the Stage built,
+     * so that the next piece's `unclaimed` keeps off it at every Stage; riding the next brick closed, as `claim`.
+     */
+    stand,
+
+    /**
      * Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far (#193): the
-     * bays and the steps before doors, which later pieces read rather than a list of their own.
+     * bays and the steps before doors but for a sliver, and the ground standing pieces took (`stand`), it and each grown
+     * `room` m each side (shrunk, if below 0, as `overlap` in `zones/ground` shrinks both), which later pieces read rather
+     * than a list of their own (#198). A point asks with `w` and `d` 0: whether it lies `room` m or more from each. It asks after the claims `of` those kinds, every kind by
+     * default: what stands (`['stand']`) for ground that lies flat or is passed over, as a bay's paint or a mover's way.
      */
     unclaimed,
+
+    /**
+     * The ground standing pieces claimed on the Block so far (#198), of those standing at Stage `stage` (all, by
+     * default): for what reads the ground left bare, rather than asks whether one piece's is free.
+     */
+    claimed,
 
     /**
      * Something that stands the same at every Stage from `first` on, built by `fn` on a random stream of its own: seeded

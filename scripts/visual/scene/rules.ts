@@ -113,12 +113,13 @@ function together(a: Thing, b: Thing): boolean {
 /**
  * Nothing overlaps what it should keep clear of (#173): no standing thing stands on a parking or taxi bay but a parked
  * car, or on the step before a door but its own building; and no two standing things overlap, scenes, utility poles,
- * lamps and street trees among them, unless they are one scene's.
+ * lamps and street trees among them, unless they are one scene's. The ground a piece stands on (#198) is held to account
+ * as the piece itself is, by the pairs.
  */
 export const keepsClear: Rule = (r) => {
   const out: Failure[] = []
   const standers = r.things.filter(standing)
-  for (const c of r.claims) {
+  for (const c of r.claims.filter((c) => c.kind !== 'stand')) {
     const claim = { feet: [c.hull], box: boxOfHull(c.hull) }
     for (const t of standers) {
       if (t.id === c.thing || (c.kind !== 'door' && PARKED.has(t.what))) continue
@@ -135,7 +136,7 @@ export const keepsClear: Rule = (r) => {
   return out
 }
 
-const claimName = (c: Claim) => ({ bay: 'parking bay', taxi: 'taxi bay', door: 'door step' })[c.kind]
+const claimName = (c: Claim) => ({ bay: 'parking bay', taxi: 'taxi bay', door: 'door step', stand: "piece's ground" })[c.kind]
 const boxOfHull = (h: Hull): Box => ({
   x0: Math.min(...h.map((p) => p.x)),
   y0: Math.min(...h.map((p) => p.y)),
@@ -367,7 +368,9 @@ export const emptyPavement: Rule = (r) => {
   r.blocks.forEach((b, i) => {
     if (!filled(r, i)) return
     const near = standers.filter((t) => t.block === i || t.block < 0)
-    const bays = r.claims.filter((c) => c.block === i && c.kind !== 'door').map((c) => ({ feet: [c.hull], box: boxOfHull(c.hull) }))
+    const bays = r.claims
+      .filter((c) => c.block === i && (c.kind === 'bay' || c.kind === 'taxi'))
+      .map((c) => ({ feet: [c.hull], box: boxOfHull(c.hull) }))
     const runs = b.kerb ?? [along([...b.loop, b.loop[0]], EMPTY.step)]
     let [longest, at]: [number, Pt | null] = [0, null]
     for (const pts of runs) {

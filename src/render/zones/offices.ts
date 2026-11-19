@@ -10,7 +10,7 @@ import { GROW } from '../landmarks'
 import { panel, PATTERN, wrap } from '../pattern'
 import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
 import { planter, type Footprint } from '../kerbside'
-import { corners, fit, lotsOf, near, overlap, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { corners, fit, lotsOf, near, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import {
   alongEdge,
   beside,
@@ -100,8 +100,12 @@ function offices(g: ZoneGround) {
   // A lot no tower fits, as at a rounded corner, takes the Block's scene, or else is left a grove.
   const open = lots.filter((_, i) => !bodies[i])
   const scenes = sceneGrounds(g, plans, bodies, open)
-  const taxi = taxiGround(g, plans, [...scenes.map((s) => s.ground)], bodies)
-  const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
+  for (const { ground: s } of scenes) kit.stand(s.x, s.y, s.w, s.d, s.ry)
+  const taxi = taxiGround(g, plans, bodies)
+  if (taxi) kit.stand(taxi.x, taxi.y, taxi.w, taxi.d, taxi.ry)
+  // The scenes' and the taxi bay's ground, which each tower stands back from by its bounds (`standBack`), as a claim,
+  // which answers only whether ground is free, cannot say (#198).
+  const grounds = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
   const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
   const formsLaid: { lot: Bounds; form: OfficeForm }[] = []
@@ -114,11 +118,11 @@ function offices(g: ZoneGround) {
     const odd = kit.chance(0.06)
     const seed = (kit.range(0, 1) * 4294967296) >>> 0
     if (odd) {
-      if (standBack(body, taken)) grove(g, lots[i], taken) // the odd lot left to trees
+      if (standBack(body, grounds)) grove(g, lots[i]) // the odd lot left to trees
       continue
     }
     const planted = (kit.range(0, 1) * 4294967296) >>> 0
-    const tower = standBack(body, taken)
+    const tower = standBack(body, grounds)
     if (!tower) continue
     const { x, y, w, d } = tower
     // Its form: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot
@@ -133,7 +137,7 @@ function offices(g: ZoneGround) {
     formsLaid.push({ lot: lots[i], form })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road, where its canopy and the step
     // before its door keep off a scene's ground and the taxi bay (#193).
-    const entrance = entranceOf(g, tower, taken)
+    const entrance = entranceOf(g, tower) // glossary-ok: main's name
     kit.staged((stage) => {
       const [t, tall] = [kit.range(0, 1), kit.chance(SKYLINE.tall)]
       kit.range(0, 1) // its form's draw, `form` above: still drawn, so that every draw after it stays
@@ -145,10 +149,10 @@ function offices(g: ZoneGround) {
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
       officeTower(kit, x, y, KERB, w, d, floors, form, stage, { gondola, plate, entrance }) // glossary-ok: main's name
     }, seed)
-    officePlaza(g, tower, entrance, taken, paving, planted, body)
+    officePlaza(g, tower, entrance, paving, planted, body) // glossary-ok: main's name
   }
   kit.lot(-1)
-  for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot, taken)
+  for (const lot of open) if (!scenes.some((s) => inBounds(lot, s.ground))) grove(g, lot)
   for (const { ground: s, kind, from, entry } of scenes) {
     kit.scene(kind, () => {
       kit.staged((stage) => officeScene(kit, kind, s, stage, from), spot(s.x, s.y))
@@ -178,17 +182,17 @@ interface Body {
 }
 
 /**
- * Body `b` standing back from all of `taken` (#177): its plinth, 0.8 m out, kept `OFFICE_FINISH.clear` m from each, cut
+ * Body `b` standing back from all of `grounds` (#177): its plinth, 0.8 m out, kept `OFFICE_FINISH.clear` m from each, cut
  * back on whichever side keeps it largest; null if that leaves it under `OFFICES.least` across.
- * ponytail: each of `taken` is stood back from by its bounds east–west and north–south. Ceiling: ground turned along a
+ * ponytail: each of `grounds` is stood back from by its bounds east–west and north–south. Ceiling: ground turned along a
  * diagonal run, as on a Curve's or a Roundabout's Blocks, has bounds up to 1.4 times its size each way, so a tower beside
  * it is cut back further than it need be, or left out when that leaves it under `OFFICES.least`. Upgrade: cut by the
  * turned ground's own sides, as `overlap` tests them.
  */
-function standBack(b: Body, taken: RowLot[]): Body | null {
+function standBack(b: Body, grounds: RowLot[]): Body | null {
   let [x0, y0, x1, y1] = [b.x - b.w / 2, b.y - b.d / 2, b.x + b.w / 2, b.y + b.d / 2]
   let cut = false
-  for (const t of taken) {
+  for (const t of grounds) {
     const pad = 0.8 + OFFICE_FINISH.clear
     const pts = corners(t, 0)
     const [bx0, by0] = [Math.min(...pts.map((p) => p.x)) - pad, Math.min(...pts.map((p) => p.y)) - pad]
@@ -268,10 +272,10 @@ function nearestFace({ field }: ZoneGround, x: number, y: number, ax: number, ay
 
 /**
  * The face of `FACES` tower `t` opens its door on (#177): the nearest the Block's edge (`nearestFace`) whose lobby, from
- * the plinth's face out past the canopy's posts and the step before the door, stands on the Block clear of `taken`
- * (#193); else the nearest whose lobby stands on the Block; else the nearest.
+ * the plinth's face out past the canopy's posts and the step before the door, stands on the Block on unclaimed ground
+ * (#193, #198); else the nearest whose lobby stands on the Block; else the nearest.
  */
-function entranceOf({ field }: ZoneGround, t: Body, taken: RowLot[]): number {
+function entranceOf({ kit, field }: ZoneGround, t: Body /* glossary-ok: main's name */): number {
   const edge = (k: number) => field.sample(t.x + FACES[k][0] * (t.w / 2 + 3), t.y + FACES[k][1] * (t.d / 2 + 3))
   const order = [0, 1, 2, 3].sort((a, b) => edge(a) - edge(b))
   const lobby = (k: number): RowLot => {
@@ -279,7 +283,10 @@ function entranceOf({ field }: ZoneGround, t: Body, taken: RowLot[]): number {
     return { ...turned(t.x, t.y, ry, 0, half + 0.8 + 1.15), w: LOBBY.wide + 0.2, d: 2.3, ry, onRoad: false }
   }
   const on = (k: number) => corners(lobby(k), 0).every((p) => field.sample(p.x, p.y) > 0.2)
-  const clear = (k: number) => !taken.some((o) => overlap(o, lobby(k), 0))
+  const clear = (k: number) => {
+    const l = lobby(k)
+    return kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
+  }
   return order.find((k) => on(k) && clear(k)) ?? order.find(on) ?? order[0]
 }
 
@@ -316,18 +323,26 @@ function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLo
 /**
  * A lot left a grove (#177), the odd one or one that no tower fits and no scene takes: paved as a plaza as far as the
  * Block lets it, and up to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the
- * street trees and what `taken` holds, with a bench by the first, Block-zoom, on whichever side of it the bench stands
- * as clear, and of the other beds.
+ * street trees and the ground claimed, with a bench by the first, Block-zoom, on whichever side of it the bench stands
+ * as clear; each takes its ground (#198).
  */
-function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
+function grove(g: ZoneGround, lot: Bounds) {
   const { kit } = g
   const [cx, cy] = [(lot.x0 + lot.x1) / 2, (lot.y0 + lot.y1) / 2]
   const paved = fit(g, cx, cy, lot.x1 - lot.x0 + 3, lot.y1 - lot.y0 + 3, OFFICE_FINISH.edge, 6, 1, 8)
   if (paved) kit.from(1, () => kit.paving(cx, cy, KERB, paved.w, paved.d, 0, PLANTER, PATTERN.plaza), spot(cx, cy) + 5)
-  const placed = [...taken]
-  /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and of all placed so far. */
-  const free = (l: RowLot, clear: number) =>
-    stands(g, l.x, l.y, l.w, l.d, clear, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l))
+  /**
+   * Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and unclaimed but for a sliver
+   * (0.15 m in from each side of it and what stands); and if so, claimed.
+   */
+  const free = (l: RowLot, clear: number) => {
+    const ok =
+      stands(g, l.x, l.y, l.w, l.d, clear, l.ry) &&
+      !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) &&
+      kit.unclaimed(l.x, l.y, l.w, l.d, l.ry, -0.15)
+    if (ok) kit.stand(l.x, l.y, l.w, l.d, l.ry)
+    return ok
+  }
   const beds: RowLot[] = []
   for (const [u, v] of [
     [0, 0],
@@ -349,7 +364,6 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
     kit.staged((stage) => kit.tree(px, py, KERB + 0.5, GROW[stage - 1] * 0.55, 'round'), spot(px, py) + 1)
   }
   if (!beds.length) return
-  placed.push(...beds.slice(1))
   const { x, y } = beds[0]
   for (const [ox, oy, ry] of [
     [0, -2.2, Math.PI],
@@ -367,14 +381,14 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
 /**
  * The ground of the taxi bay at the kerb of an offices Block (#177), drawn from `draw`: along a straight run facing a
  * Road, long enough for two taxis or else one, clear of the run's ends, where the lamps and the zebras are, of the
- * scenes' ground `scenes` and the street trees, and taking no tower of `bodies` under `OFFICES.least` across; null if
+ * scenes' ground (claimed) and the street trees, and taking no tower of `bodies` under `OFFICES.least` across; null if
  * none fits.
  */
-function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies: (Body | null)[]): RowLot | null {
+function taxiGround(g: ZoneGround, draw: () => number, bodies: (Body | null)[]): RowLot | null {
   const { long, deep, ends } = OFFICE_FINISH.taxi
   const road = runs(g, OFFICE_FINISH.taxi.in).filter(facesRoad)
   return alongEdge(g, draw, road, smaller([long, deep], [5.6, deep]), { lampRoom: 1.6, clear: 0.5, ends }, (l) => {
-    return !scenes.some((o) => overlap(o, l, 0)) && bodies.every((b) => !b || !!standBack(b, [l]))
+    return g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry) && bodies.every((b) => !b || !!standBack(b, [l]))
   })
 }
 
@@ -382,11 +396,11 @@ function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies:
  * What stands on tower `t`'s plaza (#177), its door on face `entrance` (of `FACES`), each drawn from where it stands:
  * chequered paving in the Block's `paving` from Stage 1, out to the plinth's reach or the Block's edge; the flags of
  * #154 beside the canopy; from Stage 2 a sculpture, a clock or a fountain on the canopy's other side; and on the faces
- * either side of the door a bench, Block-zoom, from Stage 1 and planters by it from Stage 2, on what `taken` leaves; at
- * Stage 3 trees in planters at two corners, drawn from `planted`, as they always were. Its flags are drawn from `stood`,
- * where its lot's tower stood before any scene, as they always were.
+ * either side of the door a bench, Block-zoom, from Stage 1 and planters by it from Stage 2, on unclaimed ground, each
+ * taking its own (#198); at Stage 3 trees in planters at two corners, drawn from `planted`, as they always were. Its
+ * flags are drawn from `stood`, where its lot's tower stood before any scene, as they always were.
  */
-function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], paving: string, planted: number, stood: Vec) {
+function officePlaza(g: ZoneGround, t: Body, entrance: number /* glossary-ok: main's name */, paving: string, planted: number, stood: Vec) {
   const { kit, field, block } = g
   const { x, y, w, d } = t
   // The paving, as far out as the Block lets it, clear of the kerbstone line.
@@ -403,19 +417,21 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
   while (!on(pw, pd) && pw > w + 1.6) [pw, pd] = [pw - 0.5, pd - 0.5]
   if (on(pw, pd)) kit.from(1, () => kit.paving(x, y, KERB, pw, pd, 0, paving, PATTERN.plaza), spot(x, y) + 11)
 
-  const placed: RowLot[] = [...taken]
-  /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and of all placed so far. */
+  /** Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and unclaimed. */
   const free = (l: RowLot) =>
-    stands(g, l.x, l.y, l.w, l.d, 0.7, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && !placed.some((o) => overlap(o, l, 0))
+    stands(g, l.x, l.y, l.w, l.d, 0.7, l.ry) && !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) && kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
+  /** Lay claim to ground `l` (#198). */
+  const take = (l: RowLot) => kit.stand(l.x, l.y, l.w, l.d, l.ry)
   const { ry, half } = boxFace(entrance, w, d)
   // The canopy's ground, which nothing else takes.
-  placed.push({ ...turned(x, y, ry, 0, half + 0.8 + LOBBY.canopy / 2), w: LOBBY.wide + 0.6, d: LOBBY.canopy + 0.4, ry, onRoad: false })
-  const side = flags(g, x, y, w, d, entrance, free, placed, stood)
+  const canopy = turned(x, y, ry, 0, half + 0.8 + LOBBY.canopy / 2)
+  kit.stand(canopy.x, canopy.y, LOBBY.wide + 0.6, LOBBY.canopy + 0.4, ry)
+  const side = flags(g, x, y, w, d, entrance, free, stood) // glossary-ok: main's name
   for (const s of side ? [-side] : [1, -1]) {
     const p = turned(x, y, ry, s * (LOBBY.wide / 2 + 2), half + 2.8)
     const l = { ...p, w: 3, d: 3, ry, onRoad: false }
     if (!free(l)) continue
-    placed.push(l)
+    take(l)
     const kind = OFFICE_FINISH.pieces[spot(p.x, p.y) % OFFICE_FINISH.pieces.length]
     kit.from(2, () => plazaPiece(kit, p.x, p.y, ry, kind), spot(p.x, p.y))
     break
@@ -426,23 +442,29 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
     const p = turned(x, y, fr, 0, fh + 1.9)
     const seat = { ...p, w: 2.4, d: 1.2, ry: fr, onRoad: false }
     if (!free(seat)) continue
-    placed.push(seat)
+    take(seat)
     kit.from(1, () => kit.blockZoomProps(() => kit.bench(p.x, p.y, KERB, fr)), spot(p.x, p.y))
     for (const u of [-2.6, 2.6]) {
       const q = turned(x, y, fr, u, fh + 1.9)
       const box = { ...q, w: 2.2, d: 1, ry: fr, onRoad: false }
       if (!free(box)) continue
-      placed.push(box)
+      take(box)
       kit.from(2, () => kit.blockZoomProps(() => planter(kit, q.x, q.y, fr, 1.8)), spot(q.x, q.y))
     }
   }
+  // The corners `planted`'s first draw picks, each where its ground is free: picked and claimed whatever the Stage, so
+  // that what is laid after keeps off them at every Stage (#198).
+  const flip = mulberry32(planted)() < 0.5 ? 1 : -1
+  const cornerBeds = [1, -1].flatMap((k) => {
+    const l = { x: x + k * (w / 2 + 2.2), y: y + k * flip * (d / 2 + 2.2), w: 2.2, d: 2.2, ry: 0, onRoad: false }
+    return free(l) ? [l] : []
+  })
+  for (const l of cornerBeds) kit.stand(l.x, l.y, 1.9) // its planter
   kit.from(
     3,
     () => {
-      const flip = kit.chance(0.5) ? 1 : -1
-      for (const k of [1, -1]) {
-        const [px, py] = [x + k * (w / 2 + 2.2), y + k * flip * (d / 2 + 2.2)]
-        if (!free({ x: px, y: py, w: 2.2, d: 2.2, ry: 0, onRoad: false })) continue
+      kit.chance(0.5) // the corners' draw, `flip` above: still drawn, so that each tree's size stays
+      for (const { x: px, y: py } of cornerBeds) {
         kit.add(kit.box(1.9, 0.7, 1.9, 0.3, 0.1), PLANTER, px, py, KERB)
         kit.tree(px, py, KERB + 0.7, kit.range(0.36, 0.44), 'round')
       }
@@ -456,7 +478,7 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
  * stood before any scene stood it back (#177), as they always were: a third of the towers from Stage 2 and two in three
  * at Stage 3, each flag in a colour of its own, in a row beside the canopy on its door's face `entrance` (#177), on
  * whichever side all three stand on ground `free` has free, or else, as before #177, in a row out from the middle of
- * another face, the one whose pavement lies nearest the Block's edge first; they then take their ground from `placed`.
+ * another face, the one whose pavement lies nearest the Block's edge first; they then take their ground (#198).
  * Returns the side of the canopy they stand on (1 or -1, along the face as `to` runs), or 0 for neither.
  */
 function flags(
@@ -467,7 +489,6 @@ function flags(
   d: number,
   entrance: number,
   free: (l: RowLot) => boolean,
-  placed: RowLot[],
   stood: Vec,
 ): number {
   const { kit } = g
@@ -495,7 +516,7 @@ function flags(
   for (const { poles, side } of rows) {
     if (!poles.every(room)) continue
     poles.forEach((p, k) => {
-      placed.push({ x: p.x, y: p.y, w: 1, d: 1, ry: 0, onRoad: false })
+      kit.stand(p.x, p.y, 1)
       kit.from(first, () => flag(kit, p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)]), spot(p.x, p.y))
     })
     return side

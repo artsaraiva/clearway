@@ -300,11 +300,14 @@ export function runs(g: ZoneGround, margin: number): Run[] {
   return out
 }
 
+/** m: the square of ground a yard's tree claims, which what is laid after it keeps off. */
+const YARD_TREE = 3
+
 /**
  * Up to `count` trees in the yards behind the rows `lots`, where there is room, growing with the Stage (`GROW`), and
- * `coarse` (the kit's `tree`) if asked: where they stand.
+ * `coarse` (the kit's `tree`) if asked, each claiming a square `YARD_TREE` m across (#198).
  */
-export function yards(g: ZoneGround, lots: RowLot[], count: number, coarse = false): Vec[] {
+export function yards(g: ZoneGround, lots: RowLot[], count: number, coarse = false) {
   const { kit, block, field } = g
   const planted: Vec[] = []
   for (let tries = 0; tries < count * 12 && planted.length < count; tries++) {
@@ -313,10 +316,10 @@ export function yards(g: ZoneGround, lots: RowLot[], count: number, coarse = fal
     if (lots.some((l) => near(l, x, y, 2.6)) || planted.some((p) => Math.hypot(p.x - x, p.y - y) < 6)) continue
     if (!stands(g, x, y, 3, 3, 2)) continue
     const [size, kind] = [kit.range(0.55, 0.85), kit.chance(0.25) ? 'sakura' : 'round'] as const
+    kit.stand(x, y, YARD_TREE)
     kit.staged((stage) => kit.tree(x, y, KERB, GROW[stage - 1] * size, kind, coarse))
     planted.push({ x, y })
   }
-  return planted
 }
 
 /** Where `(lx, ly)` in the frame of something at `(x, y)` turned `ry` lies, as the kit's `to` has it, as a point. */
