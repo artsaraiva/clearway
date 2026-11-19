@@ -4,9 +4,10 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Bounds, type Polyline, type Vec } from '../../sim/geometry'
 import { KERB, type Block } from '../blocks'
 import { inside, type Field } from '../field'
-import { spot, type Kit } from '../kit'
+import { type Kit, SHAPES, spot, STRAW, to } from '../kit'
 import { clearOf, overlay, site } from '../landmarks'
 import type { Look } from './ground'
+import { house } from './low-density'
 
 /** Farms' look (`./index`). */
 export const look: Look = { landmarks: false, fill: ({ kit, field, block, street }) => farm(kit, field, block, street) }
@@ -146,7 +147,7 @@ function furrows(worked: Row[], rows: Row[], home: number, along: boolean): { lo
  * the street trees `street`. The farmstead and each field are a lot, and each field is a brick. Its details (#149):
  * some fields are rice paddies, some go under vinyl greenhouses, scarecrows stand in some, a kei truck stands in the
  * farmyard, and tractors work the fields of crops. With the Stage:
- * - Stage 1: a cottage and a barn with no silo (the kit's `house` and `barn`), shoots in most fields and the rest left
+ * - Stage 1: a cottage and a barn with no silo (`./low-density`'s `house`, and `barn`), shoots in most fields and the rest left
  *   fallow, a fallow paddy flooded and bare; a scarecrow in some paddies.
  * - Stage 2: as above, every field grown; a tractor, the kei truck with two crates, the first greenhouses and more
  *   scarecrows.
@@ -166,8 +167,8 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
   if (yard) {
     kit.lot(0)
     const [hx, hy] = [yard.x - (along ? 0 : 6), yard.y + (along ? 5 : 0)]
-    kit.staged((stage) => kit.house(hx, hy, ground, 8, 7, stage))
-    kit.staged((stage) => kit.barn(yard.x + (along ? 0 : 5.5), yard.y - (along ? 4 : 0), ground, along ? 0 : -Math.PI / 2, stage))
+    kit.staged((stage) => house(kit, hx, hy, ground, 8, 7, stage))
+    kit.staged((stage) => barn(kit, yard.x + (along ? 0 : 5.5), yard.y - (along ? 4 : 0), ground, along ? 0 : -Math.PI / 2, stage))
     // In the yard (#149), on the side the default camera sees, clear of the silos and the tractors' turns: a kei truck
     // from Stage 2, and at Stage 3 a stack of crates beside it, each drawn from where it stands.
     const [truck, crates, facing] = along
@@ -305,4 +306,48 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
     kit.from(2, () => kit.mover('tractor', plan.loop, plan.stops, 0, ground), spot(x, y))
     if (n >= 2 * rows) kit.from(3, () => kit.mover('tractor', plan.loop, plan.stops, Math.floor(n / 2), ground), spot(x, y))
   }
+}
+
+// The barn: its palette and its builder, beside the fill that lays it (#207).
+const { cylinder: CYLINDER, sphere: SPHERE } = SHAPES
+// Farms: a barn's walls, roof and door, the silo and its dome, and bales of straw.
+const BARN = {
+  walls: ['#7e9aab', '#b85a4c', '#8aa58b'],
+  roof: '#5b6b7a',
+  door: '#f4f1ea',
+  silo: '#e9eef2',
+  dome: '#9aa7b2',
+  straw: STRAW,
+}
+
+/**
+ * A barn at Stage `stage` facing `ry`, with a few bales of straw before it, as one brick. Its colour is drawn before
+ * anything a Stage changes:
+ * - Stage 1: the barn and a bale.
+ * - Stage 2: a silo beside it, and three bales.
+ * - Stage 3: a second, shorter silo and a lean-to shed against its other side.
+ */
+function barn(kit: Kit, x: number, y: number, h: number, ry: number, stage = 2) {
+  kit.formed('barn')
+  kit.add(kit.box(9, 5.2, 7, 0.3, 0.1), kit.pick(BARN.walls), x, y, h, ry)
+  kit.add(kit.gable(9.6, 8, 3.2), BARN.roof, x, y, h + 5.2, ry + Math.PI / 2)
+  kit.local(kit.cuboid(3.2, 3.8, 0.3), BARN.door, x, y, ry, 0, 3.5, h)
+  if (stage > 1) {
+    const [sx, sy] = to(x, y, ry, 6.6, -1)
+    kit.add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.9, 9.5, 1.9)
+    kit.add(SPHERE, BARN.dome, sx, sy, h + 9.5, 0, 1.95, 1.4, 1.95)
+  }
+  if (stage === 3) {
+    const [sx, sy] = to(x, y, ry, 6.4, -4.6)
+    kit.add(CYLINDER, BARN.silo, sx, sy, h, 0, 1.5, 7, 1.5)
+    kit.add(SPHERE, BARN.dome, sx, sy, h + 7, 0, 1.55, 1.1, 1.55)
+    kit.local(kit.box(3.4, 3.2, 6, 0.2, 0.08), BARN.door, x, y, ry, -6.2, 0, h)
+    kit.local(kit.cuboid(4, 0.3, 6.6), BARN.roof, x, y, ry, -6.4, 0, h + 3.2)
+  }
+  for (const k of stage === 1 ? [1] : [0, 1, 2]) {
+    const [bx, by] = to(x, y, ry, -3 + k * 2.2, 5.6)
+    kit.add(CYLINDER, BARN.straw, bx, by, h, 0, 0.85, 1.1, 0.85)
+  }
+  kit.shadow(x, y, h, 12, 9, false, ry)
+  kit.brick('building', x, y, h)
 }

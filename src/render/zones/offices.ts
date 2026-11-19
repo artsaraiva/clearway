@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
-import { middle, polyline, type Bounds, type Vec } from '../../sim/geometry'
+import { type Bounds, middle, polyline, type Vec } from '../../sim/geometry'
 import { KERB } from '../blocks'
 import { PAINTS, TAXI } from '../cars'
 import { WIND } from '../day'
 import { inside } from '../field'
-import { boxFace, FACES, LOBBY, SHAPES, spot, to, type Kit, type OfficeStyle } from '../kit'
+import { boxFace, CREAM, DECK, FACES, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { GROW } from '../landmarks'
-import { PATTERN } from '../pattern'
+import { panel, PATTERN, wrap } from '../pattern'
 import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
 import { planter, type Footprint } from '../streets'
 import { corners, fit, lotsOf, near, overlap, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
@@ -75,7 +75,7 @@ export const look: Look = { landmarks: true, finish: true, fill: offices }
 
 /**
  * Offices: a glass tower on each large lot with room around it, most of them low, and the odd lot left a grove. A
- * tower gains floors and finish with each Stage (`FLOORS`, and the kit's `officeTower`), and at Stage 3 its plaza has
+ * tower gains floors and finish with each Stage (`FLOORS`, and `officeTower`), and at Stage 3 its plaza has
  * trees in planters at two corners.
  *
  * To the level of finish (#177), as the Block's plan has it (`OFFICE_FINISH`): before any tower is laid, the Block
@@ -143,7 +143,7 @@ function offices(g: ZoneGround) {
       const gondola = !hung.has(stage) && (style === 'curtain' || style === 'fins')
       if (gondola) hung.add(stage)
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
-      kit.officeTower(x, y, KERB, w, d, floors, style, stage, { gondola, plate, entrance })
+      officeTower(kit, x, y, KERB, w, d, floors, style, stage, { gondola, plate, entrance }) // glossary-ok: main's name, moved
     }, seed)
     officePlaza(g, tower, entrance, taken, paving, planted, body)
   }
@@ -759,4 +759,437 @@ export function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
   for (const k of [-1, 0, 1]) kit.put(kit.cuboid(0.16, 0.16, 0.08), TAXI_BAY.marks, px, py, ry, k * 0.24, 0, KERB + 2.24)
   kit.pool('cream', px, py, KERB, 2.6, 2.6)
   kit.brick('ground', x, y, KERB)
+}
+
+// The office tower: its palette, its plan and its builder, beside the fill that lays it (#207).
+const { cylinder: CYLINDER, centred: DISC, pyramid: PYRAMID, sphere: SPHERE, thin: THIN } = SHAPES
+const TAU = Math.PI * 2
+const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)] // for shaping in place
+// An office tower's curtain wall is one of these glasses, which the kit's one glass is tinted to, and its frame,
+// fins and crown one of these trims.
+const OFFICE_GLASS = ['#8fadc0', '#7b9db0', '#8cb5ae', '#5f778c', '#a6bfcb', '#c2b498']
+const OFFICE_TRIM = ['#f2f4f6', '#dde3e8', '#e6cfa6', '#c4ccd4', '#68727f']
+// Office details (#154): a cooling unit's fans, and an office helipad's grey pad, yellow ring and white H.
+const FAN = '#5b6570'
+const OFFICE_HELIPAD = { pad: '#68727f', ring: '#f0c75e', mark: '#f4f1ea' }
+// Offices to the level of finish (#177): the curtain wall's bay (m); a flat roof's plant in colours of its own, sage
+// cooling units, cream vents and a yellow duct, with steel railings and white satellite dishes; a name plate's board,
+// one a tower, in a company's colour, with marks for lettering; a revolving door's dark frame; and how brightly each
+// lit part glows, for the lamps' glow.
+const TOWER_FINISH = {
+  bay: 3.2,
+  unit: '#a9cdb9',
+  vent: '#efe6d2',
+  duct: '#f0c75e',
+  rail: '#9aa3ad',
+  dish: '#f4f6f8',
+  frame: '#4a525c',
+  boards: ['#2fb39a', '#f0b43c', '#79c86a', '#a58ad8', '#fbf8f2', '#2f3440'],
+  lit: { board: 0.33, soffit: 1, fascia: 1.4 },
+}
+/** An office lobby's canopy over its revolving door (#177): m out from the lobby and along it, and the door's radius. */
+const LOBBY = { canopy: 2.6, wide: 4.6, door: 0.95 }
+/** A satellite dish's bowl (#177), its rim 0.55 m across, tilted to face -z and up. */
+const DISH = new THREE.CylinderGeometry(0.55, 0.3, 0.14, 10).rotateX(-0.9)
+/**
+ * A window cleaners' cradle (#154): how far down a face it works at most and how far it goes between stops (m), how
+ * long it waits under its arms and at each stop on the way down (s, a range from which each stop draws its own), and,
+ * as `../movers` draws it, how far out from the face it hangs, and how far along from its middle and in from it its
+ * ropes are (m). A lap fits in the working day.
+ */
+const GONDOLA = { drop: 26, every: 6.4, waits: { top: 5, floor: [1.6, 2.6] }, reach: 0.85, ropes: 2.4, rope: 0.375 }
+const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // smoother, for a round tower's glass
+/** An office tower: a framed curtain wall, fins up its faces, tiers set back, or round. */
+type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
+
+/** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
+function cooler(kit: Kit, x: number, y: number, h: number, w: number, d: number) {
+  kit.add(kit.cuboid(w, 1.1, d), TOWER_FINISH.unit, x, y, h)
+  const fans = w >= 1.8 * d ? 2 : 1
+  const r = Math.min(d, w / fans) * 0.34
+  for (let k = 0; k < fans; k++) kit.add(DISC, FAN, x + (fans === 2 ? (k - 0.5) * w * 0.5 : 0), y, h + 1.12, 0, r, 0.04, r)
+}
+
+/** A vent on a roof at `(x, y)`, `h` above the road (#154): a stub under a wider cap. */
+function vent(kit: Kit, x: number, y: number, h: number) {
+  kit.add(THIN, TOWER_FINISH.vent, x, y, h, 0, 0.22, 0.8, 0.22)
+  kit.add(THIN, TOWER_FINISH.vent, x, y, h + 0.8, 0, 0.42, 0.18, 0.42)
+}
+
+/**
+ * An office tower of `floors` storeys on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a
+ * plinth with a lit lobby, then a curtain wall in one glass that pales toward the top where it catches the sky, and a
+ * crown. `style` shapes it:
+ * - `curtain`: framed by corner posts, under a parapet, a penthouse and sometimes a mast.
+ * - `fins`: fins up every face that rise past the roof as its crown, round a penthouse.
+ * - `stepped`: tiers set back, each framed and topped by a ledge, under a pointed cap and a spire.
+ * - `round`: a drum under a parapet ring, a dome and a spire.
+ *
+ * At Stage `stage`, whose floors the caller picks: Stage 1 builds the plain body, with no penthouse, spire or dome,
+ * one tier, and fewer floors lit at night. Stage 2 builds it as above. Stage 3 puts a spire on every style and a
+ * third tier on a stepped one, and lights more floors. Its glass, its trim and how busy it is are drawn before
+ * anything a Stage changes, so each Stage builds the same tower, better.
+ *
+ * Its details (#154), drawn from where it stands so that its own draws are untouched: plant on a flat roof, a
+ * couple of vents at Stage 1, cooling units from Stage 2 and more at Stage 3, when a tall tower and one in four of
+ * the rest carry a helipad on the penthouse; a white strobe on every spire, and amber lamps blinking on the roof's
+ * corners of a tall tower from Stage 2 and of every flat roof at Stage 3. With `more.gondola`, from Stage 2 a
+ * flat-roofed tower hangs a window cleaners' cradle on its south or east face, which creeps down it and climbs back.
+ *
+ * To the level of finish (#177): where the kit builds patterned, its curtain wall is surface pattern, a line at
+ * every floor and two panes to a bay in three tones paling toward the top, lit floor by floor at night (the
+ * pattern's lit mask), round a round tower too; laid floor by floor in the kit's glass otherwise, as before. Its roof
+ * wears square pavers and carries its plant in colours of its own, a yellow duct from Stage 2, railings and
+ * satellite dishes, and a penthouse wears panels and high windows. With `more.plate`, a name plate lit at night
+ * crowns it on all four sides. With `more.entrance`, a revolving door opens on that face (of `FACES`) under a canopy
+ * with a lit soffit, steps up to it from the plaza; the lobby's glow leaves a pool before each face, and the canopy
+ * a brighter one.
+ */
+function officeTower(
+  kit: Kit,
+  x: number,
+  y: number,
+  h: number,
+  w: number,
+  d: number,
+  floors: number,
+  style: OfficeStyle,
+  stage = 2,
+  more: { gondola?: boolean; plate?: boolean; entrance?: number } = {},
+) {
+  const { gondola = false, plate = false, entrance } = more
+  kit.formed(`office ${style}`)
+  const STOREY = 3.2
+  const SKY = new THREE.Color('#e9f4fb')
+  const [foot, trim, busy] = [new THREE.Color(kit.pick(OFFICE_GLASS)), kit.pick(OFFICE_TRIM), kit.rand()]
+  const litShare = [0.2 + 0.25 * busy, 0.3 + 0.45 * busy, 0.45 + 0.4 * busy][stage - 1]
+  /** Floor `f`'s glass: up to 30% of the way to the sky's colour at the top, and lit at night for `litShare` of the floors. */
+  const storey = (f: number): KitLook => ({
+    material: kit.glass,
+    tint: kit.glassOf(foot.clone().lerp(SKY, (0.3 * f) / Math.max(1, floors - 1))),
+    glow: kit.rand() < litShare ? kit.range(0.45, 0.8) : 0.04,
+  })
+  const base = h + 3.6
+  const body = floors * STOREY
+  const top = base + body
+  const own = mulberry32(spot(x, y))
+  own() // once the beacons' beat, which `../movers` now draws: still drawn, so that every draw after it stays
+  const [padDraw, south, slide, busier] = [own(), own() < 0.5, own(), own() < 0.6]
+  const [board, marks, dishes] = [TOWER_FINISH.boards[Math.floor(own() * TOWER_FINISH.boards.length)], 3 + Math.floor(own() * 3), own()]
+  const pad = stage === 3 && (floors >= 17 || padDraw < 0.25)
+  const lamps = stage === 3 || (stage === 2 && floors >= 14)
+  const seed = spot(x, y) + 17 // which of the pattern's floors light
+  /**
+   * Glass `bw` by `bd` from `at`, `n` floors from floor `f0` of the tower: a curtain wall of surface pattern in the
+   * tower's glass, paled for the floor it starts at, where the kit builds patterned, or a box of the kit's glass a
+   * floor.
+   */
+  const curtain = (bw: number, bd: number, at: number, n: number, f0: number, k = 0) => {
+    if (!kit.patterned) {
+      for (let f = 0; f < n; f++) kit.add(kit.cuboid(bw, STOREY, bd), storey(f0 + f), x, y, at + f * STOREY)
+      return
+    }
+    const paint = `#${foot
+      .clone()
+      .lerp(SKY, (0.3 * f0) / Math.max(1, floors - 1))
+      .getHexString()}`
+    const cladding = {
+      front: PATTERN.curtain,
+      back: PATTERN.curtain,
+      sides: PATTERN.curtain,
+      bay: TOWER_FINISH.bay,
+      storey: STOREY,
+      lit: litShare,
+    }
+    kit.cladded(kit.cuboid(bw, n * STOREY, bd), paint, x, y, at, 0, cladding, seed + k)
+  }
+  /**
+   * A curved roof, `geo` (a sphere or a cone) at `(x, y)`, `at` high, turned `ry` and scaled, wearing pavers, `around`
+   * of them round it and `rise` up it, where the kit builds patterned: a dome or a pointed cap.
+   */
+  const curved = (geo: THREE.BufferGeometry, at: number, ry: number, sx: number, sy: number, around: number, rise: number) => {
+    if (!kit.patterned) return kit.add(geo, trim, x, y, at, ry, sx, sy, sx)
+    const g = panel(geo.toNonIndexed(), PATTERN.deck, around, rise, mulberry32(seed + 11)())
+    kit.push(g.applyMatrix4(m.compose(new THREE.Vector3(x, at, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(sx, sy, sx))), trim)
+  }
+  /** Corner posts up a box `pw` by `pd`, from `from` for `tall` m. */
+  const posts = (pw: number, pd: number, from: number, tall: number) => {
+    for (const i of [-1, 1]) {
+      for (const j of [-1, 1]) kit.add(kit.box(1.2, tall, 1.2, 0.36, 0.1), trim, x + i * (pw / 2 - 0.45), y + j * (pd / 2 - 0.45), from)
+    }
+  }
+  /** Fine mullions about 3.2 m apart up the faces of a box `mw` by `md`, between its corners, where no pattern draws them. */
+  const mullions = (mw: number, md: number, from: number, tall: number) => {
+    if (kit.patterned) return
+    for (const [len, across, eastWest] of [
+      [mw, md, true],
+      [md, mw, false],
+    ] as const) {
+      const n = Math.max(2, Math.round(len / 3.2))
+      for (let i = 1; i < n; i++) {
+        const t = -len / 2 + (i * len) / n
+        for (const side of [-1, 1]) {
+          if (eastWest) kit.add(kit.cuboid(0.16, tall, 0.22), trim, x + t, y + (side * across) / 2, from)
+          else kit.add(kit.cuboid(0.22, tall, 0.16), trim, x + (side * across) / 2, y + t, from)
+        }
+      }
+    }
+  }
+  /** A flat roof `rw` by `rd` at `at`, wearing pavers, with a parapet round its edge if `parapet`. */
+  const roof = (rw: number, rd: number, at: number, parapet: boolean) => {
+    kit.cladded(kit.cuboid(rw - 0.2, 0.3, rd - 0.2), DECK, x, y, at, 0, { top: PATTERN.deck }, seed + 7)
+    if (!parapet) return
+    for (const side of [-1, 1]) {
+      kit.add(kit.cuboid(rw, 1.3, 0.45), trim, x, y + side * (rd / 2 - 0.22), at)
+      kit.add(kit.cuboid(0.45, 1.3, rd - 0.9), trim, x + side * (rw / 2 - 0.22), y, at)
+    }
+  }
+  /** A railing round a box `rw` by `rd` centred on `(cx, cy)` at `at`: posts about 3 m apart under a top rail and a mid rail. */
+  const railing = (rw: number, rd: number, at: number, cx = x, cy = y) => {
+    for (const side of [-1, 1]) {
+      for (const z of [0.5, 0.96]) {
+        kit.add(kit.cuboid(rw, 0.06, 0.06), TOWER_FINISH.rail, cx, cy + (side * rd) / 2, at + z)
+        kit.add(kit.cuboid(0.06, 0.06, rd), TOWER_FINISH.rail, cx + (side * rw) / 2, cy, at + z)
+      }
+      for (const [len, eastWest] of [
+        [rw, true],
+        [rd, false],
+      ] as const) {
+        const n = Math.max(1, Math.round(len / 3))
+        for (let i = 0; i < n; i++) {
+          const t = -len / 2 + (i * len) / n
+          if (eastWest) kit.add(kit.cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + t, cy + (side * rd) / 2, at)
+          else kit.add(kit.cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + (side * rw) / 2, cy - t, at)
+        }
+      }
+    }
+  }
+  /** A satellite dish on a roof at `(dx, dy)`, `at` high, on a stub, turned to the south. */
+  const dish = (dx: number, dy: number, at: number) => {
+    kit.add(THIN, TOWER_FINISH.rail, dx, dy, at, 0, 0.07, 0.75, 0.07)
+    kit.add(DISH, TOWER_FINISH.dish, dx, dy, at + 0.85, Math.PI)
+  }
+  /**
+   * A penthouse with its own little roof on a roof `rw` by `rd` at `at`, its walls in panels and high windows, and a
+   * plant box or two, with a helipad on it if the tower has one, and from Stage 2 a railing round its roof. Returns
+   * its top.
+   */
+  const penthouse = (rw: number, rd: number, at: number) => {
+    const [pw, pd] = [rw * 0.5, rd * 0.44]
+    const [px, py] = [x - rw * 0.08, y + rd * 0.08]
+    const walls = { front: PATTERN.wall, back: PATTERN.wall, sides: PATTERN.wall, storey: 3.4 }
+    kit.cladded(kit.box(pw, 3.4, pd, 0.4, 0.12), trim, px, py, at, 0, walls, seed + 3)
+    kit.add(kit.box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, px, py, at + 3.4)
+    kit.add(kit.box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), TOWER_FINISH.unit, x + rw * 0.28, y - rd * 0.27, at)
+    kit.add(kit.box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), TOWER_FINISH.unit, x - rw * 0.3, y - rd * 0.24, at)
+    if (pad) kit.helipad(px, py, at + 3.86, Math.min(pw, pd) / 2 - 0.8, OFFICE_HELIPAD)
+    railing(pw + 0.1, pd + 0.1, at + 3.8, px, py)
+    return at + 3.8
+  }
+  /**
+   * A spire `tall` m high from `at`, with a white strobe on its tip: off the middle of a helipad tower's roof `rw` by
+   * `rd`, onto its back corner.
+   */
+  const spire = (at: number, tall: number, r: number, rw = 0, rd = 0) => {
+    const [sx, sy] = pad && rw ? [x - rw * 0.4, y + rd * 0.4] : [x, y]
+    kit.add(CYLINDER, PLANT, sx, sy, at, 0, r, tall, r)
+    kit.beacon(sx, sy, at + tall, Math.max(0.42, r * 1.8), 'white')
+  }
+  /** Amber lamps on the corners of a roof `rw` by `rd`, `at` high, if the tower has them. */
+  const corners = (rw: number, rd: number, at: number) => {
+    if (!lamps) return
+    for (const i of [-1, 1]) for (const j of [-1, 1]) kit.beacon(x + i * (rw / 2 - 0.3), y + j * (rd / 2 - 0.3), at + 0.25, 0.4, 'amber')
+  }
+  /**
+   * Plant on a flat roof `rw` by `rd` at `at`, where no penthouse stands: two vents and a dish at Stage 1, cooling
+   * units along its east side, a duct along its south side and a second dish from Stage 2, more at Stage 3.
+   */
+  const plant = (rw: number, rd: number, at: number) => {
+    for (const u of [-0.12, 0.04]) vent(kit, x + rw * u, y - rd * 0.36, at)
+    dish(x - rw * 0.41, y + rd * 0.2, at)
+    if (stage === 1) return
+    const [cw, cd] = [Math.max(1.6, rw * 0.2), Math.max(1.4, rd * 0.18)]
+    cooler(kit, x + rw * 0.32, y + rd * 0.28, at, cw, cd)
+    if (stage === 3 || busier) cooler(kit, x + rw * 0.32, y + rd * 0.04, at, cw, cd)
+    if (stage === 3) cooler(kit, x - rw * 0.12, y + rd * 0.4, at, rw * 0.3, Math.max(1.2, rd * 0.1))
+    kit.add(kit.cuboid(rw * 0.56, 0.4, 0.4), TOWER_FINISH.duct, x - rw * 0.06, y - rd * 0.44, at)
+    if (dishes < [0, 0.6, 0.9][stage - 1]) dish(x - rw * 0.41, y - rd * 0.02, at)
+    if (stage === 3 && dishes < 0.5) dish(x + rw * 0.12, y - rd * 0.22, at)
+  }
+  /**
+   * A name plate lit at night on each face of the crown, `out` m from the middle of a box `bw` by `bd` (or the
+   * body's), its foot `z` high: a board in a company's colour, its marks pale and lit on a dark or a coloured board
+   * and dark on a pale one.
+   */
+  const namePlates = (bw: number, bd: number, z: number, out = 0.08) => {
+    if (!plate) return
+    const mark = kit.markOf(board, true)
+    for (let k = 0; k < 4; k++) {
+      const { ry, half, len } = boxFace(k, bw, bd)
+      const pw = Math.min(len * 0.62, 9)
+      kit.local(kit.cuboid(pw, 0.95, 0.14), kit.lit(board, TOWER_FINISH.lit.board), x, y, ry, 0, half + out, z)
+      const size = 0.5
+      for (let i = 0; i < marks; i++)
+        kit.local(kit.cuboid(size, size, 0.04), mark, x, y, ry, (i - (marks - 1) / 2) * size * 1.5, half + out + 0.08, z + 0.22)
+    }
+  }
+
+  // A plinth, a lit lobby and a band over it.
+  kit.add(kit.box(w + 1.6, 0.8, d + 1.6, 1.4, 0.16), trim, x, y, h)
+  kit.add(kit.box(w + 0.6, 2.4, d + 0.6, 1.2, 0.08), { material: kit.glass, tint: kit.windows[0] }, x, y, h + 0.8)
+  kit.add(kit.box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, x, y, h + 3.2)
+  // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the Road.
+  for (let k = 0; k < 4; k++) {
+    const { ry, half, len } = boxFace(k, w, d)
+    kit.pool('lobby', ...to(x, y, ry, 0, half + 2), h, len + 2, 2.8, ry)
+  }
+  if (entrance !== undefined) {
+    const { ry, half } = boxFace(entrance, w, d)
+    const { canopy, wide, door } = LOBBY
+    const out = half + 0.8 // the plinth's face
+    kit.local(kit.cuboid(3.4, 0.8, 0.6), trim, x, y, ry, 0, out + 0.3, h) // a landing before the door
+    kit.local(kit.cuboid(3.4, 0.4, 0.5), trim, x, y, ry, 0, out + 0.85, h) // and a step up to it
+    kit.doorway(x, y, ry, 2 * door, out + 1.1)
+    const drum = to(x, y, ry, 0, half + 0.3)
+    kit.add(CYLINDER, { material: kit.glass, tint: kit.windows[0], glow: 1.4 }, ...drum, h + 0.8, 0, door, 2.3, door)
+    kit.add(CYLINDER, TOWER_FINISH.frame, ...drum, h + 3.05, 0, door + 0.08, 0.16, door + 0.08)
+    kit.local(kit.cuboid(0.1, 2.3, 0.1), TOWER_FINISH.frame, x, y, ry, 0, half + 0.3 + door, h + 0.8)
+    kit.local(kit.cuboid(wide, 0.22, canopy), trim, x, y, ry, 0, out + canopy / 2 - 0.5, h + 3.24)
+    kit.local(
+      kit.cuboid(wide - 0.4, 0.04, canopy - 0.5),
+      kit.lit(CREAM, TOWER_FINISH.lit.soffit),
+      x,
+      y,
+      ry,
+      0,
+      out + canopy / 2 - 0.5,
+      h + 3.2,
+    )
+    kit.local(kit.cuboid(wide + 0.02, 0.1, 0.06), kit.lit(CREAM, TOWER_FINISH.lit.fascia), x, y, ry, 0, out + canopy - 0.5, h + 3.3)
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.14, 3.24, 0.14), trim, x, y, ry, k * (wide / 2 - 0.15), out + canopy - 0.65, h)
+    kit.pool('canopy', ...to(x, y, ry, 0, out + canopy / 2 + 0.4), h, wide + 2.4, canopy + 2.2, ry)
+  }
+  if (style === 'round') {
+    const r = Math.min(w, d) / 2
+    if (kit.patterned) {
+      const g = wrap(ROUND.toNonIndexed(), TAU * r, body, TOWER_FINISH.bay, STOREY, litShare, mulberry32(seed)())
+      kit.push(
+        g.applyMatrix4(m.compose(new THREE.Vector3(x, base, -y), q.identity(), new THREE.Vector3(r, body, r))),
+        `#${foot.getHexString()}`,
+      )
+    } else {
+      for (let f = 0; f < floors; f++) kit.add(ROUND, storey(f), x, y, base + f * STOREY, 0, r, STOREY, r)
+      const n = Math.max(10, Math.round((TAU * r) / 3.2))
+      for (let i = 0; i < n; i++)
+        kit.add(kit.cuboid(0.2, body, 0.2), trim, x + Math.cos((i * TAU) / n) * r, y + Math.sin((i * TAU) / n) * r, base)
+    }
+    kit.add(ROUND, trim, x, y, top, 0, r + 0.3, 1.4, r + 0.3)
+    namePlates(2 * r + 0.6, 2 * r + 0.6, top + 0.22)
+    if (stage === 1) {
+      kit.add(ROUND, DECK, x, y, top + 0.2, 0, r - 0.2, 1, r - 0.2)
+      for (const u of [-0.2, 0.15]) vent(kit, x + r * u, y - r * 0.35, top + 1.2)
+      dish(x - r * 0.4, y + r * 0.2, top + 1.2)
+    } else {
+      curved(SPHERE, top + 1.4, 0, r * 0.78, r * 0.52, 16, 10)
+      spire(top + 1.4 + r * 0.5, stage === 3 ? kit.range(9, 13) : kit.range(4, 6), 0.3)
+    }
+  } else if (style === 'stepped') {
+    // Each tier takes its share of the floors and stands 70% the size of the one below.
+    const shares = stage === 1 ? [1] : stage === 2 ? [0.6, 0.4] : [0.5, 0.3, 0.2]
+    let [tw, td, at, left] = [w, d, base, floors]
+    shares.forEach((share, i) => {
+      const n = i === shares.length - 1 ? left : Math.max(1, Math.round(floors * share))
+      curtain(tw - 0.2, td - 0.2, at, n, floors - left, i)
+      left -= n
+      posts(tw, td, at, n * STOREY)
+      mullions(tw - 0.2, td - 0.2, at, n * STOREY)
+      at += n * STOREY
+      if (i === shares.length - 1) namePlates(tw, td, at - 1.3, 0.02)
+      kit.add(kit.box(tw + 0.4, 0.7, td + 0.4, 1.3, 0.12), trim, x, y, at)
+      at += 0.7
+      if (i < shares.length - 1) {
+        railing(tw + 0.2, td + 0.2, at)
+        ;[tw, td] = [tw * 0.7, td * 0.7]
+      }
+    })
+    const r = Math.min(tw, td) * 0.707
+    const cap = stage === 1 ? Math.min(3.5, Math.min(tw, td) * 0.4) : Math.min(7, Math.min(tw, td) * 0.78)
+    curved(PYRAMID, at, Math.PI / 4, r, cap, 4 * Math.max(2, Math.round(r)), Math.max(2, Math.round(cap / 0.9)))
+    if (stage > 1) spire(at + cap - 0.4, stage === 3 ? kit.range(8, 12) : kit.range(5, 9), 0.24)
+  } else if (style === 'fins') {
+    curtain(w - 0.7, d - 0.7, base, floors, 0)
+    for (const [len, across, eastWest] of [
+      [w, d, true],
+      [d, w, false],
+    ] as const) {
+      const n = Math.max(3, Math.round(len / 2.4))
+      for (let i = 0; i < n; i++) {
+        const t = -len / 2 + 0.4 + (i * (len - 0.8)) / (n - 1)
+        for (const side of [-1, 1]) {
+          if (eastWest) kit.add(kit.cuboid(0.36, body + 2.6, 0.8), trim, x + t, y + side * (across / 2 - 0.4), base)
+          else kit.add(kit.cuboid(0.8, body + 2.6, 0.36), trim, x + side * (across / 2 - 0.4), y + t, base)
+        }
+      }
+    }
+    roof(w - 0.7, d - 0.7, top, false)
+    railing(w - 2.2, d - 2.2, top + 0.3)
+    plant(w - 2, d - 2, top + 0.3)
+    corners(w, d, top + 2.6)
+    namePlates(w, d, top + 1.3)
+    if (stage > 1) {
+      const crown = penthouse(w - 2, d - 2, top + 0.3)
+      if (stage === 3 || floors >= 14) spire(pad ? top + 0.3 : crown, stage === 3 ? kit.range(7, 11) : kit.range(5, 8), 0.3, w - 2, d - 2)
+    }
+  } else {
+    curtain(w - 0.2, d - 0.2, base, floors, 0)
+    posts(w, d, base, body)
+    mullions(w - 0.2, d - 0.2, base, body)
+    roof(w, d, top, true)
+    plant(w - 1, d - 1, top + 0.3)
+    corners(w, d, top + 1.3)
+    namePlates(w, d, top + 0.2)
+    if (stage > 1) {
+      const crown = penthouse(w, d, top + 0.3)
+      if (stage === 3 || floors >= 14 || kit.rand() < 0.4)
+        spire(pad ? top + 0.3 : crown, stage === 3 ? kit.range(7, 11) : kit.range(5, 9), 0.18, w - 1, d - 1)
+    }
+  }
+  if (gondola && stage > 1 && (style === 'curtain' || style === 'fins')) {
+    // A cradle on the south or east face, hanging from two arms over the roof's edge, that works down the face a
+    // couple of floors at a time, stopping at each to clean, and climbs back to wait under the arms.
+    const { drop, every, waits } = GONDOLA
+    const [len, across] = south ? [w, d] : [d, w]
+    const out = across / 2 + GONDOLA.reach
+    const heading = south ? -Math.PI / 2 : 0
+    const [fx, fy] = south ? [x, y - out] : [x + out, y]
+    const u = (slide * 2 - 1) * Math.max(0, len / 2 - 3.4)
+    const [high, low] = [top - h - 2.1, base - h + 1.2]
+    const fall = Math.min(drop, high - low)
+    const stops = [0]
+    for (let s = every; s < fall - 0.5; s += every) stops.push(s)
+    stops.push(fall)
+    const loop = polyline([
+      { x: u, y: high },
+      { x: u, y: high - fall },
+      { x: u, y: high },
+    ])
+    const wait = stops.map((_, i) => (i === 0 ? waits.top : waits.floor[0] + own() * (waits.floor[1] - waits.floor[0])))
+    // Each arm stands on the roof a little in from the face and reaches out over the cradle's rope at its end.
+    const arm = top + 2.4
+    const at = (along: number, o: number) => (south ? [x - along, y - o] : [x + o, y - along]) as [number, number]
+    const [o0, o1] = [across / 2 - 0.9, out - GONDOLA.rope + 0.15]
+    for (const k of [-1, 1]) {
+      kit.add(kit.cuboid(0.3, 2.6, 0.3), PLANT, ...at(u + k * GONDOLA.ropes, o0), top)
+      kit.add(
+        kit.cuboid(0.26, 0.26, o1 - o0 + 0.15),
+        PLANT,
+        ...at(u + k * GONDOLA.ropes, (o0 + o1) / 2),
+        arm - 0.2,
+        south ? 0 : Math.PI / 2,
+      )
+    }
+    kit.mover('gondola', loop, stops, 0, h, { waits: wait, face: { x: fx, y: fy, heading }, hang: arm - h, laps: true })
+  }
+  kit.shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4, style === 'round')
+  kit.brick('building', x, y, h)
 }

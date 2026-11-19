@@ -3,12 +3,13 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
 import { KEI } from '../cars'
-import { GARDEN, SHAPES, spot, to, type Gap, type HousePlan, type HouseRoof, type Hung, type Kit } from '../kit'
+import { AERIAL, CREAM, FRONTAGE, type Gap, GARDEN, HOME, type Hung, type Kit, LEDGE, SHAPES, spot, to } from '../kit'
 import { PATTERN } from '../pattern'
 import { bench, gardenShed, stoneLantern } from '../props'
 import type { Footprint } from '../streets'
 import { distance, fit, lotsOf, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import { beside, kerbAhead, placeScenes, sceneOrder, type Scene } from './scenes'
+import { gable } from '../shapes'
 
 // Low-density residential: lots at most 15.2 m on a side, 2.8 m in from the Block's bounding box. A lawn fills each
 // lot but for 0.4 m on every side, at least 7 m across and 0.6 m in from the Block's edge, and a house of at most 10 m
@@ -129,7 +130,9 @@ function houses(g: ZoneGround) {
     const home = homeOf(g, x, y, w, d)
     const plan = kit.finished ? housePlan(lots, i, home.front, roofs, plans) : undefined
     roofs.push(plan?.roof ?? null)
-    kit.staged((stage) => kit.house(home.x, home.y, ground, home.w, home.d, stage, { front: home.front, solar: stage >= home.solar, plan }))
+    kit.staged((stage) =>
+      house(kit, home.x, home.y, ground, home.w, home.d, stage, { front: home.front, solar: stage >= home.solar, plan }),
+    )
     const [sx, sy] = [kit.chance(0.5) ? 1 : -1, kit.chance(0.5) ? 1 : -1]
     // The seeds of the garden's trees, drawn as `kit.from` draws them, so that where each stands is known at every Stage.
     const seeds = [kit.range(0, 1), kit.range(0, 1)].map((r) => (r * 4294967296) >>> 0)
@@ -1077,4 +1080,320 @@ function barbecue(kit: Kit, l: Footprint, at: At, side: number, stage: number, h
     }
     kit.brick('building', cx, cy, h)
   })
+}
+
+// The house: its palette, its plans and its builder, beside the fill that lays it (#207). Farms lay it too.
+const { disc: FACING_DISC } = SHAPES
+// A house's walls and roofs, under the palette's rule at the top of `../kit` (#104).
+const WALLS = ['#fdeed6', '#ffd7b6', '#e0f2d4', '#cbebfc', '#fbe3a2', '#fbd2dd', '#e5dafb', '#fff7e8', '#c0e9e0']
+const ROOFS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548']
+const CHIMNEY = '#c9b8a6' // a Stage 3 house's, through its roof
+// Low-density residential to the level of finish (#179). A house: a bay of its walls (m); how steeply its roofs climb
+// (rise over run, as the gable it always had climbs over a house 8 m deep); on its ridge a TV aerial on the share of
+// the houses from Stages 1, 2 and 3 the roll drawn where it stands gives it; at Stage 3 a balcony along its front's upper
+// storey on a share of the houses, and on a share of the rest a dormer in its roof; a porch light by its door, how
+// brightly it glows; its balcony's pale parapet and steel rail; and at its back a gas meter and a downpipe.
+const HOME_FINISH = {
+  bay: 2.6,
+  slope: 0.74,
+  aerial: [0.4, 0.55, 0.65],
+  balcony: 0.5,
+  dormer: 0.6,
+  lamp: 1.6,
+  parapet: '#fbf6ef',
+  rail: '#9aa3ad',
+  meter: { box: '#e9eef2', dial: '#4a525c' },
+  pipe: '#c4ccd4',
+}
+/**
+ * A house's roof (#179): a gable along its long side, as the houses always had; a gable turned across it; a hip; or an
+ * L, a wing along its front and a wing down one side of its back, each under a gable.
+ */
+type HouseRoof = 'gable' | 'front' | 'hip' | 'L'
+/**
+ * What a house's lot gives it, the same at every Stage (#179): the side its front faces (0 east, 1 north, 2 west, 3
+ * south), its roof, and for an L the side of its back its second wing stands on (1 its right, -1 its left, as `local`'s
+ * x runs).
+ */
+export interface HousePlan {
+  front: number
+  roof: HouseRoof
+  wing: 1 | -1
+}
+/**
+ * A house's walls as its plan and Stage lay them out (#179), in the frame of its front (`local`'s): each wing a box `w`
+ * along the front by `d` deep, its middle `(u, v)` from the house's (u to the right, v out of the front), `door` if the
+ * front door is in its front. One wing, or two for an L, the first along the front.
+ */
+interface HouseWing {
+  u: number
+  v: number
+  w: number
+  d: number
+  door: boolean
+}
+/** Where a house's wings stand (#179): the house `across` m along its front and `deep` m deep, under `roof`. */
+function houseWings(across: number, deep: number, roof: HouseRoof, wing: 1 | -1): HouseWing[] {
+  if (roof !== 'L') return [{ u: 0, v: 0, w: across, d: deep, door: true }]
+  const [front, side] = [deep * 0.6, Math.max(2.4, across * 0.48)]
+  // The second wing reaches 0.3 m into the first and stands 0.03 m in from its side, so that no two faces lie together.
+  const back = deep - front + 0.3
+  return [
+    { u: 0, v: (deep - front) / 2, w: across, d: front, door: true },
+    { u: wing * (across / 2 - 0.03 - (side - 0.03) / 2), v: -deep / 2 + back / 2, w: side - 0.03, d: back, door: false },
+  ]
+}
+/**
+ * A pitched roof over one of a house's wings (#179), in the frame of its front as `HouseWing`s are: its middle `(u, v)`;
+ * whether its ridge runs along the front, or else out from it; how long it is along its ridge and across it, its eaves'
+ * overhang included; how high its ridge stands over its eaves; and whether it is hipped.
+ */
+interface HouseRoofShape {
+  u: number
+  v: number
+  along: boolean
+  len: number
+  wid: number
+  pitch: number
+  hip: boolean
+}
+/**
+ * The roofs over a house's wings (#179), as `roof` has them. A gable along the long side and a hip climb as the gable the
+ * houses always had (0.42 of the short side); a gable turned across the house climbs as steeply, to 1.3 times as high;
+ * an L's wings each climb at `HOME_FINISH.slope`, the second's ridge under the first's, which it runs into.
+ */
+function houseRoofs(wings: HouseWing[], roof: HouseRoof): HouseRoofShape[] {
+  const [a, b] = wings
+  const { slope } = HOME_FINISH
+  if (roof === 'L') {
+    const first = { u: a.u, v: a.v, along: true, len: a.w + 1.12, wid: a.d + 1.12, pitch: (slope * (a.d + 1.12)) / 2, hip: false }
+    const rear = -b.d / 2 + b.v - 0.4 // its back eave
+    const pitch = Math.min((slope * (b.w + 1.12)) / 2, first.pitch - 0.3)
+    return [first, { u: b.u, v: (rear + a.v) / 2, along: false, len: a.v - rear, wid: b.w + 1.12, pitch, hip: false }]
+  }
+  const [long, short] = [Math.max(a.w, a.d), Math.min(a.w, a.d)]
+  const pitch = short * 0.42
+  if (roof === 'front') {
+    const turned = Math.min(1.3 * pitch, (pitch / ((short + 1.12) / 2)) * ((long + 1.12) / 2))
+    return [{ u: 0, v: 0, along: a.w < a.d, len: short + 0.8, wid: long + 1.12, pitch: turned, hip: false }]
+  }
+  return [{ u: 0, v: 0, along: a.w >= a.d, len: long + 0.8, wid: short + 1.12, pitch, hip: roof === 'hip' }]
+}
+
+/**
+ * A house to the level of finish (#179) at Stage `stage`, its footprint at that Stage `w` (east–west) by `d` centred on
+ * `(x, y)`, its walls `wall` tall in `walls` under roofs in `roofs`, as `plan` lays it out, solar panels on its sunny
+ * slope if `solar`: wings in siding with a shuttered window in every bay on every face, under flat tiles; a porch roof
+ * over its door with a porch light that leaves its pool; a TV aerial on its ridge on some; at Stage 3 a ledge between
+ * its two storeys, a chimney, and a balcony along its front's upper storey or a dormer in its roof on some; and at its
+ * back, Close-only, an AC unit, a gas meter and a downpipe. `end` is the end of its ridge its chimney stands at.
+ */
+function home(
+  kit: Kit,
+  x: number,
+  y: number,
+  h: number,
+  w: number,
+  d: number,
+  wall: number,
+  stage: number,
+  plan: HousePlan,
+  walls: string,
+  roofs: string,
+  solar: boolean,
+  end: number,
+) {
+  const ry = ((plan.front - 1) * Math.PI) / 2
+  const [across, deep] = plan.front % 2 ? [w, d] : [d, w]
+  const storeys = stage === 3 ? 2 : 1
+  const seed = spot(x, y) + 31 // which windows light, and the finish's own draws, so the kit's stream is untouched
+  const wings = houseWings(across, deep, plan.roof, plan.wing)
+  const roofs3 = houseRoofs(wings, plan.roof)
+  const at = (u: number, v: number) => to(x, y, ry, u, v)
+  const front = deep / 2 // where its front wall stands, out from its middle
+  for (const [k, wing] of wings.entries()) {
+    const cladding = { front: wing.door ? PATTERN.homeFront : PATTERN.home, back: PATTERN.home, sides: PATTERN.home }
+    kit.cladded(
+      kit.box(wing.w, wall, wing.d, 0.2, 0.12),
+      walls,
+      ...at(wing.u, wing.v),
+      h,
+      ry,
+      { ...cladding, storey: wall / storeys, bay: HOME_FINISH.bay },
+      seed + k,
+    )
+    // Its contact shadow, wing by wing, so that none lies in an L's open corner.
+    kit.shadow(...at(wing.u, wing.v), h, wing.w * 1.3 + 1.6, wing.d * 1.3 + 1.6, false, ry)
+    // A ledge between its storeys; the second wing's stops where the first's begins.
+    if (stage === 3 && !k) kit.put(kit.cuboid(wing.w + 0.3, 0.24, wing.d + 0.3), LEDGE, x, y, ry, wing.u, wing.v, h + wall * 0.5)
+    if (stage === 3 && k) {
+      const [a] = wings
+      const len = a.v - a.d / 2 + deep / 2
+      kit.put(kit.cuboid(wing.w + 0.3, 0.24, len), LEDGE, x, y, ry, wing.u, -deep / 2 - 0.15 + len / 2, h + wall * 0.5)
+    }
+  }
+  // Its front door, in the middle of its front.
+  kit.put(kit.cuboid(1.05, 2.05, 0.14), HOME.door, x, y, ry, 0, front + 0.02, h)
+  kit.doorway(...at(0, front), ry, 1.05)
+  // Its roofs, in flat tiles under a darker ridge.
+  for (const [k, r] of roofs3.entries()) {
+    const shape = r.hip ? kit.hip(r.len, r.wid, r.pitch) : kit.gable(r.len, r.wid, r.pitch)
+    kit.tiled(shape, roofs, ...at(r.u, r.v), h + wall, ry + (r.along ? Math.PI / 2 : 0), seed + 10 + k, PATTERN.shingles)
+  }
+  kit.seeded(seed, () => {
+    const [aerialRoll, upRoll, turn, futonRoll] = [kit.rand(), kit.rand(), kit.rand(), kit.rand()]
+    const [main] = roofs3
+    const a = main.wid / 2 // its half-span, out from the ridge to the eaves
+    const ridgeHalf = main.hip ? Math.max(0, main.len / 2 - a) : main.len / 2 - 0.4
+    /** Where a point `along` m along its first roof's ridge from its middle and `out` m out over slope `side` (±1) lies. */
+    const onRoof = (along: number, out: number, side: number) =>
+      main.along ? at(main.u + along, main.v + side * out) : at(main.u + side * out, main.v + along)
+    // The sunny slope, the south one, or the east one where the ridge runs north–south, carries the panels, and the
+    // other the chimney.
+    const n = main.along ? to(0, 0, ry, 0, 1) : to(0, 0, ry, 1, 0) // the way the +1 slope looks
+    const ridgeEastWest = main.along ? Math.abs(Math.cos(ry)) > 0.5 : Math.abs(Math.sin(ry)) > 0.5
+    const sunny = (ridgeEastWest ? n[1] < 0 : n[0] > 0) ? 1 : -1
+    if (solar) {
+      const tilt = Math.atan2(main.pitch, a)
+      const slope = Math.hypot(a, main.pitch) * 0.62
+      const len = (main.hip ? (2 * ridgeHalf + main.len) / 2 : main.len) - 2.2
+      if (len >= 1.6) {
+        const [px, py] = onRoof(0, a / 2 + 0.2 * Math.sin(tilt), sunny)
+        const turnTo = Math.atan2(n[0] * sunny, -n[1] * sunny) // the panels face +z unturned: south
+        const [frame, cells] = kit.solarPanel(len, slope, tilt)
+        const up = h + wall + main.pitch / 2 + 0.2 * Math.cos(tilt)
+        kit.add(frame, HOME.trim, px, py, up, turnTo)
+        kit.add(cells, { material: kit.glass, tint: kit.glassOf(HOME.cells), glow: 0 }, px, py, up, turnTo)
+      }
+    }
+    if (stage === 3) {
+      const [cx, cy] = onRoof(end * Math.max(0, Math.min(ridgeHalf, main.len / 2 - 1.5)), 0.18 * (main.wid - 1.12), -sunny)
+      kit.add(kit.cuboid(0.9, main.pitch + 1.4, 0.9), CHIMNEY, cx, cy, h + wall + 0.3)
+    }
+    // A TV aerial at the other end of the ridge, Close-only: plain boxes, as they come by the hundred.
+    if (aerialRoll < HOME_FINISH.aerial[stage - 1]) {
+      const [px, py] = onRoof(-end * Math.max(0, ridgeHalf - 0.3), 0, 1)
+      kit.closeOnly(() => {
+        kit.add(kit.cuboid(0.07, 2.4, 0.07), AERIAL, px, py, h + wall + main.pitch - 0.3)
+        for (const [k, len] of [1.3, 0.85].entries())
+          kit.add(kit.cuboid(len, 0.04, 0.05), AERIAL, px, py, h + wall + main.pitch + 1.3 + k * 0.38, ry + turn * Math.PI)
+      })
+    }
+    const balcony = stage === 3 && upRoll < HOME_FINISH.balcony
+    const dormer = stage === 3 && !balcony && upRoll < HOME_FINISH.balcony + (1 - HOME_FINISH.balcony) * HOME_FINISH.dormer
+    if (balcony) {
+      // Along the upper storey of its front: a slab over the ledge behind a pale parapet under a steel rail, and a
+      // futon over the rail on some. It shelters the door, which then has no porch roof.
+      const bw = Math.min(across - 1.6, 5.2)
+      const floor = h + wall / 2 + 0.26
+      kit.put(kit.cuboid(bw, 0.2, 1.05), HOME_FINISH.parapet, x, y, ry, 0, front + 0.52, floor - 0.2)
+      kit.put(kit.cuboid(bw, 0.8, 0.07), HOME_FINISH.parapet, x, y, ry, 0, front + 1.01, floor)
+      for (const s of [-1, 1]) kit.put(kit.cuboid(0.07, 0.8, 1), HOME_FINISH.parapet, x, y, ry, s * (bw / 2 - 0.035), front + 0.52, floor)
+      kit.put(kit.cuboid(bw + 0.08, 0.06, 0.1), HOME_FINISH.rail, x, y, ry, 0, front + 1.01, floor + 0.8)
+      if (futonRoll < 0.45) kit.sway('futon', ...at((futonRoll < 0.22 ? -1 : 1) * Math.min(1.2, bw / 4), front + 1.06), floor + 0.86, ry)
+    } else {
+      // A porch roof over the door: a little gable out from the wall, in the roof's tiles, on two brackets.
+      kit.tiled(kit.gable(1.4, 2.2, 0.5), roofs, ...at(0, front + 0.55), h + 2.45, ry, seed + 20, PATTERN.shingles)
+      for (const s of [-1, 1]) kit.put(kit.tipped(0.08, 0.08, 1.05, 0.55), LEDGE, x, y, ry, s * 0.95, front + 0.45, h + 2.12)
+    }
+    if (dormer) {
+      // In the slope over its front, or the other where the panels lie there: a window in a little gabled box.
+      const side = main.along ? (solar && sunny === 1 ? -1 : 1) : solar ? -sunny : sunny
+      const face = main.along ? ry + (side === 1 ? 0 : Math.PI) : ry + (side === 1 ? -Math.PI / 2 : Math.PI / 2)
+      const out = 0.55 * a
+      const base = h + wall + main.pitch * (1 - out / a)
+      const [dx, dy] = onRoof(0, out - 0.85, side)
+      kit.put(kit.cuboid(1.5, 1.55, 1.7), walls, dx, dy, face, 0, 0, base - 0.3)
+      kit.put(kit.cuboid(1.06, 0.92, 0.05), FRONTAGE.trim, dx, dy, face, 0, 0.86, base + 0.17)
+      kit.put(kit.cuboid(0.9, 0.76, 0.06), { material: kit.glass, tint: kit.windows[0] }, dx, dy, face, 0, 0.87, base + 0.25)
+      kit.tiled(kit.gable(1.95, 1.9, 0.5), roofs, dx, dy, base + 1.25, face, seed + 21, PATTERN.shingles)
+    }
+    // A porch light by the door, under the porch roof or the balcony, and its pool before the door.
+    kit.put(kit.cuboid(0.2, 0.26, 0.12), kit.lit(CREAM, HOME_FINISH.lamp), x, y, ry, 0.85, front + 0.06, h + 1.95)
+    kit.pool('door', ...at(0, front + 1.5), h, 3.2, 2.4, ry)
+    // At its back, Close-only: an AC unit on the ground, a gas meter on the wall, and a downpipe at a corner.
+    const back = wings[wings.length - 1]
+    const rear = -deep / 2
+    kit.closeOnly(() => {
+      kit.put(kit.cuboid(0.12, wall - 0.3, 0.12), HOME_FINISH.pipe, x, y, ry, back.u + back.w / 2 - 0.25, rear - 0.08, h)
+      const meter = back.u - back.w / 2 + 0.8
+      kit.put(kit.cuboid(0.36, 0.46, 0.16), HOME_FINISH.meter.box, x, y, ry, meter, rear - 0.08, h + 1.1)
+      kit.put(FACING_DISC, HOME_FINISH.meter.dial, x, y, ry + Math.PI, -meter, -rear + 0.17, h + 1.4, 0.08, 0.08, 1)
+      if (back.w >= 3) kit.airCon(...at(back.u + 0.2, rear), h + 0.02, ry + Math.PI)
+    })
+  })
+}
+
+/**
+ * A house at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a wall box with
+ * a glass band a storey in one of the glass's tints, under a gable roof whose ridge runs the long way. It is at most
+ * 12 m on a side. What it is, its colours, its glass and how tall it stands within its Stage, is drawn before
+ * anything a Stage changes, so each Stage builds the same house, better:
+ * - Stage 1: a cottage, one low storey on 70% of the footprint, with a narrow band.
+ * - Stage 2: the house on the whole footprint, one tall storey.
+ * - Stage 3: two storeys with a ledge between them, and a chimney through the roof near one gable end.
+ * A house given a `plan` (#179) is built to the level of finish instead, its finish drawn after its colours and
+ * its size within its Stage, from where it stands (`home`): its walls in siding with shuttered windows on every face,
+ * under a roof of its plan's form.
+ */
+export function house(
+  kit: Kit,
+  x: number,
+  y: number,
+  h: number,
+  w: number,
+  d: number,
+  stage = 2,
+  more: { front?: number; solar?: boolean; plan?: HousePlan } = {},
+) {
+  const panes = { material: kit.glass, tint: kit.pick(kit.windows) }
+  kit.formed(more.plan ? `house ${more.plan.roof}` : 'house')
+  const [tall, walls, roofs, end] = [kit.rand(), kit.pick(WALLS), kit.pick(ROOFS), kit.rand() < 0.5 ? 1 : -1]
+  const k = stage === 1 ? 0.7 : 1
+  ;[w, d] = [Math.min(w, 12) * k, Math.min(d, 12) * k]
+  const wall = stage === 1 ? 3 + 0.5 * tall : stage === 2 ? 4.4 + 1.2 * tall : 6.6 + 0.8 * tall
+  if (more.plan) {
+    home(kit, x, y, h, w, d, wall, stage, more.plan, walls, roofs, !!more.solar, end)
+    return kit.brick('building', x, y, h)
+  }
+  kit.add(kit.box(w, wall, d, 0.48, 0.2), walls, x, y, h)
+  if (stage === 1) kit.add(kit.box(w + 0.16, 0.8, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.38)
+  else if (stage === 2) kit.add(kit.box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.42)
+  else {
+    kit.add(kit.box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.18)
+    kit.add(kit.cuboid(w + 0.3, 0.24, d + 0.3), LEDGE, x, y, h + wall * 0.5)
+    kit.add(kit.box(w + 0.16, 1.04, d + 0.16, 0.56, 0.08), panes, x, y, h + wall * 0.66)
+  }
+  const along = w >= d
+  const [ridge, span, pitch] = [along ? w : d, along ? d : w, Math.min(w, d) * 0.42]
+  kit.add(gable(ridge + 0.8, span + 1.12, pitch), roofs, x, y, h + wall, along ? Math.PI / 2 : 0)
+  if (stage === 3) {
+    const at = end * (ridge / 2 - 1.1)
+    const [cx, cy] = along ? [x + at, y + span * 0.18] : [x + span * 0.18, y + at]
+    kit.add(kit.cuboid(0.9, pitch + 1.4, 0.9), CHIMNEY, cx, cy, h + wall + 0.3)
+  }
+  if (more.front !== undefined) {
+    // The front door, on side `front` (0 east, 1 north, 2 west, 3 south), under a little canopy.
+    const [ry, half] = [((more.front - 1) * Math.PI) / 2, (more.front % 2 ? d : w) / 2]
+    kit.local(kit.cuboid(1.05, 2.05, 0.14), HOME.door, x, y, ry, 0, half + 0.02, h)
+    kit.doorway(...to(x, y, ry, 0, half), ry, 1.05)
+    kit.local(kit.cuboid(1.6, 0.1, 0.8), LEDGE, x, y, ry, 0, half + 0.38, h + 2.3)
+  }
+  if (more.solar) {
+    // Solar panels on the slope the sun and the default camera see: the south one, or the east one where the ridge
+    // runs north–south, clear of a Stage 3 chimney there.
+    const a = (span + 1.12) / 2
+    const tilt = Math.atan2(pitch, a)
+    const slope = Math.hypot(a, pitch) * 0.62
+    const clear = stage === 3 && !along ? 2.2 : 0
+    const len = ridge - 1.4 - clear
+    const out = 0.2 // off the slope, past the roof's bevel
+    const [across, up] = [a / 2 + out * Math.sin(tilt), h + wall + pitch / 2 + out * Math.cos(tilt)]
+    const [px, py] = along ? [x, y - across] : [x + across, y - (end * clear) / 2]
+    const [frame, cells] = kit.solarPanel(len, slope, tilt)
+    kit.add(frame, HOME.trim, px, py, up, along ? 0 : Math.PI / 2)
+    kit.add(cells, { material: kit.glass, tint: kit.glassOf(HOME.cells), glow: 0 }, px, py, up, along ? 0 : Math.PI / 2)
+  }
+  kit.shadow(x, y, h, w * 1.45 + 2, d * 1.45 + 2)
+  kit.brick('building', x, y, h)
 }

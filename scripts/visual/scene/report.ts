@@ -30,7 +30,7 @@ export interface Thing {
   block: number
   /** The brick's kind, as the kit has it: building, tree, ground, lamp, pole, mover... */
   kind: string
-  /** The kit's method that built it (house, keiTruck, bench), else the fill's function (truckCourt); `unknown` if neither. */
+  /** The kit's method or the Zone's building that built it (house, keiTruck, bench), else the fill's function (truckCourt); `unknown` if neither. */
   what: string
   /** The first named function outside the kit that built it: the Zone's fill, the kerbside's, the poles'. */
   fill: string
