@@ -1,8 +1,8 @@
 // Frame time with 1,000 cars, draw calls and triangles, each Zone all over the 26-Tile City: the working tree against a
 // git ref, interleaved round by round so that whatever else is drawing on the GPU lands on both alike.
 //
-// Usage: npm run bench:visual -- <zones | unzoned | all> [--against <git ref>] [--stages 3] [--views city] [--times
-// noon]          [--rounds 3] [--query <params>]
+// Usage: npm run bench:visual -- <zones | unzoned | all> [--against <git ref>] [--stages 3] [--views city] [--times noon]
+//          [--rounds 3] [--query <params>]
 //
 // Prints each bench as it runs, then a Markdown table of medians for the PR. Compare numbers only within one table: the
 // same City reads up to a millisecond apart from one day to the next. --views takes city, City zoom, the whole City in
@@ -31,7 +31,7 @@ const DAY = { noon: 0.25, night: 0.75 }
 const times = values.times.split(',')
 if (times.some((t) => !(t in DAY))) throw new Error('--times takes noon and night')
 // Tile zoom: one Tile filling the screen, as `npm run shots` frames it.
-const TILE = { ...DEFAULT_POINTS.tile[0], metres: METRES.tile }
+const TILE_ZOOM = { ...DEFAULT_POINTS.tile[0], metres: METRES.tile }
 
 /**
  * In the page, after the camera is placed: one frame's draw calls and triangles at the time of day `day`, then the ms per
@@ -109,7 +109,7 @@ try {
         for (const stage of stages) {
           await stageAll(page, stage)
           for (const view of views) {
-            await (view === 'tile' ? page.evaluate(lookAt, TILE) : page.evaluate(frameAll))
+            await (view === 'tile' ? page.evaluate(lookAt, TILE_ZOOM) : page.evaluate(frameAll))
             for (const time of times) {
               const r = await page.evaluate(measure, DAY[time])
               const key = `${zone} ${stage} ${view} ${time}`

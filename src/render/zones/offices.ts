@@ -104,7 +104,7 @@ function offices(g: ZoneGround) {
   const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
   const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
-  const laid: { lot: Bounds; form: OfficeForm }[] = []
+  const formsLaid: { lot: Bounds; form: OfficeForm }[] = []
   for (const [i, body] of bodies.entries()) {
     if (!body) continue
     kit.lot(i, lots[i])
@@ -127,10 +127,10 @@ function offices(g: ZoneGround) {
     own()
     own()
     let form = FORMS[Math.floor(own() * FORMS.length)]
-    const near = new Set(laid.filter((s) => beside(s.lot, lots[i])).map((s) => s.form))
+    const near = new Set(formsLaid.filter((s) => beside(s.lot, lots[i])).map((s) => s.form))
     const others = FORMS.filter((s) => !near.has(s))
     if (near.has(form) && others.length) form = others[Math.floor(plans() * others.length)]
-    laid.push({ lot: lots[i], form })
+    formsLaid.push({ lot: lots[i], form })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road, where its canopy and the step
     // before its door keep off a scene's ground and the taxi bay (#193).
     const entrance = entranceOf(g, tower, taken)
@@ -143,7 +143,7 @@ function offices(g: ZoneGround) {
       const gondola = !hung.has(stage) && (form === 'curtain' || form === 'fins')
       if (gondola) hung.add(stage)
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
-      officeTower(kit, x, y, KERB, w, d, floors, form, stage, { gondola, plate, entrance }) // glossary-ok: main's name, moved
+      officeTower(kit, x, y, KERB, w, d, floors, form, stage, { gondola, plate, entrance }) // glossary-ok: main's name
     }, seed)
     officePlaza(g, tower, entrance, taken, paving, planted, body)
   }

@@ -21,7 +21,7 @@ const WORDS = [
   {
     // The camera's three distances as #173 named them: Framed, and Street and Close where they name a distance (after a
     // word that places the camera, as Close-only, or as points and shots), and their old flags.
-    word: /\bFramed\b|\b(?:at|from|beyond|leaves) (?:Street|Close)\b|\b(?:Street|Close)(?:-only| and (?:Street|Close)| points?| shots?)\b|--(?:street|close|views [\w,]*(?:framed|street|close))\b/,
+    word: /\bFramed\b|\b(?:at|from|beyond|leaves) (?:Street|Close)\b|\b(?:Street|Close)(?:-only| and (?:Street|Close)| points?| shots?)\b|--(?:street|close|views[ =][\w,]*(?:framed|street|close))\b/,
     say: 'City zoom, Tile zoom or Block zoom',
   },
   { word: /\bentrance/i, say: 'door for a building, Gateway for a Road at the City’s edge' },

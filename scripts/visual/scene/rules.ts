@@ -287,7 +287,7 @@ export const pools: Rule = (r) =>
  * unlit, drawn on the scenery at every zoom, should be hidden beyond Tile zoom.
  * Approximation: "small" is its size; a small thing meant to read at City zoom would show here.
  */
-export const blockZoom: Rule = (r) => [
+export const blockZoomProps: Rule = (r) => [
   ...(r.blockZoomHidden ? [] : [fail('block-zoom', r, {}, 'Block-zoom props are drawn at City zoom', 'zoom 1')]),
   ...r.things
     .filter((t) => {
@@ -409,7 +409,7 @@ export function rules(ceilings: Record<string, { triangles: number; meshes: numb
     moves,
     'empty-pavement': emptyPavement,
     pools,
-    'block-zoom': blockZoom,
+    'block-zoom': blockZoomProps,
     colours,
     budget: budget(ceilings),
   }

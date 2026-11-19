@@ -588,7 +588,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     claim('door', ...to(x, y, ry, 0, out + 0.6), Math.max(0.6, w - 0.4), 1.2, ry)
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
   // Block-zoom prop, painted on `blockZoom` (`blockZoomProps`).
-  let [patterned, pooled, blockZoomProp] = [false, false, false]
+  let [patterned, pooled, inBlockZoomProps] = [false, false, false]
   /** Whether what is built from here on is to the Finish (`finish`), as far as the materials allow (#178). */
   const finished = () => patterned || pooled
   let open = 0 // parts from here on belong to the next brick
@@ -614,7 +614,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: blockZoomProp ? blockZoom : solid, brick: -1 })
+    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       const lit = look.material === glass || look.material === bulb
@@ -657,10 +657,10 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   }
   /** Build what `fn` adds as Block-zoom props, painted on `blockZoom`, which hides them beyond Tile zoom (#175). */
   const blockZoomProps = (fn: () => void) => {
-    const was = blockZoomProp
-    blockZoomProp = true
+    const was = inBlockZoomProps
+    inBlockZoomProps = true
     fn()
-    blockZoomProp = was
+    inBlockZoomProps = was
   }
   /** The bulb painted `colour` by day and lit in it at night, `glow` as bright as a lamp: #153's amber, #175's signs. */
   const lit = (colour: string, glow: number): Look => ({ material: bulb, tint: bulbTint(colour), glow })
@@ -705,7 +705,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const box = memo((w: number, h: number, d: number, r: number, b: number) => roundedBox(w, h, d, r, b))
   /** A contact shadow under a footprint `w` by `d`, round or square, turned `ry`. */
   const shadow = (x: number, y: number, h: number, w: number, d: number, round = false, ry = 0) =>
-    blockZoomProp || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Block-zoom prop
+    inBlockZoomProps || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Block-zoom prop
   // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion).
   const cuboid = memo((w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0))
   // Gable roofs, which repeat along a terraced row, and hipped ones (#178).
