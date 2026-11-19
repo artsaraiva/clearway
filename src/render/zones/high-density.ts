@@ -5,9 +5,9 @@ import { KERB } from '../blocks'
 import { planter, type Footprint } from '../kerbside'
 import { AERIAL, boxFace, CREAM, FACES, FRONTAGE, FUTONS, GARDEN, type Kit, LEAVES, PLANT, PLAY, SHAPES, spot, TANK, to } from '../kit'
 import { PATTERN } from '../pattern'
-import { bedTree, bench, BLOOMS, GLOWS, SETTS, STONE, waiting, WOOD } from '../props'
+import { bedTree, bench, BLOOMS, GLOWS, railing, SETTS, STONE, waiting, WOOD } from '../props'
 import { fit, lotsOf, overlap, PLANTER, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
-import { beside, clearOfScenes, placeScenes, sceneOrder, type Scene } from './scenes'
+import { beside, clearOfScenes, placeScenes, sceneOrder, type Scene, unlike } from './scenes'
 
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
 // of at most 17 m east–west by 15 north–south and at least 9, 11 to 17 storeys tall, leaving 4.5 m of the lot open on
@@ -37,8 +37,8 @@ const TOWER_FLOORS = (f: number, stage: number) => Math.round(f * [0.55, 1, 1.25
 // another still. The tallest tower of a Block, of `lift` Stage 2 floors or more, has a glass lift up one face. Plaza
 // paving reaches up to `plaza` m out from a podium in one of `paving`'s colours a Block, `edge` m in from the Block's
 // edge. The share of balconies with string lights at each Stage.
-const FINISH = {
-  scenes: ['fountain', 'sculpture'] as CourtKind[],
+const HIGH_FINISH = {
+  scenes: ['fountain', 'sculpture'] as HighScene[],
   sizes: [
     [10, 5.6],
     [8, 5],
@@ -56,11 +56,11 @@ const FINISH = {
   paving: ['#ead9c6', '#e4d8dc', '#dde4d6'],
   strings: [0, 0.07, 0.12],
 } as const
-type CourtKind = 'fountain' | 'sculpture'
+type HighScene = 'fountain' | 'sculpture'
 /** A tower's form (#183): balconies up the middle of its long faces; that, its top floors set back; that, a lift core up one end; or balconies at its corners. */
 type TowerForm = 'slab' | 'stepped' | 'core' | 'corner'
 /** What a face of a tower's podium is given over to (#183), of `FACES`. */
-type Use = 'court' | 'foot' | 'door' | 'store' | 'ramp'
+type FaceUse = 'court' | 'foot' | 'door' | 'store' | 'ramp'
 
 /** A playground or a garden at a tower's foot (#155): its ground, `l` m along the podium and `dep` out from it. */
 interface Foot {
@@ -83,7 +83,7 @@ interface Tower {
   /** Its Stage 2 floors, and the seed of its own stream, as the kit drew them. */
   floors: number
   seed: number
-  uses: (Use | undefined)[]
+  faces: (FaceUse | undefined)[]
   form: TowerForm
   foot?: Foot
   door: number
@@ -107,11 +107,17 @@ function besideFace(p: RowLot, k: number, l: number, dep: number, off: number, a
 const free = (g: ZoneGround, l: RowLot, taken: RowLot[], own: RowLot, clear = 0.6) =>
   stands(g, l.x, l.y, l.w, l.d, clear, l.ry) && !taken.some((o) => o !== own && overlap(o, l))
 
+/** Take ground `l`: later ground keeps off it (`taken`), and so does what the kit and the kerbside place (`kit.stand`). */
+function claim(kit: Kit, taken: RowLot[], l: RowLot) {
+  taken.push(l)
+  kit.stand(l.x, l.y, l.w, l.d, l.ry)
+}
+
 /**
  * High-density residential: a pale residential tower on each large lot, with room around it. It stands at 55% of its
  * floors at Stage 1 and 125% at Stage 3, with the finish its Stage gives it (`residentialTower`).
  *
- * To the Finish (#183), as the Block's plan has it (`FINISH`): once every podium has its ground, the Block reserves a
+ * To the Finish (#183), as the Block's plan has it (`HIGH_FINISH`): once every podium has its ground, the Block reserves a
  * fountain court or a sculpture court beside one, and a second at Stage 3 on a Block of 2,500 m² or more; then each
  * tower takes a playground or a garden at its foot (#155), a door under a canopy on the free face nearest the Block's
  * edge, and some a convenience store and a ramp down to parking on other faces. No tower is its neighbour's form. Each
@@ -138,15 +144,15 @@ function towers(g: ZoneGround) {
     const own = { ...p, w: p.w + 2 * HIGH.foot.apart, d: p.d + 2 * HIGH.foot.apart }
     stood.push({
       ...{ lot: i, bounds: lot, x, y, w: base.w - 2 * podium, d: base.d - 2 * podium, podium: p, own, floors, seed },
-      ...{ uses: [], form: 'slab', door: 1, canopy: false, lift: false },
+      ...{ faces: [], form: 'slab', door: 1, canopy: false, lift: false },
     })
   }
   kit.lot(-1)
   if (!stood.length) return
   const taken: RowLot[] = [...g.lamps.map(({ x, y }) => ({ x, y, w: 1.4, d: 1.4, ry: 0, onRoad: false })), ...stood.map((t) => t.own)]
   // The Block's courts, before anything else takes the ground beside a podium.
-  const order = sceneOrder(g, plans, FINISH.scenes, FINISH.second)
-  const courts = placeScenes<CourtKind, Scene<CourtKind>>(order, FINISH.scenes, (_, out) => courtGround(g, plans, stood, taken, out))
+  const order = sceneOrder(g, plans, HIGH_FINISH.scenes, HIGH_FINISH.second)
+  const courts = placeScenes<HighScene, Scene<HighScene>>(order, HIGH_FINISH.scenes, (_, out) => courtGround(g, plans, stood, taken, out))
   // Then a playground or a garden at each tower's foot (#155), on its tower's lot.
   for (const t of stood) towerFoot(g, t, taken)
   // Each tower's door, toward the Block's edge; a store and a ramp for some; its form, which no neighbour has.
@@ -154,47 +160,46 @@ function towers(g: ZoneGround) {
     const l = besideFace(t.podium, k, 1, 1, 3.5)
     return g.field.sample(l.x, l.y)
   }
-  const unused = (t: Tower) => [0, 1, 2, 3].filter((k) => !t.uses[k]).sort((a, b) => nearEdge(t)(a) - nearEdge(t)(b))
-  const take = (l: RowLot) => {
-    taken.push(l)
-    kit.stand(l.x, l.y, l.w, l.d, l.ry)
-  }
+  const unused = (t: Tower) => [0, 1, 2, 3].filter((k) => !t.faces[k]).sort((a, b) => nearEdge(t)(a) - nearEdge(t)(b))
   for (const t of stood) {
-    const canopyAt = (k: number) => besideFace(t.podium, k, FINISH.canopy[0] + 0.6, FINISH.canopy[1] + 0.4, 0)
+    const canopyAt = (k: number) => besideFace(t.podium, k, HIGH_FINISH.canopy[0] + 0.6, HIGH_FINISH.canopy[1] + 0.4, 0)
     const open = (l: RowLot, clear: number) => free(g, l, taken, t.own, clear) && kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
-    const faces = unused(t)
-    const covered = faces.find((k) => open(canopyAt(k), 0.5))
+    const spare = unused(t)
+    const covered = spare.find((k) => open(canopyAt(k), 0.5))
     t.canopy = covered !== undefined
-    t.door = covered ?? faces[0]
-    t.uses[t.door] = 'door'
-    if (t.canopy) take(canopyAt(t.door))
-    const [shop, parking] = [plans() < FINISH.store, plans() < FINISH.ramp.share]
-    if (shop) {
+    t.door = covered ?? spare[0]
+    t.faces[t.door] = 'door'
+    if (t.canopy) claim(kit, taken, canopyAt(t.door))
+    const [hasStore, hasRamp] = [plans() < HIGH_FINISH.store, plans() < HIGH_FINISH.ramp.share]
+    if (hasStore) {
       t.store = unused(t).find((k) => open(besideFace(t.podium, k, 2, 1.4, 0), 0.3))
-      if (t.store !== undefined) t.uses[t.store] = 'store'
+      if (t.store !== undefined) t.faces[t.store] = 'store'
     }
-    if (parking) {
-      const down = unused(t)
-        .map((k) => ({ k, l: besideFace(t.podium, k, FINISH.ramp.wide, FINISH.ramp.long, 0) }))
+    if (hasRamp) {
+      const found = unused(t)
+        .map((k) => ({ k, l: besideFace(t.podium, k, HIGH_FINISH.ramp.wide, HIGH_FINISH.ramp.long, 0) }))
         .find(({ l }) => open(l, 0.5))
-      if (down) {
-        t.uses[down.k] = 'ramp'
-        t.ramp = down.l
-        take(down.l)
+      if (found) {
+        t.faces[found.k] = 'ramp'
+        t.ramp = found.l
+        claim(kit, taken, found.l)
       }
     }
   }
   const laid: Tower[] = []
   for (const t of stood) {
-    t.form = FINISH.forms[Math.floor(plans() * FINISH.forms.length)]
-    const near = new Set(laid.filter((s) => beside(s.bounds, t.bounds)).map((s) => s.form))
-    const others = FINISH.forms.filter((f) => !near.has(f))
-    if (near.has(t.form) && others.length) t.form = others[Math.floor(plans() * others.length)]
+    t.form = HIGH_FINISH.forms[Math.floor(plans() * HIGH_FINISH.forms.length)]
+    t.form = unlike(
+      t.form,
+      laid.filter((s) => beside(s.bounds, t.bounds)).map((s) => s.form),
+      HIGH_FINISH.forms,
+      plans,
+    )
     laid.push(t)
   }
   const tallest = stood.reduce((a, t) => (t.floors > a.floors ? t : a))
-  tallest.lift = tallest.floors >= FINISH.lift
-  const paving = FINISH.paving[Math.floor(plans() * FINISH.paving.length)]
+  tallest.lift = tallest.floors >= HIGH_FINISH.lift
+  const paving = HIGH_FINISH.paving[Math.floor(plans() * HIGH_FINISH.paving.length)]
 
   for (const t of stood) {
     kit.lot(t.lot, t.bounds)
@@ -202,12 +207,14 @@ function towers(g: ZoneGround) {
     // A helipad and beacons on the roofs of the tallest (#155), by the floors each tower draws for Stage 2.
     const high = (from: readonly number[], stage: number) => stage > 1 && floors >= from[stage - 2]
     kit.staged((stage) => {
-      const more = { pad: high(HIGH.pad, stage), beacon: high(HIGH.beacon, stage), form: t.form, door: t.door, canopy: t.canopy }
-      residentialTower(kit, x, y, KERB, w, d, TOWER_FLOORS(floors, stage), stage, { ...more, store: t.store, lift: t.lift })
+      const rooftop = { pad: high(HIGH.pad, stage), beacon: high(HIGH.beacon, stage) }
+      residentialTower(kit, x, y, KERB, w, d, TOWER_FLOORS(floors, stage), stage, { ...t, ...rooftop })
     }, t.seed)
     towerGround(g, t, taken, paving)
   }
   // A Block no court found ground on, or only one, counts a tower's playground or garden as its scene.
+  // ponytail: no Block of seeds 1 to 5 needs it. Ceiling: a garden has nothing larger than a car before its Stage 3
+  // tree, so such a Block would fail rule 5 at Stage 2. Upgrade: an arbour over the garden's bench from Stage 2.
   const feet = stood.filter((t) => t.foot)
   feet.forEach((t, n) => {
     kit.lot(t.lot)
@@ -222,10 +229,10 @@ function towers(g: ZoneGround) {
 
 /**
  * Ground for a court of a high-density Block (#183), drawn from `draw`: beside the podium of one of `stood`, from one
- * drawn in turn, on a face that looks at another tower first, as large as `FINISH.sizes` has room for, on the Block and
+ * drawn in turn, on a face that looks at another tower first, as large as `HIGH_FINISH.sizes` has room for, on the Block and
  * clear of everything `taken` and of the courts `out`. It takes its ground and its podium's face; null if none is free.
  */
-function courtGround(g: ZoneGround, draw: () => number, stood: Tower[], taken: RowLot[], out: Scene<CourtKind>[]) {
+function courtGround(g: ZoneGround, draw: () => number, stood: Tower[], taken: RowLot[], out: Scene<HighScene>[]) {
   const first = Math.floor(draw() * stood.length)
   /** Whether face `k` of `t`'s podium looks at another tower's, within 16 m. */
   const between = (t: Tower, k: number) => {
@@ -237,16 +244,15 @@ function courtGround(g: ZoneGround, draw: () => number, stood: Tower[], taken: R
       return u !== t && ahead > half && ahead < half + 16 + (fx ? u.podium.w : u.podium.d) / 2 && aside < len / 2
     })
   }
-  for (const [l, dep] of FINISH.sizes) {
+  for (const [l, dep] of HIGH_FINISH.sizes) {
     for (let n = 0; n < stood.length; n++) {
       const t = stood[(first + n) % stood.length]
-      const faces = HIGH.sides.filter((k) => !t.uses[k])
-      for (const k of [...faces.filter((k) => between(t, k)), ...faces.filter((k) => !between(t, k))]) {
-        const ground = besideFace(t.podium, k, Math.min(l, boxFace(k, t.podium.w, t.podium.d).len + 2), dep, FINISH.off)
+      const spare = HIGH.sides.filter((k) => !t.faces[k])
+      for (const k of [...spare.filter((k) => between(t, k)), ...spare.filter((k) => !between(t, k))]) {
+        const ground = besideFace(t.podium, k, Math.min(l, boxFace(k, t.podium.w, t.podium.d).len + 2), dep, HIGH_FINISH.off)
         if (!free(g, ground, taken, t.own) || !clearOfScenes(out, ground)) continue
-        t.uses[k] = 'court'
-        taken.push(ground)
-        g.kit.stand(ground.x, ground.y, ground.w, ground.d, ground.ry)
+        t.faces[k] = 'court'
+        claim(g.kit, taken, ground)
         return { ground }
       }
     }
@@ -262,14 +268,14 @@ function courtGround(g: ZoneGround, draw: () => number, stood: Tower[], taken: R
 function towerFoot(g: ZoneGround, t: Tower, taken: RowLot[]) {
   const { long, deep, least, shallow, off } = HIGH.foot
   for (const k of HIGH.sides) {
-    if (t.uses[k]) continue
+    if (t.faces[k]) continue
     const { len } = boxFace(k, t.podium.w, t.podium.d)
     for (let dep = deep; dep >= shallow; dep -= 0.5) {
       for (let l = Math.min(long, len + 2); l >= least; l -= 1) {
         const ground = besideFace(t.podium, k, l, dep, off)
         if (!free(g, ground, taken, t.own)) continue
         taken.push(ground)
-        t.uses[k] = 'foot'
+        t.faces[k] = 'foot'
         t.foot = { ground, l, dep }
         return
       }
@@ -331,41 +337,40 @@ const STORES = [
 
 /**
  * The ground round tower `t` (#183): patterned paving out from its podium as far as the Block allows; by its door a
- * letter-box bank, Block-zoom, and bicycles from Stage 2; a bench, Block-zoom, toward each end of its other open faces,
+ * letter-box bank, Block-zoom, and bicycles from Stage 2; a bench, Block-zoom, toward each end of the faces nothing else has,
  * the second from Stage 2; a tree in a planter at a corner of its podium from Stage 2 and at a second at Stage 3; and its
  * ramp down to parking. Each on free, unclaimed ground, which it takes.
  */
 function towerGround(g: ZoneGround, t: Tower, taken: RowLot[], paving: string) {
   const { kit } = g
   const { x, y, podium: p } = t
-  for (let reach = FINISH.plaza; reach >= 1; reach -= 0.5) {
+  for (let reach = HIGH_FINISH.plaza; reach >= 1; reach -= 0.5) {
     const [pw, pd] = [p.w + 2 * reach, p.d + 2 * reach]
-    if (!stands(g, x, y, pw, pd, FINISH.edge)) continue
+    if (!stands(g, x, y, pw, pd, HIGH_FINISH.edge)) continue
     kit.from(1, () => kit.paving(x, y, KERB, pw, pd, 0, paving), spot(x, y) + 11)
     break
   }
-  /** Take ground `l` if it is free, 0.5 m in from the Block's edge, and unclaimed. */
-  const take = (l: RowLot) => {
+  /** Take ground `l`, and say so, if it is free, 0.5 m in from the Block's edge, and unclaimed. */
+  const takeIfFree = (l: RowLot) => {
     if (!free(g, l, taken, t.own, 0.5) || !kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)) return false
-    taken.push(l)
-    kit.stand(l.x, l.y, l.w, l.d, l.ry)
+    claim(kit, taken, l)
     return true
   }
   for (const k of [0, 1, 2, 3]) {
-    const use = t.uses[k]
-    if (use === 'court' || use === 'foot' || use === 'ramp') continue
+    const given = t.faces[k]
+    if (given === 'court' || given === 'foot' || given === 'ramp' || given === 'store') continue
     const { ry, len } = boxFace(k, p.w, p.d)
     const end = len / 2 - 1.7
-    if (use === 'door') {
+    if (given === 'door') {
       const post = besideFace(p, k, 1.7, 0.6, 0.05, end)
-      if (take(post)) kit.from(1, () => letterBoxes(kit, post.x, post.y, ry), spot(post.x, post.y))
+      if (takeIfFree(post)) kit.from(1, () => letterBoxes(kit, post.x, post.y, ry), spot(post.x, post.y))
       const rack = besideFace(p, k, 3.4, 2.1, 0.15, -end + 0.6)
-      if (take(rack)) kit.from(2, () => kit.bicycles(rack.x, rack.y, KERB, ry, kit.chance(0.5) ? 5 : 4), spot(rack.x, rack.y))
+      if (takeIfFree(rack)) kit.from(2, () => kit.bicycles(rack.x, rack.y, KERB, ry, kit.chance(0.5) ? 5 : 4), spot(rack.x, rack.y))
       continue
     }
     for (const [n, side] of [1, -1].entries()) {
       const seat = besideFace(p, k, 2.2, 0.8, 0.2, side * end)
-      if (take(seat)) kit.from(n + 1, () => bench(kit, seat.x, seat.y, ry), spot(seat.x, seat.y))
+      if (takeIfFree(seat)) kit.from(n + 1, () => bench(kit, seat.x, seat.y, ry), spot(seat.x, seat.y))
     }
   }
   // Trees in planters at the podium's corners: the south-east first, as the default camera sees it.
@@ -377,7 +382,7 @@ function towerGround(g: ZoneGround, t: Tower, taken: RowLot[], paving: string) {
     [-1, 1],
   ]) {
     const [bx, by] = [x + i * (p.w / 2 + 1.3), y + j * (p.d / 2 + 1.3)]
-    if (beds === 2 || !take({ x: bx, y: by, w: 2.1, d: 2.1, ry: 0, onRoad: false })) continue
+    if (beds === 2 || !takeIfFree({ x: bx, y: by, w: 2.1, d: 2.1, ry: 0, onRoad: false })) continue
     kit.from(beds++ ? 3 : 2, () => bedTree(kit, bx, by, 0.95, kit.range(0.34, 0.4), true), spot(bx, by))
   }
   if (t.ramp) kit.from(1, () => ramp(kit, t.ramp!), spot(t.ramp.x, t.ramp.y))
@@ -416,7 +421,7 @@ function letterBoxes(kit: Kit, x: number, y: number, ry: number) {
  * A high-density Block's court at Stage `stage` (#183), on its ground: a tree in a bed and two benches until the Stage
  * it stands `from`, then a fountain court or a sculpture court.
  */
-function court(kit: Kit, kind: CourtKind, ground: Footprint, stage: number, from: number) {
+function court(kit: Kit, kind: HighScene, ground: Footprint, stage: number, from: number) {
   if (stage < from) return waiting(kit, ground, 0.95, 0.4, 2.3, true)
   const { x, y, w, d, ry } = ground
   kit.paving(x, y, KERB, w, d, ry, SETTS, PATTERN.setts, 0.02)
@@ -512,18 +517,10 @@ const POTS = ['#d09c53', '#c49a6c', '#e9e4da'] // balcony plants' pots (#155)
 const BEACON = { mast: 2.2, r: 0.85 } // a roof beacon's mast, m tall, and its bulb's radius
 // A tower built to the Finish (#183): its railings and its lift's rails, its door frames, how brightly its lobby and its
 // store's window glow, and the glass lift's stops, in s.
-const TOWER = { rail: '#9aa3ad', frame: '#4a525c', lobby: 1.3, store: 1.5, soffit: 1, waits: [6, 14] }
+const TOWER_FINISH = { rail: '#9aa3ad', frame: '#4a525c', lobby: 1.3, store: 1.5, soffit: 1, waits: [6, 14] }
 
-/** What its Block's plan gives a residential tower (`residentialTower`). */
-interface TowerPlan {
-  pad?: boolean
-  beacon?: boolean
-  form?: TowerForm
-  door?: number
-  canopy?: boolean
-  store?: number
-  lift?: boolean
-}
+/** What its Block's plan gives a residential tower (`residentialTower`): its roof's helipad and beacons (#155), and its `Tower`'s finish. */
+type TowerPlan = { pad?: boolean; beacon?: boolean } & Partial<Pick<Tower, 'form' | 'door' | 'canopy' | 'store' | 'lift'>>
 
 /**
  * A residential tower at Stage `stage`, of `floors` storeys on a footprint `w` (east–west) by `d`, centred on
@@ -569,7 +566,7 @@ function residentialTower(
     [0, 0.16, 0.24],
     [0, 0, 0.1],
   ].map((shares) => shares[stage - 1])
-  const strings = FINISH.strings[stage - 1]
+  const strings = HIGH_FINISH.strings[stage - 1]
   const STOREY = 3.1
   const base = h + 4.2
   const top = base + floors * STOREY
@@ -592,26 +589,6 @@ function residentialTower(
     const flats = { front: PATTERN.house, back: PATTERN.house, sides: PATTERN.house, bay, storey: STOREY }
     kit.cladded(geo, colour, x, y, at, 0, terrace ? { ...flats, top: PATTERN.roof } : flats, seed + k)
   }
-  /** A railing round a box `bw` by `bd` centred on `(cx, cy)` at `at`: posts about 3 m apart under two rails. */
-  const railing = (cx: number, cy: number, bw: number, bd: number, at: number) => {
-    for (const side of [-1, 1]) {
-      for (const z of [0.5, 1]) {
-        kit.add(kit.cuboid(bw, 0.07, 0.07), TOWER.rail, cx, cy + (side * bd) / 2, at + z)
-        kit.add(kit.cuboid(0.07, 0.07, bd), TOWER.rail, cx + (side * bw) / 2, cy, at + z)
-      }
-      for (const [len, eastWest] of [
-        [bw, true],
-        [bd, false],
-      ] as const) {
-        const n = Math.max(1, Math.round(len / 3))
-        for (let i = 0; i < n; i++) {
-          const t = -len / 2 + (i * len) / n
-          if (eastWest) kit.add(kit.cuboid(0.07, 1, 0.07), TOWER.rail, cx + t, cy + (side * bd) / 2, at)
-          else kit.add(kit.cuboid(0.07, 1, 0.07), TOWER.rail, cx + (side * bw) / 2, cy - t, at)
-        }
-      }
-    }
-  }
 
   // Its podium: panels and high windows; or, as it was, plain with its lobby's glass north and south.
   const [pw, pd] = [w + 2.4, d + 2.4]
@@ -627,16 +604,26 @@ function residentialTower(
     // The lobby: glass between frames, two doors in its middle, its glow a pool before it; and its canopy on two posts.
     const { ry, half, len } = boxFace(door, pw, pd)
     const wide = Math.min(len - 4.5, 8)
-    kit.local(kit.cuboid(wide, 2.9, 0.3), { material: kit.glass, tint: kit.windows[0], glow: TOWER.lobby }, x, y, ry, 0, half, h + 0.35)
-    for (const lx of [-wide / 2, -1, 0, 1, wide / 2]) kit.local(kit.cuboid(0.1, 2.9, 0.38), TOWER.frame, x, y, ry, lx, half, h + 0.35)
-    kit.local(kit.cuboid(wide + 0.1, 0.12, 0.38), TOWER.frame, x, y, ry, 0, half, h + 3.25)
+    kit.local(
+      kit.cuboid(wide, 2.9, 0.3),
+      { material: kit.glass, tint: kit.windows[0], glow: TOWER_FINISH.lobby },
+      x,
+      y,
+      ry,
+      0,
+      half,
+      h + 0.35,
+    )
+    for (const lx of [-wide / 2, -1, 0, 1, wide / 2])
+      kit.local(kit.cuboid(0.1, 2.9, 0.38), TOWER_FINISH.frame, x, y, ry, lx, half, h + 0.35)
+    kit.local(kit.cuboid(wide + 0.1, 0.12, 0.38), TOWER_FINISH.frame, x, y, ry, 0, half, h + 3.25)
     kit.doorway(x, y, ry, 2, half + 0.2)
     kit.pool('lobby', ...to(x, y, ry, 0, half + 1.7), h, wide + 2, 3, ry)
     if (canopy) {
-      const [cw, cd] = FINISH.canopy
+      const [cw, cd] = HIGH_FINISH.canopy
       kit.local(kit.cuboid(cw, 0.22, cd), trim, x, y, ry, 0, half + cd / 2, h + 3.4)
-      kit.local(kit.cuboid(cw - 0.4, 0.04, cd - 0.4), kit.lit(CREAM, TOWER.soffit), x, y, ry, 0, half + cd / 2, h + 3.36)
-      for (const k of [-1, 1]) kit.local(kit.cuboid(0.16, 3.4, 0.16), TOWER.frame, x, y, ry, k * (cw / 2 - 0.2), half + cd - 0.2, h)
+      kit.local(kit.cuboid(cw - 0.4, 0.04, cd - 0.4), kit.lit(CREAM, TOWER_FINISH.soffit), x, y, ry, 0, half + cd / 2, h + 3.36)
+      for (const k of [-1, 1]) kit.local(kit.cuboid(0.16, 3.4, 0.16), TOWER_FINISH.frame, x, y, ry, k * (cw / 2 - 0.2), half + cd - 0.2, h)
       kit.pool('canopy', ...to(x, y, ry, 0, half + cd / 2 + 0.4), h, cw + 2.4, cd + 2.2, ry)
     }
   }
@@ -645,15 +632,25 @@ function residentialTower(
     // its stripes and a few marks for its name.
     const { ry, half, len } = boxFace(store, pw, pd)
     const wide = Math.min(len - 4, 10)
-    const shop = STORES[Math.floor(own() * STORES.length)]
-    kit.local(kit.cuboid(wide, 2.6, 0.3), { material: kit.glass, tint: kit.windows[1], glow: TOWER.store }, x, y, ry, 0, half, h + 0.3)
-    for (const lx of [-wide / 2, -0.85, 0.85, wide / 2]) kit.local(kit.cuboid(0.1, 2.6, 0.38), TOWER.frame, x, y, ry, lx, half, h + 0.3)
-    kit.local(kit.cuboid(wide + 0.5, 0.9, 0.3), kit.lit(shop.board, FRONTAGE.lit.board), x, y, ry, 0, half + 0.03, h + 2.95)
-    shop.stripes.forEach((stripe, i) =>
+    const sign = STORES[Math.floor(own() * STORES.length)]
+    kit.local(
+      kit.cuboid(wide, 2.6, 0.3),
+      { material: kit.glass, tint: kit.windows[1], glow: TOWER_FINISH.store },
+      x,
+      y,
+      ry,
+      0,
+      half,
+      h + 0.3,
+    )
+    for (const lx of [-wide / 2, -0.85, 0.85, wide / 2])
+      kit.local(kit.cuboid(0.1, 2.6, 0.38), TOWER_FINISH.frame, x, y, ry, lx, half, h + 0.3)
+    kit.local(kit.cuboid(wide + 0.5, 0.9, 0.3), kit.lit(sign.board, FRONTAGE.lit.board), x, y, ry, 0, half + 0.03, h + 2.95)
+    sign.stripes.forEach((stripe, i) =>
       kit.local(kit.cuboid(wide + 0.5, 0.13, 0.32), kit.lit(stripe, FRONTAGE.lit.board), x, y, ry, 0, half + 0.03, h + 3.02 + i * 0.17),
     )
     for (const i of [-1, 0, 1])
-      kit.local(kit.cuboid(0.3, 0.3, 0.04), kit.markOf(shop.board, true), x, y, ry, i * 0.48, half + 0.2, h + 3.45)
+      kit.local(kit.cuboid(0.3, 0.3, 0.04), kit.markOf(sign.board, true), x, y, ry, i * 0.48, half + 0.2, h + 3.45)
     kit.doorway(x, y, ry, 1.6, half + 0.2)
     kit.pool('sign', ...to(x, y, ry, 0, half + 1.5), h, wide + 1.5, 2.8, ry)
   }
@@ -664,7 +661,7 @@ function residentialTower(
     walls(rw, rd, base + lower * STOREY, up, 1)
     for (const end of [-1, 1]) {
       const [tx, ty] = long ? [x + end * (w / 2 - back / 2), y] : [x, y + end * (d / 2 - back / 2)]
-      railing(tx, ty, long ? back - 0.3 : w - 0.5, long ? d - 0.5 : back - 0.3, base + lower * STOREY)
+      railing(kit, TOWER_FINISH.rail, tx, ty, long ? back - 0.3 : w - 0.5, long ? d - 0.5 : back - 0.3, base + lower * STOREY)
     }
   }
   if (form === 'core') {
@@ -697,7 +694,9 @@ function residentialTower(
         const t = -(n - 1) * 1.5 + i * 3
         if (balconied && stacks.some((s) => Math.abs(t - s) < deck / 2 + 0.3)) continue
         const [fx, fy] = nx === 0 ? [x + t, y + (ny * d) / 2] : [x + (nx * w) / 2, y + t]
-        for (let f = 0; f < lower; f++) kit.add(kit.cuboid(1.3, 1.6, 0.3), kit.pane(0.6), fx, fy, base + 0.8 + f * STOREY, ry)
+        // A stepped tower's top floors keep the windows of their long faces that the set-back leaves a wall behind.
+        const most = balconied && Math.abs(t) < span / 2 - back - 0.8 ? floors : lower
+        for (let f = 0; f < most; f++) kit.add(kit.cuboid(1.3, 1.6, 0.3), kit.pane(0.6), fx, fy, base + 0.8 + f * STOREY, ry)
       }
     }
     if (!balconied) continue
@@ -742,8 +741,8 @@ function residentialTower(
     // A glass lift on the short face the default camera sees, between two rails: it climbs the floors under the
     // terrace, stopping halfway each way.
     const { ry, half } = boxFace(long ? 2 : 1, w, d)
-    const [low, high] = [base - h + 0.2, base - h + lower * STOREY - 3.3]
-    for (const k of [-1, 1]) kit.local(kit.cuboid(0.14, lower * STOREY, 0.14), TOWER.rail, x, y, ry, k * 1.15, half + 0.12, base)
+    const [low, high] = [base - h + 0.2, base - h + lower * STOREY - 3.7]
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.14, lower * STOREY, 0.14), TOWER_FINISH.rail, x, y, ry, k * 1.4, half + 0.12, base)
     const rise = high - low
     const loop = polyline([
       { x: 0, y: low },
@@ -751,7 +750,7 @@ function residentialTower(
       { x: 0, y: low },
     ])
     const stops = [0, rise / 2, rise, rise * 1.5]
-    const waits = stops.map(() => TOWER.waits[0] + own() * (TOWER.waits[1] - TOWER.waits[0]))
+    const waits = stops.map(() => TOWER_FINISH.waits[0] + own() * (TOWER_FINISH.waits[1] - TOWER_FINISH.waits[0]))
     const [fx, fy] = to(x, y, ry, 0, half + 0.95)
     kit.mover('lift', loop, stops, 0, h, { waits, face: { x: fx, y: fy, heading: ry + Math.PI / 2 }, laps: true })
   }
@@ -760,7 +759,7 @@ function residentialTower(
   if (kit.patterned) kit.cladded(kit.box(rw + 0.3, cap, rd + 0.3, 1, 0.12), trim, x, y, top, 0, { top: PATTERN.roof }, seed + 7)
   else kit.add(kit.box(rw + 0.3, cap, rd + 0.3, 1, 0.12), trim, x, y, top)
   const roof = top + cap - 0.3
-  if (stage > 1) railing(x, y, rw - 0.5, rd - 0.5, top + cap)
+  if (stage > 1) railing(kit, TOWER_FINISH.rail, x, y, rw - 0.5, rd - 0.5, top + cap)
   // A beacon at a corner of the roof (#155), and at the opposite one too round a helipad.
   if (beacon) {
     for (const k of pad ? [1, -1] : [1]) {
@@ -783,7 +782,7 @@ function residentialTower(
     const [ox, oy] = [x + Math.min(rw / 2 - 1.7, Math.max(rw * 0.24, 3.1 - rw * 0.22)), y + rd * 0.26]
     kit.add(kit.box(3, 2.4, 2.6, 0.3, 0.08), trim, ox, oy, roof)
     kit.add(kit.cuboid(3.3, 0.2, 2.9), PLANT, ox, oy, roof + 2.4)
-    kit.add(kit.cuboid(0.9, 1.9, 0.08), TOWER.frame, ox, oy - 1.3, roof + 0.3)
+    kit.add(kit.cuboid(0.9, 1.9, 0.08), TOWER_FINISH.frame, ox, oy - 1.3, roof + 0.3)
     aerial(kit, ox + 0.9, oy + 0.7, roof + 2.6)
   }
   if (stage > 1) {
@@ -797,10 +796,11 @@ function residentialTower(
     const by = gy + gd * 0.22
     kit.add(kit.cuboid(1.5, 0.1, 0.45), WOOD.stand, gx, by, lawn + 0.4)
     kit.add(kit.cuboid(1.5, 0.4, 0.08), WOOD.stand, gx, by + 0.22, lawn + 0.55)
+    const out = Math.max(gw / 2 - 0.5, 1.2) // the planters, clear of the bench's ends
     for (const k of [-1, 1]) {
       kit.add(kit.cuboid(0.1, 0.4, 0.4), WOOD.dark, gx + k * 0.65, by, lawn)
-      kit.add(kit.cuboid(0.7, 0.5, 0.7), PLANTER, gx + k * (gw / 2 - 0.5), by, lawn)
-      kit.add(BUSH, LEAVES.round[k + 2], gx + k * (gw / 2 - 0.5), by, lawn + 0.75, k, 0.5, 0.45, 0.5)
+      kit.add(kit.cuboid(0.7, 0.5, 0.7), PLANTER, gx + k * out, by, lawn)
+      kit.add(BUSH, LEAVES.round[k + 2], gx + k * out, by, lawn + 0.75, k, 0.5, 0.45, 0.5)
     }
     if (stage === 3) {
       const [lw, ld] = [Math.min(4.6, gw - 1.6), Math.min(2.6, gd * 0.5)]

@@ -8,7 +8,7 @@ import { inside } from '../field'
 import { boxFace, CREAM, DECK, FACES, FLAG, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { GROW } from '../landmarks'
 import { panel, PATTERN } from '../pattern'
-import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
+import { bedTree, bench, cafeTable, GLOWS, menuBoard, railing as rail, STONE, waiting, WOOD } from '../props'
 import { planter, type Footprint } from '../kerbside'
 import { corners, fit, lotsOf, near, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import {
@@ -22,6 +22,7 @@ import {
   sceneOrder,
   smaller,
   type Scene,
+  unlike,
 } from './scenes'
 
 // Offices: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower of at most 20 m on
@@ -131,9 +132,12 @@ function offices(g: ZoneGround) {
     own()
     own()
     let form = FORMS[Math.floor(own() * FORMS.length)]
-    const near = new Set(formsLaid.filter((s) => beside(s.lot, lots[i])).map((s) => s.form))
-    const others = FORMS.filter((s) => !near.has(s))
-    if (near.has(form) && others.length) form = others[Math.floor(plans() * others.length)]
+    form = unlike(
+      form,
+      formsLaid.filter((s) => beside(s.lot, lots[i])).map((s) => s.form),
+      FORMS,
+      plans,
+    )
     formsLaid.push({ lot: lots[i], form })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road, where its canopy and the step
     // before its door keep off a scene's ground and the taxi bay (#193).
@@ -979,25 +983,7 @@ function officeTower(
     }
   }
   /** A railing round a box `rw` by `rd` centred on `(cx, cy)` at `at`: posts about 3 m apart under a top rail and a mid rail. */
-  const railing = (rw: number, rd: number, at: number, cx = x, cy = y) => {
-    for (const side of [-1, 1]) {
-      for (const z of [0.5, 0.96]) {
-        kit.add(kit.cuboid(rw, 0.06, 0.06), TOWER_FINISH.rail, cx, cy + (side * rd) / 2, at + z)
-        kit.add(kit.cuboid(0.06, 0.06, rd), TOWER_FINISH.rail, cx + (side * rw) / 2, cy, at + z)
-      }
-      for (const [len, eastWest] of [
-        [rw, true],
-        [rd, false],
-      ] as const) {
-        const n = Math.max(1, Math.round(len / 3))
-        for (let i = 0; i < n; i++) {
-          const t = -len / 2 + (i * len) / n
-          if (eastWest) kit.add(kit.cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + t, cy + (side * rd) / 2, at)
-          else kit.add(kit.cuboid(0.06, 1, 0.06), TOWER_FINISH.rail, cx + (side * rw) / 2, cy - t, at)
-        }
-      }
-    }
-  }
+  const railing = (rw: number, rd: number, at: number, cx = x, cy = y) => rail(kit, TOWER_FINISH.rail, cx, cy, rw, rd, at)
   /** A satellite dish on a roof at `(dx, dy)`, `at` high, on a stub, turned to the south. */
   const dish = (dx: number, dy: number, at: number) => {
     kit.add(THIN, TOWER_FINISH.rail, dx, dy, at, 0, 0.07, 0.75, 0.07)
