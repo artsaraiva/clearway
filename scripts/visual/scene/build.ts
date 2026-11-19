@@ -44,11 +44,27 @@ const [FOOT, HUNG] = [0.7, KERB + 1]
  */
 const [FLAT, STEP] = [0.15, 0.35]
 /** The scene check's own functions and the kit's plumbing, which a brick's label skips to find what built it. */
-const PLUMBING = new Set(['label', 'made', 'brick', 'mover', 'own', 'from', 'staged', 'closeOnly', 'furniture', 'scene', 'cladded'])
+const PLUMBING = new Set([
+  'label',
+  'made',
+  'brick',
+  'mover',
+  'own',
+  'seeded',
+  'from',
+  'staged',
+  'closeOnly',
+  'furniture',
+  'scene',
+  'cladded',
+])
+/** The Zones' buildings, beside their fills in `src/render/zones` since #207, which label a brick as the kit's methods do. */
+const BUILDERS = new Set(['house', 'townhouse', 'apartment', 'residentialTower', 'shop', 'warehouse', 'barn', 'officeTower'])
 
 /**
- * What built the brick being closed, read from the stack: the innermost of the kit's methods on it (house, keiTruck,
- * bench) and the first named function outside the kit (the Zone's or the kerbside's fill), as `method|fill`.
+ * What built the brick being closed, read from the stack: the innermost of the kit's methods or the Zones' buildings on
+ * it (house, keiTruck, bench) and the first named function outside them (the Zone's or the kerbside's fill), as
+ * `method|fill`.
  */
 function label(): string {
   let [method, fill] = ['', '']
@@ -57,7 +73,7 @@ function label(): string {
     if (!m) continue
     const [, name, file] = m
     if (PLUMBING.has(name) || name === 'anonymous' || name === 'eval' || file.includes('/scripts/visual/scene/')) continue
-    if (file.endsWith('/render/kit.ts')) method ||= name
+    if (file.endsWith('/render/kit.ts') || BUILDERS.has(name)) method ||= name
     else {
       fill = name
       break

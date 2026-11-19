@@ -1,11 +1,13 @@
 import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Vec } from '../../sim/geometry'
 import { area, KERB } from '../blocks'
-import { frontOf, SHAPES, spot, to, VENDING_MACHINE, type Kit, type ShopForm } from '../kit'
+import { AIRCON, CREAM, FRONTAGE, type Kit, type Look as KitLook, pale, POOL, SHAPES, spot, to, VENDING_MACHINE } from '../kit'
 import { GROW } from '../landmarks'
 import { BOARD, cafeTable, menuBoard, STALL, WOOD } from '../props'
 import { planter } from '../streets'
 import { besideRow, near, overlap, rows, stands, turned, walled, yards, type Look, type RowLot, type ZoneGround } from './ground'
+import { PATTERN } from '../pattern'
+import type { Stage } from '../../game/game'
 
 // The storeys a shop stands at each Stage, from the storeys it draws, which are its Stage 2 storeys.
 const SHOP_STOREYS = (s: number, stage: number) => [1, s, s + 1][stage - 1]
@@ -58,7 +60,7 @@ export const look: Look = { landmarks: false, finish: true, fill: shops }
 
 /**
  * Shops: low shops shoulder to shoulder along every edge, each with its front, and trees behind. Every shop is one
- * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, the kit's `shop`) as its lot's
+ * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, `shop`) as its lot's
  * plan has it (`shopPlans`): a front colour and a form that differ from its neighbours', and one shop in eight a noodle
  * shop whose vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of
  * 2,500 m² or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a
@@ -90,7 +92,7 @@ function shops(g: ZoneGround) {
       continue
     }
     const plan = { front: FRONT.cloths[front], form, noodle, door, onRoad: l.onRoad }
-    kit.staged((stage) => kit.shop(l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
+    kit.staged((stage) => shop(kit, l.x, l.y, KERB, l.w, l.d, l.ry, { ...plan, stage, storeys: SHOP_STOREYS(storeys, stage) }))
     const paved = turned(l.x, l.y, l.ry, 0, l.d / 2 + SHOP_FINISH.paved / 2)
     kit.from(2, () => kit.paving(paved.x, paved.y, KERB, l.w, SHOP_FINISH.paved, l.ry, paving), spot(l.x, l.y) + 2)
     if (scene) sceneFront(g, l, door, scene)
@@ -610,4 +612,352 @@ export function produce(kit: Kit, x: number, y: number, ry: number) {
       crate(kit, x, y, ry, lx, 0, KERB + z, 0.08, draw)
   })
   kit.brick('building', x, y, KERB)
+}
+
+// The shop: its palette, its plan and its builder, beside the fill that lays it (#207).
+const { awning: AWNING, cone: CONE8, disc: FACING_DISC, thin: THIN } = SHAPES
+// Shops: a ground floor in a bold colour, which the awning and the signs take too, under pale storeys, so that it leads.
+const SHOP = {
+  fronts: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
+  uppers: ['#fff7e8', '#ffe9d2', '#fde2e4', '#e3f4dc', '#fff1c7', '#e6f0fb'],
+  stripe: FRONTAGE.stripe,
+}
+// Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
+// with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
+// standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
+// flat roof, AC condensers, a panel water tank on a steel stand, a billboard on two posts, a stair house on a setback
+// shop of one storey, and at Stage 3 a timber terrace with tables, a parasol and string lights. A Stage 3 front on a
+// Road lies under the row's arcade: a pale roof on steel posts, glowing at night as if lit from under it, with a lit
+// fascia. How brightly each lit part glows, for the lamps' glow.
+const SHOPFRONT = {
+  door: { wide: 1.5, tall: 2.3, frames: FRONTAGE.frames },
+  noren: ['#3f4a5e', '#fbf8f2', '#8a5a3c', '#55705f', '#6c5a8a', '#3f4a5e'],
+  trim: FRONTAGE.trim,
+  marks: FRONTAGE.marks,
+  boards: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6', '#fbf8f2', '#2f3440', '#fff1c7'],
+  parapet: '#efe6d8',
+  steel: '#9aa3ad',
+  tank: '#dde6ec',
+  deck: '#c49a6c',
+  arcade: '#f4f1ea',
+  balcony: '#e6e2da',
+  goods: [
+    ['#f6d36a', '#ffadc8', '#fbf8f2', '#79c86a'],
+    ['#e8925e', '#f0b43c', '#fbe3a2', '#c49a6c'],
+    ['#5cc0d6', '#a58ad8', '#fbf8f2', '#ff9ab8'],
+    ['#79c86a', '#2fb39a', '#f6d36a', '#fbf8f2'],
+  ],
+  lit: { board: FRONTAGE.lit.board, marks: FRONTAGE.lit.marks, strip: 1.2, string: 1.5, arcade: 0.48, awning: 0.3 },
+}
+// Crates at a shop's back door, and the pots of plants by its front (#175).
+const CRATES = ['#f0c75e', '#79c86a', '#e9eef2', '#5cc0d6', '#ff9ab8']
+/** m a setback shop's upper storeys stand back from its front, behind a balcony (#175). */
+const SETBACK = 1.6
+/** How deep a shop's arcade reaches over the pavement, m out from its front (#175): short of the banners. */
+const ARCADE = 1.45
+/** A shop's stone parapet round its roof, m wide and tall (#175). */
+const PARAPET = { wide: 0.26, tall: 0.42 }
+/**
+ * A shop's form (#175): a flat roof inside a parapet, a false front raised over the roof's front edge carrying its
+ * signboard, or upper storeys set back behind a balcony over the ground floor.
+ */
+type ShopForm = 'flat' | 'facade' | 'setback'
+/** What a shop's lot gives it, the same at every Stage but `storeys` and `stage` (#175). */
+interface ShopPlan {
+  /** Its storeys at the Stage built. */
+  storeys: number
+  stage: Stage
+  /** Whether its front faces a Road, rather than the seam with the next Tile: only a Road's has signs above its roof. */
+  onRoad: boolean
+  /** The end of its front its door is at: 1 its right, -1 its left (as `local`'s x runs). */
+  door: 1 | -1
+  /** Its ground floor's colour, picked so that no shop shares its neighbour's. */
+  front: string
+  form: ShopForm
+  /** Whether its vent steams, as a noodle shop's does, from Stage 2. */
+  noodle: boolean
+}
+/**
+ * Where the parts of a shop's front `w` m wide lie along it (#175), its door at end `door` (as `ShopPlan`'s), each m
+ * from the front's middle as `local`'s x runs: the door's middle; the window's middle and its length (`glazed`), from
+ * 0.35 m in from the other end to short of the door's frame; and a pot plant either side of the door. `clear` is how far
+ * the front runs in from the window's end before the door's frame. `shop` and the fill laying the pavement before
+ * it both read it.
+ */
+function frontOf(w: number, door: 1 | -1) {
+  const [a, b] = [-door * (w / 2 - 0.35), door * (w / 2 - 2.25)]
+  return {
+    door: door * (w / 2 - 1.15),
+    window: (a + b) / 2,
+    glazed: Math.abs(b - a),
+    pots: [door * (w / 2 - 0.15), door * (w / 2 - 2.2)],
+    clear: w - 2.1,
+  }
+}
+
+/**
+ * A shop at Stage `plan.stage`, as one brick: `w` along its front and `d` deep, its front facing `ry`, built to the
+ * level of finish (#175) as its lot plans it. A ground floor in its front's colour under pale storeys, the walls and
+ * roof wearing surface pattern where the kit builds patterned (#174): panels and high windows on the ground floor's
+ * back and ends, a service door in the middle of its back, siding and a window in every bay of each upper storey all
+ * round, and tile rows inside a stone parapet on its flat roof. Its front: a glass door in a frame under a noren, a
+ * shop window showing goods over a sill, a signboard over a striped awning, and on a Road a tall sign standing out
+ * from the wall and a billboard on the roof. Its roof: AC condensers, a panel water tank and, on some, a terrace. At
+ * its back: gas cylinders, a pipe, crates and an AC unit, which are Close-only. Its colours and which signs it would
+ * have are drawn before anything a Stage changes:
+ * - Stage 1: one storey, a narrower shop window, a signboard unlit, one condenser.
+ * - Stage 2: its storeys; the signboard lit; on a Road, on some, a tall sign and a billboard; on some, a water tank.
+ * - Stage 3: a storey more and a pale cornice over the ground floor; on a Road, both signs and an arcade over the
+ *   pavement in place of the awning; more tanks, and a timber terrace with tables, a parasol and string lights on
+ *   some roofs.
+ * Its lit front throws a pool of light on the pavement before it, out to the kerb, and a terrace's string lights one
+ * on the terrace.
+ */
+function shop(kit: Kit, x: number, y: number, h: number, w: number, d: number, ry: number, plan: ShopPlan) {
+  const { storeys, stage, onRoad, door, front, form, noodle } = plan
+  kit.formed(`shop ${form} ${storeys}`)
+  const [upper, stripe, roofSign, hung, board, billboard, tallSign] = [
+    kit.pick(SHOP.uppers),
+    kit.pick(SHOP.fronts),
+    kit.rand() < 0.45,
+    kit.rand() < 0.45,
+    kit.pick(SHOPFRONT.boards),
+    kit.pick(SHOPFRONT.boards),
+    kit.pick(SHOP.fronts),
+  ]
+  const [frame, noren, goods, tank, terrace, parasol] = [
+    kit.pick(SHOPFRONT.door.frames),
+    kit.pick(SHOPFRONT.noren),
+    kit.pick(SHOPFRONT.goods),
+    kit.rand(),
+    kit.rand() < 0.45,
+    kit.pick(SHOP.fronts),
+  ]
+  const seed = spot(x, y) // which patterned windows light, and the small things' draws, so the kit's stream is untouched
+  const draw = mulberry32(seed + 5)
+  const face = d / 2 // the front's face, out from the middle
+  const glazing: KitLook = { material: kit.glass, tint: kit.windows[0] }
+  const arcade = stage === 3 && onRoad
+  const boardOf = (colour: string, on: boolean, glow = SHOPFRONT.lit.board): KitLook => (on ? kit.lit(colour, glow) : colour)
+  /** A board `bw` by `bh` on a face at `v`, its foot `z`, with `n` marks across it. */
+  const signboard = (colour: string, on: boolean, bw: number, bh: number, v: number, z: number, n: number) => {
+    kit.local(kit.cuboid(bw, bh, 0.14), boardOf(colour, on), x, y, ry, 0, v, z)
+    const size = Math.min(bh * 0.62, 0.5)
+    for (let k = 0; k < n; k++)
+      kit.local(
+        kit.cuboid(size, size, 0.04),
+        kit.markOf(colour, on),
+        x,
+        y,
+        ry,
+        (k - (n - 1) / 2) * size * 1.45,
+        v + 0.08,
+        z + (bh - size) / 2,
+      )
+  }
+
+  kit.cladded(kit.box(w, 3.8, d, 0.24, 0.1), front, x, y, h, ry, { back: PATTERN.back, sides: PATTERN.wall, storey: 3.8 }, seed)
+
+  // The door at one end, its glass lit at night, under a noren of three panels with a crest on a rod.
+  const layout = frontOf(w, door)
+  const doorAt = layout.door
+  kit.local(kit.cuboid(SHOPFRONT.door.wide + 0.22, SHOPFRONT.door.tall + 0.16, 0.1), frame, x, y, ry, doorAt, face + 0.01, h)
+  kit.doorway(...to(x, y, ry, doorAt, face), ry, SHOPFRONT.door.wide, 0.1)
+  kit.local(kit.cuboid(SHOPFRONT.door.wide, SHOPFRONT.door.tall, 0.12), glazing, x, y, ry, doorAt, face + 0.03, h + 0.04)
+  kit.local(kit.cuboid(0.06, SHOPFRONT.door.tall, 0.16), frame, x, y, ry, doorAt, face + 0.04, h + 0.04)
+  kit.local(kit.cuboid(1.66, 0.05, 0.05), frame, x, y, ry, doorAt, face + 0.2, h + 2.36)
+  for (const k of [-1, 0, 1]) kit.local(kit.cuboid(0.47, 0.8, 0.03), noren, x, y, ry, doorAt + k * 0.5, face + 0.2, h + 1.56)
+  kit.local(
+    kit.cuboid(0.22, 0.22, 0.05),
+    pale(noren) ? SHOPFRONT.marks.dark : SHOPFRONT.marks.pale,
+    x,
+    y,
+    ry,
+    doorAt,
+    face + 0.21,
+    h + 1.86,
+  )
+
+  // The shop window over the rest of the front, narrower at Stage 1, framed and silled, with goods on its sill.
+  const ww = layout.glazed * (stage === 1 ? 0.72 : 1)
+  const windowAt = layout.window
+  kit.local(kit.cuboid(ww, 2, 0.12), glazing, x, y, ry, windowAt, face + 0.02, h + 0.8)
+  kit.local(kit.cuboid(ww + 0.16, 0.08, 0.3), SHOPFRONT.trim, x, y, ry, windowAt, face + 0.1, h + 0.72)
+  kit.local(kit.cuboid(ww + 0.16, 0.1, 0.16), SHOPFRONT.trim, x, y, ry, windowAt, face + 0.04, h + 2.8)
+  const bars = Math.max(1, Math.round(ww / 1.7))
+  for (let k = 1; k < bars; k++)
+    kit.local(kit.cuboid(0.06, 2, 0.16), frame, x, y, ry, windowAt - ww / 2 + (k * ww) / bars, face + 0.04, h + 0.8)
+  kit.closeOnly(() => {
+    for (let u = windowAt - ww / 2 + 0.3; u < windowAt + ww / 2 - 0.25; u += 0.42 + draw() * 0.2) {
+      const tall = 0.18 + draw() * 0.3
+      kit.local(kit.cuboid(0.3, tall, 0.2), goods[Math.floor(draw() * goods.length)], x, y, ry, u, face + 0.15, h + 0.76)
+    }
+  })
+
+  // Over the ground floor: a signboard over the awning, or at Stage 3 on a Road the arcade with the board on its
+  // fascia. A false front carries its board above the roof instead.
+  if (form !== 'facade' && !arcade) signboard(board, stage >= 2, w * 0.88, stage === 1 ? 0.4 : 0.48, face + 0.07, h + 3.28, 2 + (seed % 3))
+  if (!arcade) {
+    const span = w * 0.86
+    const stripes = Math.max(3, Math.round(span / 1.2))
+    for (let i = 0; i < stripes; i++)
+      kit.local(
+        AWNING,
+        boardOf(i % 2 ? SHOP.stripe : stripe, stage >= 2, SHOPFRONT.lit.awning),
+        x,
+        y,
+        ry,
+        -span / 2 + (i + 0.5) * (span / stripes),
+        face + 0.85,
+        h + 3,
+        span / stripes,
+      )
+  } else {
+    kit.local(kit.cuboid(w + 0.02, 0.16, ARCADE), kit.lit(SHOPFRONT.arcade, SHOPFRONT.lit.arcade), x, y, ry, 0, face + ARCADE / 2, h + 3.44)
+    signboard(board, true, w + 0.02, 0.5, face + ARCADE, h + 3.04, 2 + (seed % 3))
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.12, 3.44, 0.12), SHOPFRONT.steel, x, y, ry, k * (w / 2 - 0.08), face + ARCADE - 0.12, h)
+    kit.local(kit.cuboid(w * 0.8, 0.05, 0.16), kit.lit(CREAM, SHOPFRONT.lit.strip), x, y, ry, 0, face + ARCADE * 0.5, h + 3.39)
+  }
+  if (stage === 3) kit.local(kit.cuboid(w + 0.06, 0.4, 0.4), SHOP.stripe, x, y, ry, 0, face + 0.04, h + 3.7)
+
+  // Upper storeys, set back behind a balcony on a setback shop, and the roof's lid over the top one.
+  let top = h + 3.8
+  let [tw, td, tv] = [w + 0.1, d + 0.1, 0] // the lid's footprint and how far out of the front its middle lies
+  if (storeys > 1) {
+    const tallness = (storeys - 1) * 3.1
+    const back = form === 'setback' ? SETBACK : 0
+    const storey = PATTERN.storey
+    const cladding = { front: storey, back: storey, sides: storey, storey: 3.1 }
+    kit.cladded(kit.box(w - 0.3, tallness, d - 0.6 - back, 0.24, 0.1), upper, ...to(x, y, ry, 0, -back / 2), top, ry, cladding, seed + 1)
+    if (back) {
+      kit.local(kit.cuboid(w - 0.1, 0.1, back + 0.3), SHOPFRONT.balcony, x, y, ry, 0, face - (back + 0.3) / 2, top)
+      kit.local(kit.cuboid(w - 0.1, 0.9, 0.12), upper, x, y, ry, 0, face - 0.1, top + 0.1)
+      kit.closeOnly(() => {
+        for (const k of [-0.3, 0.3]) kit.pot(...to(x, y, ry, k * w, face - 0.55), top + 0.1, 0.32, draw)
+      })
+    }
+    top += tallness
+    ;[tw, td, tv] = back ? [w - 0.2, d - 0.5 - back, -back / 2] : [w + 0.1, d + 0.1, 0]
+  }
+  kit.cladded(kit.cuboid(tw, 0.5, td), storeys > 1 ? upper : front, ...to(x, y, ry, 0, tv), top, ry, { top: PATTERN.roof }, seed + 2)
+  const roof = top + 0.5 // the lid's top
+  const [roofFront, roofBack] = [tv + td / 2, tv - td / 2] // the roof's front and back edges, out of the front
+
+  // The parapet, or on a false front a wall raised over the roof's front edge with the signboard on it.
+  /** A length of the parapet `pw` by `pd` on the roof, its middle at `(u, v)` in the shop's frame. */
+  const parapet = (pw: number, pd: number, u: number, v: number) =>
+    kit.local(kit.cuboid(pw, PARAPET.tall, pd), SHOPFRONT.parapet, x, y, ry, u, v, roof)
+  if (form === 'facade') {
+    kit.local(kit.cuboid(tw, 1.6, 0.3), storeys > 1 ? upper : front, x, y, ry, 0, roofFront - 0.15, roof)
+    signboard(board, stage >= 2, tw * 0.8, 0.95, roofFront + 0.06, roof + 0.32, 2 + (seed % 3))
+  } else parapet(tw, PARAPET.wide, 0, roofFront - PARAPET.wide / 2)
+  parapet(tw, PARAPET.wide, 0, roofBack + PARAPET.wide / 2)
+  for (const k of [-1, 1]) parapet(PARAPET.wide, td - 2 * PARAPET.wide, k * (tw / 2 - PARAPET.wide / 2), tv)
+
+  // A stair house on a setback shop of one storey, so that its roof differs from a flat neighbour's.
+  if (form === 'setback' && storeys === 1) {
+    const [u, v] = [-door * (tw / 2 - 1.5), tv - td * 0.12]
+    kit.local(kit.cuboid(2.2, 2.3, 2.6), SHOPFRONT.parapet, x, y, ry, u, v, roof)
+    kit.local(kit.cuboid(2.4, 0.16, 2.8), SHOPFRONT.steel, x, y, ry, u, v, roof + 2.3)
+    kit.local(kit.cuboid(0.9, 1.9, 0.06), frame, x, y, ry, u, v + 1.31, roof)
+  }
+  // On the roof: condensers along the back, a tank on its stand, a noodle shop's vent, a billboard and a terrace.
+  const units = Math.min(stage, Math.floor((tw - 1.2) / 1.25))
+  for (let k = 0; k < units; k++) {
+    const u = -door * (tw / 2 - 0.95 - k * 1.25)
+    kit.local(kit.cuboid(1, 0.72, 0.5), AIRCON.body, x, y, ry, u, roofBack + 0.75, roof)
+    kit.put(FACING_DISC, AIRCON.grille, x, y, ry, u - 0.16, roofBack + 1.01, roof + 0.36, 0.24, 0.24, 1)
+  }
+  if (stage >= 2 && tank < (stage === 2 ? 0.55 : 0.8)) {
+    const [u, v] = [door * (tw / 2 - 1.25), roofBack + td * 0.42]
+    kit.local(kit.cuboid(1.6, 0.5, 1.6), SHOPFRONT.steel, x, y, ry, u, v, roof)
+    kit.local(kit.cuboid(1.5, 1.3, 1.5), SHOPFRONT.tank, x, y, ry, u, v, roof + 0.5)
+  }
+  if (noodle) {
+    const [u, v] = [door * (tw / 2 - 0.55), roofBack + 0.6]
+    kit.put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof, 0.18, 1.6, 0.18)
+    kit.put(THIN, SHOPFRONT.steel, x, y, ry, u, v, roof + 1.6, 0.3, 0.14, 0.3)
+    const [px, py] = to(x, y, ry, u, v)
+    if (stage >= 2) kit.steam(px, py, roof + 1.8)
+  }
+  const billboarded = onRoad && form !== 'facade' && (stage === 3 || (stage === 2 && roofSign))
+  if (billboarded) {
+    const bw = Math.min(tw * 0.62, 5.6)
+    const v = roofFront - 0.9
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.12, 2.9, 0.12), SHOPFRONT.steel, x, y, ry, k * bw * 0.36, v - 0.16, roof)
+    signboard(billboard, true, bw, 1.8, v, roof + 1.05, 3 + (seed % 2))
+  }
+  if (stage === 3 && terrace && storeys > 1 && td > 7) {
+    const [dw, dd] = [Math.min(tw * 0.5, 4.2), Math.min(td * 0.42, 4.4)]
+    const [u, v] = [-door * (tw / 2 - 0.35 - dw / 2), roofFront - (billboarded ? 1.7 : 0.45) - dd / 2]
+    kit.local(kit.cuboid(dw, 0.1, dd), SHOPFRONT.deck, x, y, ry, u, v, roof)
+    for (const [i, j] of [
+      [-0.22, -0.18],
+      [0.22, 0.2],
+    ]) {
+      kit.local(kit.cuboid(0.8, 0.05, 0.8), SHOPFRONT.trim, x, y, ry, u + i * dw, v + j * dd, roof + 0.82)
+      kit.local(kit.cuboid(0.08, 0.8, 0.08), SHOPFRONT.marks.dark, x, y, ry, u + i * dw, v + j * dd, roof + 0.05)
+    }
+    kit.put(CONE8, parasol, x, y, ry, u - 0.22 * dw, v - 0.18 * dd, roof + 1.95, 1.3, 0.5, 1.3)
+    kit.put(THIN, SHOPFRONT.marks.dark, x, y, ry, u - 0.22 * dw, v - 0.18 * dd, roof + 0.86, 0.04, 1.1, 0.04)
+    // String lights on four posts at the deck's corners, along its two long sides.
+    for (const i of [-1, 1])
+      for (const j of [-1, 1]) kit.local(kit.cuboid(0.07, 2.45, 0.07), SHOPFRONT.steel, x, y, ry, u + (i * dw) / 2, v + (j * dd) / 2, roof)
+    for (const j of [-1, 1]) {
+      kit.local(kit.cuboid(dw, 0.03, 0.03), SHOPFRONT.marks.dark, x, y, ry, u, v + (j * dd) / 2, roof + 2.38)
+      const n = Math.max(3, Math.round(dw / 0.6))
+      for (let k = 0; k < n; k++)
+        kit.local(
+          kit.cuboid(0.16, 0.16, 0.16),
+          kit.lit('#fff1c7', SHOPFRONT.lit.string),
+          x,
+          y,
+          ry,
+          u - dw / 2 + ((k + 0.5) * dw) / n,
+          v + (j * dd) / 2,
+          roof + 2.2,
+        )
+    }
+    kit.pool('string', ...to(x, y, ry, u, v), roof + 0.1, dw + 1.2, dd + 1.2, ry)
+  }
+
+  // A tall sign standing out from the wall at the window's end, on a Road: on the upper storey, or on the roof's
+  // front corner over a shop of one storey.
+  if (onRoad && (stage === 3 || (stage === 2 && hung))) {
+    const [signAt, z] = [-door * (w / 2 - 0.4), storeys > 1 ? h + 3.95 : roof]
+    kit.local(kit.cuboid(0.22, 2.7, 1.05), boardOf(tallSign, true), x, y, ry, signAt, face + 0.3, z)
+    for (let k = 0; k < 3; k++)
+      kit.local(kit.cuboid(0.26, 0.44, 0.62), kit.markOf(tallSign, true), x, y, ry, signAt, face + 0.36, z + 0.32 + k * 0.72)
+  }
+
+  // At the back, Close-only: gas cylinders, a pipe up the wall, crates from Stage 2, and an AC unit at Stage 3.
+  kit.closeOnly(() => {
+    for (const k of [0, 1]) kit.put(THIN, '#b6c3cc', x, y, ry, door * (w / 2 - 0.6 - k * 0.44), -face - 0.26, h, 0.18, 1.15, 0.18)
+    kit.local(kit.cuboid(0.1, 3.6, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 0.45), -face - 0.07, h)
+    kit.local(kit.cuboid(1.4, 0.1, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 1.1), -face - 0.07, h + 3.2)
+    if (stage >= 2)
+      for (let k = 0; k < 3; k++)
+        kit.local(
+          kit.cuboid(0.48, 0.3, 0.36),
+          CRATES[Math.floor(draw() * CRATES.length)],
+          x,
+          y,
+          ry,
+          -door * (w / 2 - 1.5),
+          -face - 0.3,
+          h + k * 0.31,
+        )
+    if (stage === 3) kit.airCon(...to(x, y, ry, door * (w / 2 - 2.4), -face), h + 2.2, ry + Math.PI)
+  })
+
+  kit.pool(
+    stage === 1 ? 'window' : arcade ? 'arcade' : 'sign',
+    ...to(x, y, ry, 0, face + POOL.front.window),
+    h,
+    w + 0.4,
+    POOL.deep.window,
+    ry,
+  )
+  kit.shadow(x, y, h, w * 1.25 + 1, d * 1.25 + 1, false, ry)
+  kit.brick('building', x, y, h)
 }

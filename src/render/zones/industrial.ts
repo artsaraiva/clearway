@@ -1,8 +1,9 @@
 import { mulberry32 } from '../../sim/demand'
 import { polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
-import { CONTAINER, shedDoors, spot, type Kit } from '../kit'
+import { CONTAINER, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { fit, lotsOf, near, overlap, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { sawtooth } from '../shapes'
 
 // Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
 // a shed over all but 2.5 m of the lot on every side, 1.5 m in from the Block's edge and at least 9 m across. On some
@@ -36,7 +37,7 @@ const BAY = '#f0c75e'
 
 /**
  * A shed as `industrial` lays it (#150): its footprint `w` (east–west) by `d` centred on `(x, y)`, the way its long
- * side runs (`ry`, 0 east–west), the long side its doors face (`side`, as the kit's `warehouse` takes it), and how
+ * side runs (`ry`, 0 east–west), the long side its doors face (`side`, as `warehouse` takes it), and how
  * long it is along that side and how deep across it.
  */
 interface Shed {
@@ -64,7 +65,7 @@ export const look: Look = { landmarks: false, fill: industrial }
 
 /**
  * Industrial: wide, low sheds with sawtooth roofs on big lots with yards between them, and now and then a chimney, each
- * with the size and finish its Stage gives it (the kit's `warehouse`). Each shed's doors open onto a loading yard
+ * with the size and finish its Stage gives it (`warehouse`). Each shed's doors open onto a loading yard
  * (#150), where trucks back up to the doors and a forklift shuttles to a stack of pallets, and containers stand along
  * its other walls (`loadingYard`). With the Stage:
  * - Stage 1: a stack of pallets by a door.
@@ -116,7 +117,7 @@ function industrial(g: ZoneGround) {
     taken.push({ x: shed.x, y: shed.y, w: shed.w, d: shed.d, ry: 0, onRoad: false })
     kit.lot(i, f)
     const first = chimney
-    kit.staged((stage) => kit.warehouse(shed.x, shed.y, KERB, shed.w, shed.d, first, side, stage))
+    kit.staged((stage) => warehouse(kit, shed.x, shed.y, KERB, shed.w, shed.d, first, side, stage))
     chimney = false
   }
   // Then each yard, on its shed's lot, once every shed has taken its ground.
@@ -260,4 +261,95 @@ function pallets(kit: Kit, x: number, y: number, h: number, ry: number, layers: 
 function bay(kit: Kit, x: number, y: number, h: number, ry: number, l: number, w: number) {
   for (const k of [-1, 1]) kit.put(kit.cuboid(0.14, 0.02, l), BAY, x, y, ry, (k * w) / 2, 0, h)
   kit.brick('ground', x, y, h)
+}
+
+// The shed: its palette and its builder, beside the fill that lays it (#207).
+const { cylinder: CYLINDER } = SHAPES
+// Industrial: a shed's walls, its roof sheets and its roller doors, and a chimney's brick under a white band.
+const SHED = {
+  walls: ['#c9d1d6', '#b9c8b4', '#dccbaa', '#aebdcb', '#cfb39b', '#d9dcd2'],
+  roofs: ['#8f9aa5', '#7f8c7c', '#9c8f80', '#6f7f8c'],
+  doors: ['#f0c75e', '#e9eef2', '#79a7c3', '#7fbf9d'],
+  chimney: '#a8604f',
+  band: '#f4f1ea',
+}
+/**
+ * Where a shed `w` by `d` has its roller doors, as `warehouse` lays them (#150): m along its long side from its middle,
+ * about one to every 9 m.
+ */
+function shedDoors(w: number, d: number): number[] {
+  const len = Math.max(w, d) - 0.4
+  const n = Math.max(1, Math.floor(len / 9))
+  return Array.from({ length: n }, (_, k) => -len / 2 + ((k + 0.5) * len) / n)
+}
+
+/**
+ * A shed at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under
+ * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along the
+ * long side `side` (1 north or west, -1 south or east), and a brick chimney if `chimney`, which smokes. Its colours,
+ * its glazing and its height within its Stage are drawn before anything a Stage changes:
+ * - Stage 1: on 80% of the footprint, lower, and with no chimney.
+ * - Stage 2: on the whole footprint, with a lamp over each door that lights at dusk (#150).
+ * - Stage 3: a metre taller, with a two-storey office at one end of its back, vents along its roof, and a taller
+ *   chimney with a second band.
+ */
+function warehouse(kit: Kit, x: number, y: number, h: number, w: number, d: number, chimney: boolean, side: number, stage = 2) {
+  kit.formed('shed')
+  const [tall, walls, roofs, lit, doorColour, chimneyTall] = [
+    kit.rand(),
+    kit.pick(SHED.walls),
+    kit.pick(SHED.roofs),
+    kit.rand() < 0.5,
+    kit.pick(SHED.doors),
+    kit.range(15, 21),
+  ]
+  if (stage === 1) [w, d] = [w * 0.8, d * 0.8]
+  const wall = [4.2 + 1.2 * tall, 5.4 + 2 * tall, 6.4 + 2 * tall][stage - 1]
+  kit.add(kit.box(w, wall, d, 0.4, 0.14), walls, x, y, h)
+  const along = w >= d
+  const [len, wid, ry] = along ? [w - 0.4, d - 0.4, 0] : [d - 0.4, w - 0.4, Math.PI / 2]
+  const n = Math.max(2, Math.round(len / 6))
+  const rise = Math.min(3.4, (len / n) * 0.55)
+  const teeth = sawtooth(len, wid, rise, n)
+  kit.add(teeth, roofs, x, y, h + wall, ry)
+  teeth.dispose()
+  const glaze: KitLook = { material: kit.glass, tint: lit ? kit.windows[2] : kit.unlit }
+  for (let i = 1; i < n; i++)
+    kit.local(kit.cuboid(0.2, rise * 0.8, wid - 1.2), glaze, x, y, ry, -len / 2 + (i * len) / n - 0.12, 0, h + wall)
+  for (const u of shedDoors(w, d)) {
+    kit.local(kit.cuboid(3.6, 4, 0.3), doorColour, x, y, ry, u, (side * (wid + 0.4)) / 2, h)
+    if (stage > 1) kit.local(kit.cuboid(0.7, 0.22, 0.5), kit.bulb, x, y, ry, u, side * (wid / 2 + 0.45), h + 4.5)
+  }
+  if (stage === 3) {
+    // An office at the far end of the back, standing a storey clear of the walls, with a band of windows a floor.
+    const [ow, od] = [Math.min(11, len * 0.32), Math.min(7, wid * 0.45)]
+    const [ox, oy] = [-len / 2 + ow / 2 + 0.2, -side * (wid / 2 - od / 2 + 0.35)] // its face just out of the shed's
+    const high = wall + 3.4
+    kit.local(kit.box(ow, high, od, 0.3, 0.1), SHED.band, x, y, ry, ox, oy, h)
+    for (const f of [0, 1])
+      kit.local(
+        kit.cuboid(ow - 1.2, 1.3, 0.3),
+        { material: kit.glass, tint: kit.windows[0] },
+        x,
+        y,
+        ry,
+        ox,
+        oy - side * (od / 2),
+        h + high - 6.2 + f * 3.1,
+      )
+    for (let i = 0; i < n; i++) {
+      const [vx, vy] = to(x, y, ry, -len / 2 + ((i + 0.5) * len) / n + 1.2, 0)
+      kit.add(CYLINDER, PLANT, vx, vy, h + wall + rise * 0.5, 0, 0.5, rise * 0.5 + 1.2, 0.5)
+    }
+  }
+  if (chimney && stage > 1) {
+    const [cx, cy] = to(x, y, ry, len / 2 - 2.6, -side * (wid / 2 - 2.6))
+    const high = chimneyTall + (stage === 3 ? 5 : 0)
+    kit.add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, high, 1)
+    kit.add(CYLINDER, SHED.band, cx, cy, h + high - 2.4, 0, 1.06, 0.9, 1.06)
+    if (stage === 3) kit.add(CYLINDER, SHED.band, cx, cy, h + high - 6, 0, 1.06, 0.6, 1.06)
+    kit.smoke(cx, cy, h + high + 0.4)
+  }
+  kit.shadow(x, y, h, w * 1.3 + 2, d * 1.3 + 2)
+  kit.brick('building', x, y, h)
 }

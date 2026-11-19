@@ -11,7 +11,7 @@ import { look as parks } from './parks'
 import { look as shops } from './shops'
 
 // What each Zone builds on a Block (#130 and #136, ported from the neighbourhoods prototype of #127): its building
-// shapes, its palette (the kit's, under the rule above `WALLS`), its lot size and the gaps between its buildings. A look
+// shapes, its palette (under the rule at the top of `../kit`), its lot size and the gaps between its buildings. A look
 // reads the Block, the ground it must leave free, the kit's random stream and one draw for its Tile, and nothing of
 // where the Block lies in the City, so a Zone builds alike at the City's middle and at its edge.
 //
