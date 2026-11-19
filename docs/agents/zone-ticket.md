@@ -11,17 +11,17 @@ The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md
 3. **Run the scene check on `main`** for your Zone: `npm run check:scene -- <zone> --all`. Its known rows for your Zone in `scripts/visual/scene/known.ts` are your work list.
 4. **Build in a loop of seconds:** change the fill, rerun the check, read what failed and where. Commit each time a group of failures clears.
 5. **Done building when** `npm run check:scene -- <zone> --seeds 5` passes with your Zone's rows deleted from `known.ts`, and `npm run check:scene -- all --against origin/main` shows every other Zone's meshes unchanged.
-6. **Shoot once:** `npm run shots -- <zone> --times noon,night`. Read the sheets against rules 1, 2 and 9, which the check does not assert, and against the approved shops sheets. Fix and reshoot only what a sheet shows wrong.
+6. **Shoot once, small:** one before/after image of the Zone at Block zoom, Stage 3, noon and night (`npm run shots -- <zone> --views close --stages 3 --turns 1 --times noon,night`, and again with `--ref origin/main` for the before), and a close-up of each new piece, each scene and what moves (`--close=x,y,m`). Read them against rules 1 and 2, which the check does not assert. Fix and reshoot only what an image shows wrong. The user reads the close-ups, not twelve-panel Stage sheets: shoot those only when asked.
 7. **Review:** `/code-review` against `origin/main`, on both axes as Review (below) has them. Fix what it finds, rerun the check, and reshoot only what a fix changes.
 8. **Bench once:** `npm run bench:visual -- <zone> --against origin/main`, whole City and one Tile, noon and night. Under 12 ms.
 9. **Write** what the Zone builds, its colours and its frame time into the visual-style spec. List in one place every departure from a rule and every piece outside the ticket's menu, for the user to accept or drop.
-10. **Open a draft PR** (`/pr`, `Closes #<n>`). The user approves the sheets; then mark it ready.
+10. **Open a draft PR** (`/pr`, `Closes #<n>`), the images in its body. The user approves them; then mark it ready.
 
-## What the check asserts, and what stays with the sheet
+## What the check asserts, and what stays with the images
 
 The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; scenes; something moves; pools; Close-only props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
 
-The sheet holds the look: walls and roofs that carry something on all four sides (rules 1 and 2, until [#198](https://github.com/artsaraiva/clearway/issues/198)), a Stage that reads at City zoom, a night signature of the Zone's own, and whether it is good. One sheet set, at the end.
+The images hold the look: walls and roofs that carry something on all four sides (rules 1 and 2, until [#198](https://github.com/artsaraiva/clearway/issues/198)), a night signature of the Zone's own, and whether it is good. One small before/after image and the close-ups, at the end.
 
 ## Build it the way the finished Zones are built
 
@@ -49,4 +49,4 @@ Each line is a defect a review caught once.
 
 ## Review
 
-Reviewers read the diff and run the check; they do not shoot. The Standards review looks for duplicated helpers and names off the glossary. The Spec review holds the ticket's list and rules 1, 2 and 9 against the sheet.
+Reviewers read the diff and run the check; they do not shoot. The Standards review looks for duplicated helpers and names off the glossary. The Spec review holds the ticket's list and rules 1 and 2 against the images.

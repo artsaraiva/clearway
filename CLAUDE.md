@@ -31,9 +31,9 @@ These test seams are pre-agreed with the user and form the complete list:
 
 Assert outcomes only: jammed, cleared, legal, refused, a price, yen, a Stage. Verify everything else (`src/render`, `src/ui`, visuals, feel, tuning) by running the game.
 
-Visual-style PR evidence comes from `scripts/visual/`: `npm run shots -- <zones>` for the Stage sheets, `npm run bench:visual -- <zones> --against origin/main` for the 1,000-car frame time. Usage heads each script.
+Visual-style PR evidence comes from `scripts/visual/`: `npm run shots` for a small before/after image and close-ups of what changed, `npm run bench:visual -- <zones> --against origin/main` for the 1,000-car frame time. Usage heads each script.
 
-The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script outside `npm test`, whose usage heads `scripts/visual/check.mjs`. Sheets are for the look alone.
+The rules of finish that are facts about what was placed come from the scene check, `npm run check:scene -- <zones> --against origin/main`: a script outside `npm test`, whose usage heads `scripts/visual/check.mjs`. Images are for the look alone.
 
 Zone work lives in `src/render/zones/<zone>.ts` (its look, fill, plans and scenes) and `.scratch/visual-style/zones/<zone>.md` (its part of the visual-style spec); what every Zone shares stays in `src/render/zones/ground.ts`, `scenes.ts`, the kit and `.scratch/visual-style/spec.md`.
 
