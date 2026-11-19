@@ -284,7 +284,7 @@ const playground = ({ ground: c }: Foot) => mulberry32(spot(c.x, c.y))() < 0.5
  * The playground or garden on a tower's foot `foot` (#155). Which it is, and each piece of it, is drawn from where it
  * stands. With the Stage:
  * - Stage 1: a bench against the podium.
- * - Stage 2: a playground's soft ground, slide and swings, or a garden's lawn, a flower bed, a bench and an arbour.
+ * - Stage 2: a playground's soft ground, slide and swings, or a garden's lawn, a flower bed and a bench.
  * - Stage 3: a sandbox and a spring rider in the playground, or a tree, a second bed and a second bench in the garden.
  */
 function footPieces(kit: Kit, foot: Foot) {
@@ -309,10 +309,10 @@ function footPieces(kit: Kit, foot: Foot) {
     piece(3, b - 0.8, swings ? out - 0.8 : inner + 0.9, (p) => kit.rider(p.x, p.y, KERB + 0.1, ry))
   } else {
     piece(2, mid, 0, (p) => kit.surface(p.x, p.y, KERB, b - a, dep, ry, LAWN))
-    piece(2, a + 0.7, 0, (p) => kit.flowerBed(p.x, p.y, KERB + 0.1, 1, dep - 1.2, ry, kit.pick([...BLOOMS])))
+    piece(2, a + 0.7, 0, (p) => kit.flowerBed(p.x, p.y, KERB + 0.1, 1, dep - 1.2, ry, kit.pick(BLOOMS)))
     piece(2, a + 2.4, out - 0.6, (p) => kit.bench(p.x, p.y, KERB + 0.1, ry + Math.PI))
     piece(3, mid + 0.5, -0.4, (p) => kit.tree(p.x, p.y, KERB + 0.1, kit.range(0.42, 0.5), kit.chance(0.4) ? 'sakura' : 'round'))
-    piece(3, (a + 1.6 + b - 0.4) / 2, inner + 0.7, (p) => kit.flowerBed(p.x, p.y, KERB + 0.1, b - a - 2, 1, ry, kit.pick([...BLOOMS])))
+    piece(3, (a + 1.6 + b - 0.4) / 2, inner + 0.7, (p) => kit.flowerBed(p.x, p.y, KERB + 0.1, b - a - 2, 1, ry, kit.pick(BLOOMS)))
     piece(3, b - 1.2, out - 0.6, (p) => kit.bench(p.x, p.y, KERB + 0.1, ry + Math.PI))
   }
 }
