@@ -58,6 +58,15 @@ export const PATTERN = {
   shingles: 19,
   /** A low garden wall (#179): concrete blocks in a running bond. */
   blocks: 20,
+  /** A park's lawn (#180): mown in stripes of two tones, in m on the map over `REPEAT.lawn`. */
+  lawn: 21,
+  /** A park's path (#180): fine gravel, in m on the map over `REPEAT.paving`. */
+  gravel: 22,
+  /**
+   * A plaza's radial paving (#180): rings of stones round its middle, as many to a ring as fit round it, each a shade of
+   * its own, in m from the middle (`pave`'s `middle`).
+   */
+  radial: 23,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -66,8 +75,10 @@ const DOORWAY = PATTERN.homeFront - 1 // the layer of `homeFront`'s middle bay o
 /** A house's foundation and the shadow under its eaves (#179): the share of a storey each covers, and how much darker each is. */
 const HOME = { footing: 0.075, eaves: 0.07, foot: 0.76, shadow: 0.3 }
 
-/** m of the map or a roof that one repeat of the paving's or the roof's pattern covers. */
-const REPEAT = { paving: 2.4, roof: 2 }
+/** m of the map or a roof that one repeat of the paving's, the roof's or a lawn's pattern covers: a lawn's two stripes. */
+const REPEAT = { paving: 2.4, roof: 2, lawn: 4 }
+/** Radial paving (#180): m from one ring of stones to the next, and about how long each stone is round its ring. */
+const RADIAL = { ring: 0.6, stone: 0.75 }
 /**
  * A flat roof: m from its edge to its parapet's inner face, and to the end of the shadow the parapet throws in; how
  * much paler the parapet is, how much darker the shadow, and how much darker and greyer the roof inside, so that a roof
@@ -212,15 +223,16 @@ export function tile(geo: THREE.BufferGeometry, seed: number, kind: Pattern = PA
 
 /**
  * Lay paving joints, or `kind`'s other paving, over the faces of a geometry in place (Three coordinates) that look up, in
- * m on the map.
+ * m on the map: radial paving (#180) in m from `middle`, a point on the map, which the shader turns into rings.
  */
-export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving): THREE.BufferGeometry {
+export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving, middle = { x: 0, y: 0 }): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
+  const per = kind === PATTERN.lawn ? REPEAT.lawn : kind === PATTERN.radial ? 1 : REPEAT.paving
   return wear(geo, (uv, worn) => {
     for (let i = 0; i < pos.count; i++) {
       if (nor.getY(i) < 0.9) continue
-      uv.set([pos.getX(i) / REPEAT.paving, -pos.getZ(i) / REPEAT.paving], 2 * i)
+      uv.set([(pos.getX(i) - middle.x) / per, (-pos.getZ(i) - middle.y) / per], 2 * i)
       worn[3 * i] = kind + 0.5
     }
   })
@@ -503,6 +515,25 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
         }
       }
     },
+    // A park's lawn (#180) over two stripes 2 m wide: one mown toward the eye and paler, one away and deeper, each
+    // finely speckled.
+    (g) => {
+      const draw = stream(47)
+      for (let y = 0; y < S; y += 4)
+        for (let x = 0; x < S; x += 4) fill(g, [Math.round((x < S / 2 ? 132 : 114) + draw() * 8), 0, 0], x, y, 4, 4)
+    },
+    // A park's gravel (#180): stones of 5 cm, each a shade of its own, and a darker one here and there.
+    (g) => {
+      const draw = stream(53)
+      for (let y = 0; y < S; y += 3)
+        for (let x = 0; x < S; x += 3) fill(g, [Math.round(draw() < 0.08 ? 96 : 116 + draw() * 26), 0, 0], x, y, 3, 3)
+    },
+    // A stone of radial paving (#180), one to a repeat: finely speckled, with a dark joint along two edges.
+    (g) => {
+      speckle(g, 59, 122, 134, 4)
+      fill(g, [84, 0, 0], 0, 0, S, 6)
+      fill(g, [84, 0, 0], 0, 0, 6, S)
+    },
   ]
 }
 
@@ -597,6 +628,17 @@ bool patternInMetres = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(P
 vec2 patternAt = patternInMetres ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
 vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);
+// Radial paving (#180): m from its middle turned into rings and the stones round each, and their derivatives worked out
+// from those of the m, which hold across the seam where the angle wraps.
+if (patternKind == ${f(PATTERN.radial)}) {
+  float r = max(length(vPatternAt), 1e-3);
+  float stones = max(6.0, floor(${f(2 * Math.PI)} * (floor(r / ${f(RADIAL.ring)}) + 0.5) * ${f(RADIAL.ring / RADIAL.stone)}));
+  float k = stones / ${f(2 * Math.PI)};
+  vec2 tx = vec2(-vPatternAt.y, vPatternAt.x) / (r * r);
+  patternAt = vec2((atan(vPatternAt.y, vPatternAt.x) / ${f(2 * Math.PI)} + 0.5) * stones, r / ${f(RADIAL.ring)});
+  patternDx = vec2(dot(tx, patternDx) * k, dot(vPatternAt, patternDx) / (r * ${f(RADIAL.ring)}));
+  patternDy = vec2(dot(tx, patternDy) * k, dot(vPatternAt, patternDy) / (r * ${f(RADIAL.ring)}));
+}
 float patternEdge = min(min(vPatternAt.x, vPattern.y - vPatternAt.x), min(vPatternAt.y, vPattern.z - vPatternAt.y));
 float patternAa = fwidth(patternEdge);
 if (patternKind > 0.5) {
@@ -608,6 +650,8 @@ if (patternKind > 0.5) {
   if (patternKind == ${f(PATTERN.homeFront)}) layer = floor(patternAt.y) == 0.0 && mod(floor(vPattern.y + 0.5), 2.0) == 1.0 && floor(patternAt.x) == floor(floor(vPattern.y + 0.5) * 0.5) ? ${f(DOORWAY)} : ${f(PATTERN.home - 1)};
   vec3 worn = textureGrad(patternMap, vec3(patternAt, layer), patternDx, patternDy).rgb;
   float shade = worn.r * 2.0;
+  // Each stone of radial paving a shade of its own (#180).
+  if (patternKind == ${f(PATTERN.radial)}) shade *= 0.92 + 0.16 * patternHash(vec3(floor(patternAt), 3.0));
   // A tiled roof's ridge (#178), and a house's (#179): a darker cap along its first 0.22 m down from the top.
   if (patternKind == ${f(PATTERN.tiles)} || patternKind == ${f(PATTERN.shingles)}) shade *= 1.0 - 0.22 * (1.0 - smoothstep(0.2 - patternAa, 0.24 + patternAa, vPatternAt.y));
   // A house's foundation along the foot of its ground floor, and the shadow of its eaves along the top of its top

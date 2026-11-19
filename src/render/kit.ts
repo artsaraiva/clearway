@@ -198,6 +198,7 @@ export const SHAPES = {
   centred: DISC,
   cylinder: CYLINDER,
   pyramid: PYRAMID,
+  petal: PETAL,
   awning: AWNING,
 }
 /**
@@ -712,6 +713,13 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const smoke = (x: number, y: number, h: number) => {
     plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length })
   }
+  /**
+   * A fountain's spray thrown up from `(x, y)`, `h` above the road, or petals drifting down from a sakura's crown there
+   * (#180): puffs that `./movers` lets fly through the working day, riding the next brick closed.
+   */
+  const plume = (kind: 'spray' | 'petals', x: number, y: number, h: number) => {
+    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, kind })
+  }
   /** A pot plant `s` m tall at `(x, y)`, `h` above the road (#175): a pot from `draw`'s colours under a bush of leaves. */
   const pot = (x: number, y: number, h: number, s: number, draw: () => number) => {
     add(POT, HOME.pots[Math.floor(draw() * HOME.pots.length)], x, y, h, 0, s * 0.42, s * 0.55, s * 0.42)
@@ -998,6 +1006,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
 
     steam,
     smoke,
+    plume,
 
     // What the Zones' buildings (`./zones`, #207) build with beyond the shapes above: the kit's stream, the glass's
     // window tints, where and how the kit builds, and the pieces more than one Zone's buildings share.
@@ -1082,6 +1091,15 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       )
       push(patterned ? pave(g, kind) : g, colour)
       brick('ground', x, y, h)
+    },
+
+    /**
+     * Ground laid from a geometry already in place (Three coordinates) in `look` (#180), as a park's lawn or its paths:
+     * wearing `kind`'s pattern on its top where the kit builds patterned, radial paving round `middle`. It joins the next
+     * brick.
+     */
+    laid(geo: THREE.BufferGeometry, look: Look, kind: Pattern, middle?: { x: number; y: number }) {
+      push(patterned ? pave(geo, kind, middle) : geo, look)
     },
 
     /** Say where loose things on the ground, such as fallen petals, may lie: `on(x, y, clear)`, on the Block `clear` m in from its edge. */
