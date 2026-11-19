@@ -68,12 +68,27 @@ export const PATTERN = {
    */
   radial: 23,
   /**
+   * A shed's wall (#181), in bays of about 3 m and the whole wall a storey: steel sheet corrugated in ribs 0.2 m apart, a
+   * concrete plinth along its foot, and a high strip of windows across every bay, lit at night as the windows are.
+   */
+  corrugated: 24,
+  /** A shed's roof (#181): steel sheet in ribs 0.25 m apart down the slope, lapped every 2 m, in m along its eaves and down from its ridge over `REPEAT.roof`. */
+  ribbed: 25,
+  /** A loading yard's tarmac (#181): fine stone in the binder, in m on the map over `REPEAT.paving`. */
+  tarmac: 26,
+  /** Hazard stripes (#181): the paint and near-black in stripes 0.3 m wide at 45° on the map, in m over `REPEAT.paving`. */
+  hazard: 27,
+  /** A fence's mesh panel (#181), in bays of its posts and its height: wire in diamonds over the dark beyond, framed at top and foot. */
+  mesh: 28,
+  /** A tank's steel (#181), wrapped round it (`wrap`) in plates of about 2 m by 1.2 m, welded in courses whose seams stagger. */
+  plates: 29,
+  /**
    * A meadow's grass (#182): unmown, deeper and flecked with seed heads, with glades and a winding way mown paler
    * through it, in m on the map over `REPEAT.meadow`.
    */
-  meadow: 24,
+  meadow: 30,
   /** Worked soil (#182): furrows 0.4 m apart running east–west, in m on the map over `REPEAT.paving`. */
-  soil: 25,
+  soil: 31,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -170,19 +185,28 @@ function eachTriangle(geo: THREE.BufferGeometry, fn: (n: THREE.Vector3, i: numbe
 }
 
 /**
- * Lay a curtain wall (#177) round the side of a cylinder (non-indexed, three's `CylinderGeometry` with its own uv)
- * before it is placed, as `clad` lays one up a box's faces: `around` m round and `tall` m tall, in as many whole bays of
- * about `bay` m as fit round it and storeys of `storey` m, `lit` of its floors lit at night as `seed` (0 to 1) has them.
- * Its caps wear nothing.
+ * Lay a curtain wall (#177), or another wall's `kind` (#181), round the side of a cylinder (non-indexed, three's
+ * `CylinderGeometry` with its own uv) before it is placed, as `clad` lays one up a box's faces: `around` m round and
+ * `tall` m tall, in as many whole bays of about `bay` m as fit round it and storeys of `storey` m, `lit` of its floors
+ * lit at night as `seed` (0 to 1) has them. Its caps wear nothing.
  */
-export function wrap(geo: THREE.BufferGeometry, around: number, tall: number, bay: number, storey: number, lit: number, seed: number) {
+export function wrap(
+  geo: THREE.BufferGeometry,
+  around: number,
+  tall: number,
+  bay: number,
+  storey: number,
+  lit: number,
+  seed: number,
+  kind: Pattern = PATTERN.curtain,
+) {
   const [nor, at] = [geo.attributes.normal, geo.attributes.uv]
   const bays = Math.max(1, Math.round(around / bay))
   return wear(geo, (uv, worn) => {
     for (let i = 0; i < nor.count; i++) {
       if (Math.abs(nor.getY(i)) > 0.5) continue
       uv.set([at.getX(i) * bays, (at.getY(i) * tall) / storey], 2 * i)
-      worn.set([PATTERN.curtain + 0.1 + 0.8 * seed, lit, tall / storey], 3 * i)
+      worn.set([kind + 0.1 + 0.8 * seed, kind === PATTERN.curtain ? lit : bays, tall / storey], 3 * i)
     }
   })
 }
@@ -205,10 +229,16 @@ export function panel(geo: THREE.BufferGeometry, kind: Pattern, around: number, 
 /**
  * Lay tile rows over a pitched roof (#178), a non-indexed gable or hip in its own frame before it is placed: each slope
  * wears `kind`, kawara (`PATTERN.tiles`) unless told, in m along its eaves and down from its ridge, the roof's top, so
- * that its rows run along the eaves and its ribs down the slope; each upright face, a gable end, wears `PATTERN.gable`.
- * Its underside wears nothing. `seed` (0 to 1) as `clad`'s.
+ * that its rows run along the eaves and its ribs down the slope; each upright face, a gable end, wears `upright`,
+ * `PATTERN.gable` unless told, as a shed's sawtooth wears its sheet up its steep faces too (#181). Its underside wears
+ * nothing. `seed` (0 to 1) as `clad`'s.
  */
-export function tile(geo: THREE.BufferGeometry, seed: number, kind: Pattern = PATTERN.tiles): THREE.BufferGeometry {
+export function tile(
+  geo: THREE.BufferGeometry,
+  seed: number,
+  kind: Pattern = PATTERN.tiles,
+  upright: Pattern = PATTERN.gable,
+): THREE.BufferGeometry {
   const pos = geo.attributes.position
   geo.computeBoundingBox()
   const top = geo.boundingBox!.max.y
@@ -225,7 +255,7 @@ export function tile(geo: THREE.BufferGeometry, seed: number, kind: Pattern = PA
         const [x, y, z] = [pos.getX(k), pos.getY(k), pos.getZ(k)]
         const along = (x * ax + z * az) / len
         uv.set([along, slope ? (top - y) / fall : y], 2 * k)
-        worn.set([(slope ? kind : PATTERN.gable) + tag, 0, 0], 3 * k)
+        worn.set([(slope ? kind : upright) + tag, 0, 0], 3 * k)
       }
     }),
   )
@@ -544,6 +574,72 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
       fill(g, [84, 0, 0], 0, 0, S, 6)
       fill(g, [84, 0, 0], 0, 0, 6, S)
     },
+    // A shed's wall (#181), a bay of about 3 m across and the whole wall up: steel sheet in ribs 0.2 m apart, each
+    // shaded along one side and lit along the other; a concrete plinth along the foot, and a strip of windows across
+    // the bay high on the wall, framed, with a mullion at the bay's edges and its middle and the shadow of its head.
+    (g) => {
+      plain(g)
+      for (let x = 0; x < S; x += 8) {
+        fill(g, [108, 0, 0], x, 0, 2, S)
+        fill(g, [138, 0, 0], x + 2, 0, 1, S)
+      }
+      fill(g, [96, 0, 0], 0, 0, S, 6)
+      fill(g, [112, 0, 0], 0, 6, S, 2)
+      const [y, h] = [Math.round(S * 0.7), Math.round(S * 0.13)]
+      fill(g, [128, 0, 255], 0, y - 3, S, h + 6)
+      fill(g, [128, 255, 0], 0, y, S, h)
+      fill(g, [96, 255, 0], 0, y + h - 2, S, 2)
+      for (const x of [0, S / 2 - 1.5, S - 1.5]) fill(g, [128, 0, 255], x, y, 3, h)
+      fill(g, [92, 0, 0], 0, y - 6, S, 3)
+    },
+    // A shed's roof (#181), 2 m each way: ribs 0.25 m apart down the slope, each lit along its crest and shaded beside
+    // it, and the lap where one sheet meets the next down the slope.
+    (g) => {
+      plain(g)
+      for (let x = 0; x < S; x += 16) {
+        fill(g, [104, 0, 0], x, 0, 3, S)
+        fill(g, [142, 0, 0], x + 3, 0, 2, S)
+        fill(g, [120, 0, 0], x + 5, 0, 2, S)
+      }
+      fill(g, [96, 0, 0], 0, S - 3, S, 3)
+      fill(g, [136, 0, 0], 0, S - 5, S, 2)
+    },
+    // A yard's tarmac (#181), 2.4 m each way: fine stone, each 4 cm a shade of its own, a paler chip here and there.
+    (g) => {
+      const draw = stream(61)
+      for (let y = 0; y < S; y += 2)
+        for (let x = 0; x < S; x += 2) fill(g, [Math.round(draw() < 0.06 ? 142 : 118 + draw() * 14), 0, 0], x, y, 2, 2)
+    },
+    // Hazard stripes (#181), 2.4 m each way: the paint and near-black in turn, 0.3 m wide, at 45°.
+    (g) => {
+      plain(g)
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if ((x + y) % (S / 4) < S / 8) fill(g, [22, 0, 0], x, y, 1, 1)
+    },
+    // A fence's mesh panel (#181), a bay between its posts and its height: wire in diamonds a tenth of the bay across,
+    // pale over the dark beyond, between a rail at its top and its foot.
+    (g) => {
+      fill(g, [66, 0, 0], 0, 0, S, S)
+      for (let y = 0; y < S; y++)
+        for (let x = 0; x < S; x++) {
+          const [a, b] = [(x + y) % 13, (x - y + 13 * 20) % 13]
+          if (a < 2 || b < 2) fill(g, [150, 0, 0], x, y, 1, 1)
+        }
+      fill(g, [140, 0, 0], 0, 0, S, 7)
+      fill(g, [140, 0, 0], 0, S - 9, S, 9)
+    },
+    // A tank's plates (#181), a bay of about 2 m round it and a storey of 1.2 m up: courses of steel plate, two to a
+    // bay and staggered a half from one course to the next, welded along darker seams.
+    (g) => {
+      plain(g)
+      for (const [row, shift] of [
+        [0, 0],
+        [S / 2, S / 4],
+      ]) {
+        fill(g, [98, 0, 0], 0, row, S, 2)
+        fill(g, [136, 0, 0], 0, row + 2, S, 1)
+        for (let x = shift; x < S + shift; x += S / 2) fill(g, [104, 0, 0], x % S, row, 2, S / 2)
+      }
+    },
     // A meadow's grass (#182) over 16 m: unmown and deeper, each 25 cm a shade of its own and a pale seed head here and
     // there; mown paler in three glades and the way that winds between them, which wrap at the repeat's edges.
     (g) => {
@@ -665,7 +761,7 @@ float patternKind = floor(vPattern.x);
 float patternGlass = 0.0;
 float patternLit = 0.0;
 // Derivatives before the branch: a face's neighbour may wear no pattern. A roof's m in from its nearest edge.
-bool patternInMetres = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(PATTERN.deck)} || patternKind == ${f(PATTERN.sheets)} || patternKind == ${f(PATTERN.tiles)} || patternKind == ${f(PATTERN.gable)} || patternKind == ${f(PATTERN.shingles)};
+bool patternInMetres = patternKind == ${f(PATTERN.roof)} || patternKind == ${f(PATTERN.deck)} || patternKind == ${f(PATTERN.sheets)} || patternKind == ${f(PATTERN.tiles)} || patternKind == ${f(PATTERN.gable)} || patternKind == ${f(PATTERN.shingles)} || patternKind == ${f(PATTERN.ribbed)};
 vec2 patternAt = patternInMetres ? vPatternAt / ${f(REPEAT.roof)} : vPatternAt;
 vec2 patternDx = dFdx(patternAt);
 vec2 patternDy = dFdy(patternAt);

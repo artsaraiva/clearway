@@ -7,7 +7,7 @@ import { WIND } from '../day'
 import { inside } from '../field'
 import { boxFace, CREAM, DECK, FACES, FLAG, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { GROW } from '../landmarks'
-import { panel, PATTERN, wrap } from '../pattern'
+import { panel, PATTERN } from '../pattern'
 import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
 import { planter, type Footprint } from '../kerbside'
 import { corners, fit, lotsOf, near, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
@@ -1106,10 +1106,16 @@ function officeTower(
   if (form === 'round') {
     const r = Math.min(w, d) / 2
     if (kit.patterned) {
-      const g = wrap(ROUND.toNonIndexed(), TAU * r, body, TOWER_FINISH.bay, STOREY, litShare, mulberry32(seed)())
-      kit.push(
-        g.applyMatrix4(m.compose(new THREE.Vector3(x, base, -y), q.identity(), new THREE.Vector3(r, body, r))),
+      kit.wrapped(
+        ROUND,
         `#${foot.getHexString()}`,
+        x,
+        y,
+        base,
+        r,
+        body,
+        { kind: PATTERN.curtain, bay: TOWER_FINISH.bay, storey: STOREY, lit: litShare },
+        seed,
       )
     } else {
       for (let f = 0; f < floors; f++) kit.add(ROUND, storey(f), x, y, base + f * STOREY, 0, r, STOREY, r)
