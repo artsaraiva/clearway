@@ -149,6 +149,8 @@ type MeadowGround = Scene<MeadowScene>
  */
 const STREAM = { big: 2500, wide: 2, bank: 0.35, step: 1.5, strays: 4 }
 const PATH = { wide: 1.3, step: 1.2, strays: 2.2, two: 1600 }
+/** The way the wind blows, a metre of it: a kite flies down it. */
+const DOWNWIND = { x: WIND.x / Math.hypot(WIND.x, WIND.y), y: WIND.y / Math.hypot(WIND.x, WIND.y) }
 /** How far from a stream's middle its banks reach. */
 const SHORE = STREAM.wide / 2 + STREAM.bank
 
@@ -300,6 +302,9 @@ function meadowScenes(g: ZoneGround, draw: () => number, trees: Tree[], beds: Be
           const l = { x: q.x, y: q.y, w, d, ry: Math.PI, onRoad: false } // its front to the south, where the default camera stands
           if (!stands(g, q.x, q.y, w, d, 3.2, l.ry)) continue
           if (room !== null && trees.some((t) => near(l, t.p.x, t.p.y, room))) continue
+          // A kite's way downwind keeps clear of the trees too, while there is such a spot.
+          if (kind === 'kite' && room && trees.some((t) => Math.hypot(t.p.x - q.x - DOWNWIND.x * 5, t.p.y - q.y - DOWNWIND.y * 5) < 4))
+            continue
           if (offBeds && beds.some((b) => near(l, b.p.x, b.p.y, Math.max(b.w, b.d) / 2 + 1))) continue
           return { ground: l }
         }
@@ -1022,6 +1027,11 @@ function bed(kit: Kit, { p, w, d, colour }: Bed, h: number) {
 function streamBed(kit: Kit, pts: Vec[], h: number) {
   kit.push(ribbons([pts], 2 * SHORE, h + 0.02), FINISH.bank)
   kit.push(ribbons([pts], STREAM.wide, h + 0.035), kit.water)
+  // A round pool at each end, where it rises and where it sinks away.
+  for (const p of [pts[0], pts[pts.length - 1]]) {
+    kit.drum(FINISH.bank, p.x, p.y, h, SHORE + 0.5, SHORE + 0.5, 0.02)
+    kit.drum(kit.water, p.x, p.y, h, SHORE + 0.15, SHORE + 0.15, 0.035)
+  }
   kit.brick('ground', pts[0].x, pts[0].y, h)
 }
 
@@ -1154,7 +1164,7 @@ function campsite(kit: Kit, l: RowLot, stage: number, h: number) {
   kit.add(SHAPES.cylinder, FINISH.stones, fx, fy, h, 0, 0.55, 0.16, 0.55)
   kit.add(SHAPES.cone, kit.lit(FINISH.ember, GLOWS.low), fx, fy, h + 0.12, 0, 0.3, 0.42, 0.3)
   kit.pool('amber', fx, fy, h, 3.4, 3.4)
-  kit.smoke(fx, fy, h + 0.6)
+  kit.steam(fx, fy, h + 0.6)
   kit.put(kit.cuboid(1.3, 0.34, 0.36), FINISH.logs[0], l.x, l.y, l.ry, l.w / 2 - 1.8, l.d / 2 - 0.6, h)
   person(kit, ...to(l.x, l.y, l.ry, l.w / 2 - 3, l.d / 2 - 1.5), h, l.ry - Math.PI / 2, FINISH.shirts[first], false)
   kit.shadow(...to(l.x, l.y, l.ry, -(l.w / 2 - 1.9), -(l.d / 2 - 2.6)), h, 4.2, 5.6, true)

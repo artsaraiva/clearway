@@ -558,7 +558,7 @@ function kite(): THREE.BufferGeometry {
   const [len, lean] = [Math.hypot(up, out), Math.atan2(out, up)]
   const box = (w: number, h: number, d: number, colour: string) => tint(new THREE.BoxGeometry(w, h, d).deleteAttribute('uv'), colour)
   // The diamond, in its own plane (x across, y up it), both of its sides: its top, its sides, its foot.
-  const [top, side, foot] = [1, 0.75, 1.35]
+  const [top, side, foot] = [1.7, 1.25, 2.3]
   const v: number[] = []
   for (const [a, b, c] of [
     [
@@ -583,11 +583,16 @@ function kite(): THREE.BufferGeometry {
     painted(tint(sail, '#ffffff'), 1),
     painted(box(0.05, top + foot, 0.03, SPAR).translate(0, (top - foot) / 2, 0), 0),
     painted(box(2 * side, 0.05, 0.03, SPAR), 0),
-    ...[0, 1, 2].map((k) => painted(box(0.34, 0.14, 0.02, BOW).translate(0.12 * (k % 2 ? 1 : -1), -foot - 0.45 - 0.5 * k, 0), 0)),
+    ...[0, 1, 2].map((k) => painted(box(0.5, 0.2, 0.03, BOW).translate(0.12 * (k % 2 ? 1 : -1), -foot - 0.45 - 0.5 * k, 0), 0)),
     painted(box(0.02, 1.6, 0.02, STRING).translate(0, -foot - 0.8, 0), 0),
-  ].map((g) => g.rotateX(-lean + 0.5).translate(0, up, -out)) // leaning back on the wind, over the end of its string
+  ].map((g) =>
+    g
+      .rotateY(Math.PI / 4)
+      .rotateX(-lean + 0.5)
+      .translate(0, up, -out),
+  ) // turned an eighth, to be seen from every side // leaning back on the wind, over the end of its string
   const string = painted(
-    box(0.035, len, 0.035, STRING)
+    box(0.05, len, 0.05, STRING)
       .translate(0, len / 2, 0)
       .rotateX(-lean),
     0,
