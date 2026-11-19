@@ -92,6 +92,15 @@ export function beside(a: Bounds, b: Bounds): boolean {
 }
 
 /**
+ * Building form `form`, or, where a lot beside its own already has it (`near`, their forms), another of `forms` by their
+ * shares, drawn from `draw` (#177): no two lots side by side are one building (rule 10). `form` if every form is taken.
+ */
+export function unlike<F>(form: F, near: F[], forms: readonly F[], draw: () => number): F {
+  const others = forms.filter((f) => !near.includes(f))
+  return near.includes(form) && others.length ? others[Math.floor(draw() * others.length)] : form
+}
+
+/**
  * Ground of each size of `sizes` in turn, m along a straight run of `candidates` (the Block's runs, `runs`) and in
  * from it: its middle at least `ends` m in from its run's ends, on a run facing a Road where one fits and any run where
  * none does, standing on the Block `clear` m in from its edge, clear of the street trees and `lampRoom` m clear of the

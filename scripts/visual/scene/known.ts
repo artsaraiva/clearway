@@ -15,13 +15,11 @@ interface Known {
 
 /** The Zones not yet built to the Finish (#173), with the ticket that builds each. */
 const UNFINISHED: Record<string, string> = {
-  'high-density': '#183',
   farms: '#184',
   unzoned: '#185',
 }
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
-  'high-density': ['keeps-clear', 'neighbours-differ', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   farms: ['keeps-clear', 'paths-clear', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
@@ -73,8 +71,6 @@ const KNOWN: Known[] = [
     owner: BLANK_ROOFS,
     why: "an apartment's stair-house is blank on top",
   },
-  // High density's playgrounds (#155), until #183 rebuilds them.
-  { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },
 ]
 
 /** The known failure that accounts for `f`, if any. */
@@ -96,7 +92,7 @@ export const knownOf = (f: Failure) =>
 export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   'low-density': { triangles: 2.2e6, meshes: 160 }, // #179: about a tenth over the 1.97 M it builds at Stage 3
   'medium-density': { triangles: 2.3e6, meshes: 160 },
-  'high-density': { triangles: 1.95e6, meshes: 160 },
+  'high-density': { triangles: 2.3e6, meshes: 160 }, // #183: about a tenth over the 2.08 M it builds at Stage 3, a tree in a planter by each tower
   offices: { triangles: 2.25e6, meshes: 160 },
   shops: { triangles: 2.6e6, meshes: 160 },
   industrial: { triangles: 1.3e6, meshes: 155 }, // #181: about a tenth over the 1.21 M it builds at Stage 3 on seed 2, the heaviest

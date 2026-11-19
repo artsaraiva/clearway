@@ -169,3 +169,27 @@ export function pavilionLantern(kit: Kit, x: number, y: number, h: number) {
   kit.pool('cream', x, y, h + 0.3, 4, 4)
   kit.brick('lamp', x, y, h)
 }
+
+/**
+ * A railing in `look` round a box `w` by `d` centred on `(x, y)` at `at` (#177, an office roof's; a residential tower's
+ * since #183): posts about 3 m apart under a top rail and a mid rail. It joins the next brick.
+ */
+export function railing(kit: Kit, look: string, x: number, y: number, w: number, d: number, at: number) {
+  for (const side of [-1, 1]) {
+    for (const z of [0.5, 0.96]) {
+      kit.add(kit.cuboid(w, 0.06, 0.06), look, x, y + (side * d) / 2, at + z)
+      kit.add(kit.cuboid(0.06, 0.06, d), look, x + (side * w) / 2, y, at + z)
+    }
+    for (const [len, eastWest] of [
+      [w, true],
+      [d, false],
+    ] as const) {
+      const n = Math.max(1, Math.round(len / 3))
+      for (let i = 0; i < n; i++) {
+        const t = -len / 2 + (i * len) / n
+        if (eastWest) kit.add(kit.cuboid(0.06, 1, 0.06), look, x + t, y + (side * d) / 2, at)
+        else kit.add(kit.cuboid(0.06, 1, 0.06), look, x + (side * w) / 2, y - t, at)
+      }
+    }
+  }
+}

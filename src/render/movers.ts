@@ -30,6 +30,7 @@ export type MoverKind =
   | 'firefly'
   | 'dog'
   | 'trolley'
+  | 'lift'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -198,6 +199,7 @@ const KINDS: Record<MoverKind, Kind> = {
   firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, byNight: true },
   dog: { speed: 3.4, bob: 0.07, rate: 13, model: dog, wide: 0.5 }, // #182: it runs a meadow's grass between the picnic blankets
   trolley: { speed: 0.7, bob: 0, rate: 0, model: trolley, wide: 0 }, // #181: a gantry crane's, along its girders, on no ground
+  lift: { speed: 1.4, bob: 0, rate: 0, model: lift, wide: 0 }, // #183: a glass lift up a tower's face, on no ground
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -763,6 +765,16 @@ function gondola(): THREE.BufferGeometry {
       tint(new THREE.SphereGeometry(0.22, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).translate(-0.08, 1.38, z), HAT),
     )
   }
+  return merged(parts).scale(1.25, 1.25, 1.25)
+}
+/**
+ * A glass lift's car (#183), facing out of the wall along +x with the wall behind it, centred under its middle and
+ * standing on y = 0, oversized a little as the cars are: a glazed car between a floor and a roof, a post at each corner.
+ */
+function lift(): THREE.BufferGeometry {
+  const [FRAME, GLASS, FLOOR] = ['#f4f6f8', '#b4d6e3', '#4a525c']
+  const parts = [part(1.4, 0.22, 1.9, 0, 0, 0, FLOOR), part(1.4, 0.26, 1.9, 0, 2.5, 0, FRAME), part(1.2, 2.28, 1.7, 0, 0.22, 0, GLASS)]
+  for (const x of [-0.64, 0.64]) for (const z of [-0.89, 0.89]) parts.push(part(0.12, 2.28, 0.12, x, 0.22, z, FRAME))
   return merged(parts).scale(1.25, 1.25, 1.25)
 }
 /**
