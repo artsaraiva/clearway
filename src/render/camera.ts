@@ -50,7 +50,7 @@ const corners = (b: Bounds, heights: number[]): [number, number, number][] =>
 /**
  * The orthographic camera, for a City with no bounds. The screen moves it through `controls`: `pan` and `rotate`
  * follow drags and `zoomAt` the wheel, and `northUp`, `frameCity`, `toggleTilt` and `centreOn` fly it to a new view.
- * It opens from the south-east with the whole City in frame, and after a Rebuild it stays where it is unless `bringIn`
+ * It opens at City zoom, from the south-east, and after a Rebuild it stays where it is unless `bringIn`
  * is asked to show a Tile off screen.
  */
 export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {

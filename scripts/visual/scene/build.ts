@@ -53,7 +53,7 @@ const PLUMBING = new Set([
   'seeded',
   'from',
   'staged',
-  'closeOnly',
+  'blockZoomProps',
   'furniture',
   'scene',
   'cladded',
@@ -149,9 +149,16 @@ function placeCity({ city, zone, stage }: Ask): Game {
   return game
 }
 
-/** The name of a material of `materials`, for the hash and the layers. */
+/**
+ * The materials renamed since the hash was written, by their names now and then: an older ref's kit is read by the names
+ * now, and the hash takes each by its name then, so that a ref from before reads as the same.
+ */
+const RENAMED: Record<string, string> = { blockZoom: 'close' } // the Block-zoom props' material, until #202
+const NOW = Object.fromEntries(Object.entries(RENAMED).map(([now, then]) => [then, now]))
+
+/** The name of a material of `materials`, for the hash and the layers, as this tree's kit names it. */
 function materialName(materials: Materials, m: THREE.Material): string {
-  for (const [name, value] of Object.entries(materials)) if (value === m) return name
+  for (const [name, value] of Object.entries(materials)) if (value === m) return NOW[name] ?? name
   return m.type
 }
 
@@ -179,7 +186,8 @@ function hasher() {
 function hashOf(meshes: THREE.Mesh[], materials: Materials): string {
   const h = hasher()
   for (const mesh of meshes) {
-    h.text(materialName(materials, mesh.material as THREE.Material))
+    const name = materialName(materials, mesh.material as THREE.Material)
+    h.text(RENAMED[name] ?? name)
     const g = mesh.geometry
     for (const name of Object.keys(g.attributes).sort()) {
       if (name === 'normal' || name === 'brick') continue
@@ -200,8 +208,8 @@ export function buildReport(ask: Ask): Report {
   hooked = false
   const start = performance.now()
   const materials = createMaterials({ pattern: true, pools: true })
-  materials.setZoom(1) // the whole City framed
-  const closeHidden = !materials.close.visible
+  materials.setZoom(1) // City zoom
+  const blockZoomHidden = !(materials.blockZoom ?? (materials as unknown as Record<string, THREE.Material>)[RENAMED.blockZoom]).visible
   const field = createField()
   const blocks: Block[] = []
   const things: Thing[] = []
@@ -249,12 +257,12 @@ export function buildReport(ask: Ask): Report {
       const feet: Hull[] = []
       const rising: Pt[] = []
       const all: Pt[] = []
-      let [top, low, tris, bulbs, bulbLow, close, open] = [-Infinity, Infinity, 0, 0, Infinity, 0, 0]
+      let [top, low, tris, bulbs, bulbLow, blockZoom, open] = [-Infinity, Infinity, 0, 0, Infinity, 0, 0]
       for (const { geo, material } of parts[i]) {
         const pos = geo.attributes.position
         tris += (geo.index ? geo.index.count : pos.count) / 3
         if (material === 'roundShadow' || material === 'squareShadow') continue
-        if (material === 'close') close++
+        if (material === 'blockZoom') blockZoom++
         else open++
         let [y0, y1] = [Infinity, -Infinity]
         const pts: Pt[] = []
@@ -282,7 +290,7 @@ export function buildReport(ask: Ask): Report {
             bulbLow = Math.min(bulbLow, y0 - base)
           }
         }
-        if ((material === 'solid' || material === 'close') && geo.attributes.color) {
+        if ((material === 'solid' || material === 'blockZoom') && geo.attributes.color) {
           const c = geo.attributes.color
           for (let k = 0; k < c.count; k += 3) {
             const key = (Math.round(c.getX(k) * 4095) * 4096 + Math.round(c.getY(k) * 4095)) * 4096 + Math.round(c.getZ(k) * 4095)
@@ -300,7 +308,7 @@ export function buildReport(ask: Ask): Report {
         fill: fill || 'unknown',
         lot: b.lot,
         scene: b.scene !== undefined && b.scene >= 0 ? scenesFrom + b.scene : -1,
-        layer: close && !open ? 'close' : 'solid',
+        layer: blockZoom && !open ? 'blockZoom' : 'solid',
         base,
         top: top === -Infinity ? base : top,
         low: low === Infinity ? base : low,
@@ -387,7 +395,7 @@ export function buildReport(ask: Ask): Report {
     moving,
     colours,
     vehicles: hooked ? vehicles(game.sim.net) : [],
-    closeHidden,
+    blockZoomHidden,
     triangles: meshes.reduce((n, m) => n + (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3, 0),
     meshes: meshes.length,
     hash: hashOf(meshes, materials),

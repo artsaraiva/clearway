@@ -15,7 +15,7 @@ import { ZEBRA } from './roads'
 // trees, drain grates along the kerb, and planters, bollards and benches to break long runs of pavement. On the road
 // plate: manhole covers and patches of newer tarmac, in tones within 6% of the plate's lightness, so that paint and cars
 // read as before. No new paint: paint carries Priority. What stands up from the pavement (rails, mirrors, planters,
-// bollards, benches) is Close-only furniture, drawn from Street inward; what lies flat on it is drawn at every distance.
+// bollards, benches) is Block-zoom furniture, drawn from Tile zoom inward; what lies flat on it is drawn at every zoom.
 
 // The kerbstone line, m in from the Block's edge (past its bevel) to its inner edge, and its colour; tactile paving, its
 // pad along a zebra's end and the guide strip in from it; a guard rail's height, how far it reaches round a corner each
@@ -241,7 +241,7 @@ export interface Kerbside {
  * The street furniture round Block `block` (#175, on every Tile since #176), each piece a brick: see the module's head.
  * It keeps clear of what `kerbside` says stands there. The kerbstone line is `kerbLine`'s.
  */
-export function dressStreet(kit: Kit, block: Block, field: Field, net: Network, spec: NetworkSpec, kerbside: Kerbside) {
+export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network, spec: NetworkSpec, kerbside: Kerbside) {
   const { lamps, trees, poles, stands, kept } = kerbside
   const { loop } = block
   const { inward, along, length } = walk(loop)

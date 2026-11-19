@@ -83,8 +83,8 @@ function counts(r: Report) {
 /** Places printed of each of scenes, movers and things with --where: the first, one a Block. */
 const PLACES = 5
 
-/** A box's middle, as `npm run shots` takes a Close point: a sim point, m. */
-const closeOn = (b: Box) => `--close=${Math.round((b.x0 + b.x1) / 2)},${Math.round((b.y0 + b.y1) / 2)}`
+/** A box's middle, as `npm run shots` takes a Block-zoom point: a sim point, m. */
+const blockOn = (b: Box) => `--block=${Math.round((b.x0 + b.x1) / 2)},${Math.round((b.y0 + b.y1) / 2)}`
 
 /** Where the scenes, movers and things of `kind` stand in a City, the first few of each, one a Block. */
 function places(r: Report, kind: string) {
@@ -107,7 +107,7 @@ function places(r: Report, kind: string) {
     for (const p of of) {
       if (blocks.has(p.block)) continue
       blocks.add(p.block)
-      console.log(`           ${what} ${kind}, Tile ${p.tile}: ${closeOn(p.box)}`)
+      console.log(`           ${what} ${kind}, Tile ${p.tile}: ${blockOn(p.box)}`)
       if (blocks.size === PLACES) break
     }
   }

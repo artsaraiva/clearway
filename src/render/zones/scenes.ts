@@ -55,7 +55,7 @@ export const clearOfScenes = (out: Scene<unknown>[], l: RowLot) =>
 /** Whether the way `way` keeps `room` m from each utility pole, lamp and street tree, in that order (#177, #178). */
 export function clearOfKerbside(g: ZoneGround, way: Vec[], [poles, lamps, trees]: [number, number, number]): boolean {
   const clear = (p: Vec, room: number) => way.every((a, i) => !i || distance(p, way[i - 1], a) >= room)
-  return g.poles.every((p) => clear(p, poles)) && g.lamps.every((p) => clear(p, lamps)) && g.street.every((p) => clear(p, trees))
+  return g.poles.every((p) => clear(p, poles)) && g.lamps.every((p) => clear(p, lamps)) && g.kerbsideTrees.every((p) => clear(p, trees))
 }
 
 /**

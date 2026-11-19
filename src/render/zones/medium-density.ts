@@ -37,7 +37,7 @@ import {
 import { GROW } from '../landmarks'
 import { PATTERN } from '../pattern'
 import { bench, gardenShed, stoneLantern, waiting } from '../props'
-import { type Footprint } from '../streets'
+import { type Footprint } from '../kerbside'
 import {
   besideRow,
   corners,
@@ -70,7 +70,7 @@ const TERRACES = { margin: 2.2, deep: [8, 10], wide: [4.4, 6.8], trees: 4, stair
 // tall. A lot with room for a court 5 m across between its wings takes an O or a U, one with room for an L takes an L,
 // and a narrower one a bar.
 const COURTYARDS = { lot: 42, margin: 3.2, gap: 1.6, clear: 1.5, least: 9, wing: [7.5, 9], floors: [4, 7.4], court: 5 } as const
-// Medium-density residential to the level of finish (#178). Each Block's plan is drawn from a stream of its own, so the
+// Medium-density residential built to the Finish (#178). Each Block's plan is drawn from a stream of its own, so the
 // kit's draws, and with them every lot's house or building, are as before but for what the plan sets. A terraced
 // house's roof: a gable along the row, as before, or one of the others where a house beside it would otherwise be the
 // same building in another colour. At most `corners` corner shops or coin laundries a Block, at a row's end facing a
@@ -393,7 +393,7 @@ function courtScenes(g: ZoneGround, draw: () => number, taken: RowLot[], round: 
   return out
 }
 
-/** A bin store at the kerb of a medium-density Block (#178), Close-only, on ground clear of `taken`, which it then takes. */
+/** A bin store at the kerb of a medium-density Block (#178), Block-zoom, on ground clear of `taken`, which it then takes. */
 function bins(g: ZoneGround, draw: () => number, taken: RowLot[]) {
   const room = { lampRoom: 1.2, clear: 0.4, ends: 4, slide: true }
   const ok = (l: RowLot) => !taken.some((o) => overlap(o, l, 0.02)) && g.kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
@@ -534,7 +534,7 @@ function courtyards(g: ZoneGround) {
       wings = [north, south, { x0, y0: y0 + deep, x1: x0 + deep, y1: y1 - deep }, { x0: x1 - deep, y0: y0 + deep, x1, y1: y1 - deep }]
       if (kit.chance(0.4)) wings.splice(Math.floor(kit.range(0, 4)), 1)
       const [cw, cd] = [w - 2 * deep, d - 2 * deep]
-      // Its court: a lawn; or, to the level of finish (#178), setts with its tree in a round bed.
+      // Its court: a lawn; or, to the Finish (#178), setts with its tree in a round bed.
       const lift = kit.finished ? 0.45 : 0.16 // the lawn's top, or the bed's
       if (kit.finished) {
         kit.paving(x, y, KERB, cw, cd, 0, MEDIUM_FINISH.alley.paving, PATTERN.setts)
@@ -635,7 +635,7 @@ function courtyards(g: ZoneGround) {
 
 /**
  * A pocket court on ground `l` (#178), from Stage 1: setts, a tree in a round bed in its middle that grows with the
- * Stage, and a bench beside the bed facing it, Close-only. Each is drawn from where it stands.
+ * Stage, and a bench beside the bed facing it, Block-zoom. Each is drawn from where it stands.
  */
 function pocketCourt(g: ZoneGround, l: RowLot) {
   const { kit } = g
@@ -646,7 +646,7 @@ function pocketCourt(g: ZoneGround, l: RowLot) {
       kit.paving(l.x, l.y, KERB, l.w, l.d, l.ry, MEDIUM_FINISH.alley.paving, PATTERN.setts)
       kit.drum(PLANTER, l.x, l.y, KERB, 1.1, 1.1, 0.45)
       kit.brick('building', l.x, l.y, KERB)
-      kit.closeOnly(() => kit.bench(seat.x, seat.y, KERB, l.ry + Math.PI / 2))
+      kit.blockZoomProps(() => kit.bench(seat.x, seat.y, KERB, l.ry + Math.PI / 2))
     },
     spot(l.x, l.y),
   )
@@ -727,7 +727,7 @@ function bareGround(g: ZoneGround, built: Built[], taken: RowLot[], way: Vec[], 
   for (const b of buildings) cover(b, 0.5)
   for (const l of taken) if (!later.has(l)) cover(l, 0.25) // the stairs and racks leave it bare at Stage 1
   for (const p of g.lamps) cover(around(1.6)(p), 0)
-  for (const p of g.street) cover(around(3.6)(p), 0)
+  for (const p of g.kerbsideTrees) cover(around(3.6)(p), 0)
   for (const p of g.poles) cover(around(0.8)(p), 0)
   const edges = runs(g, 1)
   const passing = way.flatMap((a, i) => {
@@ -917,7 +917,7 @@ function courtPlan(built: Built[], lot: Bounds, shape: number, floors: number, p
 
 /**
  * The ground of apartment building `b` (#178), from Stage 1, where it stands clear of `taken`: in an L's inner corner, a
- * court in setts with a tree in a round bed and a bench, Close-only; in an O's or a U's court, which `courtyards` paves,
+ * court in setts with a tree in a round bed and a bench, Block-zoom; in an O's or a U's court, which `courtyards` paves,
  * a bench by its tree; and by a bar, a pocket court (`pocketCourt`) at its foot where there is ground.
  */
 function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
@@ -925,7 +925,7 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
   const { x0, y0, x1, y1 } = wingBounds(b.wings)
   if (b.wings.length >= 3) {
     if (Math.min(x1 - x0, y1 - y0) - 2 * (b.wings[0].y1 - b.wings[0].y0) >= 5.4)
-      kit.from(1, () => kit.closeOnly(() => kit.bench(b.x + 1.9, b.y, KERB, -Math.PI / 2)), spot(b.x + 1.9, b.y))
+      kit.from(1, () => kit.blockZoomProps(() => kit.bench(b.x + 1.9, b.y, KERB, -Math.PI / 2)), spot(b.x + 1.9, b.y))
     return
   }
   if (b.wings.length === 1) {
@@ -963,7 +963,7 @@ function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
       kit.paving(court.x, court.y, KERB, court.w, court.d, 0, MEDIUM_FINISH.alley.paving, PATTERN.setts)
       kit.drum(PLANTER, tx, ty, KERB, 1.1, 1.1, 0.45)
       kit.brick('building', tx, ty, KERB)
-      kit.closeOnly(() => kit.bench(tx + out * 2.4, ty, KERB, (out * Math.PI) / 2))
+      kit.blockZoomProps(() => kit.bench(tx + out * 2.4, ty, KERB, (out * Math.PI) / 2))
     },
     spot(tx, ty),
   )
@@ -1097,7 +1097,7 @@ const BATHHOUSE = {
 /**
  * A medium-density Block's scene `kind` at Stage `stage` (#178), from Stage `from`, on its `ground`, its front facing
  * the Road: the scene, or before `from` setts with a tree in a round bed in its middle and a bench either side of it,
- * Close-only.
+ * Block-zoom.
  */
 export function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: number, from: number) {
   const { x, y, w, d, ry } = ground
@@ -1150,7 +1150,7 @@ function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number
 
 /**
  * A pocket park at Stage `stage` (#178): a lawn behind a low hedge, one swing over sand, a tree, a bench facing the
- * swing, Close-only, and a lamp at its front corner that leaves its pool; at Stage 3 a spring rider and a bed of flowers.
+ * swing, Block-zoom, and a lamp at its front corner that leaves its pool; at Stage 3 a spring rider and a bed of flowers.
  */
 function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   const at = (u: number, v: number) => to(x, y, ry, u, v)
@@ -1218,16 +1218,16 @@ function bathhouse(kit: Kit, x: number, y: number, w: number, d: number, ry: num
   if (stage === 3) kit.vendingMachine(...to(x, y, ry, bw / 2 - 1.2, face + 0.5), KERB, ry)
 }
 
-// A bin store (#178): bags of rubbish under a green net in a steel frame, and a little sign; Close-only, as the small
+// A bin store (#178): bags of rubbish under a green net in a steel frame, and a little sign; Block-zoom, as the small
 // props are. Parking bays by an apartment block (#178): tarmac set into the pavement, white lines between the bays.
 const BINS = { frame: '#9aa3ad', net: '#4f8a6e', bags: ['#f4f1ea', '#e3ecd6', '#f4f1ea', '#dfe7ee'], sign: '#fbf8f2' }
 const TAU = Math.PI * 2
 const BAYS = { tarmac: '#bcc1c8', line: '#fbf8f2', each: 2.5 }
 
-/** A bin store against a wall at `(x, y)`, facing `ry`, as one Close-only brick (#178): bags under a green net in a frame, and its sign. */
+/** A bin store against a wall at `(x, y)`, facing `ry`, as one Block-zoom brick (#178): bags under a green net in a frame, and its sign. */
 export function binStore(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const u of [-0.95, 0.95]) kit.put(kit.cuboid(0.06, 0.9, 1), BINS.frame, x, y, ry, u, 0, KERB)
     kit.put(kit.cuboid(1.96, 0.05, 1), BINS.frame, x, y, ry, 0, 0, KERB + 0.88)
     for (let k = 0; k < 4; k++) {
@@ -1370,7 +1370,7 @@ const TERRACE = {
 }
 const COURTYARD = { walls: ['#e0f2d4', '#cbebfc', '#e5dafb', '#fbe3a2', '#c0e9e0', '#fbd2dd', '#fdeed6'], cap: '#fbfaf6' }
 const COVERS = ['#ff9ab8', '#f0b43c', '#a58ad8', '#79c86a', '#fff7e8', '#5cc0d6']
-// Medium-density residential to the level of finish (#178). A terraced house: a bay of its back and its ends (m); how
+// Medium-density residential built to the Finish (#178). A terraced house: a bay of its back and its ends (m); how
 // steeply a hip or a gable to the front climbs, as a share of its half-span (32°); on its roof, a TV aerial, a steel
 // laundry deck, a solar water heater and a skylight, each on the share of the houses from Stages 1, 2 and 3 that the
 // roll drawn where it stands gives it; its downpipes and gutter, and the meter and the share with an AC unit at its back;
@@ -1393,11 +1393,11 @@ const TERRACE_FINISH = {
     drum: '#4a525c',
   },
 }
-// An apartment block to the level of finish (#178): its roof's deck of sheets, sage green under a white parapet; how
+// An apartment block built to the Finish (#178): its roof's deck of sheets, sage green under a white parapet; how
 // steeply a mansard's skirt of tiles slopes (rad), in the tiles its plan gives it; the condensers on its roof at Stages 1
 // to 3; how brightly the lights over its doors and at its stairs' landings glow, for the lamps' glow; and the lamps on its
 // walkways' parapets, `lamp` m wide and tall and brighter, before the walkways' windows dimmed to `dim` of the windows' glow, so
-// that its walkways read as rows of dots at night with the whole City in frame.
+// that its walkways read as rows of dots at night at City zoom.
 const APARTMENT_FINISH = {
   deck: '#9fb5a7',
   mansard: { tip: 0.9 },
@@ -1526,10 +1526,10 @@ function terraceRoof(kit: Kit, { x, y, ry }: Footprint, top: number, roof: Pitch
   /** Add `geo` `u` m along the ridge and `down` m out from it over the slope facing `side` (1 front, -1 back, as the frame's), `z` up. */
   const on = (geo: THREE.BufferGeometry, look: KitLook, u: number, down: number, side: number, z: number, sx = 1, sy = 1, sz = 1) =>
     kit.put(geo, look, x, y, rf + (side < 0 ? Math.PI : 0), u * side, down, z, sx, sy, sz)
-  // Its thin steel, the aerial and the deck's posts and rails, is Close-only: under a pixel with the City in frame.
+  // Its thin steel, the aerial and the deck's posts and rails, is Block-zoom: under a pixel at City zoom.
   if (aerialRoll < aerial.share[stage - 1]) {
     const [px, py] = to(x, y, rf, end * (half - 0.45), 0)
-    kit.closeOnly(() => {
+    kit.blockZoomProps(() => {
       kit.add(kit.cuboid(0.07, 2.7, 0.07), TERRACE_FINISH.aerial.steel, px, py, ridge - 0.3) // plain boxes: aerials come by the hundred
       for (const [k, len] of [1.4, 0.9].entries())
         kit.add(kit.cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, ridge + 1.6 + k * 0.4, rf + turn * Math.PI)
@@ -1542,7 +1542,7 @@ function terraceRoof(kit: Kit, { x, y, ry }: Footprint, top: number, roof: Pitch
     const floor = ridge + 0.1
     const mid = 0.15 + D / 2
     on(kit.cuboid(L, 0.08, D), deck.slats, u, mid, -1, floor - 0.08)
-    kit.closeOnly(() => {
+    kit.blockZoomProps(() => {
       for (const k of [-1, 1]) {
         on(kit.cuboid(0.07, floor - at(0.15 + D) + 1, 0.07), deck.steel, u + k * (L / 2 - 0.04), 0.15 + D - 0.04, -1, at(0.15 + D) - 0.05)
         on(kit.cuboid(0.05, 0.05, D), deck.steel, u + k * (L / 2 - 0.03), mid, -1, floor + 0.9)
@@ -1572,16 +1572,16 @@ function terraceRoof(kit: Kit, { x, y, ry }: Footprint, top: number, roof: Pitch
 /**
  * A terraced house's back and its ends that close a row (#178), on the kit's stream as the caller has it: a downpipe
  * at a back corner (and a gutter along the back eaves under a gable along the row) and one at the back of each end
- * wall; and, Close-only, a meter by the back door, pot plants beside it, an AC unit on the back wall on some and one
- * high on an end wall on some, more with each Stage; and a planter of greens along the alley, seen from Street.
+ * wall; and, Block-zoom, a meter by the back door, pot plants beside it, an AC unit on the back wall on some and one
+ * high on an end wall on some, more with each Stage; and a planter of greens along the alley, seen from Tile zoom.
  */
 function terraceBack(kit: Kit, f: Footprint, h: number, wall: number, storeys: number, stage: number, roof: Pitched, ends: (1 | -1)[]) {
   const { x, y, w, d, ry } = f
   const { pipe, meter, ac } = TERRACE_FINISH
   const [low, high] = [kit.rand(), kit.rand()]
   const back = -d / 2
-  // The downpipes and the gutter are Close-only: under a pixel with the City in frame.
-  kit.closeOnly(() => {
+  // The downpipes and the gutter are Block-zoom props: under a pixel at City zoom.
+  kit.blockZoomProps(() => {
     kit.local(kit.cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, w / 2 - 0.3, back - 0.08, h)
     if (roof.gutter) kit.local(kit.cuboid(w + 0.2, 0.12, 0.16), pipe, x, y, ry, 0, -(d + 1) / 2 - 0.08, h + wall - 0.12)
     for (const end of ends) kit.local(kit.cuboid(0.12, wall - 0.3, 0.12), pipe, x, y, ry, end * (w / 2 + 0.08), back + 0.35, h)
@@ -1589,7 +1589,7 @@ function terraceBack(kit: Kit, f: Footprint, h: number, wall: number, storeys: n
   const bays = Math.max(1, Math.round(w / TERRACE_FINISH.bay))
   const door = -w / 2 + (Math.floor(bays / 2) + 0.5) * (w / bays) // as the pattern lays the back door
   const side = door + 0.85 < w / 2 - 0.4 ? 1 : -1 // the meter's side of the door, where it fits
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     kit.local(kit.cuboid(0.36, 0.46, 0.16), meter.box, x, y, ry, door + side * 0.85, back - 0.08, h + 1.15)
     kit.put(FACING_DISC, meter.dial, x, y, ry + Math.PI, -(door + side * 0.85), -back + 0.17, h + 1.45, 0.08, 0.08, 1)
     // The pots and the AC unit stand before its own back wall, short of the next house's (#193).
@@ -1604,7 +1604,7 @@ function terraceBack(kit: Kit, f: Footprint, h: number, wall: number, storeys: n
         kit.airCon(...to(x, y, ry, end * (w / 2), back + d * 0.35), h + 3.42, ry - (end * Math.PI) / 2)
   })
   // A planter of greens against the back wall, past the meter, or else past the pots and the AC unit on the door's
-  // other side, where it fits: the pot plants that line the alley as seen from Street.
+  // other side, where it fits: the pot plants that line the alley as seen from Tile zoom.
   const along = [door + side * 1.7, door - side * 2.85].find((u) => Math.abs(u) + 0.5 < w / 2 - 0.45)
   if (along === undefined) return
   kit.local(kit.cuboid(1, 0.4, 0.42), TERRACE_FINISH.planter, x, y, ry, along, back - 0.3, h)
@@ -1615,7 +1615,7 @@ function terraceBack(kit: Kit, f: Footprint, h: number, wall: number, storeys: n
 /**
  * A corner shop or a coin laundry in the ground floor of a terraced house at a row's end (#178), on the kit's stream
  * as the caller has it: a glass front over the ground floor, framed, its door at the row's end, under a signboard
- * with marks for lettering, and a shop's striped awning or a laundry's machines seen through its glass, Close-only; a
+ * with marks for lettering, and a shop's striped awning or a laundry's machines seen through its glass, Block-zoom; a
  * sign on the end wall by the front; its signs lit from Stage 2, and a pool before the front and by the end wall.
  */
 function cornerShop(kit: Kit, { x, y, w, d, ry }: Footprint, h: number, stage: number, corner: Corner) {
@@ -1652,7 +1652,7 @@ function cornerShop(kit: Kit, { x, y, w, d, ry }: Footprint, h: number, stage: n
   for (let k = 0; k < 3; k++)
     kit.local(kit.cuboid(0.04, 0.3, 0.3), kit.markOf(sign, lights), x, y, ry, end * (w / 2 + 0.14), face - 0.75, h + 1.25 + k * 0.45)
   if (laundry)
-    kit.closeOnly(() => {
+    kit.blockZoomProps(() => {
       // Its machines, a round door each, seen through the glass.
       const n = Math.floor((glazed - 1.4) / 0.72)
       for (let k = 0; k < n; k++)
@@ -1741,7 +1741,7 @@ function apartmentPlant(kit: Kit, wing: Bounds, top: number, stage: number) {
   }
   const [px, py] = [wing.x0 + 1, wing.y0 + 1]
   const turn = kit.rand() * Math.PI
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     kit.add(THIN, TERRACE_FINISH.aerial.steel, px, py, top, 0, 0.05, 3.2, 0.05)
     for (const [k, len] of [1.6, 1.3, 1].entries())
       kit.add(kit.cuboid(len, 0.04, 0.05), TERRACE_FINISH.aerial.steel, px, py, top + 2 + k * 0.35, turn)

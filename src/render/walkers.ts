@@ -11,7 +11,7 @@ const SPACING = 85 // m of pavement per walker
 // The cars' colours, a walker's paint: every walker wears one, on whatever of its model takes paint (`model`).
 const SHIRTS = ['#db6982', '#009dcb', '#ffc52d', '#ffffff', '#64cb9f', '#bc9ef2', '#2f3440', '#ff9cbb'].map((c) => new THREE.Color(c))
 
-/** A kind of walker (#176), each with a model of its own, seen at Close: a shopper with a bag, a schoolchild in a yellow hat, an office worker. */
+/** A kind of walker (#176), each with a model of its own, seen at Block zoom: a shopper with a bag, a schoolchild in a yellow hat, an office worker. */
 type WalkerKind = 'shopper' | 'schoolchild' | 'worker'
 
 /**

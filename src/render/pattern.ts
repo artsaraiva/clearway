@@ -71,7 +71,7 @@ const REPEAT = { paving: 2.4, roof: 2 }
 /**
  * A flat roof: m from its edge to its parapet's inner face, and to the end of the shadow the parapet throws in; how
  * much paler the parapet is, how much darker the shadow, and how much darker and greyer the roof inside, so that a roof
- * reads as a roof from the whole City framed.
+ * reads as a roof at City zoom.
  */
 const PARAPET = { wide: 0.45, shadow: 0.7, pale: 1.12, lee: 0.3, inside: 0.9, grey: 0.15 }
 /** The share of a pattern's windows lit at night, as the kit's panes are; the rest stay dark. */
@@ -312,7 +312,7 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
   }
   return [
     // Paving: 0.6 m slabs in a running bond, each a shade of its own, with darker joints, dark enough to read from
-    // Street (#175).
+    // Tile zoom (#175).
     (g) => {
       const draw = stream(7)
       plain(g)

@@ -12,12 +12,12 @@ export const CITY = [
 
 export const VIEWPORT = { width: 1440, height: 900 }
 /**
- * The metres of road plane across the canvas at Street, one Tile filling the screen, and at Close, one Block (`lookAt`).
- * Close is the camera's closest zoom, which comes no nearer: a smaller width shoots the same.
+ * The metres of road plane across the canvas at Tile zoom, one Tile filling the screen, and at Block zoom, one Block
+ * (`lookAt`). Block zoom is the camera's closest, which comes no nearer: a smaller width shoots the same.
  */
-export const METRES = { street: 110, close: 60 }
-/** Where a Zone's Street and Close shots look unless it has points of its own: the Tile at (2, 0), and a Block of it. */
-export const DEFAULT_POINTS = { street: [{ x: 200, y: 0 }], close: [{ x: 225, y: -25 }] }
+export const METRES = { tile: 110, block: 60 }
+/** Where a Zone's Tile-zoom and Block-zoom shots look unless it has points of its own: the Tile at (2, 0), and a Block of it. */
+export const DEFAULT_POINTS = { tile: [{ x: 200, y: 0 }], block: [{ x: 225, y: -25 }] }
 
 /**
  * Headless Google Chrome on the GPU (Metal on a Mac), 1440 × 900 at 2×. Its frame times match a visible browser's,
@@ -96,7 +96,7 @@ export function turnCamera(quarters) {
 
 /**
  * In the page: frame the whole City from the camera's heading, and return the clip round its Tiles for a screenshot.
- * The three distances every sheet shows are this one, Framed, and `lookAt`'s Street and Close.
+ * The three zooms every sheet shows are this one, City zoom, and `lookAt`'s Tile zoom and Block zoom.
  */
 export function frameAll() {
   const c = window.clearway

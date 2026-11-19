@@ -26,11 +26,11 @@ const game = run.game
 // Tiles and 480 ms for 40 on an M4 Pro. Draw the slab first and spread the Pre-warm over frames, as a Rebuild does, if
 // large Cities keep the page blank too long.
 while (!game.sim.prewarmed) game.step()
-// Dev only: `?finish=none` builds the Zones built to the level of finish without their surface pattern and light
+// Dev only: `?finish=none` builds the Zones built to the Finish without their surface pattern and light
 // pools, and `?finish=pattern` or `?finish=pools` with only the one named (#174), for a sheet or a bench of each.
 // `?deeper` lays what stands on their Blocks 20% deeper (`?deeper=1.4`, 40%), for the user to compare a packed Tile
 // with the open one (#175): lanes, Roads, the City and the sim are as they were. `?furniture` draws the street
-// furniture at every distance, as #175 drew it, for the user to compare with it Close-only (#176).
+// furniture at every zoom, as #175 drew it, for the user to compare with it as Block-zoom props (#176).
 const finish = import.meta.env.DEV ? params.get('finish')?.split(',') : undefined
 const deeper = import.meta.env.DEV && params.has('deeper') ? Number(params.get('deeper')) || 1.2 : undefined
 const furniture = import.meta.env.DEV && params.has('furniture')

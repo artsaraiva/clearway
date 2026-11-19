@@ -1,6 +1,6 @@
 import { KERB } from './blocks'
 import { SHAPES, to, type Kit } from './kit'
-import type { Footprint } from './streets'
+import type { Footprint } from './kerbside'
 
 // The props the Zones' scenes share (#175, #177, #178), built from the kit's shapes: a café table, a menu board, a tree
 // in a round stone bed, a bench, and the ground a scene stands on before its Stage. Each Zone's own scenes and props
@@ -13,7 +13,7 @@ export const BOARD = { face: '#2f3440', frame: '#a1714c', chalk: '#fbf8f2' }
 
 /**
  * A café table at `(x, y)` with two stools, under a parasol in `colour` if given (none under a pergola, #177), as one
- * brick (#175): the stools Close-only.
+ * brick (#175): the stools Block-zoom.
  */
 export function cafeTable(kit: Kit, x: number, y: number, colour?: string) {
   kit.add(kit.cuboid(0.9, 0.05, 0.9), '#fbf8f2', x, y, KERB + 0.78)
@@ -22,16 +22,16 @@ export function cafeTable(kit: Kit, x: number, y: number, colour?: string) {
     kit.add(SHAPES.thin, '#4a525c', x, y, KERB + 0.83, 0, 0.04, 1.3, 0.04)
     kit.add(SHAPES.cone, colour, x, y, KERB + 2.05, 0, 1.4, 0.5, 1.4)
   }
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const o of [-0.8, 0.8]) kit.add(SHAPES.thin, STALL.stool, x + o, y, KERB, 0, 0.2, 0.62, 0.2)
   })
   kit.shadow(x, y, KERB, colour ? 2.6 : 1.4, colour ? 2.6 : 1.4, true)
   kit.brick('building', x, y, KERB)
 }
 
-/** A menu board standing on the pavement at `(x, y)`, facing `ry`, as one Close-only brick (#175): chalk on a dark board. */
+/** A menu board standing on the pavement at `(x, y)`, facing `ry`, as one Block-zoom brick (#175): chalk on a dark board. */
 export function menuBoard(kit: Kit, x: number, y: number, ry: number) {
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     kit.put(kit.cuboid(0.62, 0.86, 0.1), BOARD.frame, x, y, ry, 0, 0, KERB + 0.12)
     kit.put(kit.cuboid(0.5, 0.7, 0.04), BOARD.face, x, y, ry, 0, 0.05, KERB + 0.2)
     for (const k of [0, 1, 2]) kit.put(kit.cuboid(0.36, 0.05, 0.02), BOARD.chalk, x, y, ry, 0, 0.08, KERB + 0.72 - k * 0.16)
@@ -54,8 +54,8 @@ export function bedTree(kit: Kit, x: number, y: number, r: number, s: number, co
   kit.tree(x, y, KERB + 0.5, s, 'round', coarse)
 }
 
-/** A bench at `(x, y)` facing `ry`, Close-only (#177), standing `h` above the road: on the pavement unless told. */
-export const bench = (kit: Kit, x: number, y: number, ry: number, h = KERB) => kit.closeOnly(() => kit.bench(x, y, h, ry))
+/** A bench at `(x, y)` facing `ry`, Block-zoom (#177), standing `h` above the road: on the pavement unless told. */
+export const bench = (kit: Kit, x: number, y: number, ry: number, h = KERB) => kit.blockZoomProps(() => kit.bench(x, y, h, ry))
 
 /**
  * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179): a footing, a
@@ -89,7 +89,7 @@ export function gardenShed(kit: Kit, x: number, y: number, h: number, ry: number
 
 /**
  * A scene's ground before its Stage (#177, #178), facing `ry`: a tree of size `s` in a round bed `r` m across in its
- * middle, `coarse` (the kit's `tree`) if asked, and a bench either side of it `out` m from it, facing it, Close-only.
+ * middle, `coarse` (the kit's `tree`) if asked, and a bench either side of it `out` m from it, facing it, Block-zoom.
  */
 export function waiting(kit: Kit, { x, y, ry }: Footprint, r: number, s: number, out: number, coarse = false) {
   bedTree(kit, x, y, r, s, coarse)

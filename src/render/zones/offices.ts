@@ -9,7 +9,7 @@ import { boxFace, CREAM, DECK, FACES, FLAG, type Kit, type Look as KitLook, PLAN
 import { GROW } from '../landmarks'
 import { panel, PATTERN, wrap } from '../pattern'
 import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
-import { planter, type Footprint } from '../streets'
+import { planter, type Footprint } from '../kerbside'
 import { corners, fit, lotsOf, near, overlap, PLANTER, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import {
   alongEdge,
@@ -35,10 +35,10 @@ const FLOORS = [
   { low: [6, 9], high: [11, 14] },
   { low: [9, 13], high: [17, 22] },
 ] as const
-const STYLES: OfficeStyle[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
-// Offices to the level of finish (#177). Each Block's plan is drawn from a stream of its own, so the kit's draws are
+const FORMS: OfficeForm[] = ['curtain', 'curtain', 'fins', 'fins', 'stepped', 'round']
+// Offices built to the Finish (#177). Each Block's plan is drawn from a stream of its own, so the kit's draws are
 // as they were: its scenes, on ground reserved along a Road before any tower is laid, which every tower's plinth keeps
-// `clear` m from; its taxi bay; its plaza paving's colour; and a tower's style where its own is a neighbour's. A scene's
+// `clear` m from; its taxi bay; its plaza paving's colour; and a tower's form where its own is a neighbour's. A scene's
 // ground is `long` m along the Block's edge and `deep` m in from a line `in` m in from it, or at least `least`, `ends`
 // m from its run's ends, where the zebras meet the kerb, and cuts no tower it stands back from under `keep` m across (a
 // sculpture plaza down to `smallest` where nothing else fits); a
@@ -78,11 +78,11 @@ export const look: Look = { landmarks: true, finish: true, fill: offices }
  * tower gains floors and finish with each Stage (`FLOORS`, and `officeTower`), and at Stage 3 its plaza has
  * trees in planters at two corners.
  *
- * To the level of finish (#177), as the Block's plan has it (`OFFICE_FINISH`): before any tower is laid, the Block
+ * To the Finish (#177), as the Block's plan has it (`OFFICE_FINISH`): before any tower is laid, the Block
  * reserves the ground of its scene along a Road, a sunken court, a sculpture plaza or a food truck's court, which every
  * tower stands back from; and of a second at Stage 3 on a Block of 2,500 m² or more. A taxi bay lies at the kerb, with
- * a taxi in it from Stage 2 and a second at Stage 3. No tower is its neighbour's style. Each tower opens its revolving
- * door on the face toward the Road, stands on a chequered plaza, has a bench either side of it, Close-only, with
+ * a taxi in it from Stage 2 and a second at Stage 3. No tower is its neighbour's form. Each tower opens its revolving
+ * door on the face toward the Road, stands on a chequered plaza, has a bench either side of it, Block-zoom, with
  * planters by them from Stage 2, and from Stage 2 a sculpture, a clock or a fountain before its lobby; the tall ones,
  * and at Stage 3 the high ones, carry a lit name plate on their crowns.
  */
@@ -104,7 +104,7 @@ function offices(g: ZoneGround) {
   const taken = [...scenes.map((s) => s.ground), ...(taxi ? [taxi] : [])]
   const paving = OFFICE_FINISH.paving[Math.floor(plans() * OFFICE_FINISH.paving.length)]
   const hung = new Set<number>() // the Stages built whose gondola the Block has hung: one a Block
-  const styled: { lot: Bounds; style: OfficeStyle }[] = []
+  const laid: { lot: Bounds; form: OfficeForm }[] = []
   for (const [i, body] of bodies.entries()) {
     if (!body) continue
     kit.lot(i, lots[i])
@@ -121,29 +121,29 @@ function offices(g: ZoneGround) {
     const tower = standBack(body, taken)
     if (!tower) continue
     const { x, y, w, d } = tower
-    // Its style: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot beside
-    // it already has that style, one of the others by their shares, drawn from the plan.
+    // Its form: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot beside
+    // it already has that form, one of the others by their shares, drawn from the plan.
     const own = mulberry32(seed)
     own()
     own()
-    let style = STYLES[Math.floor(own() * STYLES.length)]
-    const near = new Set(styled.filter((s) => beside(s.lot, lots[i])).map((s) => s.style))
-    const others = STYLES.filter((s) => !near.has(s))
-    if (near.has(style) && others.length) style = others[Math.floor(plans() * others.length)]
-    styled.push({ lot: lots[i], style })
+    let form = FORMS[Math.floor(own() * FORMS.length)]
+    const near = new Set(laid.filter((s) => beside(s.lot, lots[i])).map((s) => s.form))
+    const others = FORMS.filter((s) => !near.has(s))
+    if (near.has(form) && others.length) form = others[Math.floor(plans() * others.length)]
+    laid.push({ lot: lots[i], form })
     // Its door opens on the face whose plaza lies nearest the Block's edge, toward the Road, where its canopy and the step
     // before its door keep off a scene's ground and the taxi bay (#193).
     const entrance = entranceOf(g, tower, taken)
     kit.staged((stage) => {
       const [t, tall] = [kit.range(0, 1), kit.chance(SKYLINE.tall)]
-      kit.range(0, 1) // its style's draw, `style` above: still drawn, so that every draw after it stays
+      kit.range(0, 1) // its form's draw, `form` above: still drawn, so that every draw after it stays
       const [low, high] = FLOORS[stage - 1][tall ? 'high' : 'low']
       const floors = Math.round(low + (high - low) * t)
       // The Block's first tower with a flat roof hangs its gondola (#154).
-      const gondola = !hung.has(stage) && (style === 'curtain' || style === 'fins')
+      const gondola = !hung.has(stage) && (form === 'curtain' || form === 'fins')
       if (gondola) hung.add(stage)
       const plate = stage > 1 && (tall || (stage === 3 && floors >= OFFICE_FINISH.plate))
-      officeTower(kit, x, y, KERB, w, d, floors, style, stage, { gondola, plate, entrance }) // glossary-ok: main's name, moved
+      officeTower(kit, x, y, KERB, w, d, floors, form, stage, { gondola, plate, entrance }) // glossary-ok: main's name, moved
     }, seed)
     officePlaza(g, tower, entrance, taken, paving, planted, body)
   }
@@ -316,7 +316,7 @@ function inLot(g: ZoneGround, open: Bounds[], ok: (l: RowLot) => boolean): RowLo
 /**
  * A lot left a grove (#177), the odd one or one that no tower fits and no scene takes: paved as a plaza as far as the
  * Block lets it, and up to three trees in round beds, growing with the Stage, where they stand clear of the lamps, the
- * street trees and what `taken` holds, with a bench by the first, Close-only, on whichever side of it the bench stands
+ * street trees and what `taken` holds, with a bench by the first, Block-zoom, on whichever side of it the bench stands
  * as clear, and of the other beds.
  */
 function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
@@ -359,7 +359,7 @@ function grove(g: ZoneGround, lot: Bounds, taken: RowLot[]) {
   ]) {
     const seat = { x: x + ox, y: y + oy, w: 2.4, d: 1.2, ry, onRoad: false }
     if (!free(seat, 0.6)) continue
-    kit.from(1, () => kit.closeOnly(() => kit.bench(seat.x, seat.y, KERB, ry)), spot(x, y) + 2)
+    kit.from(1, () => kit.blockZoomProps(() => kit.bench(seat.x, seat.y, KERB, ry)), spot(x, y) + 2)
     break
   }
 }
@@ -382,7 +382,7 @@ function taxiGround(g: ZoneGround, draw: () => number, scenes: RowLot[], bodies:
  * What stands on tower `t`'s plaza (#177), its door on face `entrance` (of `FACES`), each drawn from where it stands:
  * chequered paving in the Block's `paving` from Stage 1, out to the plinth's reach or the Block's edge; the flags of
  * #154 beside the canopy; from Stage 2 a sculpture, a clock or a fountain on the canopy's other side; and on the faces
- * either side of the door a bench, Close-only, from Stage 1 and planters by it from Stage 2, on what `taken` leaves; at
+ * either side of the door a bench, Block-zoom, from Stage 1 and planters by it from Stage 2, on what `taken` leaves; at
  * Stage 3 trees in planters at two corners, drawn from `planted`, as they always were. Its flags are drawn from `stood`,
  * where its lot's tower stood before any scene, as they always were.
  */
@@ -427,13 +427,13 @@ function officePlaza(g: ZoneGround, t: Body, entrance: number, taken: RowLot[], 
     const seat = { ...p, w: 2.4, d: 1.2, ry: fr, onRoad: false }
     if (!free(seat)) continue
     placed.push(seat)
-    kit.from(1, () => kit.closeOnly(() => kit.bench(p.x, p.y, KERB, fr)), spot(p.x, p.y))
+    kit.from(1, () => kit.blockZoomProps(() => kit.bench(p.x, p.y, KERB, fr)), spot(p.x, p.y))
     for (const u of [-2.6, 2.6]) {
       const q = turned(x, y, fr, u, fh + 1.9)
       const box = { ...q, w: 2.2, d: 1, ry: fr, onRoad: false }
       if (!free(box)) continue
       placed.push(box)
-      kit.from(2, () => kit.closeOnly(() => planter(kit, q.x, q.y, fr, 1.8)), spot(q.x, q.y))
+      kit.from(2, () => kit.blockZoomProps(() => planter(kit, q.x, q.y, fr, 1.8)), spot(q.x, q.y))
     }
   }
   kit.from(
@@ -505,7 +505,7 @@ function flags(
 
 // Offices (#177): the scenes an offices Block picks from, each on ground it reserves along the Block's edge, `w` m along
 // it and `d` deep, its front facing `ry` toward the Road; the piece on each tower's plaza; and a taxi bay at the kerb.
-// Benches and planters are Close-only, as the street's furniture is. Before its Stage a scene's ground is paved, with a
+// Benches and planters are Block-zoom props, as the street's furniture is. Before its Stage a scene's ground is paved, with a
 // tree in a round bed, so that no ground stands empty.
 
 /** The scenes an offices Block picks from (#177). */
@@ -534,7 +534,7 @@ const PERGOLA = { tall: 2.86, deep: 3, steel: '#9aa3ad', lamp: '#fff1c7' }
 /**
  * An offices Block's scene `kind` at Stage `stage` (#177), from Stage `from`, on its `ground`, its front facing the
  * Road: stone paving, and on it the scene, or before `from` a tree in a round bed in its
- * middle and a bench either side of it, Close-only.
+ * middle and a bench either side of it, Block-zoom.
  */
 export function officeScene(kit: Kit, kind: OfficeScene, ground: Footprint, stage: number, from: number) {
   const { x, y, w, d, ry } = ground
@@ -643,7 +643,7 @@ export function truckPath({ x, y, w, d, ry }: Footprint, entry: TruckEntry): Vec
 /**
  * A food truck's court at Stage `stage` (#177), on its paving: tables at its back under a pergola, its focal piece
  * whether or not the truck that parks at its front through the middle of the day (`foodTruck`) is there, and a menu
- * board, Close-only. Lamps hung under the pergola leave their pools; at Stage 3 a third table, and string lights under
+ * board, Block-zoom. Lamps hung under the pergola leave their pools; at Stage 3 a third table, and string lights under
  * it in the lamps' place, which leave a pool.
  */
 function truckCourt(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
@@ -787,7 +787,7 @@ const OFFICE_TRIM = ['#f2f4f6', '#dde3e8', '#e6cfa6', '#c4ccd4', '#68727f']
 // Office details (#154): a cooling unit's fans, and an office helipad's grey pad, yellow ring and white H.
 const FAN = '#5b6570'
 const OFFICE_HELIPAD = { pad: '#68727f', ring: '#f0c75e', mark: '#f4f1ea' }
-// Offices to the level of finish (#177): the curtain wall's bay (m); a flat roof's plant in colours of its own, sage
+// Offices built to the Finish (#177): the curtain wall's bay (m); a flat roof's plant in colours of its own, sage
 // cooling units, cream vents and a yellow duct, with steel railings and white satellite dishes; a name plate's board,
 // one a tower, in a company's colour, with marks for lettering; a revolving door's dark frame; and how brightly each
 // lit part glows, for the lamps' glow.
@@ -815,7 +815,7 @@ const DISH = new THREE.CylinderGeometry(0.55, 0.3, 0.14, 10).rotateX(-0.9)
 const GONDOLA = { drop: 26, every: 6.4, waits: { top: 5, floor: [1.6, 2.6] }, reach: 0.85, ropes: 2.4, rope: 0.375 }
 const ROUND = new THREE.CylinderGeometry(1, 1, 1, 28).translate(0, 0.5, 0) // smoother, for a round tower's glass
 /** An office tower: a framed curtain wall, fins up its faces, tiers set back, or round. */
-type OfficeStyle = 'curtain' | 'fins' | 'stepped' | 'round'
+type OfficeForm = 'curtain' | 'fins' | 'stepped' | 'round'
 
 /** A cooling unit `w` by `d` at `(x, y)` on a roof `h` above the road (#154): a box with a fan or two on top. */
 function cooler(kit: Kit, x: number, y: number, h: number, w: number, d: number) {
@@ -834,14 +834,14 @@ function vent(kit: Kit, x: number, y: number, h: number) {
 /**
  * An office tower of `floors` storeys on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: a
  * plinth with a lit lobby, then a curtain wall in one glass that pales toward the top where it catches the sky, and a
- * crown. `style` shapes it:
+ * crown. `form` shapes it:
  * - `curtain`: framed by corner posts, under a parapet, a penthouse and sometimes a mast.
  * - `fins`: fins up every face that rise past the roof as its crown, round a penthouse.
  * - `stepped`: tiers set back, each framed and topped by a ledge, under a pointed cap and a spire.
  * - `round`: a drum under a parapet ring, a dome and a spire.
  *
  * At Stage `stage`, whose floors the caller picks: Stage 1 builds the plain body, with no penthouse, spire or dome,
- * one tier, and fewer floors lit at night. Stage 2 builds it as above. Stage 3 puts a spire on every style and a
+ * one tier, and fewer floors lit at night. Stage 2 builds it as above. Stage 3 puts a spire on every form and a
  * third tier on a stepped one, and lights more floors. Its glass, its trim and how busy it is are drawn before
  * anything a Stage changes, so each Stage builds the same tower, better.
  *
@@ -851,7 +851,7 @@ function vent(kit: Kit, x: number, y: number, h: number) {
  * corners of a tall tower from Stage 2 and of every flat roof at Stage 3. With `more.gondola`, from Stage 2 a
  * flat-roofed tower hangs a window cleaners' cradle on its south or east face, which creeps down it and climbs back.
  *
- * To the level of finish (#177): where the kit builds patterned, its curtain wall is surface pattern, a line at
+ * To the Finish (#177): where the kit builds patterned, its curtain wall is surface pattern, a line at
  * every floor and two panes to a bay in three tones paling toward the top, lit floor by floor at night (the
  * pattern's lit mask), round a round tower too; laid floor by floor in the kit's glass otherwise, as before. Its roof
  * wears square pavers and carries its plant in colours of its own, a yellow duct from Stage 2, railings and
@@ -868,12 +868,12 @@ function officeTower(
   w: number,
   d: number,
   floors: number,
-  style: OfficeStyle,
+  form: OfficeForm,
   stage = 2,
   more: { gondola?: boolean; plate?: boolean; entrance?: number } = {},
 ) {
   const { gondola = false, plate = false, entrance } = more
-  kit.formed(`office ${style}`)
+  kit.formed(`office ${form}`)
   const STOREY = 3.2
   const SKY = new THREE.Color('#e9f4fb')
   const [foot, trim, busy] = [new THREE.Color(kit.pick(OFFICE_GLASS)), kit.pick(OFFICE_TRIM), kit.rand()]
@@ -1084,7 +1084,7 @@ function officeTower(
     for (const k of [-1, 1]) kit.local(kit.cuboid(0.14, 3.24, 0.14), trim, x, y, ry, k * (wide / 2 - 0.15), out + canopy - 0.65, h)
     kit.pool('canopy', ...to(x, y, ry, 0, out + canopy / 2 + 0.4), h, wide + 2.4, canopy + 2.2, ry)
   }
-  if (style === 'round') {
+  if (form === 'round') {
     const r = Math.min(w, d) / 2
     if (kit.patterned) {
       const g = wrap(ROUND.toNonIndexed(), TAU * r, body, TOWER_FINISH.bay, STOREY, litShare, mulberry32(seed)())
@@ -1108,7 +1108,7 @@ function officeTower(
       curved(SPHERE, top + 1.4, 0, r * 0.78, r * 0.52, 16, 10)
       spire(top + 1.4 + r * 0.5, stage === 3 ? kit.range(9, 13) : kit.range(4, 6), 0.3)
     }
-  } else if (style === 'stepped') {
+  } else if (form === 'stepped') {
     // Each tier takes its share of the floors and stands 70% the size of the one below.
     const shares = stage === 1 ? [1] : stage === 2 ? [0.6, 0.4] : [0.5, 0.3, 0.2]
     let [tw, td, at, left] = [w, d, base, floors]
@@ -1131,7 +1131,7 @@ function officeTower(
     const cap = stage === 1 ? Math.min(3.5, Math.min(tw, td) * 0.4) : Math.min(7, Math.min(tw, td) * 0.78)
     curved(PYRAMID, at, Math.PI / 4, r, cap, 4 * Math.max(2, Math.round(r)), Math.max(2, Math.round(cap / 0.9)))
     if (stage > 1) spire(at + cap - 0.4, stage === 3 ? kit.range(8, 12) : kit.range(5, 9), 0.24)
-  } else if (style === 'fins') {
+  } else if (form === 'fins') {
     curtain(w - 0.7, d - 0.7, base, floors, 0)
     for (const [len, across, eastWest] of [
       [w, d, true],
@@ -1169,7 +1169,7 @@ function officeTower(
         spire(pad ? top + 0.3 : crown, stage === 3 ? kit.range(7, 11) : kit.range(5, 9), 0.18, w - 1, d - 1)
     }
   }
-  if (gondola && stage > 1 && (style === 'curtain' || style === 'fins')) {
+  if (gondola && stage > 1 && (form === 'curtain' || form === 'fins')) {
     // A cradle on the south or east face, hanging from two arms over the roof's edge, that works down the face a
     // couple of floors at a time, stopping at each to clean, and climbs back to wait under the arms.
     const { drop, every, waits } = GONDOLA
@@ -1205,6 +1205,6 @@ function officeTower(
     }
     kit.mover('gondola', loop, stops, 0, h, { waits: wait, face: { x: fx, y: fy, heading }, hang: arm - h, laps: true })
   }
-  kit.shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4, style === 'round')
+  kit.shadow(x, y, h, w * 1.4 + 2.4, d * 1.4 + 2.4, form === 'round')
   kit.brick('building', x, y, h)
 }

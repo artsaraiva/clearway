@@ -18,8 +18,8 @@ export interface Box {
   y1: number
 }
 
-/** How a thing is drawn: on the soft-lit scenery (`solid`), or as a Close-only prop, hidden beyond Street (`close`). */
-export type Layer = 'solid' | 'close'
+/** How a thing is drawn: on the soft-lit scenery (`solid`), or as a Block-zoom prop, hidden beyond Tile zoom (`blockZoom`). */
+export type Layer = 'solid' | 'blockZoom'
 
 /** One brick of the build: a thing that stands on a Block, or on the slab between them. */
 export interface Thing {
@@ -150,8 +150,8 @@ export interface Report {
   /** Each colour painted on the scenery (hex), with the triangles that wear it. */
   colours: Record<string, number>
   vehicles: Vehicle[]
-  /** Whether the Close-only props' material hides itself with the whole City in frame (zoom 1, under Framed's). */
-  closeHidden: boolean
+  /** Whether the Block-zoom props' material hides itself with the whole City in frame (zoom 1, under City zoom's). */
+  blockZoomHidden: boolean
   /** The static scenery's triangles and meshes (one draw call each, before the shadow pass). */
   triangles: number
   meshes: number

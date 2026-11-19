@@ -7,7 +7,7 @@
 //
 // Writes scripts/visual/out/<zone>-readability-s<stage>.jpg, and its shots under scripts/visual/out/shots/. Without
 // --against the sheet holds the working tree alone. The Junction is the Crossroads of the Tile at (2, 0), the shots'
-// Street Tile, seen from the north-west, where no tower stands before it.
+// Tile-zoom Tile, seen from the north-west, where no tower stands before it.
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
