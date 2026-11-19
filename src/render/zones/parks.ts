@@ -382,8 +382,7 @@ function crossings(p: Omit<Pond, 'stones' | 'bridge'>): Pick<Pond, 'stones' | 'b
  * Built to the Finish (#180, a Zone's Block `g`), the lawn is mown in stripes, the pond has its rocks, reeds, lily pads,
  * island, stepping stones, bridge, a tiled roof on its pavilion and what moves on it (`pondFinish`), the park has its
  * scenes, gravel paths from its corners, a border of azaleas along its Roads, stone lanterns and benches (`parkFinish`),
- * and its trees are coarse, stand apart and keep off what the rest claimed; from Stage 2 the round ones drop leaves and
- * one sakura in two lets petals drift down from its crown.
+ * and its trees are coarse, stand apart and keep off what the rest claimed; from Stage 2 the round ones drop leaves.
  */
 export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideTrees: Vec[] = [], g?: ZoneGround) {
   const finish = !!g && kit.finished
@@ -451,7 +450,6 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideT
     kit.staged((stage) => {
       if (!young && stage === 1) return
       const grown = GROW[stage - 1] * tree
-      if (finish && stage > 1 && kind === 'sakura' && spot(tx, ty) % 2) kit.plume('petals', tx, ty, ground + 4.2 * grown) // rides the tree's brick
       kit.tree(tx, ty, ground, grown, kind, finish, finish && stage > 1)
     })
     n++

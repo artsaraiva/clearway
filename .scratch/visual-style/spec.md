@@ -2,6 +2,11 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#225](https://github.com/artsaraiva/clearway/issues/225) (2026-11-19)
+
+Petals drift down from one sakura in two on every Zone, as [#151](https://github.com/artsaraiva/clearway/issues/151) asked, not only in parks as [#180](https://github.com/artsaraiva/clearway/issues/180) left them.
+The kit's `tree` lays the plume with the fallen petals, so every Zone's meshes are unchanged.
+
 ## Amended by [#218](https://github.com/artsaraiva/clearway/issues/218) (2026-11-19)
 
 The Kerbside's planters, bollards and benches keep 1.1 m off the ground a Zone claimed, read from the kit's claims rather than from a list each Zone keeps.
@@ -197,6 +202,7 @@ That rule is why the park's deck is wood rather than shrine vermilion, why the c
 | Lawns | the park's and islands' `#b0df88`, houses' gardens, courts and roof gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
 | Utility poles ([#148](https://github.com/artsaraiva/clearway/issues/148)) | poles and crossbars `#6f7986`, transformer drums `#c4ccd4`, wires `#2a3142` |
 | Fallen sakura petals | `#ffd1df` `#ffbbd1` `#ffe3ec` |
+| Drifting sakura petals ([#225](https://github.com/artsaraiva/clearway/issues/225)) | `#ffc4d6` |
 | Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
 | Bike lanes | `#57c6b5` |
 | Water | `#63d1f4` |
@@ -318,6 +324,8 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   - A wire across a seam belongs to neither Tile: all of them are strung again whenever a Tile lands or an Undo takes one off.
 - **Fallen petals** lie round every sakura, as many to the square metre whatever its size, out to seven times its size, on the Block only and, on a raised lawn, well in from its edge.
   They are drawn from where the tree stands, so no Block's fill changes.
+  From one sakura in two, chosen by where it stands, petals drift down from its crown through the working day ([#225](https://github.com/artsaraiva/clearway/issues/225)), a plume riding the tree's brick, so no build gains a mesh for them.
+  On the 26-Tile City at Stage 3, 155 sakura drift on parks, 55 on green, 48 on low-density, 21 on shops, 16 on medium-density and 11 on high-density.
 - Each Zone's own details and finish are in its file (Seeded, above).
 - **The Kerbside round every Tile** ([#175](https://github.com/artsaraiva/clearway/issues/175) round a finished Tile, `src/render/kerbside.ts`; on every Tile whatever its Zone, unzoned too, since [#176](https://github.com/artsaraiva/clearway/issues/176)), each drawn from where it lies.
   Every Block's pavement wears the paving joints of #174's pattern, which the scenery material's shader lays wherever a face looks up at the kerb's height in the pavement's colour, so that no build carries a pattern attribute for it (one on every build cost parks and green 0.6 ms at City zoom); and every Block's kerb, a roundabout's island's and a narrow Block's bike lane's too, its kerbstone line.
