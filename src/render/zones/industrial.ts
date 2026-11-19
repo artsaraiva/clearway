@@ -1,9 +1,12 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
-import { polyline, type Bounds } from '../../sim/geometry'
+import { middle, polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
 import { type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
-import { fit, lotsOf, near, overlap, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { TROLLEY } from '../movers'
+import { PATTERN, type Pattern, wrap } from '../pattern'
+import { corners, fit, lotsOf, near, overlap, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { alongEdge, clearOfScenes, placeScenes, sceneOrder, smaller, type Scene } from './scenes'
 import { sawtooth } from '../shapes'
 
 // Industrial: lots at most 34 m on a side, 3.2 m in from the Block's bounding box, the largest built first, each with
@@ -36,6 +39,58 @@ const CONTAINERS = { gap: 0.35, fill: [0.3, 0.65], double: 0.45 }
 const PALLET = { wood: '#c49a6c', goods: ['#d8b98b', '#f4f1ea', '#d8b98b', '#e9eef2'] }
 const BAY = '#f0c75e'
 
+// Industrial built to the Finish (#181). Each Block's scenes are drawn from a stream of their own, so the kit's draws
+// are as they were: one of `scenes` from Stage 2 and a second at Stage 3 on a Block of `second` m² or more, on ground
+// along the Block's edge `in` m in from it, `clear` m on the Block, `ends` m from its run's ends, `lampRoom` m from the
+// lamps and `poleRoom` from the utility poles, and `shedRoom` m clear of every shed and off every yard; each kind as
+// long and deep as fits, down to its least (`sizes`).
+type IndustrialScene = 'crane' | 'tanks' | 'rack'
+const INDUSTRIAL_FINISH = {
+  scenes: ['crane', 'tanks', 'rack'] as IndustrialScene[],
+  second: 2500,
+  ground: { in: 0.8, clear: 0.5, ends: 1.5, lampRoom: 1.2, poleRoom: 0.8, shedRoom: 0.6 },
+  sizes: {
+    crane: smaller([14, 4.2], [8, 3.8]),
+    tanks: smaller([12, 4.2], [7, 3.5]),
+    rack: smaller([16, 3.2], [9, 2.8]),
+  } as Record<IndustrialScene, (readonly [number, number])[]>,
+}
+// A yard's ground (#181): tarmac darker than the pavement over all of it, kept `FENCE.in` m and a little in from the
+// Block's edge where it meets the fence; from Stage 2 a walkway along the door wall `walk` m out, a line along its edge,
+// and hazard stripes before each door `hazard` m deep; all painted `line` but the stripes, in the bays' paint.
+const YARD_GROUND = { tarmac: '#a9a59e', line: '#f4f1ea', walk: 1.3, hazard: 0.55 }
+// A fence along the Block's edge where it faces a Road (#181), `in` m in from it: mesh panels `tall` m tall between posts
+// about `bay` m apart, in its paint with darker posts, broken where anything stands and `poles`, `lamps` and `trees` m
+// from the kerbside's; no stretch under `least` m. Where it breaks for what stands in a yard (a truck's way out), a
+// gate: taller posts, and its leaf slid open behind the fence beside it, `leaf` m long at most.
+const FENCE = {
+  in: 1.8,
+  tall: 1.75,
+  bay: 2.5,
+  paint: '#7d9188',
+  post: '#5c6b66',
+  poles: 0.6,
+  lamps: 0.9,
+  trees: 1.2,
+  least: 2,
+  leaf: 7,
+  step: 0.5,
+}
+// What stands in a yard (#181): a cluster of drums by the wall from Stage 1, in `drums`; a skip from Stage 2 in one of
+// `skips` with its load; and a floodlight mast `mast` m tall at the yard's far corner from Stage 2, a second at
+// Stage 3, its lamps glowing `glow` as bright as a lamp and leaving a pool over the yard. All keep `inside` m on the
+// Block, so inside its fence.
+const YARD_KIT = {
+  drums: ['#5aa69b', '#e8b84a', '#4a525c', '#d09c53'],
+  skips: ['#5aa69b', '#d09c53', '#e8b84a'],
+  load: '#8a7d6d',
+  mast: 7.2,
+  steel: '#6f7986',
+  light: '#fff1d6',
+  glow: 1.4,
+  inside: 2.3,
+}
+
 /**
  * A shed as `industrial` lays it (#150): its footprint `w` (east–west) by `d` centred on `(x, y)`, the way its long
  * side runs (`ry`, 0 east–west), the long side its doors face (`side`, as `warehouse` takes it), and how
@@ -61,8 +116,34 @@ function yardLot(s: Shed, u0: number, u1: number, o0: number, o1: number): RowLo
   return { x: c.x, y: c.y, w: u1 - u0, d: o1 - o0, ry: s.ry, onRoad: false }
 }
 
+/** Where a shed stands as a row lot: its whole footprint, unturned. */
+const footprint = (s: Shed): RowLot => ({ x: s.x, y: s.y, w: s.w, d: s.d, ry: 0, onRoad: false })
+
+/** Whether every point along the outline of `l`, about every 3 m, lies on the Block `clear` m in from its edge. */
+function onBlock({ field }: ZoneGround, l: RowLot, clear: number): boolean {
+  const c = corners(l, 0)
+  return c.every((a, i) => {
+    const b = c[(i + 1) % c.length]
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 3))
+    for (let k = 0; k < n; k++) if (field.sample(a.x + ((b.x - a.x) * k) / n, a.y + ((b.y - a.y) * k) / n) < clear) return false
+    return true
+  })
+}
+
+/**
+ * Shed `s`'s yard (#181): the ground before its doors along its whole length, as deep as a yard is (`YARD.deep`) or as
+ * far as it stays inside the fence and off every other shed of `sheds`; null if that is under 3 m.
+ */
+function yardOf(g: ZoneGround, s: Shed, sheds: Shed[]): RowLot | null {
+  for (let deep = YARD.deep; deep >= 3; deep -= 0.5) {
+    const l = yardLot(s, -s.len / 2, s.len / 2, 0, deep)
+    if (onBlock(g, l, FENCE.in + 0.3) && !sheds.some((o) => o !== s && overlap(footprint(o), l))) return l
+  }
+  return null
+}
+
 /** Industrial's look (`./index`). */
-export const look: Look = { landmarks: false, fill: industrial }
+export const look: Look = { landmarks: false, finish: true, fill: industrial }
 
 /**
  * Industrial: wide, low sheds with sawtooth roofs on big lots with yards between them, and now and then a chimney, each
@@ -121,20 +202,56 @@ function industrial(g: ZoneGround) {
     kit.staged((stage) => warehouse(kit, shed.x, shed.y, KERB, shed.w, shed.d, first, side, stage))
     chimney = false
   }
-  // Then each yard, on its shed's lot, once every shed has taken its ground.
-  for (const { shed, lot } of laid) {
+  // Each shed's yard, and the Block's scenes on ground left along its edge (#181), on a stream of their own.
+  const sheds = laid.map((l) => l.shed)
+  const yards = sheds.map((s) => yardOf(g, s, sheds))
+  const centre = middle(g.block)
+  kit.lot(-1)
+  for (const { kind, ground: l, from } of sceneGrounds(g, mulberry32(spot(centre.x, centre.y) ^ 0x1d57), sheds, yards)) {
+    taken.push(l)
+    kit.stand(l.x, l.y, l.w, l.d, l.ry, from)
+    kit.scene(kind, () => kit.staged((stage) => stage >= from && SCENES[kind](kit, l, stage), spot(l.x, l.y)))
+  }
+  // Then each yard, on its shed's lot, once every shed and scene has taken its ground.
+  for (const [k, { shed, lot }] of laid.entries()) {
     kit.lot(lot)
-    loadingYard(g, shed, taken)
+    loadingYard(g, shed, taken, yards[k])
   }
   kit.lot(-1)
+  fence(g, taken, yards)
+}
+
+/**
+ * The ground of an industrial Block's scenes (#181), drawn from `draw`, once its sheds have their ground and before
+ * their yards are laid: one from Stage 2, and a second of another kind at Stage 3 on a Block of 2,500 m² or more,
+ * away from the first. Each lies along a straight run of the Block's edge facing a Road (or any, on a Block with none),
+ * as long and deep as there is room for between the edge and the sheds, clear of every shed and off every yard of
+ * `yards`, the lamps, the utility poles and the street trees; a kind that finds no ground gives way to another.
+ */
+function sceneGrounds(g: ZoneGround, draw: () => number, sheds: Shed[], yards: (RowLot | null)[]): Scene<IndustrialScene>[] {
+  const { scenes: kinds, second, ground, sizes } = INDUSTRIAL_FINISH
+  const all = runs(g, ground.in)
+  const blocked = [
+    ...sheds.map((s) => ({ ...footprint(s), w: s.w + 2 * ground.shedRoom, d: s.d + 2 * ground.shedRoom })),
+    ...yards.filter((y) => y !== null),
+  ]
+  const ok = (out: Scene<IndustrialScene>[]) => (l: RowLot) =>
+    clearOfScenes(out, l) && !blocked.some((b) => overlap(b, l)) && g.poles.every((p) => !near(l, p.x, p.y, ground.poleRoom))
+  const room = { lampRoom: ground.lampRoom, clear: ground.clear, ends: ground.ends, slide: true }
+  return placeScenes<IndustrialScene, Scene<IndustrialScene>>(sceneOrder(g, draw, kinds, second), kinds, (kind, out) => {
+    const l = alongEdge(g, draw, all, sizes[kind], room, ok(out))
+    return l && { ground: l }
+  })
 }
 
 /**
  * The details of shed `shed`'s yard (#150), each drawn from where it stands and laid where its ground is clear of
  * everything `taken`, which it then takes: a truck backed up to the first door with room for its bay, a forklift at the
- * next door with room to work, a second truck at a door left over, and containers along the shed's back and ends.
+ * next door with room to work, a second truck at a door left over, and containers along the shed's back and ends. To
+ * the Finish (#181), over the yard's ground `yard` (`yardOf`): its tarmac, walkway, edge line and hazard stripes
+ * (`yardGround`), and drums, a skip and floodlights where there is room (`yardKit`).
  */
-function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
+function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[], yard: RowLot | null) {
   const { kit } = g
   /** Take `lot` if it stands on the Block `clear` m in from its edge, clear of everything taken: whether it did. */
   const claim = (lot: RowLot, clear: number) => {
@@ -238,6 +355,131 @@ function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
     kit.from(first, () => containers(kit, p.x, p.y, KERB, ry, 1), spot(p.x, p.y))
     if (two) kit.from(3, () => containers(kit, p.x, p.y, KERB, ry, 2, 1), spot(p.x + 1, p.y))
   }
+  if (!yard) return
+  yardGround(kit, shed, yard)
+  yardKit(g, shed, yard, claim)
+}
+
+/**
+ * A yard's ground (#181) before shed `shed`'s doors, over `yard`: tarmac from Stage 1, and from Stage 2 a walkway line
+ * along the door wall broken at each door, a line along the yard's far edge, and hazard stripes before each door, as
+ * the shed lays its doors from Stage 2 (`shedDoors`).
+ */
+function yardGround(kit: Kit, shed: Shed, yard: RowLot) {
+  const { tarmac, line, walk, hazard } = YARD_GROUND
+  const deep = yard.d
+  kit.from(1, () => kit.paving(yard.x, yard.y, KERB, yard.w, deep, yard.ry, tarmac, PATTERN.tarmac), spot(yard.x, yard.y) + 3)
+  kit.from(
+    2,
+    () => {
+      const doors = shedDoors(shed.w, shed.d)
+      /** A line 0.12 m wide from `u0` to `u1` along the wall, `o` m out from it. */
+      const paint = (u0: number, u1: number, o: number) => {
+        const c = onShed(shed, (u0 + u1) / 2, o)
+        kit.add(kit.cuboid(u1 - u0, 0.02, 0.12), line, c.x, c.y, KERB, shed.ry)
+      }
+      // The walkway's line, from door to door.
+      const gaps = [-shed.len / 2, ...doors.flatMap((u) => [u - 2.1, u + 2.1]), shed.len / 2]
+      for (let k = 0; k < gaps.length; k += 2) if (gaps[k + 1] - gaps[k] > 0.6) paint(gaps[k], gaps[k + 1], walk)
+      paint(-shed.len / 2, shed.len / 2, deep - 0.2)
+      kit.brick('ground', yard.x, yard.y, KERB)
+      for (const u of doors) {
+        const c = onShed(shed, u, hazard / 2 + 0.05)
+        kit.paving(c.x, c.y, KERB, 3.8, hazard, shed.ry, BAY, PATTERN.hazard, 0.024)
+      }
+    },
+    spot(yard.x, yard.y) + 4,
+  )
+}
+
+/**
+ * What stands in a yard (#181) before shed `shed`'s doors, over `yard`, each where `claim` finds its ground clear and
+ * takes it: a cluster of drums by the wall from Stage 1, a Block-zoom prop; a skip from Stage 2; and a floodlight mast at
+ * the yard's far corner from Stage 2, and a second at the other from Stage 3, each leaving a pool over the yard.
+ */
+function yardKit(g: ZoneGround, shed: Shed, yard: RowLot, claim: (lot: RowLot, clear: number) => boolean) {
+  const { kit } = g
+  const { inside } = YARD_KIT
+  const ends = (u: number) => [u, -u]
+  const ry = shed.ry
+  // Drums by the wall, near one end of it or the other.
+  for (const u of ends(shed.len / 2 - 1.3)) {
+    const p = onShed(shed, u, 0.95)
+    if (!claim({ x: p.x, y: p.y, w: 1.6, d: 1.5, ry, onRoad: false }, inside)) continue
+    kit.from(1, () => kit.blockZoomProps(() => drums(kit, p.x, p.y, KERB, ry)), spot(p.x, p.y))
+    break
+  }
+  // A skip, along the wall or out by the yard's edge.
+  const skip = [...ends(shed.len / 2 - 2.4).map((u) => ({ u, o: 1.3 })), ...ends(shed.len / 2 - 2.4).map((u) => ({ u, o: yard.d - 1.6 }))]
+  for (const { u, o } of skip) {
+    const p = onShed(shed, u, o)
+    if (!claim({ x: p.x, y: p.y, w: 4, d: 2.2, ry, onRoad: false }, inside)) continue
+    kit.from(2, () => skipBin(kit, p.x, p.y, KERB, ry), spot(p.x, p.y))
+    break
+  }
+  // Floodlights at the yard's far corners, facing back across it.
+  let masts = 0
+  for (const u of ends(shed.len / 2 - 0.6)) {
+    const p = onShed(shed, u, yard.d - 1.1)
+    if (!claim({ x: p.x, y: p.y, w: 0.7, d: 0.7, ry, onRoad: false }, inside)) continue
+    const lit = onShed(shed, u - Math.sign(u) * Math.min(4, shed.len / 4), yard.d / 2)
+    const face = Math.atan2(lit.y - p.y, lit.x - p.x) - Math.PI / 2 // its lamps' front toward the yard
+    const w = Math.min(10, shed.len / 2 + 2)
+    kit.from(masts ? 3 : 2, () => floodlight(kit, p.x, p.y, KERB, face, lit, w, Math.min(yard.d, 10), ry), spot(p.x, p.y))
+    if (++masts === 2) break
+  }
+}
+
+/** An oil drum's shape (#181), and a pipe turning down into the ground: coarser than the kit's cylinder, as they stand by the hundred. */
+const DRUM = new THREE.CylinderGeometry(1, 1, 1, 10).translate(0, 0.5, 0)
+
+/** A cluster of three oil drums at `(x, y)` (#181), turned `ry`, in colours drawn from the kit's stream, as one brick. */
+function drums(kit: Kit, x: number, y: number, h: number, ry: number) {
+  for (const [u, v] of [
+    [-0.36, -0.3],
+    [0.36, -0.3],
+    [0, 0.34],
+  ]) {
+    const [dx, dy] = to(x, y, ry, u, v)
+    kit.add(DRUM, kit.pick(YARD_KIT.drums), dx, dy, h, 0, 0.3, 0.88, 0.3)
+  }
+  kit.brick('building', x, y, h)
+}
+
+/** A skip at `(x, y)` (#181), its length along `ry` (0 east–west), in a paint drawn from the kit's stream, with its load, as one brick. */
+function skipBin(kit: Kit, x: number, y: number, h: number, ry: number) {
+  const paint = kit.pick(YARD_KIT.skips)
+  const rim = `#${new THREE.Color(paint).multiplyScalar(0.8).getHexString()}`
+  kit.put(kit.cuboid(3.2, 1.2, 1.6), paint, x, y, ry, 0, 0, h)
+  kit.put(kit.cuboid(3.7, 0.16, 1.8), rim, x, y, ry, 0, 0, h + 1.14) // its rim
+  for (const k of [-1, 1]) kit.put(kit.cuboid(0.12, 0.5, 1.7), rim, x, y, ry, k * 1.1, 0, h + 0.3) // the lugs it is lifted by
+  kit.put(kit.cuboid(3.3, 0.3, 1.5), YARD_KIT.load, x, y, ry, 0, 0, h + 1.02) // its load, heaped a little over the rim
+  kit.shadow(x, y, h, 4.4, 2.4, false, ry)
+  kit.brick('building', x, y, h)
+}
+
+/**
+ * A floodlight mast at `(x, y)` (#181), its two lamps on a crossarm facing `face`, glowing at night and leaving a pool
+ * `w` by `d` at `lit` on the yard, turned `ry`, as one brick.
+ */
+function floodlight(
+  kit: Kit,
+  x: number,
+  y: number,
+  h: number,
+  face: number,
+  lit: { x: number; y: number },
+  w: number,
+  d: number,
+  ry: number,
+) {
+  const { mast, steel, light, glow } = YARD_KIT
+  kit.add(kit.cuboid(0.24, mast, 0.24), steel, x, y, h)
+  kit.add(kit.cuboid(0.5, 0.3, 0.5), steel, x, y, h) // its foot
+  kit.put(kit.cuboid(1.6, 0.12, 0.12), steel, x, y, face, 0, 0, h + mast - 0.3)
+  for (const k of [-1, 1]) kit.put(kit.cuboid(0.55, 0.38, 0.3), kit.lit(light, glow), x, y, face, k * 0.55, 0.12, h + mast - 0.65)
+  kit.pool('flood', lit.x, lit.y, h, w, d, ry)
+  kit.brick('building', x, y, h)
 }
 
 /**
@@ -264,6 +506,264 @@ function bay(kit: Kit, x: number, y: number, h: number, ry: number, l: number, w
   kit.brick('ground', x, y, h)
 }
 
+// The scenes (#181): a gantry crane over a stack of containers, its girders high enough that the spreader its trolley
+// carries (`TROLLEY`) clears the stack by `clear` m and a little, two high at Stage 2 and three at Stage 3, in the crane's yellow with dark bogies and a cab, its trolley waiting
+// `waits` s (a range each draws its own from) over each end of the stack; a tank farm, its tanks `tall` m tall at Stage
+// 2 and `taller` at Stage 3, in pale paints under a band, in a concrete bund, a catwalk over their tops at Stage 3; and a
+// pipe rack, its bents about `bay` m apart and `tall` m tall (`taller` at Stage 3, with a lower tier), carrying pipes in
+// `pipes`' paints.
+const CRANE = { clear: 0.4, paint: '#e8b84a', dark: '#4a525c', cab: '#f4f1ea', glass: '#41566c', waits: [5, 12], girders: 1.65 }
+const TANKS = {
+  tall: 5.6,
+  taller: 7.2,
+  paints: ['#eef0ee', '#e6dfcf', '#d9e2dc'],
+  bands: ['#5aa69b', '#d09c53', '#8b7dbf'],
+  bund: '#d9d4ca',
+  steel: '#6f7986',
+}
+const RACK = { bay: 4.5, tall: 4.6, taller: 5.6, steel: '#7a8590', pipes: ['#d9dee3', '#e8b84a', '#5aa69b', '#f4f1ea', '#8b7dbf'] }
+/** The scenes' builders (#181), each on its ground at a Stage. */
+const SCENES: Record<IndustrialScene, (kit: Kit, l: RowLot, stage: number) => void> = { crane, tanks, rack }
+
+/**
+ * A cylinder of radius `r` and `tall` m standing at `(x, y)`, `h` above the road (#181), wearing `kind` round its side in
+ * bays of about `bay` m and storeys of `storey` m where the kit builds patterned, as `seed` (a whole number) has it.
+ */
+function wrapped(
+  kit: Kit,
+  look: KitLook,
+  x: number,
+  y: number,
+  h: number,
+  r: number,
+  tall: number,
+  kind: Pattern,
+  bay: number,
+  storey: number,
+  seed: number,
+) {
+  if (!kit.patterned) return kit.add(CYLINDER, look, x, y, h, 0, r, tall, r)
+  const g = wrap(CYLINDER.toNonIndexed(), 2 * Math.PI * r, tall, bay, storey, 0, mulberry32(seed)(), kind)
+  kit.push(
+    g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(x, h, -y), new THREE.Quaternion(), new THREE.Vector3(r, tall, r))),
+    look,
+  )
+}
+
+/** A pipe of radius `r` and `len` m along x in the frame of something at `(x, y)` facing `ry`, its middle at `(lx, ly)`, its foot `h` above the road (#181). */
+function pipe(kit: Kit, look: KitLook, x: number, y: number, ry: number, lx: number, ly: number, h: number, len: number, r: number) {
+  const g = new THREE.CylinderGeometry(r, r, len, 8).rotateZ(Math.PI / 2).translate(0, r, 0)
+  kit.local(g, look, x, y, ry, lx, ly, h)
+  g.dispose()
+}
+
+/**
+ * A gantry crane over a stack of containers on ground `l` at Stage `stage` (#181): a portal frame at each end of the
+ * ground, two girders between them, a cab under one, and its trolley shuttling along the girders over the stack, which
+ * lies along the ground one or two containers long and stands one or two high, and a third at Stage 3, under girders
+ * that rise to clear it.
+ */
+function crane(kit: Kit, l: RowLot, stage: number) {
+  const { paint, dark, cab, glass, girders } = CRANE
+  const tall = (stage === 3 ? 3 : 2) * CONTAINER.tall + TROLLEY.drop + CRANE.clear
+  const [ends, span] = [l.w / 2 - 0.3, l.d / 2 - 0.3]
+  for (const u of [-ends, ends]) {
+    for (const k of [-1, 1]) {
+      kit.local(kit.cuboid(0.4, tall, 0.4), paint, l.x, l.y, l.ry, u, k * span, KERB)
+      kit.local(kit.cuboid(0.6, 0.55, 0.62), dark, l.x, l.y, l.ry, u, k * span, KERB) // its bogie
+    }
+    kit.local(kit.cuboid(0.5, 0.6, l.d - 0.2), paint, l.x, l.y, l.ry, u, 0, KERB + tall - 0.6) // the frame's head
+    kit.local(kit.cuboid(0.22, 0.22, l.d - 0.6), paint, l.x, l.y, l.ry, u, 0, KERB + tall * 0.45) // its tie
+  }
+  for (const k of [-1, 1]) kit.local(kit.cuboid(l.w, 0.7, 0.4), paint, l.x, l.y, l.ry, 0, k * girders, KERB + tall)
+  kit.local(kit.cuboid(1.3, 1.4, 1.1), cab, l.x, l.y, l.ry, ends - 1.2, girders + 0.2, KERB + tall - 1.4)
+  kit.local(
+    kit.cuboid(1.32, 0.6, 1.12),
+    { material: kit.glass, tint: kit.glassOf(glass) },
+    l.x,
+    l.y,
+    l.ry,
+    ends - 1.2,
+    girders + 0.2,
+    KERB + tall - 0.7,
+  )
+  kit.shadow(l.x, l.y, KERB, l.w + 1, l.d + 1, false, l.ry)
+  kit.brick('building', l.x, l.y, KERB)
+  // The stack, a container's length and a little to each spot along the ground.
+  const { long } = CONTAINER
+  const n = Math.max(1, Math.floor((l.w - 1) / (long + 0.3)))
+  for (let k = 0; k < n; k++) {
+    const u = (k - (n - 1) / 2) * (long + 0.3)
+    const p = turned(l.x, l.y, l.ry, u, 0)
+    const high = 1 + (kit.rand() < 0.6 ? 1 : 0) + (stage === 3 ? 1 : 0)
+    containers(kit, p.x, p.y, KERB, l.ry, high)
+  }
+  // The trolley, over each end of the stack in turn.
+  const reach = Math.max(1.2, ((n - 1) * (long + 0.3)) / 2)
+  const [a, b] = [turned(l.x, l.y, l.ry, -reach, 0), turned(l.x, l.y, l.ry, reach, 0)]
+  const waits = [0, 1].map(() => CRANE.waits[0] + kit.rand() * (CRANE.waits[1] - CRANE.waits[0]))
+  kit.mover('trolley', polyline([a, b, a]), [0, 2 * reach], 0, KERB + tall + 0.7, { waits })
+}
+
+/**
+ * A tank farm on ground `l` at Stage `stage` (#181): two to four tanks in a row in a low concrete bund on a concrete pad,
+ * each in a pale paint under a band, with a hatch on its top and a pipe out of its foot, a ladder up the first; taller
+ * at Stage 3, with a catwalk over their tops.
+ */
+function tanks(kit: Kit, l: RowLot, stage: number) {
+  const { paints, bands, bund, steel } = TANKS
+  kit.paving(l.x, l.y, KERB, l.w, l.d, l.ry, bund, PATTERN.paving)
+  for (const k of [-1, 1]) {
+    kit.local(kit.cuboid(l.w, 0.55, 0.22), bund, l.x, l.y, l.ry, 0, k * (l.d / 2 - 0.11), KERB)
+    kit.local(kit.cuboid(0.22, 0.55, l.d - 0.44), bund, l.x, l.y, l.ry, k * (l.w / 2 - 0.11), 0, KERB)
+  }
+  const r = Math.min(1.75, l.d / 2 - 0.5)
+  const n = Math.max(2, Math.min(4, Math.floor((l.w - 0.6) / (2 * r + 0.7))))
+  const gap = (l.w - 0.6) / n
+  const tall = stage === 3 ? TANKS.taller : TANKS.tall
+  const [paint, band] = [kit.pick(paints), kit.pick(bands)]
+  for (let k = 0; k < n; k++) {
+    const u = -l.w / 2 + 0.3 + (k + 0.5) * gap
+    const p = turned(l.x, l.y, l.ry, u, 0)
+    const high = tall - 0.5 * (k % 2)
+    wrapped(kit, paint, p.x, p.y, KERB, r, high, PATTERN.plates, 2, 1.2, spot(p.x, p.y))
+    kit.add(CYLINDER, band, p.x, p.y, KERB + high - 1.1, 0, r + 0.04, 0.5, r + 0.04)
+    kit.add(kit.cuboid(0.7, 0.35, 0.7), steel, p.x, p.y, KERB + high) // its hatch
+    kit.local(kit.cuboid(0.3, 0.3, l.d / 2 - r), steel, l.x, l.y, l.ry, u, -(r + l.d / 2) / 2, KERB + 0.3) // its pipe out the back
+  }
+  // A ladder up the first tank's front.
+  const first = -l.w / 2 + 0.3 + gap / 2
+  for (const k of [-1, 1]) kit.local(kit.cuboid(0.07, tall, 0.07), steel, l.x, l.y, l.ry, first + k * 0.22, r + 0.12, KERB)
+  for (let z = 0.5; z < tall; z += 0.6) kit.local(kit.cuboid(0.5, 0.05, 0.05), steel, l.x, l.y, l.ry, first, r + 0.12, KERB + z)
+  if (stage === 3) {
+    const span = (n - 1) * gap
+    kit.local(kit.cuboid(span, 0.1, 0.8), steel, l.x, l.y, l.ry, first + span / 2, 0, KERB + tall + 0.05)
+    for (const k of [-1, 1]) kit.local(kit.cuboid(span, 0.05, 0.05), steel, l.x, l.y, l.ry, first + span / 2, k * 0.4, KERB + tall + 1)
+  }
+  kit.shadow(l.x, l.y, KERB, l.w + 1, l.d + 1, false, l.ry)
+  kit.brick('building', l.x, l.y, KERB)
+}
+
+/**
+ * A pipe rack on ground `l` at Stage `stage` (#181): steel bents about `RACK.bay` m apart carrying pipes along the
+ * ground's length, which turn down into the ground at one end; taller at Stage 3, with a lower tier of pipes.
+ */
+function rack(kit: Kit, l: RowLot, stage: number) {
+  const { steel, pipes } = RACK
+  const tall = stage === 3 ? RACK.taller : RACK.tall
+  const bents = Math.max(2, Math.round((l.w - 0.6) / RACK.bay) + 1)
+  const [span, post] = [(l.w - 0.6) / (bents - 1), l.d / 2 - 0.25]
+  const tiers = stage === 3 ? [tall, tall - 1.5] : [tall]
+  for (let k = 0; k < bents; k++) {
+    const u = -l.w / 2 + 0.3 + k * span
+    for (const v of [-post, post]) kit.local(kit.cuboid(0.3, tall + 0.3, 0.3), steel, l.x, l.y, l.ry, u, v, KERB)
+    for (const t of tiers) kit.local(kit.cuboid(0.3, 0.3, l.d - 0.1), steel, l.x, l.y, l.ry, u, 0, KERB + t - 0.3)
+  }
+  const draw = mulberry32(spot(l.x, l.y))
+  tiers.forEach((t, tier) => {
+    const count = tier ? 3 : 4
+    for (let i = 0; i < count; i++) {
+      const v = -post + 0.45 + ((i + 0.5) * (2 * post - 0.9)) / count
+      const r = 0.14 + draw() * 0.12
+      const look = pipes[Math.floor(draw() * pipes.length)]
+      pipe(kit, look, l.x, l.y, l.ry, 0, v, KERB + t, l.w - 0.2, r)
+      // The top tier's pipes turn down into the ground just inside the rack's far end.
+      if (!tier) {
+        const p = turned(l.x, l.y, l.ry, l.w / 2 - 0.9, v)
+        kit.add(DRUM, look, p.x, p.y, KERB, 0, r, t + r, r)
+      }
+    }
+  })
+  kit.shadow(l.x, l.y, KERB, l.w + 1, l.d + 1, false, l.ry)
+  kit.brick('building', l.x, l.y, KERB)
+}
+
+/**
+ * A fence along the Block's edge where it faces a Road (#181), `FENCE.in` m in from it: mesh panels between posts,
+ * broken wherever anything `taken` or claimed stands and by the kerbside's lamps, utility poles and street trees. Where
+ * it breaks within a yard of `yards` for what stands there, the gap is a gate: taller posts either side, and its leaf
+ * slid open behind the longer stretch of fence beside it. Each stretch is one brick, and claims its ground.
+ */
+function fence(g: ZoneGround, taken: RowLot[], yards: (RowLot | null)[]) {
+  const { kit } = g
+  const { step, least } = FENCE
+  for (const run of runs(g, FENCE.in)) {
+    const at = (s: number) => ({ x: run.a.x + run.ux * s, y: run.a.y + run.uy * s })
+    /** What the fence does `s` m along the run: stands, opens as a gate, or breaks. */
+    const kind = (s: number): 'fence' | 'gate' | null => {
+      const p = at(s)
+      if (!run.onRoad(p.x, p.y)) return null
+      const free =
+        g.poles.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= FENCE.poles) &&
+        g.lamps.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= FENCE.lamps) &&
+        g.kerbsideTrees.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= FENCE.trees)
+      if (!free) return null
+      const lot = { x: p.x, y: p.y, w: step, d: 0.3, ry: run.ry, onRoad: true }
+      if (taken.some((t) => overlap(t, lot, 0)) || !kit.unclaimed(p.x, p.y, step, 0.3, run.ry, 0.1)) {
+        return yards.some((y) => y && near(y, p.x, p.y, 0.3)) ? 'gate' : null
+      }
+      return 'fence'
+    }
+    // Stretches of one kind, a step at a time.
+    const stretches: { kind: 'fence' | 'gate' | null; s0: number; s1: number }[] = []
+    for (let s = step / 2; s < run.len; s += step) {
+      const k = kind(s)
+      const last = stretches[stretches.length - 1]
+      if (last && last.kind === k) last.s1 = s + step / 2
+      else stretches.push({ kind: k, s0: s - step / 2, s1: s + step / 2 })
+    }
+    stretches.forEach((f, i) => {
+      if (f.kind !== 'fence' || f.s1 - f.s0 < least) return
+      const len = f.s1 - f.s0 - 0.2
+      const c = at((f.s0 + f.s1) / 2)
+      const ry = run.ry
+      const bays = Math.max(1, Math.round(len / FENCE.bay))
+      kit.cladded(
+        kit.cuboid(len, FENCE.tall, 0.05),
+        FENCE.paint,
+        c.x,
+        c.y,
+        KERB + 0.06,
+        ry,
+        { front: PATTERN.mesh, back: PATTERN.mesh, bay: len / bays },
+        spot(c.x, c.y),
+      )
+      for (let b = 0; b <= bays; b++)
+        kit.put(kit.cuboid(0.09, FENCE.tall + 0.15, 0.09), FENCE.post, c.x, c.y, ry, -len / 2 + (b * len) / bays, 0, KERB)
+      // A gate beside it: its posts, and its leaf slid open behind this stretch if this is the longer beside it.
+      for (const [j, end] of [
+        [i - 1, -1],
+        [i + 1, 1],
+      ]) {
+        const gate = stretches[j]
+        if (gate?.kind !== 'gate') continue
+        const edge = end < 0 ? f.s0 + 0.1 : f.s1 - 0.1
+        const p = at(edge)
+        kit.add(kit.cuboid(0.22, FENCE.tall + 0.5, 0.22), FENCE.post, p.x, p.y, KERB, ry)
+        const other = stretches[j + end]
+        const longer = !other || other.kind !== 'fence' || other.s1 - other.s0 <= f.s1 - f.s0
+        const leaf = Math.min(FENCE.leaf, gate.s1 - gate.s0, len - 0.4)
+        if (!longer || leaf <= 1) continue
+        const q = at(edge - end * (leaf / 2 + 0.15))
+        const [lx, ly] = [q.x - run.nx * 0.22, q.y - run.ny * 0.22] // behind the fence, on the Block's side
+        const bay = leaf / Math.max(1, Math.round(leaf / FENCE.bay))
+        kit.cladded(
+          kit.cuboid(leaf, FENCE.tall - 0.1, 0.06),
+          FENCE.post,
+          lx,
+          ly,
+          KERB + 0.08,
+          ry,
+          { front: PATTERN.mesh, back: PATTERN.mesh, bay },
+          spot(lx, ly),
+        )
+      }
+      kit.brick('building', c.x, c.y, KERB)
+      kit.stand(c.x, c.y, len, 0.8, ry)
+    })
+  }
+}
+
 // Shipping containers: their paints and size, and their builder, beside the fill that lays them (#150, #210). Their
 // paints are the roofs' colours, their frames and ribs a shade darker.
 const CONTAINER_PAINTS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548', '#7f8c7c']
@@ -280,7 +780,7 @@ function containers(kit: Kit, x: number, y: number, h: number, ry: number, layer
     const colour = kit.pick(CONTAINER_PAINTS)
     const frame = `#${new THREE.Color(colour).multiplyScalar(0.78).getHexString()}`
     const at = h + k * H
-    kit.add(kit.cuboid(L - 0.24, H - 0.12, W - 0.1), colour, x, y, at + 0.06, ry)
+    kit.cladded(kit.cuboid(L - 0.24, H - 0.12, W - 0.1), colour, x, y, at + 0.06, ry, { top: PATTERN.ribbed }, spot(x, y) + k) // its roof ribbed (#181)
     for (const end of [-1, 1]) kit.local(kit.cuboid(0.14, H, W), frame, x, y, ry, end * (L / 2 - 0.07), 0, at)
     for (let r = 1; r < 6; r++) kit.local(kit.cuboid(0.1, H - 0.3, W + 0.04), frame, x, y, ry, -L / 2 + (r * L) / 6, 0, at + 0.15)
   }
@@ -308,6 +808,18 @@ function shedDoors(w: number, d: number): number[] {
   return Array.from({ length: n }, (_, k) => -len / 2 + ((k + 0.5) * len) / n)
 }
 
+// A shed to the Finish (#181): its company's colour, drawn from where it stands, for the band under its eaves; the band
+// `band` m deep; its roof's vents and ducting in galvanised steel against the roof, its pipes and ladder; the pool under
+// each door's lamp, `pool` m out and its size; and the chimney's amber beacon.
+const SHED_FINISH = {
+  company: ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548'],
+  band: 0.5,
+  galvanised: '#e6eaed',
+  pipe: '#7d8b96',
+  ladder: '#5c6670',
+  pool: { out: 1.9, w: 4, d: 3.2 },
+}
+
 /**
  * A shed at Stage `stage` on a footprint `w` (east–west) by `d`, centred on `(x, y)`, as one brick: low walls under
  * a sawtooth roof whose teeth follow one another along its long side, glazed up each tooth, roller doors along the
@@ -317,6 +829,11 @@ function shedDoors(w: number, d: number): number[] {
  * - Stage 2: on the whole footprint, with a lamp over each door that lights at dusk (#150).
  * - Stage 3: a metre taller, with a two-storey office at one end of its back, vents along its roof, and a taller
  *   chimney with a second band.
+ * To the Finish (#181), at every Stage: walls of corrugated steel with a high strip of windows on every side, a band in
+ * its company's colour under the eaves, and a roof of ribbed steel sheet. With the Stage, its glazing lights from
+ * Stage 2 where only half the sheds' did at Stage 1; from Stage 2 a row of vents down each tooth, a pipe run along its
+ * back, a ladder up one end, a pool under each door's lamp and an amber beacon on the chimney; at Stage 3 a duct along
+ * the roof.
  */
 function warehouse(kit: Kit, x: number, y: number, h: number, w: number, d: number, chimney: boolean, side: number, stage = 2) {
   kit.formed('shed')
@@ -328,29 +845,77 @@ function warehouse(kit: Kit, x: number, y: number, h: number, w: number, d: numb
     kit.pick(SHED.doors),
     kit.range(15, 21),
   ]
+  const own = mulberry32(spot(x, y) ^ 0x5bed) // the Finish's own draws, from where it stands
+  const [company, seed] = [SHED_FINISH.company[Math.floor(own() * SHED_FINISH.company.length)], (own() * 4294967296) >>> 0]
+  const { galvanised, band } = SHED_FINISH
   if (stage === 1) [w, d] = [w * 0.8, d * 0.8]
   const wall = [4.2 + 1.2 * tall, 5.4 + 2 * tall, 6.4 + 2 * tall][stage - 1]
-  kit.add(kit.box(w, wall, d, 0.4, 0.14), walls, x, y, h)
+  const sheet = PATTERN.corrugated
+  kit.cladded(kit.box(w, wall, d, 0.4, 0.14), walls, x, y, h, 0, { front: sheet, back: sheet, sides: sheet, bay: 3 }, seed)
+  kit.add(kit.cuboid(w + 0.08, band, d + 0.08), company, x, y, h + wall - band - 0.1)
   const along = w >= d
   const [len, wid, ry] = along ? [w - 0.4, d - 0.4, 0] : [d - 0.4, w - 0.4, Math.PI / 2]
   const n = Math.max(2, Math.round(len / 6))
   const rise = Math.min(3.4, (len / n) * 0.55)
   const teeth = sawtooth(len, wid, rise, n)
-  kit.add(teeth, roofs, x, y, h + wall, ry)
+  kit.tiled(teeth, roofs, x, y, h + wall, ry, seed + 1, PATTERN.ribbed, PATTERN.ribbed)
   teeth.dispose()
-  const glaze: KitLook = { material: kit.glass, tint: lit ? kit.windows[2] : kit.unlit }
+  const glaze: KitLook = { material: kit.glass, tint: lit || stage > 1 ? kit.windows[2] : kit.unlit }
   for (let i = 1; i < n; i++)
     kit.local(kit.cuboid(0.2, rise * 0.8, wid - 1.2), glaze, x, y, ry, -len / 2 + (i * len) / n - 0.12, 0, h + wall)
   for (const u of shedDoors(w, d)) {
     kit.local(kit.cuboid(3.6, 4, 0.3), doorColour, x, y, ry, u, (side * (wid + 0.4)) / 2, h)
-    if (stage > 1) kit.local(kit.cuboid(0.7, 0.22, 0.5), kit.bulb, x, y, ry, u, side * (wid / 2 + 0.45), h + 4.5)
+    if (stage > 1) {
+      kit.local(kit.cuboid(0.7, 0.22, 0.5), kit.bulb, x, y, ry, u, side * (wid / 2 + 0.45), h + 4.5)
+      const { out, w: pw, d: pd } = SHED_FINISH.pool
+      kit.pool('door', ...to(x, y, ry, u, side * (wid / 2 + out)), h, pw, pd, ry)
+    }
+  }
+  if (stage > 1) {
+    // A row of vents a third of the way down each tooth, and a duct along the roof at Stage 3.
+    const vents = Math.max(1, Math.floor((wid - 2) / 5))
+    for (let i = 0; i < n; i++)
+      for (let k = 0; k < vents; k++)
+        kit.local(
+          kit.cuboid(0.7, 0.8, 0.7),
+          galvanised,
+          x,
+          y,
+          ry,
+          -len / 2 + ((i + 0.3) * len) / n,
+          -wid / 2 + 1 + ((k + 0.5) * (wid - 2)) / vents,
+          h + wall + rise * 0.7 - 0.25,
+        )
+    if (stage === 3) {
+      const [dl, dv] = [len * 0.7, side * wid * 0.22]
+      kit.local(kit.cuboid(dl, 0.65, 0.65), galvanised, x, y, ry, 0, dv, h + wall + rise + 0.15)
+      for (const k of [-1, 1]) kit.local(kit.cuboid(0.65, rise + 0.8, 0.65), galvanised, x, y, ry, (k * dl) / 2, dv, h + wall)
+    }
+    // A pipe run along the back, dropping to the ground at one end and rising to the roof at the other.
+    const [back, pipe] = [-side * ((wid + 0.4) / 2 + 0.13), SHED_FINISH.pipe]
+    const [p0, p1] = [0.5, len / 2 - 1]
+    kit.local(kit.cuboid(p1 - p0, 0.18, 0.18), pipe, x, y, ry, (p0 + p1) / 2, back, h + wall * 0.55)
+    kit.local(kit.cuboid(0.18, wall * 0.55, 0.18), pipe, x, y, ry, p1, back, h)
+    kit.local(kit.cuboid(0.18, wall * 0.45 + 0.5, 0.18), pipe, x, y, ry, p0, back, h + wall * 0.55)
+    // A ladder up the end away from the chimney, on the doors' half.
+    const [end, lv] = [-((len + 0.4) / 2 + 0.12), side * wid * 0.22]
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.08, wall + 1, 0.08), SHED_FINISH.ladder, x, y, ry, end, lv + k * 0.24, h)
+    for (let z = 0.6; z < wall + 0.8; z += 0.75) kit.local(kit.cuboid(0.06, 0.05, 0.5), SHED_FINISH.ladder, x, y, ry, end, lv, h + z)
   }
   if (stage === 3) {
     // An office at the far end of the back, standing a storey clear of the walls, with a band of windows a floor.
     const [ow, od] = [Math.min(11, len * 0.32), Math.min(7, wid * 0.45)]
     const [ox, oy] = [-len / 2 + ow / 2 + 0.2, -side * (wid / 2 - od / 2 + 0.35)] // its face just out of the shed's
     const high = wall + 3.4
-    kit.local(kit.box(ow, high, od, 0.3, 0.1), SHED.band, x, y, ry, ox, oy, h)
+    kit.cladded(
+      kit.box(ow, high, od, 0.3, 0.1),
+      SHED.band,
+      ...to(x, y, ry, ox, oy),
+      h,
+      ry,
+      { top: PATTERN.ribbed, front: sheet, back: sheet, sides: sheet, bay: 2.4 },
+      seed + 2,
+    )
     for (const f of [0, 1])
       kit.local(
         kit.cuboid(ow - 1.2, 1.3, 0.3),
@@ -370,10 +935,11 @@ function warehouse(kit: Kit, x: number, y: number, h: number, w: number, d: numb
   if (chimney && stage > 1) {
     const [cx, cy] = to(x, y, ry, len / 2 - 2.6, -side * (wid / 2 - 2.6))
     const high = chimneyTall + (stage === 3 ? 5 : 0)
-    kit.add(CYLINDER, SHED.chimney, cx, cy, h, 0, 1, high, 1)
+    wrapped(kit, SHED.chimney, cx, cy, h, 1, high, PATTERN.blocks, 1.6, 0.8, seed + 3)
     kit.add(CYLINDER, SHED.band, cx, cy, h + high - 2.4, 0, 1.06, 0.9, 1.06)
     if (stage === 3) kit.add(CYLINDER, SHED.band, cx, cy, h + high - 6, 0, 1.06, 0.6, 1.06)
     kit.smoke(cx, cy, h + high + 0.4)
+    kit.beacon(cx + 0.8, cy, h + high + 0.2, 0.3, 'amber')
   }
   kit.shadow(x, y, h, w * 1.3 + 2, d * 1.3 + 2)
   kit.brick('building', x, y, h)

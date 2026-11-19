@@ -97,6 +97,7 @@ export const POOL = {
     lobby: '#ffc98a',
     canopy: '#ffd49a',
     door: '#ffd49a',
+    flood: '#ffe6bf',
   },
   strengths: {
     lamp: 1,
@@ -112,6 +113,7 @@ export const POOL = {
     lobby: 0.95,
     canopy: 1.1,
     door: 0.7,
+    flood: 1.05,
   },
 }
 /** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
@@ -893,7 +895,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const tipped = memo((w: number, t: number, d: number, tip: number) => new THREE.BoxGeometry(w, t, d).rotateX(-tip), 3)
   /**
    * Add a copy of a pitched roof as `add` does, unscaled, wearing tile rows (`./pattern`) where the kit builds patterned
-   * (#178): kawara unless `kind` says otherwise, as a house's flat tiles (#179).
+   * (#178): kawara unless `kind` says otherwise, as a house's flat tiles (#179), and its upright faces `upright`, as a
+   * shed's sawtooth wears its sheet up its steep faces (#181).
    */
   const tiled = (
     geo: THREE.BufferGeometry,
@@ -904,9 +907,10 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     ry: number,
     seed: number,
     kind: Pattern = PATTERN.tiles,
+    upright: Pattern = PATTERN.gable,
   ) => {
     if (!patterned) return add(geo, look, x, y, h, ry)
-    const g = tile(geo.index ? geo.toNonIndexed() : geo.clone(), mulberry32(seed)(), kind)
+    const g = tile(geo.index ? geo.toNonIndexed() : geo.clone(), mulberry32(seed)(), kind, upright)
     push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(1, 1, 1))), look)
   }
 

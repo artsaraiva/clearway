@@ -28,6 +28,7 @@ export type MoverKind =
   | 'koi'
   | 'pigeon'
   | 'firefly'
+  | 'trolley'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -194,6 +195,7 @@ const KINDS: Record<MoverKind, Kind> = {
     wings: { rest: -1.3, fan: 0, night: -1.3, open: 0.15, sweep: 0.75 },
   },
   firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, byNight: true },
+  trolley: { speed: 0.7, bob: 0, rate: 0, model: trolley, wide: 0 }, // #181: a gantry crane's, along its girders, on no ground
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -681,6 +683,30 @@ function gondola(): THREE.BufferGeometry {
   }
   return merged(parts).scale(1.25, 1.25, 1.25)
 }
+/**
+ * A gantry crane's trolley (#181), riding the tops of two girders 3.3 m apart along x and centred on its middle, y = 0
+ * the girders' top: its frame and hoist, and under it on four ropes a container's spreader `TROLLEY.drop` m down, in
+ * the crane's yellow, its length along x as the containers under it lie.
+ */
+function trolley(): THREE.BufferGeometry {
+  const [FRAME, HOIST, ROPE] = ['#e8b84a', '#4a525c', '#2f3440']
+  const { drop } = TROLLEY
+  const parts = [
+    part(2.2, 0.35, 3.9, 0, 0, 0, FRAME), // the frame across both girders
+    part(1.5, 0.9, 1.7, 0, 0.35, 0, HOIST), // the hoist's drum and motor
+    part(1.7, 0.12, 2.0, 0, 1.25, 0, FRAME), // its cover
+    part(5.8, 0.32, 0.36, 0, -drop, 0.95, FRAME), // the spreader's long sides
+    part(5.8, 0.32, 0.36, 0, -drop, -0.95, FRAME),
+    part(0.36, 0.32, 2.3, 2.7, -drop, 0, FRAME), // its ends
+    part(0.36, 0.32, 2.3, -2.7, -drop, 0, FRAME),
+    part(0.9, 0.3, 0.9, 0, -drop + 0.32, 0, HOIST), // the headblock the ropes hold
+  ]
+  for (const x of [-0.35, 0.35]) for (const z of [-0.35, 0.35]) parts.push(part(0.05, drop - 0.6, 0.05, x, -drop + 0.6, z, ROPE))
+  return merged(parts)
+}
+/** How far under a gantry crane's girders its trolley carries its spreader (m, #181): `trolley` draws it so. */
+export const TROLLEY = { drop: 2.6 }
+
 /** The ropes a gondola hangs by, one at each end: 1 m tall from y = 0, to be stretched to their length. */
 function ropes(): THREE.BufferGeometry {
   return merged([-1.9, 1.9].map((z) => part(0.05, 1, 0.05, -0.3 * 1.25, 0, z * 1.25, '#4a525c')))
