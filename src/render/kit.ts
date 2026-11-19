@@ -7,7 +7,7 @@ import { KERB } from './blocks'
 import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
 import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, PlumeKind, Pool, Sway, SwayKind } from './movers'
-import { clad, createPatterns, pave, PATTERN, tile, type Cladding, type Pattern } from './pattern'
+import { clad, createPatterns, pave, PATTERN, tile, wrap, type Cladding, type Pattern } from './pattern'
 import { canvasTexture, gable, hip, roundedBox, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -97,6 +97,7 @@ export const POOL = {
     lobby: '#ffc98a',
     canopy: '#ffd49a',
     door: '#ffd49a',
+    flood: '#ffe6bf',
   },
   strengths: {
     lamp: 1,
@@ -112,6 +113,7 @@ export const POOL = {
     lobby: 0.95,
     canopy: 1.1,
     door: 0.7,
+    flood: 1.05,
   },
 }
 /** The kerbside's own lights, a lamp at a Block's corner and a street light on a pole, which leave pools on every Tile (#176). */
@@ -893,7 +895,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const tipped = memo((w: number, t: number, d: number, tip: number) => new THREE.BoxGeometry(w, t, d).rotateX(-tip), 3)
   /**
    * Add a copy of a pitched roof as `add` does, unscaled, wearing tile rows (`./pattern`) where the kit builds patterned
-   * (#178): kawara unless `kind` says otherwise, as a house's flat tiles (#179).
+   * (#178): kawara unless `kind` says otherwise, as a house's flat tiles (#179), and its upright faces `upright`, as a
+   * shed's sawtooth wears its sheet up its steep faces (#181).
    */
   const tiled = (
     geo: THREE.BufferGeometry,
@@ -904,10 +907,33 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     ry: number,
     seed: number,
     kind: Pattern = PATTERN.tiles,
+    upright: Pattern = PATTERN.gable,
   ) => {
     if (!patterned) return add(geo, look, x, y, h, ry)
-    const g = tile(geo.index ? geo.toNonIndexed() : geo.clone(), mulberry32(seed)(), kind)
+    const g = tile(geo.index ? geo.toNonIndexed() : geo.clone(), mulberry32(seed)(), kind, upright)
     push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(1, 1, 1))), look)
+  }
+
+  /**
+   * Add a copy of a cylinder (three's `CylinderGeometry`, its foot at y = 0) standing at `(x, y)`, `h` above the road,
+   * `r` in radius and `tall` m tall, wearing `kind` round its side (`./pattern`'s `wrap`) where the kit builds patterned,
+   * in bays of about `bay` m and storeys of `storey` m, `lit` of its floors lit for a curtain wall, as `seed` (any whole
+   * number) has it: a round office tower's glass (#177), a tank's plates or a chimney's brick (#181).
+   */
+  const wrapped = (
+    geo: THREE.BufferGeometry,
+    look: Look,
+    x: number,
+    y: number,
+    h: number,
+    r: number,
+    tall: number,
+    { kind, bay, storey, lit = 0 }: { kind: Pattern; bay: number; storey: number; lit?: number },
+    seed: number,
+  ) => {
+    if (!patterned) return add(geo, look, x, y, h, 0, r, tall, r)
+    const g = wrap(geo.toNonIndexed(), 2 * Math.PI * r, tall, bay, storey, lit, mulberry32(seed)(), kind)
+    push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.identity(), new THREE.Vector3(r, tall, r))), look)
   }
 
   /**
@@ -939,6 +965,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     put,
     cladded,
     tiled,
+    wrapped,
     /** A gable roof `wid` across and `h` high, `len` long, its ridge along z (`./shapes`' `gable`), cut once per size: the kit disposes of it. */
     gable: gableRoof,
     /** A hipped roof (`./shapes`' `hip`), cut once per size as `gable` is (#178). */

@@ -15,7 +15,6 @@ interface Known {
 
 /** The Zones not yet built to the Finish (#173), with the ticket that builds each. */
 const UNFINISHED: Record<string, string> = {
-  industrial: '#181',
   green: '#182',
   'high-density': '#183',
   farms: '#184',
@@ -23,7 +22,6 @@ const UNFINISHED: Record<string, string> = {
 }
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
-  industrial: ['blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   green: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
   'high-density': ['keeps-clear', 'neighbours-differ', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   farms: ['keeps-clear', 'paths-clear', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
@@ -103,7 +101,7 @@ export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   'high-density': { triangles: 1.95e6, meshes: 160 },
   offices: { triangles: 2.25e6, meshes: 160 },
   shops: { triangles: 2.6e6, meshes: 160 },
-  industrial: { triangles: 1.05e6, meshes: 155 },
+  industrial: { triangles: 1.3e6, meshes: 155 }, // #181: about a tenth over the 1.21 M it builds at Stage 3 on seed 2, the heaviest
   parks: { triangles: 2.6e6, meshes: 160 }, // #180: 2.39 M at Stage 3 with coarse trees; its lanterns' bulbs and Block-zoom benches a mesh each
   green: { triangles: 2.45e6, meshes: 108 },
   farms: { triangles: 1.35e6, meshes: 150 },
