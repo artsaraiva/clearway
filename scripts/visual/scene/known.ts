@@ -25,16 +25,23 @@ const UNFINISHED: Record<string, string> = {
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
   parks: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
-  industrial: ['scenes', 'empty-pavement'],
+  industrial: ['blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   green: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
-  'high-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement'],
-  farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement'],
+  'high-density': ['keeps-clear', 'neighbours-differ', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
+  farms: ['keeps-clear', 'paths-clear', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
 /** Left by #193: the bare pavement runs it did not break; #195 owns them. */
 const FOUND = '#195'
 
+/** Left by #198: the bare roofs rule 2 found on finished Zones; #216 owns them. */
+const BARE_ROOFS = '#216'
+
 const KNOWN: Known[] = [
+  // The seed's coral tower (`src/render/landmarks.ts`), on whichever Zone's Tile it stands, until #189 finishes it:
+  // drums in flat coral and cream, and bare decks.
+  { rule: 'blank-wall', what: /^tower /, owner: '#189', why: 'the coral tower is drums of flat colour' },
+  { rule: 'blank-roof', what: /^tower /, owner: '#189', why: "the coral tower's decks are bare" },
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
     rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the Finish` })),
   ),
@@ -46,6 +53,16 @@ const KNOWN: Known[] = [
     owner: FOUND,
     why: "the kerbside leaves 12 to 16 m bare by a truck court's way in, a corner's rail or a roundabout's flare",
   },
+  // Rule 2 on the finished Zones (#198): a round office tower's band, and the crown or the top tier round a dome or a
+  // pyramid, bare where those leave them; an apartment's stair-house at Stage 3, bare on top.
+  {
+    rule: 'blank-roof',
+    zone: 'offices',
+    what: /^officeTower /,
+    owner: BARE_ROOFS,
+    why: "an office tower's band, crown or top tier is bare round its round body, dome or pyramid",
+  },
+  { rule: 'blank-roof', zone: 'medium-density', what: /^apartment /, owner: BARE_ROOFS, why: "an apartment's stair-house is bare on top" },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },
 ]

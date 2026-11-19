@@ -12,8 +12,9 @@ import { createScenery, SEEDED, type Watch } from '../../../src/render/scenery'
 import { LOOKS } from '../../../src/render/zones'
 import type { Network } from '../../../src/sim/network'
 import { cellAt, cellBounds } from '../../../src/sim/tiles'
+import { facesOf } from './faces'
 import { area, boxOf, hull, turnedBox } from './geometry'
-import type { Block, Claim, Hull, Lot, Mover, Pt, Report, Scene, Thing } from './report'
+import type { Block, Claim, Hull, Lot, Mover, Pt, Report, Roof, Scene, Thing, Wall } from './report'
 
 // A canvas that paints nothing, for the textures the materials draw (contact shadows, the surface pattern's layers).
 const pen = new Proxy(
@@ -222,6 +223,8 @@ export function buildReport(ask: Ask): Report {
   const scenes: Scene[] = []
   const lots = new Map<string, Lot & { pts: Pt[] }>()
   const movers: Mover[] = []
+  const walls: Wall[] = []
+  const roofs: Roof[] = []
   const pools: Report['pools'] = []
   const moving: Record<string, number> = {}
   const painted = new Map<number, number>() // triangles by linear colour, 12 bits a channel
@@ -337,6 +340,14 @@ export function buildReport(ask: Ask): Report {
         if (!thing.flat && b.kind !== 'mover') lot.pts.push(...(feet.length ? feet.flat() : []))
       }
     })
+    // The buildings' walls and roofs (rules 1 and 2), each on its building's thing.
+    const faces = facesOf(
+      built.parts.map((p) => ({ geo: p.geometry, material: materialName(materials, p.material), brick: p.brick })),
+      (i) => built.bricks[i]?.kind === 'building',
+      (i) => built.bricks[i].at.y,
+    )
+    for (const { brick, ...face } of faces.walls) walls.push({ tile: things[first + brick].tile, block, thing: first + brick, ...face })
+    for (const { brick, ...face } of faces.roofs) roofs.push({ tile: things[first + brick].tile, block, thing: first + brick, ...face })
     for (const p of built.pools) {
       if (things[first + p.brick]) things[first + p.brick].pools++
       pools.push({ x: p.at.x, y: -p.at.z, r: Math.max(p.w, p.d) / 2 })
@@ -396,6 +407,8 @@ export function buildReport(ask: Ask): Report {
     scenes,
     lots: [...lots.values()].map(({ pts, ...lot }) => ({ ...lot, box: pts.length ? boxOf(pts) : lot.box })),
     movers,
+    walls,
+    roofs,
     pools,
     moving,
     colours,

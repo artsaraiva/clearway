@@ -1,7 +1,7 @@
 // The rules of Finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
 // failed, with where and by how much. Rules that need judgement are approximations, and say what they leave out.
 import { boxesMeet, disc, overlap, toEdge, within } from './geometry'
-import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report'
+import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing, Wall } from './report'
 
 /** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
 const TOLERANCE = 0.1
@@ -44,6 +44,8 @@ const fail = (rule: string, r: Report, at: { tile?: string; block?: number }, wh
   by,
 })
 const m = (v: number) => `${v.toFixed(2)} m`
+/** A point on the map to the metre, as the check prints where a thing is. */
+const pt = (p: Pt) => `(${Math.round(p.x) || 0}, ${Math.round(p.y) || 0})`
 
 /** Whether a thing stands up off the ground and takes room: not flat, not a mover's brick, not the Block itself. */
 const standing = (t: Thing) => !t.flat && t.kind !== 'mover' && !GROUND.has(t.what) && t.feet.length > 0
@@ -397,6 +399,124 @@ export const emptyPavement: Rule = (r) => {
   return out
 }
 
+/**
+ * How wide and how tall a stretch of wall may be flat colour (rule 1): 4 m, and a storey, as the finished Zones build
+ * one; and the squares, m on a side, a wall is read in, so a stretch is measured to within one.
+ */
+const BLANK = { wide: 4, storey: 3, cell: 0.25 }
+/**
+ * m² of a roof in sight from above, at least a metre across, that may carry nothing (rule 2): less is a ledge, a step or
+ * the lid of roof kit, a few pixels with the City in frame.
+ */
+const BARE = 10
+
+/** The widest stretch of a wall taller than a storey with nothing on it: no opening, nothing in front. None if it has none. */
+function blankStretch(w: Wall): { wide: number; tall: number; from: number; to: number } | null {
+  const pts = w.shape.flat()
+  const [u0, u1] = [Math.min(...pts.map((p) => p.x)), Math.max(...pts.map((p) => p.x))]
+  const [v0, v1] = [Math.min(...pts.map((p) => p.y)), Math.max(...pts.map((p) => p.y))]
+  if (u1 - u0 <= BLANK.wide || v1 - v0 <= BLANK.storey) return null
+  const c = BLANK.cell
+  const [nu, nv] = [Math.ceil((u1 - u0) / c), Math.ceil((v1 - v0) / c)]
+  const blank = new Uint8Array(nu * nv)
+  // The squares whose middle the wall covers, row by row: each outline of its shape is convex, so a row crosses it once.
+  for (const outline of w.shape)
+    for (let j = 0; j < nv; j++) {
+      const v = v0 + (j + 0.5) * c
+      let [a, b] = [Infinity, -Infinity]
+      outline.forEach((p, k) => {
+        const q = outline[(k + 1) % outline.length]
+        if ((p.y - v) * (q.y - v) > 0 || p.y === q.y) return
+        const x = p.x + ((v - p.y) / (q.y - p.y)) * (q.x - p.x)
+        ;[a, b] = [Math.min(a, x), Math.max(b, x)]
+      })
+      for (let i = Math.max(0, Math.ceil((a - u0) / c - 0.5)); i <= Math.min(nu - 1, Math.floor((b - u0) / c - 0.5)); i++)
+        blank[j * nu + i] = 1
+    }
+  // Less every square a mark touches, however thin: a downpipe breaks a stretch.
+  for (const m of w.marks)
+    for (let j = Math.max(0, Math.floor((m.y0 - v0) / c)); j < Math.min(nv, Math.ceil((m.y1 - v0) / c)); j++)
+      for (let i = Math.max(0, Math.floor((m.x0 - u0) / c)); i < Math.min(nu, Math.ceil((m.x1 - u0) / c)); i++) blank[j * nu + i] = 0
+  // Up each column, how many blank squares run down from each row; along each row, the longest run of columns whose run
+  // down is taller than a storey.
+  const up = new Uint16Array(nu)
+  let best: { wide: number; tall: number; from: number; to: number } | null = null
+  for (let j = 0; j < nv; j++) {
+    let [start, least] = [-1, Infinity]
+    for (let i = 0; i <= nu; i++) {
+      if (i < nu) up[i] = blank[j * nu + i] ? up[i] + 1 : 0
+      if (i < nu && up[i] * c > BLANK.storey) {
+        if (start < 0) [start, least] = [i, Infinity]
+        least = Math.min(least, up[i])
+        continue
+      }
+      // The widest, and of the widest the tallest, as the rows go up.
+      const [wide, tall] = [(i - start) * c, least * c]
+      if (start >= 0 && wide > BLANK.wide && (!best || wide > best.wide || (wide === best.wide && tall > best.tall)))
+        best = { wide, tall, from: u0 + start * c, to: u0 + i * c }
+      start = -1
+    }
+  }
+  return best
+}
+
+/** The point `k` of the way along a wall's foot, and which way the wall faces there, as a compass point. */
+function footAt(foot: Pt[], k: number): { at: Pt; facing: string } {
+  const lengths = foot.slice(1).map((q, i) => Math.hypot(q.x - foot[i].x, q.y - foot[i].y))
+  let left = k * lengths.reduce((s, l) => s + l, 0)
+  let i = 0
+  while (i < lengths.length - 1 && left > lengths[i]) left -= lengths[i++]
+  const [p, q] = [foot[i], foot[i + 1]]
+  const s = lengths[i] ? left / lengths[i] : 0
+  // Facing out of the wall: its foot runs left to right as one faces it, so out is a quarter turn clockwise from along.
+  const turn = Math.atan2(-(q.x - p.x), q.y - p.y)
+  const points = ['east', 'north-east', 'north', 'north-west', 'west', 'south-west', 'south', 'south-east']
+  return {
+    at: { x: p.x + (q.x - p.x) * s, y: p.y + (q.y - p.y) * s },
+    facing: points[(Math.round(turn / (Math.PI / 4)) + 8) % 8],
+  }
+}
+
+/**
+ * No blank wall (rule 1): no stretch of a building's wall wider than `BLANK.wide` m and taller than a storey is flat
+ * colour, without surface pattern, an opening or anything on it or against it. Parked cars are no buildings. Approximation: what stands within
+ * 0.8 m in front breaks a wall up, so a hedge or a neighbour's wall does as well as a window does; and a curved wall is
+ * read unrolled, its facets one after another.
+ */
+export const blankWalls: Rule = (r) =>
+  r.walls.flatMap((w) => {
+    if (w.pattern || PARKED.has(r.things[w.thing].what)) return []
+    const stretch = blankStretch(w)
+    if (!stretch) return []
+    const pts = w.shape.flat().map((p) => p.x)
+    const [u0, u1] = [Math.min(...pts), Math.max(...pts)]
+    const { at, facing } = footAt(w.foot, ((stretch.from + stretch.to) / 2 - u0) / (u1 - u0))
+    const t = r.things[w.thing]
+    return [
+      fail(
+        'blank-wall',
+        r,
+        t,
+        `${t.what} has a blank wall facing ${facing} toward ${pt(at)}`,
+        `${stretch.wide.toFixed(1)} m by ${stretch.tall.toFixed(1)} m`,
+      ),
+    ]
+  })
+
+/**
+ * No blank roof (rule 2): every roof of a building in sight from above, `BARE` m² of it or more, wears surface pattern
+ * (tile rows, a deck, roofing sheets) or carries something: a parapet, roof kit, a ridge, a chimney. At every Stage.
+ * Approximation: anything standing on it short of another storey counts, so one pipe on a bare deck passes.
+ */
+export const blankRoofs: Rule = (r) =>
+  r.roofs
+    .filter((f) => !f.pattern && !f.kit && f.seen >= BARE && !PARKED.has(r.things[f.thing].what))
+    .map((f) => {
+      const t = r.things[f.thing]
+      const at = { x: f.hull.reduce((s, p) => s + p.x, 0) / f.hull.length, y: f.hull.reduce((s, p) => s + p.y, 0) / f.hull.length }
+      return fail('blank-roof', r, t, `${t.what} has a bare roof toward ${pt(at)}`, `${f.seen.toFixed(0)} m² in sight`)
+    })
+
 /** Every rule over one report, by name. */
 export function rules(ceilings: Record<string, { triangles: number; meshes: number }>): Record<string, Rule> {
   return {
@@ -405,6 +525,8 @@ export function rules(ceilings: Record<string, { triangles: number; meshes: numb
     'keeps-clear': keepsClear,
     'paths-clear': pathsClear,
     'neighbours-differ': neighbours,
+    'blank-wall': blankWalls,
+    'blank-roof': blankRoofs,
     scenes,
     moves,
     'empty-pavement': emptyPavement,
