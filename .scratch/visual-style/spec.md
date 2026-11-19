@@ -6,6 +6,7 @@ Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway
 
 The Kerbside's planters, bollards and benches keep 1.1 m off the ground a Zone claimed, read from the kit's claims rather than from a list each Zone keeps.
 Where a claim comes within about 2 m of the kerb, the pavement before it takes none, at every Stage: a medium-density apartment's corner or court, or an office plaza's piece that stands only from Stage 2 or 3.
+The user approved this on 2026-11-19 from close-ups of a medium-density Block at Stage 1 ([#221](https://github.com/artsaraiva/clearway/pull/221)), which lose some of `main`'s furniture.
 Other Zones' fills are unchanged.
 
 ## Amended by [#179](https://github.com/artsaraiva/clearway/issues/179) (2026-11-18)
