@@ -11,6 +11,7 @@
     "shots": "node scripts/visual/shots.mjs",
     "bench:visual": "node scripts/visual/bench.mjs",
     "check:scene": "node scripts/visual/check.mjs",
+    "readability": "node scripts/visual/readability.mjs",
     "lint:glossary": "node scripts/lint-glossary.mjs",
     "lint:exports": "knip",
     "tune": "node -e \"import('vite').then((v) => v.runnerImport('./scripts/tune.ts'))\"",

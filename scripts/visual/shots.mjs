@@ -19,12 +19,12 @@
 // laid deeper, `npm run shots -- shops --views street --stages 2,3 --turns 1 --times noon,night --run 20 --out
 // <dir>/asbuilt`, then the same with `--query deeper --out <dir>/deeper`; each folder's `shops-<time>-street.jpg` is a
 // column.
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, turnCamera, zoneNames, zonesFrom } from './city.mjs'
 import { closeAll, ROOT, serve } from './serve.mjs'
+import { writeSheet } from './sheet.mjs'
 
 const TIMES = { morning: 0, noon: 0.25, afternoon: 0.4, dusk: 0.5, night: 0.75 }
 const VIEWS = { framed: 'Framed', street: 'Street', close: 'Close' }
@@ -43,7 +43,6 @@ const POINTS = {
   },
 }
 const COLUMN = 640
-const GAP = 8
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -86,40 +85,24 @@ function setTime({ day, run }) {
   c.sim.vehicles = vehicles
 }
 
-const SHEET_CSS = `
-  body { margin: 0; background: #f6f6f3; color: #1b2030; font: 700 26px system-ui, sans-serif }
-  .grid { display: grid; grid-template-columns: 150px repeat(${stages.length}, ${COLUMN}px); gap: ${GAP}px; place-items: center }
-  .grid b { line-height: 36px; text-align: center }
-  img { display: block; width: ${COLUMN}px }
-  h1 { margin: 0; padding: 14px 16px; font-size: 36px; text-transform: capitalize }`
-
-/** Lay out a Zone's shots as JPEG sheets, in a page of the same Chrome: `rows` are `[view, key]` pairs. */
+/** Lay out a Zone's shots as JPEG sheets: `rows` are each view's shot keys. */
 async function writeSheets(browser, zone, name, rows) {
-  const page = await browser.newPage({ viewport: { width: 150 + stages.length * (COLUMN + GAP), height: 400 } })
   const label = (key) => {
     const [view, k, turn] = key.split('-')
     return `${VIEWS[view]}${k > 0 ? ` ${Number(k) + 1}` : ''}${turns > 1 ? `<br>turn ${turn}` : ''}`
   }
-  const grid = (time, keys) =>
-    `<div class="grid"><b></b>${stages.map((s) => `<b>Stage ${s}</b>`).join('')}${keys
-      .map((key) => `<b>${label(key)}</b>${stages.map((s) => `<img src="shots/${zone}-${time}-s${s}-${key}.png">`).join('')}`)
-      .join('')}</div>`
-  const sheets = times.flatMap((time) => [
-    ...views.map((view) => [`${zone}-${time}-${view}`, `<h1>${name}, ${VIEWS[view]}, ${time}</h1>${grid(time, rows[view])}`]),
-    [
-      `${zone}-${time}`,
-      `<h1>${name}, ${time}</h1>${grid(
-        time,
-        views.flatMap((view) => rows[view]),
-      )}`,
-    ],
-  ])
-  for (const [file, body] of sheets) {
-    writeFileSync(join(out, 'sheet.html'), `<!doctype html><style>${SHEET_CSS}</style>${body}`)
-    await page.goto(pathToFileURL(join(out, 'sheet.html')).href)
-    await page.screenshot({ path: join(out, `${file}.jpg`), fullPage: true, type: 'jpeg', quality: 84 })
+  const sheet = (file, title, time, keys) =>
+    writeSheet(browser, join(out, `${file}.jpg`), {
+      title,
+      columns: stages.map((s) => `Stage ${s}`),
+      rows: keys.map((key) => [label(key), stages.map((s) => `shots/${zone}-${time}-s${s}-${key}.png`)]),
+      width: COLUMN,
+    })
+  const stacked = views.flatMap((view) => rows[view])
+  for (const time of times) {
+    for (const view of views) await sheet(`${zone}-${time}-${view}`, `${name}, ${VIEWS[view]}, ${time}`, time, rows[view])
+    await sheet(`${zone}-${time}`, `${name}, ${time}`, time, stacked)
   }
-  await page.close()
 }
 
 const server = await serve(values.ref)
