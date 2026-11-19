@@ -467,8 +467,9 @@ small props are Block-zoom props and hide at City zoom;
 no colour nears the reserved two;
 triangles and meshes stay under each Zone's ceiling;
 and a lot is the same lot at every Stage.
+Since [#198](https://github.com/artsaraiva/clearway/issues/198) it reads each building's walls and roofs from their faces (`scripts/visual/scene/faces.ts`): no stretch of wall over 4 m wide and a storey tall without surface pattern, an opening or something within 0.8 m before it (rule 1), and no roof of 10 m² or more in sight without surface pattern or something standing inside its edge short of a storey, so a parapet or a ridge alone leaves a roof blank (rule 2), at every Stage.
 `--seeds` sweeps the Blocks' fill, and `--against` prints each Zone's building forms and scenes and whether its meshes match the ref.
-Blank walls and bare roofs (rules 1 and 2), all four sides (4), Stage 1 (8) and a Stage read at City zoom (9) still need the sheet, which is for the look alone.
+Whether walls and roofs look finished, all four sides (4), Stage 1 (8) and a Stage read at City zoom (9) still need the sheet, which is for the look alone.
 What main breaks is listed with its owner in `scripts/visual/scene/known.ts`.
 
 ## Issues
