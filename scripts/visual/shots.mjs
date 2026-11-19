@@ -10,8 +10,8 @@
 // quarter-turn; <out>/<zone>-<time>.jpg, that time's distances stacked; and the shots under <out>/shots/. <out>
 // defaults to scripts/visual/out, or scripts/visual/out/<ref> with --ref, which shoots that ref instead of the working
 // tree. --times takes morning, noon, afternoon, dusk and night. --street and --close replace every Zone's Street and
-// Close points, sim points in metres (a Tile is 100 m) with the metres of road across the screen (110 and 40 unless
-// given); a point with a negative coordinate takes `=` (`--close=-31,-45`). --turns 1 shoots the default heading alone. --run lets the world run that many seconds at each time of day
+// Close points, sim points in metres (a Tile is 100 m) with the metres of road across the screen (110 and 60 unless
+// given, 60 being the closest the camera comes); a point with a negative coordinate takes `=` (`--close=-31,-45`). --turns 1 shoots the default heading alone. --run lets the world run that many seconds at each time of day
 // before its shots, so moving details stand mid-work and chimneys smoke; without it they stand where they rest.
 // --query adds dev parameters to the game's URL, such as `finish=none`.
 //

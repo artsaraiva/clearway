@@ -11,8 +11,11 @@ export const CITY = [
 ] // prettier-ignore
 
 export const VIEWPORT = { width: 1440, height: 900 }
-/** The metres of road plane across the canvas at Street, one Tile filling the screen, and at Close, one Block (`lookAt`). */
-export const METRES = { street: 110, close: 40 }
+/**
+ * The metres of road plane across the canvas at Street, one Tile filling the screen, and at Close, one Block (`lookAt`).
+ * Close is the camera's closest zoom, which comes no nearer: a smaller width shoots the same.
+ */
+export const METRES = { street: 110, close: 60 }
 /** Where a Zone's Street and Close shots look unless it has points of its own: the Tile at (2, 0), and a Block of it. */
 export const DEFAULT_POINTS = { street: [{ x: 200, y: 0 }], close: [{ x: 225, y: -25 }] }
 
