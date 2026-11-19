@@ -1187,9 +1187,11 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * A tree of size `s` (1 is about 6 m tall), as one brick: a cluster of spheres, or stacked cones for a pine. A sakura
      * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
-     * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
-     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Tile zoom at under half the
-     * triangles. A round tree with `leaves` has leaves fallen round it, as a sakura's petals, in greens and ochre (#180).
+     * Block's edge, so that none hangs over the pavement beyond the lawn. From one sakura in two, chosen by where it
+     * stands, petals drift down from its crown through the working day (#225), a plume riding its brick. A `coarse`
+     * tree's spheres have fewer faces, for the trees a Zone lays by the dozen on its Blocks (#178): they read the same
+     * from Tile zoom at under half the triangles. A round tree with `leaves` has leaves fallen round it, as a sakura's
+     * petals, in greens and ochre (#180).
      */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false, leaves = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
@@ -1227,6 +1229,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
             add(PETAL, fallen.colours[colour], px, py, h + 0.08, turn, ...(fallen.scale as [number, number, number]))
         }
       }
+      if (kind === 'sakura' && spot(x, y) % 2) plume('petals', x, y, h + 4.2 * s)
       shadow(x, y, h, s * 6.8, s * 6.8, true)
       brick('tree', x, y, h)
     },
