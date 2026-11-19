@@ -315,17 +315,52 @@ export interface Brick {
 
 /**
  * Ground a fill lays and later pieces must keep clear of (#191), as the scene check reads it: a parking bay, a taxi
- * bay, or the step before a door. A box `w` along its front by `d`, centred on `(x, y)` (m) and turned `ry` as the kit's
- * frames are, and the brick it was laid with.
+ * bay, the step before a door, or what a standing piece stands on with the room it keeps (#198). A box `w` along its
+ * front by `d`, centred on `(x, y)` (m) and turned `ry` as the kit's frames are, or a disc `w` across if `round`, and
+ * the brick it was laid with.
  */
 export interface Claim {
-  kind: 'bay' | 'taxi' | 'door'
+  kind: 'bay' | 'taxi' | 'door' | 'stand'
   x: number
   y: number
   w: number
   d: number
   ry: number
   brick: number
+  round?: boolean
+}
+
+/** Ground `w` by `d` at `(x, y)` turned `ry`, as a claim or a question about one has it. */
+type Ground = Pick<Claim, 'x' | 'y' | 'w' | 'd' | 'ry' | 'round'>
+
+/**
+ * How far ground `a` (a box) reaches into claim `c` grown `by` m each side (shrunk, if below 0): its least overlap along
+ * the two boxes' sides (the separating axes), or for a round claim how far its edge lies within the disc; 0 or less
+ * where they are apart.
+ */
+function reach(a: Ground, c: Ground, by: number): number {
+  if (c.round) {
+    const [dx, dy] = [c.x - a.x, c.y - a.y]
+    const [u, v] = [dx * Math.cos(a.ry) + dy * Math.sin(a.ry), -dx * Math.sin(a.ry) + dy * Math.cos(a.ry)]
+    return c.w / 2 + by - Math.hypot(Math.max(Math.abs(u) - a.w / 2, 0), Math.max(Math.abs(v) - a.d / 2, 0))
+  }
+  const outline = (b: Ground, grow: number) =>
+    [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].map(([u, v]) => to(b.x, b.y, b.ry, u * (b.w / 2 + grow), v * (b.d / 2 + grow)))
+  const [mine, theirs] = [outline(a, 0), outline(c, by)]
+  return Math.min(
+    ...[a.ry, c.ry].flatMap((turn) =>
+      [turn, turn + Math.PI / 2].map((t) => {
+        const along = (p: [number, number]) => p[0] * Math.cos(t) + p[1] * Math.sin(t)
+        const [m, s] = [mine.map(along), theirs.map(along)]
+        return Math.min(Math.max(...m), Math.max(...s)) - Math.max(Math.min(...m), Math.min(...s))
+      }),
+    ),
+  )
 }
 
 /** A scene (#173, rule 5) a fill laid (#191): its kind, as its Zone names it; its bricks carry its index. */
@@ -558,27 +593,15 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const claim = (kind: Claim['kind'], x: number, y: number, w: number, d: number, ry: number) => {
     claims.push({ kind, x, y, w, d, ry, brick: bricks.length })
   }
+  /** Lay claim to the ground a standing piece stands on, a box or else a disc `r` round `(x, y)` (#198): `kit.stand`. */
+  const stand = (x: number, y: number, w: number, d = w, ry = 0, round = false) => {
+    claims.push({ kind: 'stand', x, y, w, d, ry, brick: bricks.length, ...(round && { round }) })
+  }
   /** Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far: `kit.unclaimed`. */
-  const unclaimed = (x: number, y: number, w: number, d: number, ry = 0) => {
-    const outline = (b: { x: number; y: number; w: number; d: number; ry: number }) =>
-      [
-        [-1, -1],
-        [1, -1],
-        [1, 1],
-        [-1, 1],
-      ].map(([u, v]) => to(b.x, b.y, b.ry, (u * b.w) / 2, (v * b.d) / 2))
-    const mine = outline({ x, y, w, d, ry })
-    // Apart along one of the two boxes' sides (the separating axes), or within a sliver of it.
-    return claims.every((c) => {
-      const theirs = outline(c)
-      return [ry, c.ry].some((turn) =>
-        [turn, turn + Math.PI / 2].some((a) => {
-          const along = (p: [number, number]) => p[0] * Math.cos(a) + p[1] * Math.sin(a)
-          const [m, t] = [mine.map(along), theirs.map(along)]
-          return Math.min(Math.max(...m), Math.max(...t)) - Math.max(Math.min(...m), Math.min(...t)) <= 0.02
-        }),
-      )
-    })
+  const unclaimed = (x: number, y: number, w: number, d: number, ry = 0, room = 0) => {
+    const mine = { x, y, w, d, ry }
+    // Apart from a bay or a door step, or within a sliver of it; apart from what stands, with `room` round it.
+    return claims.every((c) => (c.kind === 'stand' ? reach(mine, c, room) <= 0 : reach(mine, c, 0) <= 0.02))
   }
   /**
    * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
@@ -1089,8 +1112,17 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     claim,
 
     /**
+     * Lay claim to the ground a standing piece stands on (#198), with what room it keeps round it: a box `w` by `d` at
+     * `(x, y)` turned `ry`, or if `round` a disc `w` across. Laid as the piece is placed, so that the next piece's
+     * `unclaimed` keeps off it; riding the next brick closed, as `claim`.
+     */
+    stand,
+
+    /**
      * Whether ground `w` by `d` at `(x, y)` turned `ry` keeps clear of every claim laid on the Block so far (#193): the
-     * bays and the steps before doors, which later pieces read rather than a list of their own.
+     * bays and the steps before doors but for a sliver, and the ground standing pieces took (`stand`) grown `room` m each
+     * side (shrunk, if below 0), which later pieces read rather than a list of their own (#198). A point asks with `w`
+     * and `d` 0: whether it lies `room` m or more from each.
      */
     unclaimed,
 
