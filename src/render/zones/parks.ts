@@ -49,7 +49,7 @@ const INNER = PARK.border.in + PARK.border.thick / 2 + 0.5
  * island's stepping stones and the wooden bridge to it (wood, never vermilion), and its fallen leaves under the trees.
  */
 const POND = {
-  rocks: ['#aaa59b', '#bab4a8', '#9d988e'],
+  rocks: ['#8f8a80', '#a29d92', '#7f7b73'],
   reeds: ['#7f9a4e', '#8fa65a'],
   tips: '#b39a62',
   pad: '#5f9f52',
@@ -176,7 +176,7 @@ function plazaFinish(g: ZoneGround, centre: Vec) {
     const bloom = BUILT.blooms[spot(p.x, p.y) % BUILT.blooms.length]
     kit.from(2, () => kit.flowerBed(p.x, p.y, h, 3.2, 1.2, p.ry, bloom), spot(p.x, p.y))
     for (const side of [-1, 1]) {
-      const [lx, ly] = to(p.x, p.y, p.ry, side * 2.3, 0)
+      const [lx, ly] = to(p.x, p.y, p.ry, side * 2.9, 0)
       if (!free(lx, ly, 0.8, 0.8, 0, 0.3)) continue
       kit.stand(lx, ly, 0.8, 0.8, 0, 2)
       kit.from(2, () => stoneLantern(kit, lx, ly, p.ry, h), spot(lx, ly))
@@ -196,13 +196,20 @@ function plazaFinish(g: ZoneGround, centre: Vec) {
     }
     if (n >= 6) break
   }
-  // A kiosk toward a corner, facing the fountain, from Stage 2.
-  for (let k = 0; k < 4; k++) {
-    const p = out(ways[k] + Math.PI / 4, 12.5)
-    if (!free(p.x, p.y, 2.6, 2.4, p.ry, 0.5)) continue
-    kit.stand(p.x, p.y, 2.6, 2.4, p.ry, 2)
-    kit.from(2, () => kiosk(kit, p.x, p.y, p.ry, h), spot(p.x, p.y))
-    break
+  // A kiosk toward a corner, beside the tree there, facing the fountain, from Stage 2.
+  kiosk: for (let k = 0; k < 4; k++) {
+    for (const [off, r] of [
+      [0.42, 11.5],
+      [-0.42, 11.5],
+      [0.3, 13.5],
+      [-0.3, 13.5],
+    ]) {
+      const p = out(ways[k] + Math.PI / 4 + off, r)
+      if (!free(p.x, p.y, 2.6, 2.4, p.ry, 0.5)) continue
+      kit.stand(p.x, p.y, 2.6, 2.4, p.ry, 2)
+      kit.from(2, () => kiosk(kit, p.x, p.y, p.ry, h), spot(p.x, p.y))
+      break kiosk
+    }
   }
   edgePlanters(g, h, draw)
   // Pigeons: each pecking at a few stops round the fountain, and flying from one to the next.
@@ -460,12 +467,12 @@ function rocks(kit: Kit, p: Pond) {
   const count = Math.round((TAU * Math.sqrt((p.rx ** 2 + p.ry ** 2) / 2)) / 2.2)
   for (let i = 0; i < count; i++) {
     const a = ((i + draw() * 0.6) / count) * TAU
-    const [x, y] = [p.x + Math.cos(a) * (p.rx + 0.15), p.y + Math.sin(a) * (p.ry + 0.15)]
-    const [w, d, tall] = [0.45 + draw() * 0.35, 0.4 + draw() * 0.3, 0.17 + draw() * 0.08]
+    const [x, y] = [p.x + Math.cos(a) * (p.rx + 0.1), p.y + Math.sin(a) * (p.ry + 0.1)]
+    const [w, d, tall] = [0.6 + draw() * 0.4, 0.5 + draw() * 0.35, 0.22 + draw() * 0.08]
     const colour = POND.rocks[Math.floor(draw() * POND.rocks.length)]
     if (Math.abs(y - p.y) < 1.6 && x < p.x - p.rx + 2) continue // the deck's
     if (ends.some((e) => Math.hypot(e.x - x, e.y - y) < 1.8)) continue
-    kit.add(SHAPES.bush, colour, x, y, p.h + 0.12, draw() * TAU, w, tall, d)
+    kit.add(SHAPES.bush, colour, x, y, p.h + 0.1, draw() * TAU, w, tall, d)
   }
 }
 
@@ -550,7 +557,7 @@ function pondFinish(kit: Kit, p: Pond) {
         [1, 3],
       ]
     : [[0, 2]]) as [number, number][]) {
-    const pts = waterLoop(p, 1.7, draw)
+    const pts = waterLoop(p, 1.3, draw)
     if (!pts) continue
     const loop = polyline(pts)
     const stops = [0, loop.length / 2]
@@ -583,14 +590,14 @@ function pondFinish(kit: Kit, p: Pond) {
   }
 }
 
-/** A clump of reeds at a pond's edge at `(x, y)`, the lawn `h` up (#180): blades of two greens, and a few brown heads. */
+/** A clump of reeds at a pond's edge at `(x, y)`, the lawn `h` up (#180): tapering blades of two greens, and a few brown heads. */
 function reeds(kit: Kit, x: number, y: number, h: number) {
   const draw = mulberry32(spot(x, y))
-  for (let i = 0; i < 7; i++) {
-    const [a, r, tall] = [draw() * TAU, 0.15 + draw() * 0.45, 0.9 + draw() * 0.6]
+  for (let i = 0; i < 12; i++) {
+    const [a, r, tall] = [draw() * TAU, 0.1 + draw() * 0.5, 1 + draw() * 0.7]
     const [bx, by] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
-    kit.add(SHAPES.thin, POND.reeds[i % 2], bx, by, h + 0.3, 0, 0.035, tall, 0.035)
-    if (i % 3 === 0) kit.add(SHAPES.thin, POND.tips, bx, by, h + 0.3 + tall * 0.72, 0, 0.07, 0.24, 0.07)
+    kit.add(SHAPES.cone, POND.reeds[i % 2], bx, by, h + 0.3, 0, 0.09, tall, 0.09)
+    if (i % 4 === 0) kit.add(SHAPES.thin, POND.tips, bx, by, h + 0.3 + tall * 0.6, 0, 0.08, 0.28, 0.08)
   }
   kit.brick('tree', x, y, h + 0.3)
 }

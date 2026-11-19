@@ -232,7 +232,7 @@ const PLUMES: Record<
 }
 // Fireflies (#180): their body by day, their light, and how brightly they glow for the lamps' glow; the lamps' glow at
 // which they are all out, and how much each pulses as it drifts.
-const FIREFLY = { body: '#3d4436', light: '#d9f27a', glow: 0.9, out: 2, pulse: 0.35 }
+const FIREFLY = { body: '#3d4436', light: '#d9f27a', glow: 1.6, out: 2, pulse: 0.35 }
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
 // to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
 // pole and how far its free end swings (m); and how many waves run along it.
@@ -608,8 +608,9 @@ function koi(): THREE.BufferGeometry {
     [-0.5, -0.13],
   ]
   const v: number[] = []
+  // Fanned from its first point, wound to face up.
   for (const pts of [outline, tail])
-    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i], pts[i + 1]]) v.push(x, 0, z)
+    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i + 1], pts[i]]) v.push(x, 0, z)
   const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
   g.computeVertexNormals()
   return tint(g, '#ffffff').scale(1.6, 1, 1.6)
@@ -647,7 +648,7 @@ function pigeon(): THREE.BufferGeometry {
 
 /** A firefly (#180): a speck of light, a little large, that `createMovers` lights by night and hides by day. */
 function firefly(): THREE.BufferGeometry {
-  return tint(new THREE.IcosahedronGeometry(0.07, 0), '#ffffff')
+  return tint(new THREE.IcosahedronGeometry(0.13, 0), '#ffffff')
 }
 
 /** 0 to 1 eased in and out. */
