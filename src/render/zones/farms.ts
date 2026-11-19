@@ -4,7 +4,7 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Bounds, type Polyline, type Vec } from '../../sim/geometry'
 import { KERB, type Block } from '../blocks'
 import { inside, type Field } from '../field'
-import { type Kit, SHAPES, spot, STRAW, to } from '../kit'
+import { HARVEST, type Kit, SHAPES, spot, STRAW, to } from '../kit'
 import { clearOf, overlay, site } from '../landmarks'
 import type { Look } from './ground'
 import { house } from './low-density'
@@ -171,11 +171,11 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
     kit.staged((stage) => barn(kit, yard.x + (along ? 0 : 5.5), yard.y - (along ? 4 : 0), ground, along ? 0 : -Math.PI / 2, stage))
     // In the yard (#149), on the side the default camera sees, clear of the silos and the tractors' turns: a kei truck
     // from Stage 2, and at Stage 3 a stack of crates beside it, each drawn from where it stands.
-    const [truck, crates, facing] = along
+    const [truck, stack, facing] = along
       ? [{ x: yard.x + 7.6, y: yard.y + 4 }, { x: yard.x + 5.6, y: yard.y + 4.6 }, 0]
       : [{ x: yard.x + 8.6, y: yard.y - 6.8 }, { x: yard.x + 10, y: yard.y - 4.9 }, -Math.PI / 2]
     kit.staged((stage) => stage > 1 && kit.keiTruck(truck.x, truck.y, ground, facing, stage), spot(truck.x, truck.y))
-    kit.from(3, () => kit.crates(crates.x, crates.y, ground, facing, 4), spot(crates.x, crates.y))
+    kit.from(3, () => crates(kit, stack.x, stack.y, ground, facing, 4), spot(stack.x, stack.y))
     // The windbreak: a line of pines along the back of the house, on the Block.
     kit.from(3, () => {
       for (let k = -1.5; k <= 1.5; k++) {
@@ -306,6 +306,17 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
     kit.from(2, () => kit.mover('tractor', plan.loop, plan.stops, 0, ground), spot(x, y))
     if (n >= 2 * rows) kit.from(3, () => kit.mover('tractor', plan.loop, plan.stops, Math.floor(n / 2), ground), spot(x, y))
   }
+}
+
+/**
+ * Crates stacked on the ground at `(x, y)`, `count` of them two to a layer, turned `ry`, as one brick, in the colours of
+ * those on a kei truck's bed (`HARVEST`): a farmyard's harvest waiting to go (#149, #210).
+ */
+function crates(kit: Kit, x: number, y: number, h: number, ry: number, count: number) {
+  for (let k = 0; k < count; k++)
+    kit.local(kit.cuboid(0.74, 0.44, 0.58), kit.pick(HARVEST), x, y, ry, k % 2 ? 0.4 : -0.4, 0, h + Math.floor(k / 2) * 0.46)
+  kit.shadow(x, y, h, 2.2, 1.6, false, ry)
+  kit.brick('building', x, y, h)
 }
 
 // The barn: its palette and its builder, beside the fill that lays it (#207).

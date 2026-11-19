@@ -1,7 +1,8 @@
+import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
 import { polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
-import { CONTAINER, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
+import { type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { fit, lotsOf, near, overlap, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import { sawtooth } from '../shapes'
 
@@ -234,8 +235,8 @@ function loadingYard(g: ZoneGround, shed: Shed, taken: RowLot[]) {
     const [roll, two] = [draw(), draw() < double]
     const first = roll < fill[0] ? 2 : roll < fill[1] ? 3 : 0
     if (!first || !claim({ x: p.x, y: p.y, w: long + 0.3, d: wide + 0.3, ry, onRoad: false }, 0.6)) continue
-    kit.from(first, () => kit.containers(p.x, p.y, KERB, ry, 1), spot(p.x, p.y))
-    if (two) kit.from(3, () => kit.containers(p.x, p.y, KERB, ry, 2, 1), spot(p.x + 1, p.y))
+    kit.from(first, () => containers(kit, p.x, p.y, KERB, ry, 1), spot(p.x, p.y))
+    if (two) kit.from(3, () => containers(kit, p.x, p.y, KERB, ry, 2, 1), spot(p.x + 1, p.y))
   }
 }
 
@@ -261,6 +262,30 @@ function pallets(kit: Kit, x: number, y: number, h: number, ry: number, layers: 
 function bay(kit: Kit, x: number, y: number, h: number, ry: number, l: number, w: number) {
   for (const k of [-1, 1]) kit.put(kit.cuboid(0.14, 0.02, l), BAY, x, y, ry, (k * w) / 2, 0, h)
   kit.brick('ground', x, y, h)
+}
+
+// Shipping containers: their paints and size, and their builder, beside the fill that lays them (#150, #210). Their
+// paints are the roofs' colours, their frames and ribs a shade darker.
+const CONTAINER_PAINTS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548', '#7f8c7c']
+/** A shipping container's size (m): long, wide and tall (#150). */
+const CONTAINER = { long: 6.1, wide: 2.45, tall: 2.6 }
+
+/**
+ * Shipping containers stacked on the ground at `(x, y)`, their length along `ry` (0 east–west), as one brick (#150): the
+ * layers from `first` up to `layers`, each a box in its own colour with its frame and ribs a shade darker.
+ */
+function containers(kit: Kit, x: number, y: number, h: number, ry: number, layers: number, first = 0) {
+  const { long: L, wide: W, tall: H } = CONTAINER
+  for (let k = first; k < layers; k++) {
+    const colour = kit.pick(CONTAINER_PAINTS)
+    const frame = `#${new THREE.Color(colour).multiplyScalar(0.78).getHexString()}`
+    const at = h + k * H
+    kit.add(kit.cuboid(L - 0.24, H - 0.12, W - 0.1), colour, x, y, at + 0.06, ry)
+    for (const end of [-1, 1]) kit.local(kit.cuboid(0.14, H, W), frame, x, y, ry, end * (L / 2 - 0.07), 0, at)
+    for (let r = 1; r < 6; r++) kit.local(kit.cuboid(0.1, H - 0.3, W + 0.04), frame, x, y, ry, -L / 2 + (r * L) / 6, 0, at + 0.15)
+  }
+  if (!first) kit.shadow(x, y, h, L + 1.2, W + 1.2, false, ry)
+  kit.brick('building', x, y, h + first * H)
 }
 
 // The shed: its palette and its builder, beside the fill that lays it (#207).

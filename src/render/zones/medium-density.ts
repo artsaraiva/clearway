@@ -8,6 +8,7 @@ import {
   AERIAL,
   AIRCON,
   baysOf,
+  BIKES,
   BIKE_RACK,
   boxFace,
   CREAM,
@@ -26,14 +27,11 @@ import {
   spot,
   STAIR,
   stairAt,
-  STEEL,
   TANK,
   to,
   VENDING_MACHINE,
   type Walks,
   WALKWAY,
-  WALL_STAIR,
-  WASHING,
   wingBounds,
 } from '../kit'
 import { GROW } from '../landmarks'
@@ -185,7 +183,7 @@ function terraces(g: ZoneGround) {
       kit.lot(i)
       kit.staged(
         (stage) => {
-          if (stage > 1 && TERRACE_STOREYS(storeys[i], stage) > 1) kit.wallStairs(c.x, c.y, KERB, ry, rise, -s)
+          if (stage > 1 && TERRACE_STOREYS(storeys[i], stage) > 1) wallStairs(kit, c.x, c.y, KERB, ry, rise, -s)
         },
         spot(c.x, c.y + 1),
       )
@@ -319,7 +317,7 @@ function gardens(g: ZoneGround, lots: RowLot[], taken: RowLot[]) {
           gardenShed(kit, at.x, at.y, KERB, ry)
         }
         const pole = turned(p.x, p.y, ry, 0, deep / 2 + 0.15)
-        if (washes) kit.washingPole(pole.x, pole.y, KERB, ry)
+        if (washes) washingPole(kit, pole.x, pole.y, KERB, ry)
       },
       spot(p.x, p.y) + 1,
     )
@@ -490,7 +488,7 @@ function cornerStore(g: ZoneGround, taken: RowLot[], corner: RowLot, from: numbe
   const rack = turned(x, y, ry, -toward * (L / 2 - BIKE_RACK.long / 2 - 0.1), 0)
   kit.staged(
     (stage) => {
-      if (stage >= from) kit.bikeRack(rack.x, rack.y, KERB, ry, BIKE_RACK.long, CORNER.bikes[stage - 1])
+      if (stage >= from) bikeRack(kit, rack.x, rack.y, KERB, ry, BIKE_RACK.long, CORNER.bikes[stage - 1])
     },
     spot(rack.x, rack.y),
   )
@@ -581,7 +579,7 @@ function courtyards(g: ZoneGround) {
         taken.push(lot)
         kit.staged(
           (stage) => {
-            if (stage > 1) kit.outsideStairs(s.x, s.y, s.ry, floorTops(COURT_FLOORS(b.floors, stage)))
+            if (stage > 1) outsideStairs(kit, s.x, s.y, s.ry, floorTops(COURT_FLOORS(b.floors, stage)))
           },
           spot(s.x, s.y),
         )
@@ -1254,6 +1252,110 @@ export function parkingBays(kit: Kit, { x, y, w, d, ry }: Footprint, bays: numbe
 
 /** m across a parking bay (#178). */
 export const BAY_WIDTH = BAYS.each
+
+// The props only medium-density lays: their palette, sizes and builders, beside the fill that lays them (#210). The
+// paints a line of washing's white pieces take, and the bright covers of futons on a balcony's rail (brighter than the
+// towers', so they read against pale walls and white balconies); the steel of outside stairs and walkways, with their
+// treads, and of a pole of washing; and a covered bike rack's pale roof (its posts and rail the bicycles' steel).
+const WASHING = ['#ffffff', '#ffffff', '#ffc52d', '#bc9ef2', '#a6dcef', '#fbe3a2', '#ff9cbb']
+const STEEL = { frame: '#6f7986', tread: '#a7aeb6', pole: '#c4ccd4' }
+const RACK_ROOF = '#d6e4d3'
+/** Stairs up a wall (#156): m out from the wall, and how much longer than their rise their flight runs. */
+const WALL_STAIR = { wide: 1.1, run: 1.2 }
+
+/**
+ * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): a steel pole on a stand at
+ * each end, as a garden's laundry pole stands (#157), and a line of washing (`../movers`' `washing`) in a paint from the
+ * kit's stream, which sways.
+ */
+function washingPole(kit: Kit, x: number, y: number, h: number, ry: number) {
+  const top = kit.poleStand(x, y, h, ry, 2.8, STEEL.pole)
+  kit.sway('washing', x, y, h + top, ry, { paint: kit.pick(WASHING) })
+  kit.brick('tree', x, y, h)
+}
+
+/**
+ * Steel outside stairs centred on `(x, y)`, their flights running along `ry`'s right, as one brick (#156): two flights a
+ * storey from the first of `tops` (m above the road) to each of the others, as an apartment block has up one end of its
+ * walkways.
+ */
+function outsideStairs(kit: Kit, x: number, y: number, ry: number, tops: number[]) {
+  stairs(kit, x, y, ry, tops)
+  if (kit.finished) {
+    // A light at each landing, under the next or on a post over the top one, and a pool at their foot (#178).
+    const { long: L, landing: D } = STAIR
+    for (const at of tops.slice(1)) kit.put(kit.cuboid(0.24, 0.14, 0.24), kit.lit(CREAM, DOOR_LIGHT), x, y, ry, (L - D) / 2, 0, at + 2.1)
+    kit.pool('door', ...to(x, y, ry, 0, 0), tops[0], STAIR.long + 1.6, STAIR.wide + 1.6, ry)
+  }
+  kit.shadow(x, y, tops[0], STAIR.long + 1, STAIR.wide + 1, false, ry)
+  kit.brick('building', x, y, tops[0])
+}
+
+/**
+ * Steel outside stairs' flights (#156), centred on `(x, y)`, running along their front `ry`: two flights a storey in two
+ * lanes, turning at a landing half-way, from the first of `tops` (m above the road) to each of the rest, with a landing
+ * at each, posts at the corners and a railing up the outer side. They join the next brick.
+ */
+function stairs(kit: Kit, x: number, y: number, ry: number, tops: number[]) {
+  const { long: L, wide: W, landing: D } = STAIR
+  const [run, lane] = [L - 2 * D, (W - 0.1) / 2]
+  for (let f = 0; f + 1 < tops.length; f++) {
+    const [lo, hi] = [tops[f], tops[f + 1]]
+    const half = (hi - lo) / 2
+    // Out along one lane to the half-landing at the far end, and back along the other to the next floor.
+    kit.put(kit.flight(-run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, (W - lane) / 2, lo + half / 2)
+    kit.put(kit.flight(-run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, W / 2 - 0.03, lo + half / 2 + 0.5)
+    kit.put(kit.cuboid(D, 0.14, W), STEEL.tread, x, y, ry, -(L - D) / 2, 0, lo + half - 0.14)
+    kit.put(kit.cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, -L / 2 + 0.03, 0, lo + half)
+    kit.put(kit.flight(run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, -(W - lane) / 2, lo + 1.5 * half)
+    kit.put(kit.flight(run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, -W / 2 + 0.03, lo + 1.5 * half + 0.5)
+    kit.put(kit.cuboid(D, 0.14, W), STEEL.tread, x, y, ry, (L - D) / 2, 0, hi - 0.14)
+    kit.put(kit.cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, L / 2 - 0.03, 0, hi)
+  }
+  const top = tops[tops.length - 1] + 0.9
+  for (const lx of [-1, 1])
+    for (const ly of [-1, 1])
+      kit.put(kit.cuboid(0.14, top - tops[0], 0.14), STEEL.frame, x, y, ry, lx * (L / 2 - 0.07), ly * (W / 2 - 0.07), tops[0])
+}
+
+/**
+ * A straight flight of steel stairs up a wall, centred on `(x, y)` with its flight along `ry`'s right and the wall at
+ * its back, rising `rise` m toward its end `toward` (1: its right, -1: its left) to a landing there with a door in the
+ * wall, as one brick (#156): the stairs up the end of a small apartment house's row.
+ */
+function wallStairs(kit: Kit, x: number, y: number, h: number, ry: number, rise: number, toward: number) {
+  const { landing: D } = STAIR
+  const W = WALL_STAIR.wide
+  const run = rise * WALL_STAIR.run
+  const L = run + D
+  kit.put(kit.flight(toward * run, rise, W - 0.1, 0.14), STEEL.tread, x, y, ry, (-toward * D) / 2, 0, h + rise / 2)
+  kit.put(kit.flight(toward * run, rise, 0.05, 0.9), STEEL.frame, x, y, ry, (-toward * D) / 2, W / 2 - 0.03, h + rise / 2 + 0.5)
+  const end = toward * (L / 2 - D / 2) // the landing's middle
+  kit.put(kit.cuboid(D, 0.14, W), STEEL.tread, x, y, ry, end, 0, h + rise - 0.14)
+  kit.put(kit.cuboid(D, 0.9, 0.05), STEEL.frame, x, y, ry, end, W / 2 - 0.03, h + rise)
+  kit.put(kit.cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, toward * (L / 2 - 0.03), 0, h + rise)
+  for (const lx of [end - D / 2 + 0.06, end + D / 2 - 0.06])
+    kit.put(kit.cuboid(0.12, rise, 0.12), STEEL.frame, x, y, ry, lx, W / 2 - 0.06, h)
+  kit.put(kit.cuboid(0.9, 2.05, 0.12), DOOR, x, y, ry, end, -W / 2 - 0.02, h + rise)
+  kit.shadow(x, y, h, L + 0.8, W + 0.8, false, ry)
+  kit.brick('building', x, y, h)
+}
+
+/**
+ * A covered bike rack `len` long centred on `(x, y)`, open to its front `ry`, with `bikes` bicycles in it, as one brick
+ * (#156): steel posts and a pale roof, a rail along the back, and the bicycles side by side facing out.
+ */
+function bikeRack(kit: Kit, x: number, y: number, h: number, ry: number, len: number, bikes: number) {
+  const D = BIKE_RACK.deep
+  for (const lx of [-1, 1])
+    for (const ly of [-1, 1]) kit.put(kit.cuboid(0.1, 2.25, 0.1), BIKES.steel, x, y, ry, lx * (len / 2 - 0.08), ly * (D / 2 - 0.08), h)
+  kit.put(kit.cuboid(len + 0.3, 0.08, D + 0.3), RACK_ROOF, x, y, ry, 0, 0, h + 2.25)
+  kit.put(kit.cuboid(len - 0.2, 0.08, 0.08), BIKES.steel, x, y, ry, 0, -D / 2 + 0.25, h + 0.55)
+  const n = Math.min(bikes, Math.floor((len - 0.3) / BIKE_RACK.per))
+  kit.row(...to(x, y, ry, -len / 2 + 0.15 + (BIKE_RACK.per * n) / 2, -0.05), h, ry, n, BIKE_RACK.per)
+  kit.shadow(x, y, h, len + 1, D + 1, false, ry)
+  kit.brick('building', x, y, h)
+}
 
 // The terraced house and the apartment block: their palettes, plans and builders, beside the fill that lays them (#207).
 const { awning: AWNING, bush: BUSH, cone12: CONE, cylinder: CYLINDER, disc: FACING_DISC, thin: THIN } = SHAPES

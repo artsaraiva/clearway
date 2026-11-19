@@ -58,8 +58,40 @@ const PLUMBING = new Set([
   'scene',
   'cladded',
 ])
-/** The Zones' buildings, beside their fills in `src/render/zones` since #207, which label a brick as the kit's methods do. */
-const BUILDERS = new Set(['house', 'townhouse', 'apartment', 'residentialTower', 'shop', 'warehouse', 'barn', 'officeTower'])
+/**
+ * The Zones' buildings and the props one Zone lays, beside their fills in `src/render/zones` since #207 and #210, which
+ * label a brick as the kit's methods do. A helper that closes no brick of its own (low-density's `washing`, the outside
+ * stairs' `stairs`) has no need to be here.
+ * ponytail: a name here is matched in any file, so another function of the same name on a brick's stack would be taken
+ * for the builder (`../movers`' `laundry` and `nobori` build models, never on that stack). If that bites, match the file
+ * too: these all live in `src/render/zones`.
+ */
+const BUILDERS = new Set([
+  'house',
+  'townhouse',
+  'apartment',
+  'residentialTower',
+  'shop',
+  'warehouse',
+  'barn',
+  'officeTower',
+  'carpPole',
+  'drive',
+  'laundry',
+  'porch',
+  'washingPole',
+  'outsideStairs',
+  'wallStairs',
+  'bikeRack',
+  'slide',
+  'sandbox',
+  'nobori',
+  'lantern',
+  'containers',
+  'crates',
+  'blanket',
+  'flag',
+])
 
 /**
  * What built the brick being closed, read from the stack: the innermost of the kit's methods or the Zones' buildings on

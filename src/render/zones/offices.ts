@@ -5,7 +5,7 @@ import { KERB } from '../blocks'
 import { PAINTS, TAXI } from '../cars'
 import { WIND } from '../day'
 import { inside } from '../field'
-import { boxFace, CREAM, DECK, FACES, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
+import { boxFace, CREAM, DECK, FACES, FLAG, type Kit, type Look as KitLook, PLANT, SHAPES, spot, to } from '../kit'
 import { GROW } from '../landmarks'
 import { panel, PATTERN, wrap } from '../pattern'
 import { bedTree, bench, cafeTable, GLOWS, menuBoard, STONE, waiting, WOOD } from '../props'
@@ -60,7 +60,7 @@ const OFFICE_FINISH = {
   pieces: ['sculpture', 'clock', 'fountain'] as PlazaPiece[],
 }
 // Flags by an office tower's lobby (#154): the share of towers that fly them from Stage 2 and from Stage 3, m out from
-// the tower's middle past its face and apart, how far a flag flies from its pole (as the kit's `flag` draws it), and
+// the tower's middle past its face and apart, how far a flag flies from its pole (as `flag` draws it), and
 // their colours.
 const FLAGS = {
   share: [0.34, 0.67],
@@ -496,7 +496,7 @@ function flags(
     if (!poles.every(room)) continue
     poles.forEach((p, k) => {
       placed.push({ x: p.x, y: p.y, w: 1, d: 1, ry: 0, onRoad: false })
-      kit.from(first, () => kit.flag(p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)]), spot(p.x, p.y))
+      kit.from(first, () => flag(kit, p.x, p.y, KERB, FLAGS.cloths[Math.floor(colours[k] * FLAGS.cloths.length)]), spot(p.x, p.y))
     })
     return side
   }
@@ -759,6 +759,21 @@ export function taxiBay(kit: Kit, { x, y, w, d, ry }: Footprint) {
   for (const k of [-1, 0, 1]) kit.put(kit.cuboid(0.16, 0.16, 0.08), TAXI_BAY.marks, px, py, ry, k * 0.24, 0, KERB + 2.24)
   kit.pool('cream', px, py, KERB, 2.6, 2.6)
   kit.brick('ground', x, y, KERB)
+}
+
+/** A flagpole (#154, #210): how tall it stands, and how far above the road its flag is lowered to for the night (m). */
+const FLAGPOLE = { tall: 8.5, low: 3 }
+
+/**
+ * A flagpole at `(x, y)`, `h` above the road, flying a flag in `colour` (`../movers`), as one brick that pops in like a
+ * tree (#154): a pole and finial in the kit's `FLAG` colours. Pole and flag stand oversized a little, as the props do.
+ */
+function flag(kit: Kit, x: number, y: number, h: number, colour: string) {
+  const { tall, low } = FLAGPOLE
+  kit.add(SHAPES.thin, FLAG.pole, x, y, h, 0, 0.09, tall, 0.09)
+  kit.add(SHAPES.bead, FLAG.finial, x, y, h + tall + 0.08, 0, 0.16, 0.16, 0.16)
+  kit.fly('flag', x, y, h + tall - 0.12, h + low, colour)
+  kit.brick('tree', x, y, h)
 }
 
 // The office tower: its palette, its plan and its builder, beside the fill that lays it (#207).
