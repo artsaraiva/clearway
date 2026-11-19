@@ -186,11 +186,23 @@ export async function main(o: Options): Promise<number> {
       const r = reports.find((x) => x.stage === stage && x.seed === seeds[0])!
       const b = base.find((x) => x.stage === stage && x.seed === seeds[0])
       const tris = `${(r.triangles / 1e6).toFixed(2)} M triangles, ${r.meshes} meshes`
+      // The other seeds swept beside the ref's: which drew differently, so that a change the sheets' seed misses shows (#222).
+      const others = seeds.slice(1)
+      const changed = others.filter((seed) => {
+        const at = (rs: Report[]) => rs.find((x) => x.stage === stage && x.seed === seed)?.hash
+        return at(reports) !== at(base)
+      })
+      const plural = (n: number) => (n > 1 ? 's' : '')
+      const rest = !others.length
+        ? ''
+        : changed.length
+          ? `; seed${plural(changed.length)} ${changed.join(', ')} CHANGED`
+          : `; seed${plural(others.length)} ${others.join(', ')} the same`
       if (!b) console.log(`  mesh   Stage ${stage}: ${r.hash}, ${tris}`)
-      else if (b.hash === r.hash) console.log(`  mesh   Stage ${stage}: same as ${o.baseline!.label} (${r.hash}), ${tris}`)
+      else if (b.hash === r.hash) console.log(`  mesh   Stage ${stage}: same as ${o.baseline!.label} (${r.hash}), ${tris}${rest}`)
       else
         console.log(
-          `  mesh   Stage ${stage}: CHANGED from ${o.baseline!.label}, ${tris} against ${(b.triangles / 1e6).toFixed(2)} M and ${b.meshes}`,
+          `  mesh   Stage ${stage}: CHANGED from ${o.baseline!.label}, ${tris} against ${(b.triangles / 1e6).toFixed(2)} M and ${b.meshes}${rest}`,
         )
     }
     // What the sheets' seed built of each kind, and where.

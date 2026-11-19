@@ -6,9 +6,10 @@
 //
 // Prints, for each Zone, a pass or fail line per rule, each failure with its Stage, seed, Tile and Block, what and by how
 // much; the building forms and scenes it built at each Stage; and with --against, the same counts and a hash of every
-// mesh on the ref, so that a Zone whose meshes changed stands out. Rules today's main breaks are listed as known with
-// the issue that owns each (scene/known.ts): they print, but only a new failure exits non-zero. --seeds sweeps that
-// many seeds of the Blocks' fill, seed 3 (the sheets') first; --all prints every failure, not the first few of each.
+// mesh on the ref, seed 3's and then which other seeds swept changed, so that a Zone whose meshes changed stands out.
+// Rules today's main breaks are listed as known with the issue that owns each (scene/known.ts): they print, but only a
+// new failure exits non-zero. --seeds sweeps that many seeds of the Blocks' fill, seed 3 (the sheets') first; --all
+// prints every failure, not the first few of each.
 //
 // On seed 3, the City the sheets shoot: --counts prints at each Stage how many things of each kind stand on the Zone's
 // Blocks (the kit's method or the Zone's building that built each, else its fill: house, gardenShed, bench), its scenes
