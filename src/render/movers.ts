@@ -687,18 +687,11 @@ function gondola(): THREE.BufferGeometry {
 }
 /**
  * A glass lift's car (#183), facing out of the wall along +x with the wall behind it, centred under its middle and
- * standing on y = 0, oversized a little as the cars are: a glazed car between a floor and a roof, a post at each corner
- * and a rider inside.
+ * standing on y = 0, oversized a little as the cars are: a glazed car between a floor and a roof, a post at each corner.
  */
 function lift(): THREE.BufferGeometry {
-  const [FRAME, GLASS, FLOOR, SHIRT, SKIN] = ['#f4f6f8', '#b4d6e3', '#4a525c', '#f0c75e', '#f4ead2']
-  const parts = [
-    part(1.4, 0.22, 1.9, 0, 0, 0, FLOOR),
-    part(1.4, 0.26, 1.9, 0, 2.5, 0, FRAME),
-    part(1.2, 2.28, 1.7, 0, 0.22, 0, GLASS),
-    part(0.3, 0.85, 0.4, 0.66, 0.4, 0, SHIRT), // the rider, at the glass
-    tint(new THREE.SphereGeometry(0.19, 8, 6).translate(0.66, 1.42, 0), SKIN),
-  ]
+  const [FRAME, GLASS, FLOOR] = ['#f4f6f8', '#b4d6e3', '#4a525c']
+  const parts = [part(1.4, 0.22, 1.9, 0, 0, 0, FLOOR), part(1.4, 0.26, 1.9, 0, 2.5, 0, FRAME), part(1.2, 2.28, 1.7, 0, 0.22, 0, GLASS)]
   for (const x of [-0.64, 0.64]) for (const z of [-0.89, 0.89]) parts.push(part(0.12, 2.28, 0.12, x, 0.22, z, FRAME))
   return merged(parts).scale(1.25, 1.25, 1.25)
 }
