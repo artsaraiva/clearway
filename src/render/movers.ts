@@ -13,7 +13,21 @@ import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes
 // beacons (#155) blink at night, and pools of light (#174) lie warm on the ground under the lights.
 
 /** The kinds of mover, each with its own model. */
-export type MoverKind = 'tractor' | 'truck' | 'forklift' | 'butterfly' | 'gondola' | 'shopper' | 'foodtruck' | 'scooter' | 'cat'
+export type MoverKind =
+  | 'tractor'
+  | 'truck'
+  | 'forklift'
+  | 'butterfly'
+  | 'gondola'
+  | 'shopper'
+  | 'foodtruck'
+  | 'scooter'
+  | 'cat'
+  | 'swanboat'
+  | 'duck'
+  | 'koi'
+  | 'pigeon'
+  | 'firefly'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -58,8 +72,12 @@ export interface Mover {
 export interface Plume {
   at: THREE.Vector3
   brick: number
-  steam?: boolean
+  /** Its kind, smoke unless given: steam (#175), a fountain's spray or petals drifting down from a sakura (#180). */
+  kind?: Exclude<PlumeKind, 'smoke'>
 }
+
+/** The kinds of plume (`PLUMES`): a chimney's smoke, steam, a fountain's spray and a sakura's drifting petals. */
+export type PlumeKind = 'smoke' | 'steam' | 'spray' | 'petals'
 
 /**
  * The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, a
@@ -143,6 +161,13 @@ interface Kind {
   wide: number
   fly?: { up: number; ease: number }
   beat?: number
+  /** How it holds its wings (`WINGS`), if not as a butterfly does: a pigeon folds them down along its sides (#180). */
+  wings?: typeof WINGS
+  /**
+   * Whether it works by night (#180), as fireflies do: round its loop by the run's clock and never stopping, lit as the
+   * lamps are, and unseen by day.
+   */
+  byNight?: boolean
 }
 const KINDS: Record<MoverKind, Kind> = {
   tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor, wide: 2.6 },
@@ -154,6 +179,21 @@ const KINDS: Record<MoverKind, Kind> = {
   foodtruck: { speed: 2, bob: 0.015, rate: 11, model: foodTruck, wide: 2.6 }, // #177
   scooter: { speed: 2.6, bob: 0.025, rate: 12, model: scooter, wide: 1.1 }, // #178
   cat: { speed: 0.45, bob: 0.015, rate: 10, model: cat, wide: 0 }, // #179: it walks the top of a garden wall, on no ground
+  // #180: a park's, on its pond, on its plaza or over its water by night, on no ground
+  swanboat: { speed: 0.55, bob: 0.03, rate: 1.6, model: swanBoat, wide: 0 },
+  duck: { speed: 0.32, bob: 0.015, rate: 2.4, model: duck, wide: 0 },
+  koi: { speed: 0.45, bob: 0, rate: 0, model: koi, wide: 0 },
+  pigeon: {
+    speed: 1.5,
+    bob: 0.04,
+    rate: 9,
+    model: pigeon,
+    wide: 0,
+    fly: { up: 1.8, ease: 1.4 },
+    beat: 5,
+    wings: { rest: -1.3, fan: 0, night: -1.3, open: 0.15, sweep: 0.75 },
+  },
+  firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, byNight: true },
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -170,10 +210,31 @@ const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
 // quicker, smaller and fainter, and slower on the wind. s between puffs, how long a puff lasts (s), how fast it rises
 // (m/s), its share of the wind and of its own drift, its radius as it leaves and as it fades (m), and its share of the
 // smoke's opacity.
-const PLUMES = {
+// A fountain's spray (#180) is thrown up and falls back (`fall`, m/s²) into its basin, and petals drift down from a
+// sakura, in their own colour.
+const PLUMES: Record<
+  PlumeKind,
+  {
+    every: number
+    lasts: number
+    rise: number
+    wind: number
+    drift: number
+    from: number
+    to: number
+    fade: number
+    fall?: number
+    colour?: string
+  }
+> = {
   smoke: { every: 0.6, lasts: 5.5, rise: 1.6, wind: 1, drift: 1, from: 0.7, to: 2.5, fade: 1 },
   steam: { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, drift: 0.4, from: 0.3, to: 1.15, fade: 0.7 },
+  spray: { every: 0.07, lasts: 1.7, rise: 4.2, wind: 0.12, drift: 2.4, from: 0.14, to: 0.32, fade: 0.8, fall: 6, colour: '#f3f8f8' },
+  petals: { every: 1.6, lasts: 6, rise: -0.8, wind: 0.5, drift: 0.6, from: 0.1, to: 0.1, fade: 1, colour: '#ffc4d6' },
 }
+// Fireflies (#180): their body by day, their light, and how brightly they glow for the lamps' glow; the lamps' glow at
+// which they are all out, and how much each pulses as it drifts.
+const FIREFLY = { body: '#3d4436', light: '#d9f27a', glow: 1.6, out: 2, pulse: 0.35 }
 // Flying things (#154), per kind: its model, flying along +x from its pole at x = 0, its top edge on y = 0 and its face
 // to +z, white for the colour each takes (or, as its `painted` share has it, its own: #153); how far it reaches from the
 // pole and how far its free end swings (m); and how many waves run along it.
@@ -505,6 +566,93 @@ function butterfly(): THREE.BufferGeometry {
   return merged(parts).scale(1.4, 1.4, 1.4)
 }
 
+/**
+ * A swan boat (#180), facing +x, standing on the water at y = 0 and centred under its middle, oversized as the cars are:
+ * a white hull with its wings along its sides, a cream seat, and a swan's neck and head at its bow.
+ */
+function swanBoat(): THREE.BufferGeometry {
+  const [WHITE, BEAK, SEAT, EYE] = ['#ffffff', '#f0b24e', '#e8dcc0', '#2f3440']
+  return merged([
+    part(2.1, 0.42, 1.15, 0, -0.1, 0, WHITE), // the hull
+    part(0.55, 0.42, 1.15, -0.8, 0.32, 0, WHITE), // its raised tail
+    ...[-1, 1].map((z) => part(1.35, 0.32, 0.14, -0.15, 0.3, z * 0.6, WHITE)), // the wings
+    part(0.75, 0.14, 0.9, -0.05, 0.32, 0, SEAT),
+    part(0.2, 1.05, 0.2, 0.86, 0.3, 0, WHITE), // the neck
+    part(0.36, 0.22, 0.22, 0.98, 1.3, 0, WHITE), // the head
+    part(0.2, 0.09, 0.12, 1.24, 1.34, 0, BEAK),
+    part(0.05, 0.05, 0.24, 1.06, 1.42, 0, EYE),
+  ]).scale(1.15, 1.15, 1.15)
+}
+
+/** A duck (#180), facing +x and floating on y = 0, oversized as the moving details are: grey and brown, a dark green head. */
+function duck(): THREE.BufferGeometry {
+  const [BODY, BREAST, HEAD, BEAK, TAIL] = ['#b9b2a4', '#7a5c46', '#2f6447', '#e3bd4a', '#4a525c']
+  return merged([
+    part(0.34, 0.15, 0.2, -0.02, -0.03, 0, BODY),
+    part(0.1, 0.14, 0.18, 0.14, -0.02, 0, BREAST),
+    part(0.08, 0.06, 0.12, -0.2, 0.06, 0, TAIL),
+    part(0.12, 0.12, 0.11, 0.15, 0.12, 0, HEAD),
+    part(0.08, 0.03, 0.06, 0.24, 0.15, 0, BEAK),
+  ]).scale(1.8, 1.8, 1.8)
+}
+
+/**
+ * A koi's shadow under the water (#180), facing +x and lying flat on y = 0, a little oversized: a dark fish's outline,
+ * its body and its tail, for the paint it takes.
+ */
+function koi(): THREE.BufferGeometry {
+  // prettier-ignore
+  const outline: [number, number][] = [[0.42, 0], [0.3, 0.09], [0.05, 0.12], [-0.2, 0.07], [-0.32, 0], [-0.2, -0.07], [0.05, -0.12], [0.3, -0.09]]
+  const tail: [number, number][] = [
+    [-0.3, 0],
+    [-0.5, 0.13],
+    [-0.46, 0],
+    [-0.5, -0.13],
+  ]
+  const v: number[] = []
+  // Fanned from its first point, wound to face up.
+  for (const pts of [outline, tail])
+    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i + 1], pts[i]]) v.push(x, 0, z)
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+  g.computeVertexNormals()
+  return tint(g, '#ffffff').scale(1.6, 1, 1.6)
+}
+
+/**
+ * A pigeon (#180), facing +x and centred on its body, its wings flat along z, oversized as the moving details are: a grey
+ * body, a darker head and a pale wing. Its wings beat in flight, as a butterfly's do (`createMovers`), and fold down
+ * along its sides at rest.
+ */
+function pigeon(): THREE.BufferGeometry {
+  const [BODY, HEAD, WING, BEAK] = ['#9a9ea6', '#6f7480', '#b8bcc2', '#d8c6a8']
+  const wing = (mirror: boolean) => {
+    const pts: [number, number][] = [
+      [0.06, 0.03],
+      [-0.1, 0.03],
+      [-0.12, 0.22],
+      [0.02, 0.18],
+    ]
+    const v: number[] = []
+    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i], pts[i + 1]]) v.push(x, 0.02, mirror ? -z : z)
+    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+    g.computeVertexNormals()
+    return tint(g, WING)
+  }
+  return merged([
+    part(0.26, 0.1, 0.06, -0.02, -0.05, 0, BODY).deleteAttribute('uv'),
+    part(0.08, 0.08, 0.06, 0.13, 0.02, 0, HEAD).deleteAttribute('uv'),
+    part(0.04, 0.02, 0.02, 0.19, 0.05, 0, BEAK).deleteAttribute('uv'),
+    part(0.1, 0.02, 0.06, -0.17, 0, 0, HEAD).deleteAttribute('uv'), // the tail
+    wing(false),
+    wing(true),
+  ]).scale(1.6, 1.6, 1.6)
+}
+
+/** A firefly (#180): a speck of light, a little large, that `createMovers` lights by night and hides by day. */
+function firefly(): THREE.BufferGeometry {
+  return tint(new THREE.IcosahedronGeometry(0.13, 0), '#ffffff')
+}
+
 /** 0 to 1 eased in and out. */
 const smooth = (k: number) => k * k * (3 - 2 * k)
 
@@ -625,6 +773,8 @@ export function createMovers() {
 \ttransformed = vec3(transformed.x, transformed.y * wC + wSide * transformed.z * wS, -wSide * transformed.y * wS + transformed.z * wC);`,
       )
   }
+  // Fireflies (#180): their own light, as bright as the lamps' glow has it, and nothing by day.
+  const glowing = new THREE.MeshStandardMaterial({ color: FIREFLY.body, roughness: 0.6, emissive: FIREFLY.light, emissiveIntensity: 0 })
   const models = new Map((Object.keys(KINDS) as MoverKind[]).map((k) => [k, KINDS[k].model()]))
   const meshes = new Map<MoverKind, THREE.InstancedMesh>()
   const rope = ropes()
@@ -707,6 +857,9 @@ export function createMovers() {
   }
   const smoke = new THREE.InstancedMesh(ball, haze, PUFFS)
   smoke.name = 'smoke'
+  // Each puff its plume's colour (#180): white for smoke, steam and spray, pink for petals.
+  for (let i = 0; i < PUFFS; i++) smoke.setColorAt(i, white)
+  const tints = new Map(Object.values(PLUMES).flatMap((p) => (p.colour ? [[p.colour, new THREE.Color(p.colour)] as const] : [])))
   smoke.count = 0
   smoke.frustumCulled = false
   smoke.renderOrder = 3
@@ -866,9 +1019,10 @@ export function createMovers() {
       // A winged kind's model carries each instance's wing angle, so it takes a copy of its own.
       const beats = KINDS[kind].beat !== undefined
       const geometry = beats ? model.clone().setAttribute('wing', new THREE.InstancedBufferAttribute(new Float32Array(count), 1)) : model
-      const mesh = new THREE.InstancedMesh(geometry, beats ? winged : material, count)
+      const { byNight } = KINDS[kind]
+      const mesh = new THREE.InstancedMesh(geometry, beats ? winged : byNight ? glowing : material, count)
       mesh.name = kind
-      mesh.castShadow = !beats // a wing's shadow would not beat with it
+      mesh.castShadow = !beats && !byNight // a wing's shadow would not beat with it, and a speck of light casts none
       mesh.receiveShadow = true
       mesh.frustumCulled = false // instances move; the mesh's own bounds mean nothing
       meshes.set(kind, mesh)
@@ -956,6 +1110,15 @@ export function createMovers() {
     const p = along(loop, stops[from] || loop.length)
     const away = from === v.away ? 0 : Infinity
     return onFace(v, { ...p, heading: p.heading + (reverse?.[(from + n - 1) % n] ? Math.PI : 0), moving: false, off: 0, away })
+  }
+  /**
+   * Where mover `v` that works by night (#180) is: round its loop by the run's clock, from where its phase puts it, never
+   * stopping, so that it drifts on whatever the hour and wherever it was built.
+   */
+  const wander = (v: Mover) => {
+    const len = v.loop.length
+    const s = (((t * KINDS[v.kind].speed + (phaseOf(v) / (Math.PI * 2)) * len) % len) + len) % len
+    return { ...along(v.loop, s), moving: true, off: Infinity, away: Infinity, up: 0 }
   }
   /** Where a place on `v`'s loop lies on the map, and m above `v.h`: for a mover that works a wall, on the wall's face. */
   const onFace = (v: Mover, p: { x: number; y: number; heading: number; moving: boolean; off: number; away: number }) => {
@@ -1056,6 +1219,9 @@ export function createMovers() {
       if (changed) remesh()
       const counts = new Map<MoverKind, number>()
       let roped = 0
+      // Fireflies come out as the lamps come on (#180), and glow as they do.
+      const dark = smooth(Math.min(1, (glow?.lamps ?? 0) / FIREFLY.out))
+      glowing.emissiveIntensity = (glow?.lamps ?? 0) * FIREFLY.glow
       for (const e of entries) {
         for (const v of e.movers) {
           const mesh = meshes.get(v.kind)
@@ -1063,24 +1229,25 @@ export function createMovers() {
           const i = counts.get(v.kind) ?? 0
           counts.set(v.kind, i + 1)
           const pose = e.playing?.pose(e.build, v.brick) ?? { scale: 1, lift: 0 }
-          const p = place(v)
-          const { bob, rate, fly, beat } = KINDS[v.kind]
+          const { bob, rate, fly, beat, byNight, wings = WINGS } = KINDS[v.kind]
+          const p = byNight ? wander(v) : place(v)
           // In flight, risen off its path, eased up from a stop and down onto the next.
           const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
           const phase = phaseOf(v)
           const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
           // Away (#177): unseen at its stop there, and shrinking as it nears it along its loop.
-          const size = Math.max(0.001, pose.scale * smooth(Math.min(1, p.away / AWAY)))
+          const seen = byNight ? dark * (1 - FIREFLY.pulse + FIREFLY.pulse * Math.sin(t * 2.3 + phase * 3)) : 1
+          const size = Math.max(0.001, pose.scale * smooth(Math.min(1, p.away / AWAY)) * seen)
           q.setFromAxisAngle(up, p.heading)
           m.compose(at.set(p.x, v.h + p.up + pose.lift + rise + hop, -p.y), q, scale.setScalar(size))
           mesh.setMatrixAt(i, m)
           if (beat !== undefined) {
             const wing = mesh.geometry.getAttribute('wing') as THREE.InstancedBufferAttribute
             const angle = p.moving
-              ? WINGS.open + WINGS.sweep * Math.sin(t * beat * Math.PI * 2 + phase)
+              ? wings.open + wings.sweep * Math.sin(t * beat * Math.PI * 2 + phase)
               : working
-                ? WINGS.rest + WINGS.fan * Math.sin(t * 1.3 + phase)
-                : WINGS.night
+                ? wings.rest + wings.fan * Math.sin(t * 1.3 + phase)
+                : wings.night
             wing.setX(i, angle)
           }
           // Its ropes, from its stirrups up to the arm it hangs from.
@@ -1128,7 +1295,7 @@ export function createMovers() {
       for (const e of entries) {
         for (const p of e.plumes) {
           if (!working || !stands(e, p.plume.brick)) continue
-          const kind = p.plume.steam ? 'steam' : 'smoke'
+          const kind = p.plume.kind ?? 'smoke'
           const { every, drift } = PLUMES[kind]
           for (p.next -= dt; p.next <= 0; p.next += every) {
             const { x, y, z } = p.plume.at
@@ -1140,18 +1307,22 @@ export function createMovers() {
         for (const f of e.puffs) {
           if (n >= PUFFS) break
           const age = Math.max(0, t - f.born)
-          const { lasts, rise, from, to, wind, fade } = PLUMES[f.kind]
+          const { lasts, rise, from, to, wind, fade, fall, colour } = PLUMES[f.kind]
           const k = age / lasts
           const [wx, wz] = SMOKE.wind
-          at.set(f.x + (wx * wind + f.dx) * age, f.y + rise * age * (1 - 0.3 * k), f.z + (wz * wind + f.dz) * age)
+          // Spray (#180) is thrown up and falls back; smoke and steam slow as they rise.
+          const y = fall ? f.y + rise * age - 0.5 * fall * age * age : f.y + rise * age * (1 - 0.3 * k)
+          at.set(f.x + (wx * wind + f.dx) * age, y, f.z + (wz * wind + f.dz) * age)
           m.compose(at, q, scale.setScalar(from + (to - from) * Math.sqrt(k)))
           smoke.setMatrixAt(n, m)
+          smoke.setColorAt(n, colour ? tints.get(colour)! : white)
           fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8 * fade)
           n++
         }
       }
       smoke.count = n
       smoke.instanceMatrix.needsUpdate = true
+      smoke.instanceColor!.needsUpdate = true
       fades.needsUpdate = true
 
       // Beacons: each in its place, flashing on its own beat, lit only as the lamps are.

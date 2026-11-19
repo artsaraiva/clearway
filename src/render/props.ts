@@ -1,5 +1,6 @@
 import { KERB } from './blocks'
-import { SHAPES, to, type Kit } from './kit'
+import { SHAPES, spot, to, type Kit } from './kit'
+import { PATTERN } from './pattern'
 import type { Footprint } from './kerbside'
 
 // The props the Zones' scenes share (#175, #177, #178), built from the kit's shapes: a café table, a menu board, a tree
@@ -58,7 +59,7 @@ export function bedTree(kit: Kit, x: number, y: number, r: number, s: number, co
 export const bench = (kit: Kit, x: number, y: number, ry: number, h = KERB) => kit.blockZoomProps(() => kit.bench(x, y, h, ry))
 
 /**
- * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179): a footing, a
+ * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179; a park's since #180): a footing, a
  * post, a fire box that lights at dusk and leaves its pool, and a cap.
  */
 export function stoneLantern(kit: Kit, x: number, y: number, ry: number, h = KERB) {
@@ -71,6 +72,65 @@ export function stoneLantern(kit: Kit, x: number, y: number, ry: number, h = KER
   kit.shadow(x, y, h, 1, 1, true)
   kit.brick('building', x, y, h)
 }
+
+/** A wayside shrine's stone, footing, stepping stones, timber, doors, copper roof, straw rope and paper (#178). */
+export const SHRINE = {
+  stone: '#d9d3c7',
+  dark: '#bdb4a6',
+  step: '#c9c1b3',
+  wood: '#8a5a3c',
+  door: '#c49a6c',
+  roof: '#6f9a8a',
+  straw: '#e8cf7f',
+  paper: '#fbf8f2',
+}
+/** Setts' colour (#178), round a shrine or a medium-density scene's ground. */
+export const SETTS = '#ddd6c9'
+
+/**
+ * A wayside shrine at Stage `stage` (#178), on gravel: a stone torii at its front, stepping stones to a timber shrine
+ * under a copper roof on a stone footing, a straw rope and paper across its front, a stone lantern either side that
+ * lights at dusk and leaves its pool, and an old tree beside it; at Stage 3 an offering box before it and a low stone
+ * fence along its sides. On ground `h` up: the kerb's, or a park's lawn (#180).
+ */
+export function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number, h = KERB) {
+  const at = (u: number, v: number) => to(x, y, ry, u, v)
+  const side = spot(x, y) % 2 ? 1 : -1 // the side its tree stands
+  kit.paving(x, y, h, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
+  const [front, back] = [d / 2 - 0.8, -d / 2 + 1.3]
+  for (let v = front - 1; v > back + 1.2; v -= 0.95) kit.put(kit.cuboid(0.9, 0.06, 0.6), SHRINE.step, x, y, ry, 0, v, h + 0.02)
+  // The torii, in stone: two pillars, a lintel and a tie beam with a strut between.
+  const span = Math.min(1.35, w / 2 - 0.7)
+  for (const s of [-1, 1]) kit.drum(SHRINE.stone, ...at(s * span, front), h, 0.17, 0.17, 3.1)
+  kit.put(kit.cuboid(2 * span + 0.9, 0.24, 0.4), SHRINE.stone, x, y, ry, 0, front, h + 3.1)
+  kit.put(kit.cuboid(2 * span + 0.3, 0.18, 0.2), SHRINE.stone, x, y, ry, 0, front, h + 2.5)
+  kit.put(kit.cuboid(0.18, 0.42, 0.14), SHRINE.dark, x, y, ry, 0, front, h + 2.68)
+  kit.shadow(...at(0, front), h, 2 * span + 1.2, 1, false, ry)
+  kit.brick('building', ...at(0, front), h)
+  // The shrine on its footing at the back, under a copper roof, its straw rope and paper across its front.
+  kit.put(kit.cuboid(2, 0.7, 1.7), SHRINE.dark, x, y, ry, 0, back, h)
+  kit.put(kit.cuboid(1.2, 1.05, 1), SHRINE.wood, x, y, ry, 0, back, h + 0.7)
+  kit.put(kit.cuboid(0.72, 0.78, 0.05), SHRINE.door, x, y, ry, 0, back + 0.5, h + 0.82)
+  kit.put(kit.gable(1.7, 1.9, 0.62), SHRINE.roof, x, y, ry + Math.PI / 2, 0, back, h + 1.75)
+  kit.put(kit.cuboid(1.5, 0.1, 0.1), SHRINE.straw, x, y, ry, 0, back + 0.62, h + 1.68)
+  for (const u of [-0.32, 0.32]) kit.put(kit.cuboid(0.12, 0.3, 0.02), SHRINE.paper, x, y, ry, u, back + 0.66, h + 1.36)
+  kit.shadow(...at(0, back), h, 2.6, 2.4, false, ry)
+  kit.brick('building', ...at(0, back), h)
+  for (const s of [-1, 1]) stoneLantern(kit, ...at(s * Math.min(1.7, w / 2 - 0.6), back + 1.6), ry)
+  kit.tree(...at(side * (w / 2 - 1.2), back + 0.2), h, 0.62, 'round', true)
+  if (stage < 3) return
+  kit.put(kit.cuboid(0.9, 0.5, 0.45), SHRINE.wood, x, y, ry, 0, back + 1.25, h)
+  for (let k = 0; k < 4; k++) kit.put(kit.cuboid(0.8, 0.03, 0.06), SHRINE.door, x, y, ry, 0, back + 1.08 + k * 0.1, h + 0.5)
+  for (const s of [-1, 1]) {
+    const u = s * (w / 2 - 0.35)
+    for (let v = front - 1.4; v > back - 0.4; v -= 1.1) kit.put(kit.cuboid(0.18, 0.55, 0.18), SHRINE.stone, x, y, ry, u, v, h)
+    kit.put(kit.cuboid(0.1, 0.1, front - back - 0.6), SHRINE.stone, x, y, ry, u, (front - 1.4 + back) / 2, h + 0.5)
+  }
+  kit.brick('building', x, y, h)
+}
+
+/** Flowers in bloom, as low- and medium-density lay them in borders and window boxes (#179), and a park's beds (#180). */
+export const BLOOMS = ['#ffadc8', '#f6d36a', '#fff7e8', '#c7b8f0']
 
 /** A steel garden shed's walls and its roof (#178). */
 const SHED = { wall: '#d9dcd2', roof: '#8f9aa5' }

@@ -3,6 +3,7 @@ import { middle, type Bounds, type Vec } from '../sim/geometry'
 import { KERB, type Block } from './blocks'
 import { inside, type Field } from './field'
 import type { Kit } from './kit'
+import type { Pattern } from './pattern'
 import { raised } from './shapes'
 
 // The park's deck was shrine vermilion, which is nearly the Jam red-orange: it is wood.
@@ -12,10 +13,25 @@ const TAU = Math.PI * 2
 /** How big a tree of a Zone's look grows at each Stage (#141), as a share of the size #136 gave it. */
 export const GROW = [0.55, 1, 1.12]
 
-/** The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour. Not closed into a brick. */
-export function overlay(kit: Kit, field: Field, block: Block, inset: number, thickness: number, color: string) {
+/**
+ * The outlines `inset` m inside a Block's edge, laid on it as a thin layer of another colour, wearing `kind`'s pattern
+ * round `middle` where the kit builds patterned (#180). Not closed into a brick.
+ */
+export function overlay(
+  kit: Kit,
+  field: Field,
+  block: Block,
+  inset: number,
+  thickness: number,
+  color: string,
+  kind?: Pattern,
+  middle?: Vec,
+) {
   for (const loop of field.outlines(inset, [block])) {
-    if (inside(block.loop, loop[0].x, loop[0].y)) kit.push(raised(loop, thickness, thickness * 0.4).translate(0, KERB, 0), color)
+    if (!inside(block.loop, loop[0].x, loop[0].y)) continue
+    const layer = raised(loop, thickness, thickness * 0.4).translate(0, KERB, 0)
+    if (kind) kit.laid(layer, color, kind, middle)
+    else kit.push(layer, color)
   }
 }
 

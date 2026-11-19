@@ -37,7 +37,7 @@ import {
 } from '../kit'
 import { GROW } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { bench, gardenShed, stoneLantern, waiting } from '../props'
+import { bench, gardenShed, SETTS, SHRINE, shrine, waiting } from '../props'
 import { type Footprint } from '../kerbside'
 import {
   besideRow,
@@ -1081,17 +1081,6 @@ const MEDIUM_SCENES: Record<MediumScene, { most: [number, number]; least: [numbe
 // Colours (#178): a shrine's stone, its timber, its copper roof gone green, and the straw rope and the paper over it; a
 // bathhouse's plaster, its stone footing, its slate tiles, its noren, its sign and its brick chimney under a white band;
 // and the setts a scene's ground is laid in before its Stage, and a shrine's gravel.
-const SHRINE = {
-  stone: '#d9d3c7',
-  dark: '#bdb4a6',
-  step: '#c9c1b3',
-  wood: '#8a5a3c',
-  door: '#c49a6c',
-  roof: '#6f9a8a',
-  straw: '#e8cf7f',
-  paper: '#fbf8f2',
-}
-const SETTS = '#ddd6c9'
 const BATHHOUSE = {
   wall: '#f6e6cb',
   footing: '#bdb4a6',
@@ -1113,48 +1102,6 @@ function mediumScene(kit: Kit, kind: MediumScene, ground: Footprint, stage: numb
   if (stage >= from) return { shrine, park: pocketPark, bathhouse }[kind](kit, x, y, w, d, ry, stage)
   kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
   waiting(kit, ground, 1.1, 0.46, Math.min(2.7, w / 2 - 0.9), true)
-}
-
-/**
- * A wayside shrine at Stage `stage` (#178), on gravel: a stone torii at its front, stepping stones to a timber shrine
- * under a copper roof on a stone footing, a straw rope and paper across its front, a stone lantern either side that
- * lights at dusk and leaves its pool, and an old tree beside it; at Stage 3 an offering box before it and a low stone
- * fence along its sides.
- */
-function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
-  const at = (u: number, v: number) => to(x, y, ry, u, v)
-  const side = spot(x, y) % 2 ? 1 : -1 // the side its tree stands
-  kit.paving(x, y, KERB, w - 0.4, d - 0.4, ry, SETTS, PATTERN.setts, 0.02)
-  const [front, back] = [d / 2 - 0.8, -d / 2 + 1.3]
-  for (let v = front - 1; v > back + 1.2; v -= 0.95) kit.put(kit.cuboid(0.9, 0.06, 0.6), SHRINE.step, x, y, ry, 0, v, KERB + 0.02)
-  // The torii, in stone: two pillars, a lintel and a tie beam with a strut between.
-  const span = Math.min(1.35, w / 2 - 0.7)
-  for (const s of [-1, 1]) kit.drum(SHRINE.stone, ...at(s * span, front), KERB, 0.17, 0.17, 3.1)
-  kit.put(kit.cuboid(2 * span + 0.9, 0.24, 0.4), SHRINE.stone, x, y, ry, 0, front, KERB + 3.1)
-  kit.put(kit.cuboid(2 * span + 0.3, 0.18, 0.2), SHRINE.stone, x, y, ry, 0, front, KERB + 2.5)
-  kit.put(kit.cuboid(0.18, 0.42, 0.14), SHRINE.dark, x, y, ry, 0, front, KERB + 2.68)
-  kit.shadow(...at(0, front), KERB, 2 * span + 1.2, 1, false, ry)
-  kit.brick('building', ...at(0, front), KERB)
-  // The shrine on its footing at the back, under a copper roof, its straw rope and paper across its front.
-  kit.put(kit.cuboid(2, 0.7, 1.7), SHRINE.dark, x, y, ry, 0, back, KERB)
-  kit.put(kit.cuboid(1.2, 1.05, 1), SHRINE.wood, x, y, ry, 0, back, KERB + 0.7)
-  kit.put(kit.cuboid(0.72, 0.78, 0.05), SHRINE.door, x, y, ry, 0, back + 0.5, KERB + 0.82)
-  kit.put(kit.gable(1.7, 1.9, 0.62), SHRINE.roof, x, y, ry + Math.PI / 2, 0, back, KERB + 1.75)
-  kit.put(kit.cuboid(1.5, 0.1, 0.1), SHRINE.straw, x, y, ry, 0, back + 0.62, KERB + 1.68)
-  for (const u of [-0.32, 0.32]) kit.put(kit.cuboid(0.12, 0.3, 0.02), SHRINE.paper, x, y, ry, u, back + 0.66, KERB + 1.36)
-  kit.shadow(...at(0, back), KERB, 2.6, 2.4, false, ry)
-  kit.brick('building', ...at(0, back), KERB)
-  for (const s of [-1, 1]) stoneLantern(kit, ...at(s * Math.min(1.7, w / 2 - 0.6), back + 1.6), ry)
-  kit.tree(...at(side * (w / 2 - 1.2), back + 0.2), KERB, 0.62, 'round', true)
-  if (stage < 3) return
-  kit.put(kit.cuboid(0.9, 0.5, 0.45), SHRINE.wood, x, y, ry, 0, back + 1.25, KERB)
-  for (let k = 0; k < 4; k++) kit.put(kit.cuboid(0.8, 0.03, 0.06), SHRINE.door, x, y, ry, 0, back + 1.08 + k * 0.1, KERB + 0.5)
-  for (const s of [-1, 1]) {
-    const u = s * (w / 2 - 0.35)
-    for (let v = front - 1.4; v > back - 0.4; v -= 1.1) kit.put(kit.cuboid(0.18, 0.55, 0.18), SHRINE.stone, x, y, ry, u, v, KERB)
-    kit.put(kit.cuboid(0.1, 0.1, front - back - 0.6), SHRINE.stone, x, y, ry, u, (front - 1.4 + back) / 2, KERB + 0.5)
-  }
-  kit.brick('building', x, y, KERB)
 }
 
 /**
