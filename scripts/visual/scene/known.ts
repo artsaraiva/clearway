@@ -7,7 +7,7 @@ interface Known {
   rule: string
   zone?: string
   what?: RegExp
-  /** The most its amount (its `by`, in m) may be. Any if none. */
+  /** The most its amount (its `by`, in m, or m² for a roof) may be. Any if none. */
   most?: number
   owner: string
   why: string
@@ -25,16 +25,23 @@ const UNFINISHED: Record<string, string> = {
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
   parks: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
-  industrial: ['scenes', 'empty-pavement'],
+  industrial: ['blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   green: ['keeps-clear', 'scenes', 'moves', 'empty-pavement'],
-  'high-density': ['keeps-clear', 'neighbours-differ', 'scenes', 'empty-pavement'],
-  farms: ['keeps-clear', 'paths-clear', 'scenes', 'empty-pavement'],
+  'high-density': ['keeps-clear', 'neighbours-differ', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
+  farms: ['keeps-clear', 'paths-clear', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
 /** Left by #193: the bare pavement runs it did not break; #195 owns them. */
 const FOUND = '#195'
 
+/** Left by #198: the blank roofs rule 2 found on finished Zones; #216 owns them. */
+const BLANK_ROOFS = '#216'
+
 const KNOWN: Known[] = [
+  // The seed's coral tower (`src/render/landmarks.ts`), on whichever Zone's Tile it stands, until #189 finishes it:
+  // drums in flat coral and cream, and blank decks.
+  { rule: 'blank-wall', what: /^tower /, owner: '#189', why: 'the coral tower is drums of flat colour' },
+  { rule: 'blank-roof', what: /^tower /, owner: '#189', why: "the coral tower's decks are blank" },
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
     rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the Finish` })),
   ),
@@ -45,6 +52,32 @@ const KNOWN: Known[] = [
     most: 16,
     owner: FOUND,
     why: "the kerbside leaves 12 to 16 m bare by a truck court's way in, a corner's rail or a roundabout's flare",
+  },
+  // Rule 2 on the finished Zones (#198): a round office tower's band, and the crown or the top tier round a dome or a
+  // pyramid, blank where those leave them; a penthouse's deck inside its railing, under 70 m² in sight; an apartment's
+  // stair-house at Stage 3, blank on top.
+  {
+    rule: 'blank-roof',
+    zone: 'offices',
+    what: /^officeTower has a blank roof round what stands on it/,
+    owner: BLANK_ROOFS,
+    why: "an office tower's band, crown or top tier is blank round its round body, dome or pyramid",
+  },
+  {
+    rule: 'blank-roof',
+    zone: 'offices',
+    what: /^officeTower has a blank roof toward/,
+    most: 70,
+    owner: BLANK_ROOFS,
+    why: "a penthouse's deck is blank inside its railing",
+  },
+  {
+    rule: 'blank-roof',
+    zone: 'medium-density',
+    what: /^apartment /,
+    most: 40,
+    owner: BLANK_ROOFS,
+    why: "an apartment's stair-house is blank on top",
   },
   // High density's playgrounds (#155), until #183 rebuilds them.
   { rule: 'keeps-clear', zone: 'high-density', what: /rider|slide|swings|sandbox/, owner: '#183', why: "a playground's pieces touch" },

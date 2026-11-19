@@ -125,6 +125,53 @@ export interface Block {
   kerb?: Pt[][]
 }
 
+/**
+ * A wall of a building (rule 1): an upright face of one of its parts, at least 3 m along and 2 m tall, unrolled flat
+ * (round a drum, its facets one after another): in m along it from its left end as one faces it (`x`) and up from the
+ * road (`y`).
+ */
+export interface Wall {
+  tile: string
+  block: number
+  /** The building it is a wall of. */
+  thing: number
+  /** The surface pattern it wears (`PATTERN` of `src/render/pattern`), 0 for none. */
+  pattern: number
+  /** Its shape, unrolled: the triangles it is built of, or the rectangle round a curved wall. */
+  shape: Pt[][]
+  /**
+   * What breaks it up, unrolled as the wall is: its openings, and what stands on it or against it (a sign, a downpipe, a
+   * neighbour's wall). Read only on a wall that wears no pattern.
+   */
+  marks: Box[]
+  /** Its foot on the map, from its left end to its right, through its corners. */
+  foot: Pt[]
+}
+
+/** A roof of a building (rule 2): a face of one of its parts that looks up, at least 2 m above its foot. */
+export interface Roof {
+  tile: string
+  block: number
+  /** The building it is a roof of. */
+  thing: number
+  /** The surface pattern it wears, 0 for none. */
+  pattern: number
+  /** Its outline on the map. */
+  hull: Hull
+  /** m² of it in sight from above, nothing over it: read only on a roof that wears no pattern, else all of it. */
+  seen: number
+  /**
+   * How many things it carries, standing on it inside its edge short of another storey: roof kit, a chimney, a tank,
+   * not a parapet or a ridge along its edge. Read only on a roof that wears no pattern.
+   */
+  carries: number
+  /**
+   * Whether something stands over its middle, so what is in sight is the ledge round a storey, a dome or a cap. Read
+   * only on a roof that wears no pattern.
+   */
+  round: boolean
+}
+
 /** A model of a vehicle: a car skin, a mover's model, a parked car's brick. */
 interface Vehicle {
   name: string
@@ -143,6 +190,8 @@ export interface Report {
   scenes: Scene[]
   lots: Lot[]
   movers: Mover[]
+  walls: Wall[]
+  roofs: Roof[]
   /** Pools of light on the ground: where each lies and how far it reaches. */
   pools: { x: number; y: number; r: number }[]
   /** Things that sway, fly or smoke, by Tile: washing, flags, banners, chimneys' plumes. */

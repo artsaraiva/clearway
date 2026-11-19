@@ -1,8 +1,20 @@
 // The scene check's own rules (#191), each over a report written by hand: not one of the game's test seams.
 import { describe, expect, it } from 'vitest'
 import { boxOf, turnedBox } from './geometry'
-import type { Block, Hull, Lot, Report, Thing } from './report'
-import { colours, insideBlock, keepsClear, moves, neighbours, pathsClear, emptyPavement, scenes, wheels } from './rules'
+import type { Block, Box, Hull, Lot, Pt, Report, Roof, Thing, Wall } from './report'
+import {
+  blankRoofs,
+  blankWalls,
+  colours,
+  emptyPavement,
+  insideBlock,
+  keepsClear,
+  moves,
+  neighbours,
+  pathsClear,
+  scenes,
+  wheels,
+} from './rules'
 
 /** A square Block 40 m on a side round the origin, on Tile 0,0. */
 const BLOCK: Block = {
@@ -61,6 +73,8 @@ function report(things: Thing[], more: Partial<Report> = {}): Report {
     scenes: [],
     lots: [],
     movers: [],
+    walls: [],
+    roofs: [],
     pools: [],
     moving: { '0,0': 1 },
     colours: {},
@@ -216,5 +230,122 @@ describe('empty-pavement', () => {
     const taxi = { kind: 'taxi' as const, tile: '0,0', block: 0, hull: turnedBox(18.75, 0, 2.5, 20, 0), thing: 0 }
     const r = report([thing('shop', -20, 0, 2, 40), thing('shop', 0, -20, 40, 2), thing('shop', 0, 20, 40, 2)], { claims: [taxi] })
     expect(emptyPavement(r)).toEqual([])
+  })
+})
+
+/**
+ * A wall of thing 0 `w` m wide and from `low` to `high` m up, facing south along the map's x axis, centred on `(x, 0)`:
+ * flat unless given a `shape`, unrolled as the report has it.
+ */
+function wall(w: number, low: number, high: number, more: Partial<Wall> & { x?: number } = {}): Wall {
+  const { x = 0, ...rest } = more
+  const rect: Pt[] = [
+    { x: 0, y: low },
+    { x: w, y: low },
+    { x: w, y: high },
+    { x: 0, y: high },
+  ]
+  return {
+    tile: '0,0',
+    block: 0,
+    thing: 0,
+    pattern: 0,
+    shape: [rect],
+    marks: [],
+    foot: [
+      { x: x - w / 2, y: 0 },
+      { x: x + w / 2, y: 0 },
+    ],
+    ...rest,
+  }
+}
+
+/** Windows `wide` by `tall` m, one in every bay `bay` m wide, on each storey of 3 m from `low` to `high` m up a wall `w` m wide. */
+function windows(w: number, low: number, high: number, bay: number, wide: number, tall: number): Box[] {
+  const out: Box[] = []
+  for (let v = low + 1; v + tall <= high; v += 3)
+    for (let u = bay / 2; u < w; u += bay) out.push({ x0: u - wide / 2, x1: u + wide / 2, y0: v, y1: v + tall })
+  return out
+}
+
+describe('blank-wall', () => {
+  const house = [thing('townhouse', 0, 3, 10, 6, { tall: 6 })]
+
+  it('fails the plain back wall of a terraced house, saying where it is and which way it faces', () => {
+    const r = report(house, { walls: [wall(10, 1.2, 7.2, { x: 0 })] })
+    expect(blankWalls(r).map((f) => [f.tile, f.block, f.what, f.by])).toEqual([
+      ['0,0', 0, 'townhouse has a blank wall facing south toward (0, 0)', '10.0 m by 6.0 m'],
+    ])
+  })
+
+  it('passes the same wall wearing surface pattern, or with a window in every 3 m bay of each storey', () => {
+    expect(blankWalls(report(house, { walls: [wall(10, 1.2, 7.2, { pattern: 11 })] }))).toEqual([])
+    expect(blankWalls(report(house, { walls: [wall(10, 1.2, 7.2, { marks: windows(10, 1.2, 7.2, 3, 1.2, 1.4) })] }))).toEqual([])
+  })
+
+  it('fails the blank storeys over a shop front that runs the whole width of the ground floor', () => {
+    const front: Box = { x0: 0, x1: 10, y0: 1.2, y1: 4.2 }
+    expect(blankWalls(report(house, { walls: [wall(10, 1.2, 10.2, { marks: [front] })] })).map((f) => f.by)).toEqual(['10.0 m by 6.0 m'])
+  })
+
+  it('fails a stretch between two windows wider than 4 m, and passes one of 4 m', () => {
+    const marks = (gap: number) => [
+      { x0: 0, x1: 1, y0: 1.2, y1: 7.2 },
+      { x0: 1 + gap, x1: 2 + gap, y0: 1.2, y1: 7.2 },
+    ]
+    expect(blankWalls(report(house, { walls: [wall(10, 1.2, 7.2, { marks: marks(5) })] })).map((f) => f.by)).toEqual(['5.0 m by 6.0 m'])
+    expect(blankWalls(report(house, { walls: [wall(6, 1.2, 7.2, { marks: marks(4) })] }))).toEqual([])
+  })
+
+  it('passes a wall no taller than a storey, and the gable over it, however wide', () => {
+    const gable: Pt[] = [
+      { x: 0, y: 4.2 },
+      { x: 12, y: 4.2 },
+      { x: 6, y: 8.2 },
+    ]
+    expect(blankWalls(report(house, { walls: [wall(12, 1.2, 4.2), wall(12, 4.2, 8.2, { shape: [gable] })] }))).toEqual([])
+  })
+
+  it('fails the coral tower, a drum read unrolled round its facets, toward where the stretch is', () => {
+    // Round a drum 6.4 m across, from (6.4, 0) anticlockwise round the origin, left to right as one faces it: unrolled,
+    // 40 m round and 12 m tall. Its north half is covered; its south half is bare.
+    const foot = Array.from({ length: 17 }, (_, i) => ({
+      x: 6.4 * Math.cos((i / 16) * 2 * Math.PI),
+      y: 6.4 * Math.sin((i / 16) * 2 * Math.PI),
+    }))
+    const marks = [{ x0: 0, x1: 20, y0: 2.6, y1: 14.6 }]
+    const tower = [thing('tower', 0, 0, 12.8, 12.8, { tall: 12 })]
+    expect(blankWalls(report(tower, { walls: [wall(40, 2.6, 14.6, { foot, marks })] })).map((f) => [f.what, f.by])).toEqual([
+      ['tower has a blank wall facing south toward (0, -6)', '20.0 m by 12.0 m'],
+    ])
+  })
+})
+
+/** A roof of thing 0 over the box `w` by `d` round `(x, y)`, blank and all of it in sight unless told. */
+function roof(x: number, y: number, w: number, d: number, more: Partial<Roof> = {}): Roof {
+  return { tile: '0,0', block: 0, thing: 0, pattern: 0, hull: turnedBox(x, y, w, d, 0), seen: w * d, carries: 0, round: false, ...more }
+}
+
+describe('blank-roof', () => {
+  const house = [thing('townhouse', 4, 6, 8, 6, { tall: 6 })]
+
+  it('fails a roof with nothing on it, saying where it is', () => {
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6)] })).map((f) => [f.tile, f.block, f.what, f.by])).toEqual([
+      ['0,0', 0, 'townhouse has a blank roof toward (4, 6)', '48 m² in sight'],
+    ])
+  })
+
+  it('passes a roof with tile rows, or with a parapet or roof kit on it', () => {
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { pattern: 13 }), roof(4, 6, 8, 6, { carries: 1 })] }))).toEqual([])
+  })
+
+  it('says when what is blank is the ledge round what stands over its middle, as round a dome', () => {
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { seen: 20, round: true })] })).map((f) => f.what)).toEqual([
+      'townhouse has a blank roof round what stands on it, toward (4, 6)',
+    ])
+  })
+
+  it('passes a roof all but hidden under the storey on it, as a podium under its tower is', () => {
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { seen: 8 })] }))).toEqual([])
   })
 })
