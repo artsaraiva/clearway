@@ -4,7 +4,7 @@ Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway
 
 ## Amended by [#179](https://github.com/artsaraiva/clearway/issues/179) (2026-11-18)
 
-Low-density residential to the level of finish: [zones/low-density.md](zones/low-density.md).
+Low-density residential built to the Finish: [zones/low-density.md](zones/low-density.md).
 Surface pattern gains a house's storey (siding, and a window between shutters in every bay), its front (siding alone behind the door), a house's flat roof tiles and a garden wall's concrete blocks; a flag may fly at a size of its own, as the carp on one pole do, and a cat is a mover that walks a wall's top on no ground.
 
 ## Amended by [#193](https://github.com/artsaraiva/clearway/issues/193) (2026-11-18)
@@ -13,32 +13,32 @@ What the scene check of [#191](https://github.com/artsaraiva/clearway/issues/191
 Shops: a scene lot too narrow for a stand longer than a car holds a food stall's court instead, a Block whose fronts all face the seam takes its scene on a seam lot, a scene's front keeps the pot plant on the door's outer side only, and shoppers turn at a greengrocer's or a florist's stand rather than walking through its Stage 3 crates.
 Offices: a Block with no room for any scene takes a sculpture plaza on ground down to 6 by 4.5 m.
 Medium density: a courtyard Block with no room for a scene takes a wayside shrine on a shallow band by its edge, 5.6 by 3.4 m, its torii just before the shrine (a long Block whose buildings leave nothing else room takes a second shrine), no hedge lines an O's or a U's court nor any outside stair stands in one, and a bathhouse's chimney stands against its back wall.
-Streets, on every Tile: where the kerb curves, or a Zone's low paving reaches it, a pair of bollards breaks a bare run, and a run passes a crossing's tactile pads rather than stopping at them.
+The Kerbside, on every Tile: where the kerb curves, or a Zone's low paving reaches it, a pair of bollards breaks a bare run, and a run passes a crossing's tactile pads rather than stopping at them.
 Other Zones' fills are unchanged.
 
 ## Amended by [#178](https://github.com/artsaraiva/clearway/issues/178) (2026-11-18)
 
-Medium-density residential to the level of finish: [zones/medium-density.md](zones/medium-density.md).
+Medium-density residential built to the Finish: [zones/medium-density.md](zones/medium-density.md).
 
 ## Amended by [#177](https://github.com/artsaraiva/clearway/issues/177) (2026-11-18)
 
-Offices to the level of finish: [zones/offices.md](zones/offices.md).
+Offices built to the Finish: [zones/offices.md](zones/offices.md).
 
 ## Amended by [#176](https://github.com/artsaraiva/clearway/issues/176) (2026-11-18)
 
-The streets of [#175](https://github.com/artsaraiva/clearway/issues/175) are on every Tile, whatever its Zone, unzoned too: every Block has its kerbstone line and every pavement its paving joints, every lamp at a Block's corner and every third utility pole's street light leave a warm pool at night, and the tactile strips, guard rails, mirrors, tree pits, drain grates, planters, bollards and benches and the road plate's manholes and patches go wherever the Roads go.
-The street's furniture keeps off whatever a Zone builds near the edge, read from what it built rather than from a list each Zone keeps, and off the utility poles; what stands up from the pavement is Close-only, drawn from Street inward and hidden at Framed.
+The Kerbside of [#175](https://github.com/artsaraiva/clearway/issues/175) is on every Tile, whatever its Zone, unzoned too: every Block has its kerbstone line and every pavement its paving joints, every lamp at a Block's corner and every third utility pole's street light leave a warm pool at night, and the tactile strips, guard rails, mirrors, tree pits, drain grates, planters, bollards and benches and the road plate's manholes and patches go wherever the Roads go.
+The street's furniture keeps off whatever a Zone builds near the edge, read from what it built rather than from a list each Zone keeps, and off the utility poles; what stands up from the pavement is Block-zoom, drawn from Tile zoom inward and hidden at City zoom.
 The sim's one car type is drawn in five skins of the same length, chosen from each car's id: a hatchback, a kei car, a taxi whose roof lamp lights at night, a van and a kei truck, each with wheels, a windscreen and head and tail lamps.
 Walkers are of three kinds: shoppers with a bag, schoolchildren in yellow hats and office workers.
 Other Zones' fills are unchanged (Rendering recipe, Palette, Block fill, Vehicles and jam feedback, Day cycle, Sky and ambient life, Budget and Verification, below).
 
 ## Amended by [#175](https://github.com/artsaraiva/clearway/issues/175) (2026-11-17)
 
-Shops to all ten rules of the level of finish, with the streets round them, the reference every later Zone is held to: [zones/shops.md](zones/shops.md).
+Shops built to all ten rules of Finish, with the Kerbside round them, the reference every later Zone is held to: [zones/shops.md](zones/shops.md).
 
 ## Amended by [#174](https://github.com/artsaraiva/clearway/issues/174) (2026-11-17)
 
-Shops to the first step of the level of finish, a prototype of surface pattern and light pools: [zones/shops.md](zones/shops.md).
+Shops to the first step of the Finish, a prototype of surface pattern and light pools: [zones/shops.md](zones/shops.md).
 
 ## Amended by [#157](https://github.com/artsaraiva/clearway/issues/157) (2026-11-17)
 
@@ -137,12 +137,12 @@ Any effect that softens them is cut before any gameplay signal is.
   One instanced mesh for the whole City, each pool riding the brick of the light it lies under and lit as the lamps are, hidden by day.
   A pool adds its light to the ground and takes the place of some of the moonlight there (60% at its middle, fading to its edge as its light does): added alone to the bright blue night, a warm light comes out white.
   Below the lamps' glow at dusk, as they come on before it and go out at dawn, a pool fades as a whole, so that it never darkens the ground.
-- **Close-only props** ([#175](https://github.com/artsaraiva/clearway/issues/175), the kit's `closeOnly`): the small props a Zone builds (pot plants, bicycles, crates, menu boards, goods in a window, stools, gas cylinders, an AC unit on a back wall) are painted on `close`, the soft-lit material drawn apart from `solid` with its patches, so each build has one more mesh.
-  It is whole from the camera's zoom 3.2 inward (Street is about 4), drops a growing share of its pixels in a screen-space dither as the camera leaves Street, as the clouds fade in, and is not drawn at all from zoom 2.2 outward, where most Tiles are on screen.
-  Its shadow fades with it, cast through the same dither, and a Tile assembling in a Rebuild, a Rezoning or a Stage-up shows its Close-only props as the zoom has them.
-  A Close-only prop casts no contact shadow.
+- **Block-zoom props** ([#175](https://github.com/artsaraiva/clearway/issues/175), the kit's `blockZoomProps`): the small props a Zone builds (pot plants, bicycles, crates, menu boards, goods in a window, stools, gas cylinders, an AC unit on a back wall) are painted on `blockZoom`, the soft-lit material drawn apart from `solid` with its patches, so each build has one more mesh.
+  It is whole from the camera's zoom 3.2 inward (Tile zoom is about 4), drops a growing share of its pixels in a screen-space dither as the camera leaves Tile zoom, as the clouds fade in, and is not drawn at all from zoom 2.2 outward, where most Tiles are on screen.
+  Its shadow fades with it, cast through the same dither, and a Tile assembling in a Rebuild, a Rezoning or a Stage-up shows its Block-zoom props as the zoom has them.
+  A Block-zoom prop casts no contact shadow.
   Only this material's programs and the depth material its shadow is cast with carry the dither's discard.
-  Since [#176](https://github.com/artsaraiva/clearway/issues/176) the street's furniture is Close-only too: guard rails, convex mirrors, planters, bollards and benches, which the spec of [#173](https://github.com/artsaraiva/clearway/issues/173) has seen from Street inward;
+  Since [#176](https://github.com/artsaraiva/clearway/issues/176) the street's furniture is Block-zoom too: guard rails, convex mirrors, planters, bollards and benches, which the spec of [#173](https://github.com/artsaraiva/clearway/issues/173) has seen from Tile zoom inward;
   the dev switch `?furniture` draws it at every distance on `solid`, with its contact shadows, as [#175](https://github.com/artsaraiva/clearway/issues/175) did round a shops Tile, for a comparison.
   What lies flat on the pavement and the plate (the kerbstone line, tactile strips, tree pits, drain grates, manholes and patches) is drawn at every distance.
 - **Lit paint** ([#175](https://github.com/artsaraiva/clearway/issues/175)): a sign, an awning or an arcade lights on the kit's bulb tinted to its colour, as #153's amber lanterns do: its colour by day and its glow at dusk, at a share of a lamp's strength low enough to keep its colour (`SHOPFRONT.lit` in `src/render/kit.ts`).
@@ -180,7 +180,7 @@ That rule is why the park's deck is wood rather than shrine vermilion, why the c
 | --- | --- |
 | Walls of houses | `#fdeed6` `#ffd7b6` `#e0f2d4` `#cbebfc` `#fbe3a2` `#fbd2dd` `#e5dafb` `#fff7e8` `#c0e9e0` |
 | Roofs | brick `#d56454`, teal slate `#4d7d9c`, teal `#5aa69b`, tan `#d09c53`, violet `#8b7dbf`, persimmon `#ea8548` |
-| Streets ([#175](https://github.com/artsaraiva/clearway/issues/175), on every Tile since [#176](https://github.com/artsaraiva/clearway/issues/176)) | the pavement `#f1ede5` under the pattern's paving joints; kerbstone line `#cbc3b5`; tactile strips `#f2c744`; guard rails `#f4f6f8`; convex mirrors `#d8e6ee` on poles and rims `#f0b43c`; tree pits `#8a7560` in grates `#8c949e`; drain grates `#9aa0a8`; planters `#d9d3c7` of leaves `#5fbc51` `#7bcd5d` `#6bc357`; bollards `#9aa3ad` capped `#f4f6f8`; benches as the green details'. On the plate, manholes `#b7bcc4` in rims `#ccd0d6` and patches `#bcc0c7`, 4.2%, 3.3% and 2.6% of the plate's lightness (OKLab) from `#c3c7ce`; street lights' heads the lamps' bulb on arms `#6f7986`. Pools under a lamp `#ffbe6a` and under a street light `#ffd08f`, as on a shops Tile |
+| Kerbside ([#175](https://github.com/artsaraiva/clearway/issues/175), on every Tile since [#176](https://github.com/artsaraiva/clearway/issues/176)) | the pavement `#f1ede5` under the pattern's paving joints; kerbstone line `#cbc3b5`; tactile strips `#f2c744`; guard rails `#f4f6f8`; convex mirrors `#d8e6ee` on poles and rims `#f0b43c`; tree pits `#8a7560` in grates `#8c949e`; drain grates `#9aa0a8`; planters `#d9d3c7` of leaves `#5fbc51` `#7bcd5d` `#6bc357`; bollards `#9aa3ad` capped `#f4f6f8`; benches as the green details'. On the plate, manholes `#b7bcc4` in rims `#ccd0d6` and patches `#bcc0c7`, 4.2%, 3.3% and 2.6% of the plate's lightness (OKLab) from `#c3c7ce`; street lights' heads the lamps' bulb on arms `#6f7986`. Pools under a lamp `#ffbe6a` and under a street light `#ffd08f`, as on a shops Tile |
 | Vehicle skins ([#176](https://github.com/artsaraiva/clearway/issues/176)) | paints from the cars' colours: hatchbacks (32% of cars) and kei cars (28%) in any of them; taxis (12%) yellow `#ffc52d`, two in three, or mint `#64cb9f`; vans (15%) white `#ffffff` twice as often as pale grey `#e9eef2`, yellow or turquoise `#009dcb`; kei trucks (13%) white twice as often as pale grey or mint. Every skin's tyres `#2f3440`, windscreen and glass band the cars' dark glass `#41566c`; a kei truck's chassis and the guard behind its cab `#4a525c`, a van's bumper `#c4ccd4`; lamps by day, a pale lens `#f4efe0` at the front and a deep red `#a84a52` at the back (17° of hue from the hot red-orange at 55% of its chroma), and a taxi's roof lamp the bulb's cream `#fff4dc`. Lit at night, unlit by the scene's light: head lamps `#fff6d8` and tail lamps `#ff3030` as before, a taxi's roof lamp `#ffd890` |
 | Walkers ([#176](https://github.com/artsaraiva/clearway/issues/176)) | skin `#f1d1b5`, hair `#3a3330`; shoppers (four walkers in ten) the shops' ([#175](https://github.com/artsaraiva/clearway/issues/175)), legs `#3a4252` and bags `#f4ead2`, in coats of the walkers' shirts' colours; schoolchildren (three in ten) in shorts `#3a4252`, a white shirt `#fbf8f2` and a yellow hat `#f6d36a`, a satchel `#5a3f34` on the back; office workers (three in ten) in trousers `#3a4252`, a jacket `#4a5262` over a white shirt `#fbf8f2`, with a briefcase `#5a3f34` |
 | Leaves | `#7bcd5d` `#5fbc51` `#92d76e` `#6bc357` `#85cf61` |
@@ -269,12 +269,12 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 
 - **Authored:** landmarks and special Blocks (a tower plaza, a park with a pond, a shrine on a hill, a river with a bridge). They live in the District file.
 - **Seeded:** every other Block is built as its Tile's Zone ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136), `src/render/zones/`, one module a Zone), from the seed:
-  - Low-density residential: houses on lawns behind low block walls, with their gardens and garden trees, built to the level of finish ([#179](https://github.com/artsaraiva/clearway/issues/179), below). See [zones/low-density.md](zones/low-density.md).
-  - Medium-density residential: terraced rows of narrow houses that share walls, or apartment buildings round a court (an O, a U, an L or a bar), built to the level of finish ([#178](https://github.com/artsaraiva/clearway/issues/178), below). See [zones/medium-density.md](zones/medium-density.md).
+  - Low-density residential: houses on lawns behind low block walls, with their gardens and garden trees, built to the Finish ([#179](https://github.com/artsaraiva/clearway/issues/179), below). See [zones/low-density.md](zones/low-density.md).
+  - Medium-density residential: terraced rows of narrow houses that share walls, or apartment buildings round a court (an O, a U, an L or a bar), built to the Finish ([#178](https://github.com/artsaraiva/clearway/issues/178), below). See [zones/medium-density.md](zones/medium-density.md).
     The seed picks one of the two for each Tile.
   - High-density residential: pale towers with windows lit one by one, a stack of balconies, a water tank and a roof garden, and a playground or a garden at their foot. See [zones/high-density.md](zones/high-density.md).
-  - Offices: glass towers lit floor by floor at night, built to the level of finish ([#177](https://github.com/artsaraiva/clearway/issues/177), below). See [zones/offices.md](zones/offices.md).
-  - Shops: rows of low shops with coloured ground floors, each front a shop of its own with its signs and awning, with vending machines, nobori banners, paper lanterns and parked bicycles before the fronts that face a Road, a scene on each Block, and the streets round them finished ([#175](https://github.com/artsaraiva/clearway/issues/175), below). See [zones/shops.md](zones/shops.md).
+  - Offices: glass towers lit floor by floor at night, built to the Finish ([#177](https://github.com/artsaraiva/clearway/issues/177), below). See [zones/offices.md](zones/offices.md).
+  - Shops: rows of low shops with coloured ground floors, each front a shop of its own with its signs and awning, with vending machines, nobori banners, paper lanterns and parked bicycles before the fronts that face a Road, a scene on each Block, and the Kerbside round them finished ([#175](https://github.com/artsaraiva/clearway/issues/175), below). See [zones/shops.md](zones/shops.md).
   - Industrial: wide, low sheds with sawtooth roofs and roller doors, a chimney now and then, and a loading yard before the doors. See [zones/industrial.md](zones/industrial.md).
   - Parks: a park with a pond, or on a small Block, one time in three, a plaza with a fountain. See [zones/parks.md](zones/parks.md).
   - Green: a meadow with groves and flower beds, or allotments. See [zones/green.md](zones/green.md).
@@ -312,12 +312,12 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 - **Fallen petals** lie round every sakura, as many to the square metre whatever its size, out to seven times its size, on the Block only and, on a raised lawn, well in from its edge.
   They are drawn from where the tree stands, so no Block's fill changes.
 - Each Zone's own details and finish are in its file (Seeded, above).
-- **The streets round every Tile** ([#175](https://github.com/artsaraiva/clearway/issues/175) round a finished Tile, `src/render/streets.ts`; on every Tile whatever its Zone, unzoned too, since [#176](https://github.com/artsaraiva/clearway/issues/176)), each drawn from where it lies.
-  Every Block's pavement wears the paving joints of #174's pattern, which the scenery material's shader lays wherever a face looks up at the kerb's height in the pavement's colour, so that no build carries a pattern attribute for it (one on every build cost parks and green 0.6 ms at Framed); and every Block's kerb, a roundabout's island's and a narrow Block's bike lane's too, its kerbstone line.
+- **The Kerbside round every Tile** ([#175](https://github.com/artsaraiva/clearway/issues/175) round a finished Tile, `src/render/kerbside.ts`; on every Tile whatever its Zone, unzoned too, since [#176](https://github.com/artsaraiva/clearway/issues/176)), each drawn from where it lies.
+  Every Block's pavement wears the paving joints of #174's pattern, which the scenery material's shader lays wherever a face looks up at the kerb's height in the pavement's colour, so that no build carries a pattern attribute for it (one on every build cost parks and green 0.6 ms at City zoom); and every Block's kerb, a roundabout's island's and a narrow Block's bike lane's too, its kerbstone line.
   Every Block but a roundabout's island takes the rest of the street furniture, an authored park's or plaza's and a bike lane's too, which a Tile City never builds.
   A Block's other furniture keeps off what its Zone built near its edge, read back from what the Zone's fill laid: each part that rises 6 cm over the pavement within 4 m of the edge, laid point by point on a grid of half-metre cells, low ground (a lawn, soil, a bed) where it lies and anything taller kept half a metre further off, and the loop of each mover that works the ground, as wide as it is.
   It keeps off the utility poles too: a rail, a grate or a planter never stands at a pole's foot.
-  Rails, mirrors, planters, bollards and benches are Close-only (Rendering recipe, above).
+  Rails, mirrors, planters, bollards and benches are Block-zoom props (Rendering recipe, above).
   The user chose this on 2026-11-18 from a sheet of shops with the whole City in frame, the furniture hidden and shown: it changes the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), which drew them at every distance.
   Round each Block:
   - A kerbstone line 0.36 m wide along every Block's edge, just in from its bevel;
@@ -390,7 +390,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 - Night is a bright moonlit blue, not dark.
   Windows, lamps and car head and tail lights glow through emissive materials only; there are no per-object light sources.
   Beacons ([#155](https://github.com/artsaraiva/clearway/issues/155), [#154](https://github.com/artsaraiva/clearway/issues/154)) are emissive too, each blinking on a beat of its own while the world runs.
-  Since [#174](https://github.com/artsaraiva/clearway/issues/174) the surface pattern's windows light with the windows, and pools of light lie on the ground under the lights of a Zone built to the level of finish: decals, still no light source.
+  Since [#174](https://github.com/artsaraiva/clearway/issues/174) the surface pattern's windows light with the windows, and pools of light lie on the ground under the lights of a Zone built to the Finish: decals, still no light source.
   Since [#175](https://github.com/artsaraiva/clearway/issues/175) a shop's signs, awnings and arcade glow in their own colours on the lamps' bulb, and a street light on every third pole of a finished Tile leaves its pool on the road.
   Since [#176](https://github.com/artsaraiva/clearway/issues/176) every Tile's lamps and street lights leave their pools, and a taxi's roof lamp lights with the cars' head and tail lights, on the same unlit mesh, with no light source.
   Since [#177](https://github.com/artsaraiva/clearway/issues/177) an office tower's floors light through the pattern's lit mask, its lobby, canopy and name plates glow, and pools lie before its lobby.
@@ -413,7 +413,7 @@ All of this is decoration outside the sim.
 - Clouds drift across and cast shadows. They fade out as the camera zooms in, so they never sit between the player and a jam.
 - One or two propeller planes cross the sky on near-straight lines with a slight curve, vanish at the edge, and start a new line.
 - Walkers follow the pavement centre lines and never cross a road.
-  Since [#176](https://github.com/artsaraiva/clearway/issues/176) they are of three kinds, one instanced mesh each, seen at Close and facing the way they walk: a shopper with a bag (the shops' shopper, [#175](https://github.com/artsaraiva/clearway/issues/175)), a schoolchild in a yellow hat with a satchel, a little smaller and slower, and an office worker in a dark suit with a briefcase.
+  Since [#176](https://github.com/artsaraiva/clearway/issues/176) they are of three kinds, one instanced mesh each, seen at Block zoom and facing the way they walk: a shopper with a bag (the shops' shopper, [#175](https://github.com/artsaraiva/clearway/issues/175)), a schoolchild in a yellow hat with a satchel, a little smaller and slower, and an office worker in a dark suit with a briefcase.
   Boats run the river.
 - Labels are DOM overlays: romanised street names rotated along their Road with a white halo, and landmark names with a coloured dot.
   Japanese script appears only in speech bubbles and decoration.
@@ -434,14 +434,14 @@ The renderer needs, per District: a theme, the seed for Block fill, authored lan
 The prototype measures 9.9 ms per frame with 1,000 cars at 2× pixel density, about 1.06 M triangles.
 If shadows break the budget, the shadow map shrinks before any look decision changes.
 Coloured light, poles and petals ([#148](https://github.com/artsaraiva/clearway/issues/148)) cost no frame time the bench can see: 7.82 ms against `main`'s 7.57 on the twelve-Tile City and 8.68 against 8.58 on 26 Tiles, inside the noise, for two or three more draw calls and under 0.1 M more triangles.
-The streets and vehicle skins on every Tile ([#176](https://github.com/artsaraiva/clearway/issues/176)), against `origin/main` (`876b1a6`, with [#175](https://github.com/artsaraiva/clearway/issues/175) in) over three rounds on the 26-Tile City at Stage 3 with 1,000 cars, after the review's fixes, cost shops nothing the bench can see at Framed (8.08 ms against 7.70 at noon, a gap its rounds do not hold, +0.38, −0.10 and +0.03 ms one by one, and 7.60 against 7.61 at night), now that its rails, mirrors, planters, bollards and benches are hidden there with the other Close-only props (0.16 M fewer triangles), and 0.21 ms at Street at night (6.03 against 5.82);
-an unzoned City, the cheapest, 0.09 to 0.18 ms at Framed (5.65 and 5.74 against 5.55 and 5.56) and 0.19 to 0.20 ms at Street (4.61 and 4.63 against 4.40 and 4.44);
-and parks, the heaviest Zone, 0.08 to 0.20 ms at Framed (10.52 and 10.63 against 10.33 and 10.54) and 0.15 to 0.17 ms at Street (6.74 and 6.75 against 6.59 and 6.59).
-That bench ran with the machine about a fifth faster than the first, before the review, which read the same costs within its noise: shops 9.76 and 9.68 ms at Framed against 9.88 and 9.87, an unzoned City 7.28 and 7.40 against 7.08, and parks 13.11 and 13.20 against 12.85 and 12.92.
-Framed gains 10 to 15 draw calls: the five skins' bodies and their shadows, the three walker kinds' and, at night, the skins' lights; Street gains up to 52, among them every build's Close-only mesh, which a Zone with no small props of its own now has for its street's furniture.
+The Kerbside and the vehicles' Skins on every Tile ([#176](https://github.com/artsaraiva/clearway/issues/176)), against `origin/main` (`876b1a6`, with [#175](https://github.com/artsaraiva/clearway/issues/175) in) over three rounds on the 26-Tile City at Stage 3 with 1,000 cars, after the review's fixes, cost shops nothing the bench can see at City zoom (8.08 ms against 7.70 at noon, a gap its rounds do not hold, +0.38, −0.10 and +0.03 ms one by one, and 7.60 against 7.61 at night), now that its rails, mirrors, planters, bollards and benches are hidden there with the other Block-zoom props (0.16 M fewer triangles), and 0.21 ms at Tile zoom at night (6.03 against 5.82);
+an unzoned City, the cheapest, 0.09 to 0.18 ms at City zoom (5.65 and 5.74 against 5.55 and 5.56) and 0.19 to 0.20 ms at Tile zoom (4.61 and 4.63 against 4.40 and 4.44);
+and parks, the heaviest Zone, 0.08 to 0.20 ms at City zoom (10.52 and 10.63 against 10.33 and 10.54) and 0.15 to 0.17 ms at Tile zoom (6.74 and 6.75 against 6.59 and 6.59).
+That bench ran with the machine about a fifth faster than the first, before the review, which read the same costs within its noise: shops 9.76 and 9.68 ms at City zoom against 9.88 and 9.87, an unzoned City 7.28 and 7.40 against 7.08, and parks 13.11 and 13.20 against 12.85 and 12.92.
+City zoom gains 10 to 15 draw calls: the five skins' bodies and their shadows, the three walker kinds' and, at night, the skins' lights; Tile zoom gains up to 52, among them every build's Block-zoom mesh, which a Zone with no small props of its own now has for its street's furniture.
 With 1,000 cars the skins' bodies draw 1.66 M triangles, shadows counted, against the one car's 1.89 M: 0.23 M fewer, the kei trucks' wheels 0.03 M of them.
-Against `253bec3`, shops cost 1.41 ms at Framed with [#174](https://github.com/artsaraiva/clearway/issues/174)'s and [#175](https://github.com/artsaraiva/clearway/issues/175)'s finish and this ticket's together, and an unzoned City 0.55 ms.
-A first cut paved every pavement through a `pattern` attribute, which brought one to every build's mesh and cost parks and green 0.6 ms at Framed; the shader now picks the pavement out instead.
+Against `253bec3`, shops cost 1.41 ms at City zoom with [#174](https://github.com/artsaraiva/clearway/issues/174)'s and [#175](https://github.com/artsaraiva/clearway/issues/175)'s finish and this ticket's together, and an unzoned City 0.55 ms.
+A first cut paved every pavement through a `pattern` attribute, which brought one to every build's mesh and cost parks and green 0.6 ms at City zoom; the shader now picks the pavement out instead.
 A Rezoning's build, which lays a Tile's piece in one go, takes about 3 ms more a Tile (parks 21.6 ms against 18, farms 14.6 against 12, low-density 20 against 17 to 18): about 1.5 ms reading what stands near each Block's edge and 1 to 2 ms laying its street; a first cut, reading every triangle point by point over its whole face, took 5 to 9 ms.
 
 Each Zone's own frame time is in its file (Block fill, above).
@@ -450,25 +450,25 @@ Each Zone's own frame time is in its file (Block fill, above).
 
 Visuals are verified by running the game, not by tests.
 Each issue is done when its part matches the reference screenshots and the prototype side by side, and the frame budget still holds with 1,000 cars.
-Since [#175](https://github.com/artsaraiva/clearway/issues/175) `npm run shots` shows every Zone at the three distances of [#173](https://github.com/artsaraiva/clearway/issues/173) (Framed, Street and Close) from four quarter-turns of the camera, at noon, dusk and night, a sheet per time and distance, and `npm run bench:visual` takes `--views framed,street` and `--times noon,night`;
+Since [#175](https://github.com/artsaraiva/clearway/issues/175) `npm run shots` shows every Zone at the three zooms of [#173](https://github.com/artsaraiva/clearway/issues/173) (City, Tile and Block zoom) from four quarter-turns of the camera, at noon, dusk and night, a sheet per time and zoom, and `npm run bench:visual` takes `--views city,tile` and `--times noon,night`;
 both take `--query` for a dev switch such as `deeper`.
 The shops sheet is the reference every later Zone's sheet is held to.
 Since [#176](https://github.com/artsaraiva/clearway/issues/176) both take `unzoned` for a City of unzoned Tiles.
 Offices' sheets since [#177](https://github.com/artsaraiva/clearway/issues/177) are shot with `--run 45`, about noon of the working day, so that the food trucks stand at their tables.
 Medium-density's since [#178](https://github.com/artsaraiva/clearway/issues/178) are shot with `--run 30`, so that the scooters are about and the washing hangs out, and low-density's since [#179](https://github.com/artsaraiva/clearway/issues/179), so that the carp fly and the cats walk.
 
-Since [#191](https://github.com/artsaraiva/clearway/issues/191) `npm run check:scene` asserts the rules of finish that are facts about what was placed, in Node, without drawing, in a few seconds a Zone: everything stands on its Block and keeps clear of parking and taxi bays, door steps and the rest, movers' paths too;
+Since [#191](https://github.com/artsaraiva/clearway/issues/191) `npm run check:scene` asserts the rules of Finish that are facts about what was placed, in Node, without drawing, in a few seconds a Zone: everything stands on its Block and keeps clear of parking and taxi bays, door steps and the rest, movers' paths too;
 vehicles stand on their wheels;
 lots side by side differ in form (rule 10);
 each Block has its scenes, each with a piece longer than a car or taller than 3 m (rule 5);
 something moves on every Tile (rule 6);
 lights near the ground leave pools (rule 7);
-small props are Close-only and hide with the City framed;
+small props are Block-zoom props and hide at City zoom;
 no colour nears the reserved two;
 triangles and meshes stay under each Zone's ceiling;
 and a lot is the same lot at every Stage.
 `--seeds` sweeps the Blocks' fill, and `--against` prints each Zone's building forms and scenes and whether its meshes match the ref.
-Blank walls and bare roofs (rules 1 and 2), all four sides (4), Stage 1 (8) and a Stage read from Framed (9) still need the sheet, which is for the look alone.
+Blank walls and bare roofs (rules 1 and 2), all four sides (4), Stage 1 (8) and a Stage read at City zoom (9) still need the sheet, which is for the look alone.
 What main breaks is listed with its owner in `scripts/visual/scene/known.ts`.
 
 ## Issues
@@ -493,20 +493,20 @@ Follow-ups outside this effort:
 - [#34](https://github.com/artsaraiva/clearway/issues/34) Research: procedural Districts.
 - [#35](https://github.com/artsaraiva/clearway/issues/35) Grill: pedestrians as a mechanic.
 
-The level of finish, from the spec in [#173](https://github.com/artsaraiva/clearway/issues/173), in its order:
+The Finish, from the spec in [#173](https://github.com/artsaraiva/clearway/issues/173), in its order:
 
 1. [#174](https://github.com/artsaraiva/clearway/issues/174) Prototype surface pattern and light pools, on shops.
-2. [#175](https://github.com/artsaraiva/clearway/issues/175) Shops to the level of finish, the reference for every Zone. Blocked by #174.
-3. [#176](https://github.com/artsaraiva/clearway/issues/176) Streets and vehicle skins on every Tile. Blocked by #175.
-4. [#177](https://github.com/artsaraiva/clearway/issues/177) Offices to the level of finish. Blocked by #175.
-5. [#178](https://github.com/artsaraiva/clearway/issues/178) Medium-density residential to the level of finish. Blocked by #175.
-6. [#179](https://github.com/artsaraiva/clearway/issues/179) Low-density residential to the level of finish. Blocked by #175.
-7. [#180](https://github.com/artsaraiva/clearway/issues/180) Parks to the level of finish. Blocked by #175.
-8. [#181](https://github.com/artsaraiva/clearway/issues/181) Industrial to the level of finish. Blocked by #175.
-9. [#182](https://github.com/artsaraiva/clearway/issues/182) Green to the level of finish. Blocked by #175.
-10. [#183](https://github.com/artsaraiva/clearway/issues/183) High-density residential to the level of finish. Blocked by #175.
-11. [#184](https://github.com/artsaraiva/clearway/issues/184) Farms to the level of finish. Blocked by #175.
-12. [#185](https://github.com/artsaraiva/clearway/issues/185) Unzoned Tiles to the level of finish. Blocked by #175.
+2. [#175](https://github.com/artsaraiva/clearway/issues/175) Shops built to the Finish, the reference for every Zone. Blocked by #174.
+3. [#176](https://github.com/artsaraiva/clearway/issues/176) The Kerbside and vehicle Skins on every Tile. Blocked by #175.
+4. [#177](https://github.com/artsaraiva/clearway/issues/177) Offices built to the Finish. Blocked by #175.
+5. [#178](https://github.com/artsaraiva/clearway/issues/178) Medium-density residential built to the Finish. Blocked by #175.
+6. [#179](https://github.com/artsaraiva/clearway/issues/179) Low-density residential built to the Finish. Blocked by #175.
+7. [#180](https://github.com/artsaraiva/clearway/issues/180) Parks built to the Finish. Blocked by #175.
+8. [#181](https://github.com/artsaraiva/clearway/issues/181) Industrial built to the Finish. Blocked by #175.
+9. [#182](https://github.com/artsaraiva/clearway/issues/182) Green built to the Finish. Blocked by #175.
+10. [#183](https://github.com/artsaraiva/clearway/issues/183) High-density residential built to the Finish. Blocked by #175.
+11. [#184](https://github.com/artsaraiva/clearway/issues/184) Farms built to the Finish. Blocked by #175.
+12. [#185](https://github.com/artsaraiva/clearway/issues/185) Unzoned Tiles built to the Finish. Blocked by #175.
 
 ## Out of scope
 

@@ -20,7 +20,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     Two stand from Stage 2 on 35% of the fronts, and a third joins them at Stage 3, on 55%.
     They fly as flags do, turned to the street by their rods, and are furled for the night (Moving details, below).
   - Two paper lanterns a metre tall hang on short cords under the awning, 1.3 m out and low enough to show below its edge, cream or amber, lit at dusk with the lamps: on 35% of the fronts from Stage 2 and 60% at Stage 3, when two more hang between them.
-- **Shop finish** ([#174](https://github.com/artsaraiva/clearway/issues/174), `shop` in `src/render/zones/shops.ts`, `src/render/pattern.ts`): a Zone's look says whether it is built to the level of finish, and shops alone are, so far.
+- **Shop finish** ([#174](https://github.com/artsaraiva/clearway/issues/174), `shop` in `src/render/zones/shops.ts`, `src/render/pattern.ts`): a Zone's look says whether it is built to the Finish, and shops alone are, so far.
   Every shop wears surface pattern at every Stage, and which of its windows light is drawn from where it stands, so nothing else on its Block changes:
   - Its ground floor's back and ends: panels 0.75 m wide over a plinth, a line under the eaves, and a high window 0.9 m wide in every bay of about 3 m, framed, sliding and silled; at the back, a service door in the middle bay instead, with a lit pane and a hood.
     Its front stays as it was: the shop window, the awning and the signs.
@@ -29,24 +29,24 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   - Its flat roof: tile rows 0.5 m deep in a bond, inside a pale parapet 0.45 m wide that throws a shadow 0.25 m in; inside it the roof is greyer and darker than its walls.
   - Its Block's pavement: slabs 0.6 m square in a running bond, each a shade of its own, with darker joints.
   - Pools of light at night: round each lamp on a shops Block, as far as the pavement goes round its post, 4.8 to 8 m across; under each paper lantern, 3 m across; and on the pavement before each vending machine's lit front and each shop's lit window, out to the kerb.
-- **Shops to the level of finish** ([#175](https://github.com/artsaraiva/clearway/issues/175), `shop` in `src/render/zones/shops.ts`, `src/render/props.ts`), the reference: each lot's plan is drawn from a stream of its Block's own, so the kit's draws, and with them every lot's size and storeys, are as before.
+- **Shops built to the Finish** ([#175](https://github.com/artsaraiva/clearway/issues/175), `shop` in `src/render/zones/shops.ts`, `src/render/props.ts`), the reference: each lot's plan is drawn from a stream of its Block's own, so the kit's draws, and with them every lot's size and storeys, are as before.
   Shown in the sheets of `npm run shots -- shops --times noon,night --run 20`, which the user approved on 2026-11-17:
   - Each shop's front colour is never its neighbour's, nor is its form: a flat roof, a false front raised over the street carrying its signboard, or upper storeys set back 1.6 m behind a balcony (a stair house on the roof of one of a single storey).
     One shop in eight is a noodle shop whose vent steams from Stage 2.
   - Its front, on a Road or on the seam with the next Tile alike: a glass door 1.5 m wide at the end away from the vending machines, lit at night, in a frame under a noren of three panels with a crest;
-    a shop window over the rest of the front, framed, silled and mullioned, with goods on its sill, Close-only;
+    a shop window over the rest of the front, framed, silled and mullioned, with goods on its sill, Block-zoom;
     a signboard over the striped awning with two to four marks for lettering;
     on a Road, a tall sign standing out from the wall at the window's end (on some from Stage 2, on all at Stage 3) and a billboard on two posts behind the roof's front edge (likewise).
     At Stage 3 a front on a Road lies under the row's arcade, 1.45 m deep, short of the banners, on steel posts, its fascia the signboard; the lots of a row meet, so the arcade runs along the whole row.
-  - Its roof: a stone parapet 0.26 m wide and 0.42 m tall round the lid, as geometry, since the pattern's rim did not read with the City framed (#174);
+  - Its roof: a stone parapet 0.26 m wide and 0.42 m tall round the lid, as geometry, since the pattern's rim did not read at City zoom (#174);
     one to three AC condensers along the back, by Stage;
     a panel tank on a stand on 55% of the roofs at Stage 2 and 80% at Stage 3;
     at Stage 3 a timber terrace on 45% of them, with two tables, a parasol and string lights on four posts that leave a pool of light.
-    Its back, Close-only: two gas cylinders, a pipe up the wall and along it, crates from Stage 2 and an AC unit at Stage 3; the pattern draws the service door.
+    Its back, Block-zoom: two gas cylinders, a pipe up the wall and along it, crates from Stage 2 and an AC unit at Stage 3; the pattern draws the service door.
   - Before the fronts: coloured paving from Stage 2, bricks in a basket weave 1.7 m deep, one colour a Block;
-    pot plants either side of every door and a menu board where no vending machine stands, Close-only;
-    on 60% of the fronts with room before the window, crates of produce or a plant stand from Stage 2, Close-only;
-    the bicycles of #153 are Close-only and park beside the vending machines, as many as fit before the door.
+    pot plants either side of every door and a menu board where no vending machine stands, Block-zoom;
+    on 60% of the fronts with room before the window, crates of produce or a plant stand from Stage 2, Block-zoom;
+    the bicycles of #153 are Block-zoom props and park beside the vending machines, as many as fit before the door.
   - A scene on each Block from Stage 2, on a lot facing a Road at least 8 m wide (or the widest there is), its kind picked from where the Block lies: a greengrocer's stand of three timber steps heaped with produce along the window, crates spilling to the kerb at Stage 3;
     a florist's, buckets of flowers on the steps and tall pot plants at Stage 3;
     two tiers of capsule machines whose tops light and leave a pool;
@@ -54,7 +54,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     A Block of 2,500 m² or more has a second scene of another kind at Stage 3, not beside the first.
   - Shoppers walk each run of two or more fronts on a Road from Stage 2, a second on a run of three or more at Stage 3 setting out half its loop ahead: 2.1 m out from the fronts, stopping 1.5 to 5 s at each front's middle and turning at the run's ends, on the movers' machinery (#149), so they rest at a stop by night.
   - A delivery kei truck (#149's) parks in the back yard alongside the nearest back wall from Stage 2, and a second at Stage 3, where there is room; the yard keeps up to four trees.
-  - Night: windows lit on every face (#174's lit mask), every signboard, tall sign and billboard lit from Stage 2, the awnings glowing from Stage 2 and the arcade's roof at Stage 3, so that with the City framed a shops Tile reads as rows of light along its streets, coloured at Stage 2 and warm white at Stage 3.
+  - Night: windows lit on every face (#174's lit mask), every signboard, tall sign and billboard lit from Stage 2, the awnings glowing from Stage 2 and the arcade's roof at Stage 3, so that at City zoom a shops Tile reads as rows of light along its streets, coloured at Stage 2 and warm white at Stage 3.
     A front leaves a pool out to the kerb, brighter once its signboard lights and under an arcade; a lamp's pool stays on the pavement, its faint rim at most past the kerb.
 
 ## Colours
@@ -100,29 +100,29 @@ Benched apart over five rounds, at noon and at night, the pattern alone costs 0.
 The pattern's cost is in carrying it, about 4 M vertices in 26 meshes with a `pattern` attribute each, and not in sampling its texture, which costs nothing the bench can see.
 A first cut passed the pattern in a flat varying, which ANGLE on Metal turns into a rework of every draw for GL's provoking vertex: 0.5 ms.
 
-Shops to the level of finish, with the streets round them ([#175](https://github.com/artsaraiva/clearway/issues/175)), every Tile of the 26-Tile City shops at Stage 3, cost 1.33 ms at Framed with the Close-only props hidden (9.58 against `main`'s 8.26 over five rounds; 9.44 against 8.26 at night) for three more draw calls and 0.9 M more triangles, and 1.47 ms at Street on one Tile (7.54 against 6.07; 7.53 against 6.11 at night) for 36 to 39 more draw calls, among them each build's Close-only mesh, and 1 M more triangles: within the 12 ms budget.
-That bench followed the review's fixes, on a day `main` read 20% slower than at the first (6.76 ms at Framed); against the branch before them, the fixes cost nothing the bench can see (−0.03 to +0.19 ms), and the marks every Road's plate now carries add 0.01 M triangles.
+Shops built to the Finish, with the Kerbside round them ([#175](https://github.com/artsaraiva/clearway/issues/175)), every Tile of the 26-Tile City shops at Stage 3, cost 1.33 ms at City zoom with the Block-zoom props hidden (9.58 against `main`'s 8.26 over five rounds; 9.44 against 8.26 at night) for three more draw calls and 0.9 M more triangles, and 1.47 ms at Tile zoom on one Tile (7.54 against 6.07; 7.53 against 6.11 at night) for 36 to 39 more draw calls, among them each build's Block-zoom mesh, and 1 M more triangles: within the 12 ms budget.
+That bench followed the review's fixes, on a day `main` read 20% slower than at the first (6.76 ms at City zoom); against the branch before them, the fixes cost nothing the bench can see (−0.03 to +0.19 ms), and the marks every Road's plate now carries add 0.01 M triangles.
 The triangles are mostly the fronts', roofs' and arcades' boxes, counted twice with the shadow pass.
 The City holds 79 shoppers at Stage 3, about 60 of them walking at any moment, and 436 puffs of steam; a first cut, steaming from one shop in five every 0.35 s, kept 1,145 in the air.
 
 ## Amended by [#175](https://github.com/artsaraiva/clearway/issues/175) (2026-11-17)
 
-Shops are built to all ten rules of the level of finish of [#173](https://github.com/artsaraiva/clearway/issues/173), with the streets round them, as the reference every later Zone is held to: the user approved its sheets on 2026-11-17 (noon [Framed](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-framed.jpg), [Street](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-street.jpg), [Close](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-close.jpg); night [Framed](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-framed.jpg), [Street](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-street.jpg), [Close](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-close.jpg)).
+Shops are built to all ten rules of Finish of [#173](https://github.com/artsaraiva/clearway/issues/173), with the Kerbside round them, as the reference every later Zone is held to: the user approved its sheets on 2026-11-17 (noon [Framed](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-framed.jpg), [Street](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-street.jpg), [Close](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-noon-close.jpg); night [Framed](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-framed.jpg), [Street](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-street.jpg), [Close](https://raw.githubusercontent.com/artsaraiva/clearway/eab2fb4dfec4cbf86f1d6fb9407a82fd1c677685/.scratch/visual-style/pr-175/reference-night-close.jpg)).
 Every front is a shop of its own: a glass door under a noren, a window showing goods, a signboard over the awning and, on a Road, a tall sign and a billboard, lit from Stage 2.
 Roofs carry a stone parapet, AC condensers, a panel water tank, a stair house on some, and at Stage 3 a terrace with a parasol and string lights; a Stage 3 front on a Road lies under the row's arcade.
 Each Block holds a scene from Stage 2 (a greengrocer's or a florist's stand, capsule machines, or a food stall with its lantern and steam), noodle shops' vents steam, and shoppers walk the fronts, stopping at each.
 At night the awnings, then the arcades, glow along the rows.
-The streets round a finished Tile gain a kerbstone line, tactile strips at the zebras, guard rails and mirrors at the corners, tree pits, drain grates, planters, bollards and benches, manholes and tarmac patches on the plate, and a street light on every third pole.
-Small props are Close-only, drawn apart and hidden beyond Street.
+The Kerbside round a finished Tile gains a kerbstone line, tactile strips at the zebras, guard rails and mirrors at the corners, tree pits, drain grates, planters, bollards and benches, manholes and tarmac patches on the plate, and a street light on every third pole.
+Small props are Block-zoom props, drawn apart and hidden beyond Tile zoom.
 Shot sheets show every distance from four quarter-turns, at noon, dusk and night (Rendering recipe, Palette, Block fill, Budget and Verification, below).
 
 ## Amended by [#174](https://github.com/artsaraiva/clearway/issues/174) (2026-11-17)
 
-Shops are built to the level of finish of [#173](https://github.com/artsaraiva/clearway/issues/173) as far as its first step goes, a prototype that asks whether surface pattern holds up with the whole City framed and what it and light pools cost.
+Shops are built to the Finish of [#173](https://github.com/artsaraiva/clearway/issues/173) as far as its first step goes, a prototype that asks whether surface pattern holds up at City zoom and what it and light pools cost.
 The scenery's soft-lit material lays a pattern drawn on canvas over its vertex colours, at no cost in triangles or meshes: panels, high windows and a service door on a shop's ground floor, siding and a window in every bay of its upper storeys on all four sides, tile rows inside a parapet on its roof, and paving joints on its Block.
 The pattern's windows light at night, its lit mask.
 Lamps, paper lanterns, vending machines and lit shop windows leave warm pools of light on the ground at night, one instanced decal mesh for the City.
-With the City framed, the windows read, as specks by day and lit all round by night, and the parapets give each roof an outline that parts it from the next; the tile rows and the paving do not read from there (Rendering recipe, Block fill and Budget, below).
+At City zoom, the windows read, as specks by day and lit all round by night, and the parapets give each roof an outline that parts it from the next; the tile rows and the paving do not read from there (Rendering recipe, Block fill and Budget, below).
 
 ## Amended by [#153](https://github.com/artsaraiva/clearway/issues/153) (2026-11-17)
 

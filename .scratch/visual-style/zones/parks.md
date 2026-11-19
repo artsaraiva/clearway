@@ -11,8 +11,8 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ## Frame time
 
-### Benched with the streets of [#176](https://github.com/artsaraiva/clearway/issues/176)
+### Benched with the Kerbside of [#176](https://github.com/artsaraiva/clearway/issues/176)
 
-Parks is over the 12 ms budget at Framed: on the first bench, 13.11 ms at noon and 13.20 at night with this ticket, 12.85 and 12.92 on `origin/main` before it, and 12.22 at noon on `253bec3`, the last commit before [#174](https://github.com/artsaraiva/clearway/issues/174) (against this ticket's 13.14 over two rounds); on the second, with the machine faster, it read 10.52 and 10.63.
+Parks is over the 12 ms budget at City zoom: on the first bench, 13.11 ms at noon and 13.20 at night with this ticket, 12.85 and 12.92 on `origin/main` before it, and 12.22 at noon on `253bec3`, the last commit before [#174](https://github.com/artsaraiva/clearway/issues/174) (against this ticket's 13.14 over two rounds); on the second, with the machine faster, it read 10.52 and 10.63.
 This ticket adds about a quarter of a millisecond to it.
-The cost is the trees, which the open [#143](https://github.com/artsaraiva/clearway/issues/143) (draw trees instanced) takes on, before [#180](https://github.com/artsaraiva/clearway/issues/180) brings parks to the level of finish.
+The cost is the trees, which the open [#143](https://github.com/artsaraiva/clearway/issues/143) (draw trees instanced) takes on, before [#180](https://github.com/artsaraiva/clearway/issues/180) brings parks built to the Finish.

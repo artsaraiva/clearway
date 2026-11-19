@@ -2,7 +2,7 @@
 
 How to brief, build and close a visual-style Zone ticket of [#173](https://github.com/artsaraiva/clearway/issues/173). A brief to an implementer is this file, the ticket, and anything the ticket alone cannot say.
 
-The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md`) are in #173, which calls them the level of finish and Framed, Street and Close; the code and the scripts' flags still do. What each finished Zone builds is in `.scratch/visual-style/`.
+The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md`) are in #173. It and its open tickets keep the names they were written with: the level of finish for Finish, and Framed, Street and Close for City, Tile and Block zoom. The code, the scripts (`--views city,tile,block`) and the visual-style spec say the glossary's. What each finished Zone builds is in `.scratch/visual-style/`.
 
 ## Steps
 
@@ -19,7 +19,7 @@ The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md
 
 ## What the check asserts, and what stays with the sheet
 
-The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; scenes; something moves; pools; Close-only props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
+The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; scenes; something moves; pools; Block-zoom props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
 
 The sheet holds the look: walls and roofs that carry something on all four sides (rules 1 and 2, until [#198](https://github.com/artsaraiva/clearway/issues/198)), a Stage that reads at City zoom, a night signature of the Zone's own, whether Tool aids, Jam markers and anger marks still read over it (the readability sheet), and whether it is good. One sheet set, at the end.
 
@@ -34,16 +34,16 @@ Each line is a defect a review caught once.
 - **Movers that come and go** cross the kerb at a Road, clear of poles, lamps and street trees.
 - **Ask the kit before placing:** a piece stands only where `kit.unclaimed` says the ground is free of bays and door steps.
 - **Every lit thing near the ground** leaves a pool on the one instanced decal mesh.
-- **Small props are Close-only,** hidden at City zoom and during a reveal.
+- **Small props are Block-zoom props,** hidden at City zoom and during a reveal.
 - **Parked vehicles** come from the cars' skins and paints.
 - **Reuse the shared helpers** before writing one; one name for one thing.
 - **Colour:** nothing within 30° of the Tool blue or the Jam red-orange over 65% of its chroma. Lettering is bands and marks.
 
 ## Running it
 
-- **What you built, and where:** `npm run check:scene -- <zone> --counts` prints how many of each thing, scene, mover and pool each Stage built; `--where <kind>` prints where the first few of a kind stand, as `--close=x,y` points for `npm run shots`. No throwaway scripts against `buildReport`.
+- **What you built, and where:** `npm run check:scene -- <zone> --counts` prints how many of each thing, scene, mover and pool each Stage built; `--where <kind>` prints where the first few of a kind stand, as `--block=x,y` points for `npm run shots`. No throwaway scripts against `buildReport`.
 - **Sheets** land in `scripts/visual/out/`, which is ignored by git and survives a restart. The session's scratch folder does not.
-- **The approved sheets** are in this repo under `refs/screenshots/main`: `git fetch origin refs/screenshots/main:refs/screenshots/main`, then `git show refs/screenshots/main:.scratch/visual-style/pr-175/reference-noon-street.jpg > <file>`.
+- **The approved sheets** are in this repo under `refs/screenshots/main`, a folder for each PR (shops' in `.scratch/visual-style/pr-175`): `git fetch origin refs/screenshots/main:refs/screenshots/main`, then `git ls-tree -r --name-only refs/screenshots/main <folder>` lists them and `git show refs/screenshots/main:<path> > <file>` saves one. Sheets shot before #202 carry the old distances' names.
 - **Run a command and let it finish.** A background loop that waits on `pgrep` never ends.
 - **Commit early.** A restart loses uncommitted reading, not committed work.
 - **A fresh worktree** needs `npm install` and `npx husky`.

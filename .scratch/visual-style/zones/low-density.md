@@ -14,7 +14,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 - **Low-density details** ([#157](https://github.com/artsaraiva/clearway/issues/157), `src/render/zones/low-density.ts`), each house's drawn from where its lawn lies, so nothing else on its Block changes:
   - A house's front faces the nearest edge of its Block, with a door in its middle under a little canopy from Stage 1.
-    By the door stand a pot plant at Stage 1, two and the medium-density bicycle ([#156](https://github.com/artsaraiva/clearway/issues/156)) from Stage 2, standing along the wall, and a third pot in flower at Stage 3, true to size and seen only up close.
+    By the door stand a pot plant at Stage 1, two and the medium-density bicycle ([#156](https://github.com/artsaraiva/clearway/issues/156)) from Stage 2, standing along the wall, and a third pot in flower at Stage 3, true to size and seen only at Block zoom.
     At Stage 3 the hedge opens at the door.
   - Half the houses on a lawn 12.2 m or more across have a kei car: a small, tall car on the farm kei truck's chassis, its cabin dark glass under its roof, in one of the cars' colours and oversized as they are.
     It parks nose to the front on a concrete drive, from Stage 2 on three drives in five and from Stage 3 on the rest, and the hedge opens for it at Stage 3.
@@ -25,7 +25,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     A pole is up to 3.4 m long on stands 2.3 m tall, its pieces 0.55 to 0.78 m wide and hanging 0.75 to 1.15 m, oversized a little, each in a colour of its own.
     At Stage 3 the towers' futon ([#155](https://github.com/artsaraiva/clearway/issues/155)), 1.7 m wide, airs in the middle of nearly half of them in a pale cover, and the pieces it would touch come down.
   - Solar panels in two rows of cells cover about 60% of the slope the sun and the default camera see, the south one, or the east one where the ridge runs north–south, clear of a Stage 3 chimney: on one roof in five from Stage 2 and half of them at Stage 3.
-- **Low-density to the level of finish** ([#179](https://github.com/artsaraiva/clearway/issues/179), `house` with a plan in `src/render/zones/low-density.ts`, `src/render/pattern.ts`, `src/render/movers.ts`).
+- **Low-density built to the Finish** ([#179](https://github.com/artsaraiva/clearway/issues/179), `house` with a plan in `src/render/zones/low-density.ts`, `src/render/pattern.ts`, `src/render/movers.ts`).
   Each Block's plan is drawn from a stream of its own, so the kit's draws, and with them every lot's house, its colours and its Stage heights, are as before but for what the plan sets; a lot a scene takes still draws as it did.
   Shown in the sheets of `npm run shots -- low-density --times noon,night --run 30`, which the user approved on 2026-11-18:
   - Houses stand 1.6 m in from their lawn's edge and at most 10 m across (1.2 m and 10.5 m before), so that they no longer nearly touch at their corners and their gardens have room; every house on a lawn 12.2 m across or more stands aside for a side yard, a garden where it has no car or laundry.
@@ -33,10 +33,10 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     On the 26-Tile City the 505 houses stand under 265 gables, 75 turned gables, 80 hips and 85 Ls, and no two side by side share a form at any Stage.
   - Walls: lap siding and in every bay of about 2.6 m a framed window 0.9 m wide between louvred shutters in a deeper shade of the paint, on all four faces of every wing, a foundation along the foot and the shadow of the eaves along the top; the front's middle bay on the ground floor is siding alone where its bays are odd, behind the door.
     Windows light at night through the pattern's lit mask, on every face.
-  - Roofs in flat tiles, 0.5 m wide in rows 0.25 m deep in a running bond, each a shade of its own, under a darker ridge, their gable ends pale boards; a TV aerial on the ridge on 40%, 55% and 65% at Stages 1 to 3, Close-only; #157's solar panels on the sunny slope of each form, and Stage 3's chimney on the other.
+  - Roofs in flat tiles, 0.5 m wide in rows 0.25 m deep in a running bond, each a shade of its own, under a darker ridge, their gable ends pale boards; a TV aerial on the ridge on 40%, 55% and 65% at Stages 1 to 3, Block-zoom; #157's solar panels on the sunny slope of each form, and Stage 3's chimney on the other.
   - A porch roof over every door, a little gable in the roof's tiles on two brackets, and a porch light by the door that lights at dusk and leaves its pool on the stepping stones.
     At Stage 3 half the houses have a balcony along their front's upper storey instead, a slab behind a pale parapet under a steel rail, a futon over it on some, which shelters the door; and three in ten of the rest a dormer in the slope over the front (or the other, where the panels lie), its window lit at night.
-  - At the back, Close-only: an AC unit on the ground, a gas meter on the wall and a downpipe at a corner.
+  - At the back, Block-zoom: an AC unit on the ground, a gas meter on the wall and a downpipe at a corner.
   - Before every lawn, from Stage 1, a low wall of concrete blocks with a cap, open at a gate before the door between two posts, a letter box on one, and across the drive; stepping stones from the gate to the door, as far as the door stands at each Stage.
     A lot left to a tree and a scene's lot have the wall too, their gate in the middle.
   - From Stage 2: a flower border inside the wall along its longest stretch the step, the pots and the drive leave (230 houses on the 26-Tile City); a vegetable patch 2 m by 1 m where a yard has room (72); a steel shed, #178's, in a back corner on four houses in ten where one fits, facing the front or, in a side yard too narrow, the house (123); a carp streamer's pole, 11.5 m tall, flying a black, a rose and a teal carp, largest at the top, on 18% where a pole fits, as far downwind on the lawn as there is room (86); and a cat walking the top of the wall's longest run and back on 22%, sitting at each end a while (96).
@@ -46,11 +46,11 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   - The scenes, a list of five picked from where the Block lies: one from Stage 2, and a second of another kind at Stage 3 on a Block of 2,500 m² or more, each on a lot of its own whose lawn is wide enough for its kind and faces a Road, the second not beside the first.
     Each takes its lot whole before the houses are built, so the lots are the same at every Stage; on the 26-Tile City the scenes take 81 of `main`'s 586 house lots, about one in seven: the density they cost.
     Before its Stage a scene's lot is a lawn with a young tree behind its wall.
-    A koi pond: a pond with a rim of stones and koi in it (Close-only), a pine, and a stone lantern that lights at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
-    A paddling pool: an inflatable ring of water half under a striped sunshade on four poles that stand clear of it, two folding chairs in the shade (Close-only); at Stage 3 a float and a third chair.
-    A kennel: a low timber fence round three sides of a run, a kennel under a little gable with a shiba sitting before it and its bowl (Close-only), and a tree in the run; at Stage 3 a puppy.
-    A persimmon tree in fruit: a broad tree with its fruit orange among its leaves, a ladder against it, a basket of fruit and a bench in its shade (Close-only); at Stage 3 a rack of persimmons strung up to dry, and fruit fallen on the lawn.
-    A garden with a barbecue: a patio of setts under a pergola over 3 m tall hung with string lights, which light at dusk and leave their pool, a table and chairs (Close-only), and a stone barbecue whose flue smokes through the working day; at Stage 3 a second table.
+    A koi pond: a pond with a rim of stones and koi in it (Block-zoom), a pine, and a stone lantern that lights at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
+    A paddling pool: an inflatable ring of water half under a striped sunshade on four poles that stand clear of it, two folding chairs in the shade (Block-zoom); at Stage 3 a float and a third chair.
+    A kennel: a low timber fence round three sides of a run, a kennel under a little gable with a shiba sitting before it and its bowl (Block-zoom), and a tree in the run; at Stage 3 a puppy.
+    A persimmon tree in fruit: a broad tree with its fruit orange among its leaves, a ladder against it, a basket of fruit and a bench in its shade (Block-zoom); at Stage 3 a rack of persimmons strung up to dry, and fruit fallen on the lawn.
+    A garden with a barbecue: a patio of setts under a pergola over 3 m tall hung with string lights, which light at dusk and leave their pool, a table and chairs (Block-zoom), and a stone barbecue whose flue smokes through the working day; at Stage 3 a second table.
     On the 26-Tile City every Block has its scene from Stage 2 and each of 2,500 m² or more its second at Stage 3: 27 paddling pools, 22 persimmon trees, 17 barbecues, 16 koi ponds and 15 kennels.
   - Night: windows lit on every face of every house; a porch light at every door with its pool on the stepping stones, low-density's night signature, the lamps at the corners and the scenes' lanterns and string lights with theirs.
   - Departures and gaps, which the user accepted with the sheets on 2026-11-18: Stage 2 houses are one storey, so the upstairs balcony comes at Stage 3, as the menu's "balcony or dormer at Stage 3"; the houses are smaller than `main`'s (1.6 m from the lawn's edge, at most 10 m), so that the gardens have room; the scenes cost about one house lot in seven; and the trees that stood inside the houses' corners on `main` (808 overlaps at Stages 2 and 3) stand clear of them or are not planted.
@@ -59,7 +59,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ## Colours
 
-- **Low-density to the level of finish ([#179](https://github.com/artsaraiva/clearway/issues/179))**: houses in their walls and roofs of the palette (Palette, in the spec), the pattern's siding a board every 0.2 m or so, its shadow 19% darker and its top 6% lighter, shutters 33% darker with louvres, window frames, sills and gable boards `#fbf8f2`, the pattern's glass as the shops', a foundation 24% darker and the eaves' shadow 30%;
+- **Low-density built to the Finish ([#179](https://github.com/artsaraiva/clearway/issues/179))**: houses in their walls and roofs of the palette (Palette, in the spec), the pattern's siding a board every 0.2 m or so, its shadow 19% darker and its top 6% lighter, shutters 33% darker with louvres, window frames, sills and gable boards `#fbf8f2`, the pattern's glass as the shops', a foundation 24% darker and the eaves' shadow 30%;
   roofs' tiles each 9% darker to 6% lighter than the paint, the top of each row 30% darker, the ridge 22% darker;
   porch roofs in the roof's tiles on brackets `#fbf6ef`, porch lights the bulb's cream lit at 1.6 over a pool `#ffd49a` at 0.7 of a lamp's strength;
   balconies' parapets `#fbf6ef` under a rail `#9aa3ad`; dormers in the walls' paint, framed `#fbf8f2`; aerials `#8e979f`;
@@ -83,8 +83,8 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ## Frame time
 
-Low-density to the level of finish ([#179](https://github.com/artsaraiva/clearway/issues/179)), every Tile of the 26-Tile City low-density at Stage 3 with 1,000 cars, against `origin/main` (`ceed790`) over three interleaved rounds on an M4 Pro: at Framed with the Close-only props hidden 8.78 ms against 9.71 at noon (−0.93) and 8.65 against 9.84 at night (−1.19), for four more draw calls (the carp and the cats, each with its shadow) and 1.77 M fewer triangles (3.68 against 5.45 M);
-at Street on one Tile 6.77 against 7.14 at noon (−0.37) and 6.80 against 7.04 at night (−0.24), for up to six more draw calls and 0.88 M fewer triangles (2.76 against 3.64 M): within the 12 ms budget.
+Low-density built to the Finish ([#179](https://github.com/artsaraiva/clearway/issues/179)), every Tile of the 26-Tile City low-density at Stage 3 with 1,000 cars, against `origin/main` (`ceed790`) over three interleaved rounds on an M4 Pro: at City zoom with the Block-zoom props hidden 8.78 ms against 9.71 at noon (−0.93) and 8.65 against 9.84 at night (−1.19), for four more draw calls (the carp and the cats, each with its shadow) and 1.77 M fewer triangles (3.68 against 5.45 M);
+at Tile zoom on one Tile 6.77 against 7.14 at noon (−0.37) and 6.80 against 7.04 at night (−0.24), for up to six more draw calls and 0.88 M fewer triangles (2.76 against 3.64 M): within the 12 ms budget.
 The pattern costs no triangles; the trees low-density lays itself are drawn coarse, the glass bands are gone, and the gardens' walls, stones, beds, sheds, carports and scenes are plain boxes, so the static scenery is 1.97 M triangles at Stage 3 against 2.67 M on `main`, and the scene check's ceiling for the Zone comes down from 2.9 M to 2.2 M.
 Stage 1 builds one mesh fewer a Tile than `main`, as no house has glass before Stage 2.
 
@@ -93,9 +93,9 @@ A first cut swung its laundry in a shader of its own and cast its shadow, for fo
 
 ## Amended by [#179](https://github.com/artsaraiva/clearway/issues/179) (2026-11-18)
 
-Low-density residential is built to the ten rules of the level of finish of [#173](https://github.com/artsaraiva/clearway/issues/173), held to the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), the whole of its menu built; the user approved its sheets on 2026-11-18.
+Low-density residential is built to the ten rules of Finish of [#173](https://github.com/artsaraiva/clearway/issues/173), held to the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), the whole of its menu built; the user approved its sheets on 2026-11-18.
 A house wears lap siding with a shuttered window in every bay on every face, under flat tiles and a darker ridge, a foundation at its foot and the eaves' shadow at its top, which are surface pattern on the shared material; its roof is the gable it always had, or a gable turned across it, a hip or an L wherever a house beside it would otherwise be the same building in another colour.
-A porch roof and a porch light, its pool on the stepping stones, at every door; an aerial on some ridges; at Stage 3 a balcony along the front's upper storey or a dormer on some; and at the back an AC unit, a gas meter and a downpipe, Close-only.
+A porch roof and a porch light, its pool on the stepping stones, at every door; an aerial on some ridges; at Stage 3 a balcony along the front's upper storey or a dormer on some; and at the back an AC unit, a gas meter and a downpipe, Block-zoom.
 Houses stand further in from their lawn's edge, so that they no longer nearly touch, and every lawn has a low block wall along its front with gate posts and a letter box; flower borders, vegetable patches, sheds, carp streamers on tall poles and cats walking the wall tops come from Stage 2, and a carport over each kei wagon at Stage 3.
 Each Block holds a scene from Stage 2 (a koi pond, a paddling pool, a kennel with a dog, a persimmon tree in fruit or a barbecue under a pergola) on a lot of its own, and a second at Stage 3 on a Block of 2,500 m² or more.
 Other Zones' fills are unchanged.
