@@ -2,6 +2,12 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#218](https://github.com/artsaraiva/clearway/issues/218) (2026-11-19)
+
+The Kerbside's planters, bollards and benches keep 1.1 m off the ground a Zone claimed, read from the kit's claims rather than from a list each Zone keeps.
+Where a claim comes within about 2 m of the kerb, the pavement before it takes none, at every Stage: a medium-density apartment's corner or court, or an office plaza's piece that stands only from Stage 2 or 3.
+Other Zones' fills are unchanged.
+
 ## Amended by [#179](https://github.com/artsaraiva/clearway/issues/179) (2026-11-18)
 
 Low-density residential built to the Finish: [zones/low-density.md](zones/low-density.md).
@@ -316,6 +322,8 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   Every Block's pavement wears the paving joints of #174's pattern, which the scenery material's shader lays wherever a face looks up at the kerb's height in the pavement's colour, so that no build carries a pattern attribute for it (one on every build cost parks and green 0.6 ms at City zoom); and every Block's kerb, a roundabout's island's and a narrow Block's bike lane's too, its kerbstone line.
   Every Block but a roundabout's island takes the rest of the street furniture, an authored park's or plaza's and a bike lane's too, which a Tile City never builds.
   A Block's other furniture keeps off what its Zone built near its edge, read back from what the Zone's fill laid: each part that rises 6 cm over the pavement within 4 m of the edge, laid point by point on a grid of half-metre cells, low ground (a lawn, soil, a bed) where it lies and anything taller kept half a metre further off, and the loop of each mover that works the ground, as wide as it is.
+  Its planters, bollards and benches keep off the ground the Zone claimed as well, read from the kit's claims rather than a list of the Zone's own ([#218](https://github.com/artsaraiva/clearway/issues/218)): 1.1 m off what each piece stands on, and off the bays and door steps.
+  A shop claims the pavement before its front out to the kerb.
   It keeps off the utility poles too: a rail, a grate or a planter never stands at a pole's foot.
   Rails, mirrors, planters, bollards and benches are Block-zoom props (Rendering recipe, above).
   The user chose this on 2026-11-18 from a sheet of shops with the whole City in frame, the furniture hidden and shown: it changes the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), which drew them at every distance.

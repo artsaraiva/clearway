@@ -4,7 +4,6 @@ import { KERB, twiceArea, type Block } from '../blocks'
 import { inside, type Field } from '../field'
 import { to, type Kit } from '../kit'
 import { GROW } from '../landmarks'
-import type { Footprint } from '../kerbside'
 
 // What a Zone's look builds on, and how the Zones share to cut it up: lots split from the Block, rows of lots and runs
 // along its edge, and whether a footprint stands on it clear of what must stay free (`./index` has each Zone's look).
@@ -28,8 +27,6 @@ export interface ZoneGround {
   poles: Vec[]
   /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
   tileDraw: number
-  /** What the look stands near the Block's edge, which the street's furniture keeps off (`../kerbside`, #175). */
-  kept: Footprint[]
 }
 
 /** How a Zone builds on its Blocks. */
@@ -309,6 +306,7 @@ const YARD_TREE = 3
  */
 export function yards(g: ZoneGround, lots: RowLot[], count: number, coarse = false) {
   const { kit, block, field } = g
+  // The trees planted, held 6 m apart centre to centre: a circle, which their claims' squares cannot hold (#218).
   const planted: Vec[] = []
   for (let tries = 0; tries < count * 12 && planted.length < count; tries++) {
     const [x, y] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
