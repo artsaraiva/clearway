@@ -20,7 +20,7 @@ const TAU = Math.PI * 2
 // Farms: the trodden earth of a Block's headlands and its farmyard, a field's soil in two tones (worked pale, and
 // freshly tilled or fallow dark), the stubble of a cut field, the crops of its fields.
 const EARTH = '#d9c4a0'
-const SOIL = { pale: '#cdb08a', dark: '#b8966c', stubble: '#dcc88e' }
+const SOIL = { pale: '#cdb08a', dark: '#b8966c', stubble: '#dcc88e', cut: '#cfae58' }
 const FIELDS = ['#7bc35e', '#e3c76a', '#a6d36b', '#5aae58', '#d9b45c']
 // m between rows, a stretch of row and the gap between stretches; and the rows of a field. A stretch of crop row, here
 // and in an allotment, is a plain box: rounded, it costs twenty times the triangles, and a farm Tile has hundreds. Rows
@@ -71,7 +71,7 @@ const WRAPPED = '#eef1ee'
 const FRUIT_TREE = { trunk: '#a1714c', leaves: ['#6bc357', '#5fbc51', '#85cf61'], fruit: ['#f0b43c', '#e8925e', '#f6d36a'], grass: GRASS }
 const CROWN = new THREE.SphereGeometry(1, 8, 6)
 const FRUIT = new THREE.IcosahedronGeometry(1, 0)
-const RACK = { pole: WOOD.dark, sheaf: '#e3c76a', cut: '#cfae58' }
+const RACK = { pole: WOOD.dark, sheaf: '#d6ac4f', cut: '#b98f3f' }
 const SLUICE = { post: WOOD.dark, gate: '#8e979f' }
 // An orchard ladder, standing on y = 0 and leaning toward its front (-z): two rails and their rungs.
 const LADDER = mergeGeometries([
@@ -639,7 +639,7 @@ function farm(g: ZoneGround) {
           }
       } else if (kind === 'hay' || kind === 'racks') {
         for (const q of beds(rows)) lay(q, SOIL.stubble, PATTERN.soil)
-        sown(rows, 0.5, 0.1, kind === 'hay' ? STRAW : RACK.cut, length - 0.4, 0.05)
+        sown(rows, 0.5, 0.1, kind === 'hay' ? STRAW : SOIL.cut, length - 0.4, 0.05)
         ;(kind === 'hay' ? bales : racks)(stage, rows, own)
       } else if (kind === 'tilled') {
         // Freshly tilled: dark soil, bare at Stage 1 and then under low shoots a tractor straddles.

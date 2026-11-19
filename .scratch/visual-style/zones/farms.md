@@ -59,7 +59,7 @@ For the user to accept or drop with the images:
 - **Farms**: crops `#7bc35e` `#e3c76a` `#a6d36b` `#5aae58` `#d9b45c`, barns `#7e9aab` `#b85a4c` `#8aa58b` under `#5b6b7a`, silos `#e9eef2` with domes `#9aa7b2`, straw `#e8cf7f`
 - **Farms built to the Finish ([#184](https://github.com/artsaraiva/clearway/issues/184))**: trodden earth `#d9c4a0`, soil pale `#cdb08a` (the ploughed ground of before) and dark `#b8966c`, stubble `#dcc88e`, an orchard's grass `#b0df88`;
   the channel's concrete `#cfc8ba` (the barn's floor too) under the paddies' water, the sluice's posts `#a1714c` and gate `#8e979f`;
-  fruit trees' trunks `#a1714c`, leaves `#6bc357` `#5fbc51` `#85cf61` and fruit `#f0b43c` `#e8925e` `#f6d36a`; wrapped bales `#eef1ee`; racks' poles `#a1714c`, sheaves `#e3c76a` and cut ends `#cfae58`;
+  fruit trees' trunks `#a1714c`, leaves `#6bc357` `#5fbc51` `#85cf61` and fruit `#f0b43c` `#e8925e` `#f6d36a`; wrapped bales `#eef1ee`; racks' poles `#a1714c`, sheaves `#d6ac4f` under `#b98f3f`, and the cut rice's stubble rows `#cfae58`;
   the farmhouse's plaster `#f4ead2` `#efe6d6` `#e9dcc0` under tiles `#56636f` `#5f6a63` `#6b5f58`, its timber `#8a6446`, deck `#c49a6c`, door `#8a5a3c` and ledge `#fbf6ef`;
   the barn's door leaves `#f4f1ea` with rails `#9aa7b2`, its loft `#a1714c`; the well's stone `#d9d3c7`, roof `#6b5f58` and bucket `#8e979f`; the run's wire `#aab3ad`, its coop `#d8b98b` under `#8a5a3c`;
   the stand's timber `#c49a6c` `#a1714c` `#d8b98b` under a roof of the stalls' `#55705f` `#3f4a5e` `#8a5a3c`, its nobori `#7fbf9d` and `#f6d36a`, pumpkins `#f0b43c`, its honesty box cream `#fff4dc`;
