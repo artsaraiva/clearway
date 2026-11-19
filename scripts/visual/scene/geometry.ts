@@ -36,6 +36,12 @@ export function boxOf(pts: Pt[]): Box {
   return { x0, y0, x1, y1 }
 }
 
+/** The mean of some points: an outline's middle, near enough. */
+export const middle = (pts: Pt[]): Pt => ({
+  x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+  y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+})
+
 /** Whether two boxes overlap, or come within `pad` m of each other. */
 export const boxesMeet = (a: Box, b: Box, pad = 0) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad
 

@@ -161,10 +161,15 @@ export interface Roof {
   /** m² of it in sight from above, nothing over it: read only on a roof that wears no pattern, else all of it. */
   seen: number
   /**
-   * How many things stand on it short of another storey: roof kit, a parapet, a ridge, a chimney. Read only on a roof
-   * that wears no pattern.
+   * How many things it carries, standing on it inside its edge short of another storey: roof kit, a chimney, a tank,
+   * not a parapet or a ridge along its edge. Read only on a roof that wears no pattern.
    */
-  kit: number
+  carries: number
+  /**
+   * Whether something stands over its middle, so what is in sight is the ledge round a storey, a dome or a cap. Read
+   * only on a roof that wears no pattern.
+   */
+  round: boolean
 }
 
 /** A model of a vehicle: a car skin, a mover's model, a parked car's brick. */

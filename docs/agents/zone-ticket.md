@@ -19,9 +19,9 @@ The rules of Finish and the three zooms (City, Tile and Block zoom: `GLOSSARY.md
 
 ## What the check asserts, and what stays with the sheet
 
-The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; no blank wall and no bare roof, roughly; scenes; something moves; pools; Block-zoom props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
+The scene check holds the facts: everything on its Block and clear of bays, doors and each other; movers' paths; wheels; neighbours differ; no blank wall or blank roof, roughly; scenes; something moves; pools; Block-zoom props; the reserved colours; triangles and meshes under the Zone's ceiling; a Lot the same at every Stage.
 
-Since [#198](https://github.com/artsaraiva/clearway/issues/198) the check fails a stretch of wall over 4 m wide and a storey tall with no pattern and nothing on it, and a roof with no pattern and nothing standing on it (rules 1 and 2). It counts anything within 0.8 m of a wall, or standing on a roof short of a storey, so whether a wall or a roof looks finished stays with the sheet.
+Since [#198](https://github.com/artsaraiva/clearway/issues/198) the check fails a stretch of wall over 4 m wide and a storey tall with no pattern and nothing on it, and a roof with no pattern and nothing standing inside its edge (rules 1 and 2). It counts anything within 0.8 m of a wall, and anything inside a roof's edge short of a storey, so whether a wall or a roof looks finished stays with the sheet.
 
 The sheet holds the look: walls and roofs that look finished on all four sides, a Stage that reads at City zoom, a night signature of the Zone's own, whether Tool aids, Jam markers and anger marks still read over it (the readability sheet), and whether it is good. One sheet set, at the end.
 

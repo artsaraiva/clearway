@@ -314,15 +314,16 @@ describe('blank-wall', () => {
       y: 6.4 * Math.sin((i / 16) * 2 * Math.PI),
     }))
     const marks = [{ x0: 0, x1: 20, y0: 2.6, y1: 14.6 }]
-    expect(blankWalls(report(house, { walls: [wall(40, 2.6, 14.6, { foot, marks })] })).map((f) => [f.what, f.by])).toEqual([
-      ['townhouse has a blank wall facing south toward (0, -6)', '20.0 m by 12.0 m'],
+    const tower = [thing('tower', 0, 0, 12.8, 12.8, { tall: 12 })]
+    expect(blankWalls(report(tower, { walls: [wall(40, 2.6, 14.6, { foot, marks })] })).map((f) => [f.what, f.by])).toEqual([
+      ['tower has a blank wall facing south toward (0, -6)', '20.0 m by 12.0 m'],
     ])
   })
 })
 
-/** A roof of thing 0 over the box `w` by `d` round `(x, y)`, bare and all of it in sight unless told. */
+/** A roof of thing 0 over the box `w` by `d` round `(x, y)`, blank and all of it in sight unless told. */
 function roof(x: number, y: number, w: number, d: number, more: Partial<Roof> = {}): Roof {
-  return { tile: '0,0', block: 0, thing: 0, pattern: 0, hull: turnedBox(x, y, w, d, 0), seen: w * d, kit: 0, ...more }
+  return { tile: '0,0', block: 0, thing: 0, pattern: 0, hull: turnedBox(x, y, w, d, 0), seen: w * d, carries: 0, round: false, ...more }
 }
 
 describe('blank-roof', () => {
@@ -330,12 +331,18 @@ describe('blank-roof', () => {
 
   it('fails a roof with nothing on it, saying where it is', () => {
     expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6)] })).map((f) => [f.tile, f.block, f.what, f.by])).toEqual([
-      ['0,0', 0, 'townhouse has a bare roof toward (4, 6)', '48 m² in sight'],
+      ['0,0', 0, 'townhouse has a blank roof toward (4, 6)', '48 m² in sight'],
     ])
   })
 
   it('passes a roof with tile rows, or with a parapet or roof kit on it', () => {
-    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { pattern: 13 }), roof(4, 6, 8, 6, { kit: 1 })] }))).toEqual([])
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { pattern: 13 }), roof(4, 6, 8, 6, { carries: 1 })] }))).toEqual([])
+  })
+
+  it('says when what is blank is the ledge round what stands over its middle, as round a dome', () => {
+    expect(blankRoofs(report(house, { roofs: [roof(4, 6, 8, 6, { seen: 20, round: true })] })).map((f) => f.what)).toEqual([
+      'townhouse has a blank roof round what stands on it, toward (4, 6)',
+    ])
   })
 
   it('passes a roof all but hidden under the storey on it, as a podium under its tower is', () => {

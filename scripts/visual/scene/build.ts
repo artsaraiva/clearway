@@ -256,8 +256,9 @@ export function buildReport(ask: Ask): Report {
     const first = things.length
     const scenesFrom = scenes.length
     for (const s of built.scenes ?? []) scenes.push({ kind: s.kind, tile: '', block, things: [] })
-    const parts = built.bricks.map(() => [] as { geo: THREE.BufferGeometry; material: string }[])
-    for (const p of built.parts) parts[p.brick].push({ geo: p.geometry, material: materialName(materials, p.material) })
+    const named = built.parts.map((p) => ({ geo: p.geometry, material: materialName(materials, p.material), brick: p.brick }))
+    const parts = built.bricks.map(() => [] as typeof named)
+    for (const p of named) parts[p.brick].push(p)
     built.bricks.forEach((b, i) => {
       const [method, fill] = (b.what ?? '|').split('|')
       const base = b.at.y
@@ -341,13 +342,10 @@ export function buildReport(ask: Ask): Report {
       }
     })
     // The buildings' walls and roofs (rules 1 and 2), each on its building's thing.
-    const faces = facesOf(
-      built.parts.map((p) => ({ geo: p.geometry, material: materialName(materials, p.material), brick: p.brick })),
-      (i) => built.bricks[i]?.kind === 'building',
-      (i) => built.bricks[i].at.y,
-    )
-    for (const { brick, ...face } of faces.walls) walls.push({ tile: things[first + brick].tile, block, thing: first + brick, ...face })
-    for (const { brick, ...face } of faces.roofs) roofs.push({ tile: things[first + brick].tile, block, thing: first + brick, ...face })
+    const faces = facesOf(named, built.bricks)
+    const on = (brick: number) => ({ tile: things[first + brick].tile, block, thing: first + brick })
+    for (const { brick, ...face } of faces.walls) walls.push({ ...on(brick), ...face })
+    for (const { brick, ...face } of faces.roofs) roofs.push({ ...on(brick), ...face })
     for (const p of built.pools) {
       if (things[first + p.brick]) things[first + p.brick].pools++
       pools.push({ x: p.at.x, y: -p.at.z, r: Math.max(p.w, p.d) / 2 })
