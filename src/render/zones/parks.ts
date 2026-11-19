@@ -18,6 +18,7 @@ import {
   runs,
   stands,
   turned,
+  waysIn,
   winding,
   type Look,
   type RowLot,
@@ -759,27 +760,8 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
       return last || kit.unclaimed(q.x, q.y, 0, 0, 0, PARK.path.wide / 2 + 0.3)
     })
   const out: Vec[][] = []
-  const boxCorners = [
-    { x: block.x0, y: block.y0 },
-    { x: block.x1, y: block.y0 },
-    { x: block.x1, y: block.y1 },
-    { x: block.x0, y: block.y1 },
-  ]
-  const start = Math.floor(draw() * 4)
-  for (let k = 0; k < 4 && out.length < most; k++) {
-    const c = boxCorners[(start + k) % 4]
-    // Walk in from the corner of the Block's box to the lawn.
-    const [ux, uy] = [mid.x - c.x, mid.y - c.y]
-    const len = Math.hypot(ux, uy)
-    let e: Vec | null = null
-    for (let t = 0; t < len * 0.6; t += 0.5) {
-      const q = { x: c.x + (ux / len) * t, y: c.y + (uy / len) * t }
-      if (field.sample(q.x, q.y) >= 2.1 && inside(block.loop, q.x, q.y)) {
-        e = q
-        break
-      }
-    }
-    if (!e) continue
+  for (const e of waysIn(g, Math.floor(draw() * 4))) {
+    if (out.length >= most) break
     const strays = (draw() < 0.5 ? -1 : 1) * PARK.path.strays
     const waves = draw() < 0.6 ? 1 : 2
     const path = [strays, 0].map((a) => winding(e, rim(e), a, waves, PARK.path.step)).find((pts) => keeps(pts, 2.6))

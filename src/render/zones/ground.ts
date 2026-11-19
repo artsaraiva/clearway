@@ -396,3 +396,31 @@ export function aside(pts: Vec[], off: number): Vec[] {
     return { x: p.x - ((r.y - q.y) / len) * off, y: p.y + ((r.x - q.x) / len) * off }
   })
 }
+
+/**
+ * Where a path comes in to a Block's ground from each corner of its bounding box, in order round from corner `first`:
+ * the first point on the way to the Block's middle that lies on it 2.1 m in from its edge, as a lawn begins; none for a
+ * corner with no such point in the first 0.6 of the way.
+ */
+export function waysIn({ field, block }: Pick<ZoneGround, 'field' | 'block'>, first: number): Vec[] {
+  const mid = middle(block)
+  const boxCorners = [
+    { x: block.x0, y: block.y0 },
+    { x: block.x1, y: block.y0 },
+    { x: block.x1, y: block.y1 },
+    { x: block.x0, y: block.y1 },
+  ]
+  const out: Vec[] = []
+  for (let k = 0; k < 4; k++) {
+    const c = boxCorners[(first + k) % 4]
+    const [ux, uy] = [mid.x - c.x, mid.y - c.y]
+    const len = Math.hypot(ux, uy)
+    for (let t = 0; t < len * 0.6; t += 0.5) {
+      const q = { x: c.x + (ux / len) * t, y: c.y + (uy / len) * t }
+      if (field.sample(q.x, q.y) < 2.1 || !inside(block.loop, q.x, q.y)) continue
+      out.push(q)
+      break
+    }
+  }
+  return out
+}

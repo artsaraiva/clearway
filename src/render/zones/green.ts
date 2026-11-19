@@ -9,7 +9,20 @@ import { clearOf, GROW, overlay, scatter, site } from '../landmarks'
 import { PATTERN } from '../pattern'
 import { GLOWS, pavilionLantern, WOOD } from '../props'
 import { ribbons } from '../ribbons'
-import { aside, borderLengths, corners, near, nearPath, runs, stands, winding, type Look, type RowLot, type ZoneGround } from './ground'
+import {
+  aside,
+  borderLengths,
+  corners,
+  near,
+  nearPath,
+  runs,
+  stands,
+  waysIn,
+  winding,
+  type Look,
+  type RowLot,
+  type ZoneGround,
+} from './ground'
 import { facesRoad, placeScenes, sceneOrder, type Scene } from './scenes'
 
 // Green: a meadow, or one Block in three allotments.
@@ -32,9 +45,9 @@ const [EARTH, SOIL, SHED, SHED_ROOF] = ['#d9c39c', '#a77f5a', '#c49a6c', '#5aa69
  * Green to the Finish (#182). A meadow's: its worn path, the rise a kite is flown from, the leaves of a bed's rows, tall
  * grass and its seed heads, a stream's banks, logs, and beehives under their lids. A tent's canvases and its door; a
  * camp fire's stones and embers; what people wear, their skin and their hats. An allotments' fence, compost, a
- * wheelbarrow, a hose, and a glasshouse's frame and panes.
+ * wheelbarrow, and a hose; a glasshouse is framed and glazed as the cold frames are (`FRAME`).
  */
-const FINISH = {
+const PAINT = {
   dirt: '#cdb489',
   rise: '#c6e9a2',
   rows: '#5aae58',
@@ -55,13 +68,11 @@ const FINISH = {
   veil: '#fbf8f2',
   kites: ['#f6d36a', '#ffadc8', '#c7b8f0', '#7fbf9d', '#fbf8f2'],
   coats: ['#fbf8f2', '#c49a6c', '#4a525c', '#e8cf7f'],
-  fence: '#c49a6c',
-  post: '#a1714c',
+  fence: SHED,
+  post: WOOD.dark,
   compost: '#6b5137',
   barrow: '#6f8f80',
-  hose: '#5aa69b',
-  frame: '#f4f1ea',
-  panes: '#d6ece6',
+  hose: SHED_ROOF,
 }
 /** m² of Block from which green has a second scene at Stage 3 (#173's rule 5), and how far apart its scenes stand (m). */
 const SCENES = { second: 2500, apart: 16 }
@@ -120,6 +131,9 @@ interface Tree {
   k: number
   seed: number
 }
+
+/** A patch of flowers a butterfly works, a bed or a plot: where it lies and how big it is. */
+type Patch = Pick<Bed, 'p' | 'w' | 'd'>
 
 /** A bed of flowers on a meadow: where it lies, how big it is and its colour. */
 interface Bed {
@@ -248,7 +262,7 @@ function meadow(g: ZoneGround) {
   if (stream) {
     kit.from(1, () => streamBed(kit, stream, ground), spot(stream[0].x, stream[0].y))
     // A plank bridge where each path crosses, or over the stream's middle where none does.
-    const over = paths.map((path) => crossings(path, stream)[0]).filter((c) => !!c)
+    const over = paths.map((path) => fords(path, stream)[0]).filter((c) => !!c)
     const at = Math.floor(stream.length / 2)
     const [a, b] = [stream[at - 1], stream[at + 1]]
     for (const c of over.length ? over : [{ ...stream[at], ry: Math.atan2(b.y - a.y, b.x - a.x) }]) {
@@ -353,7 +367,7 @@ interface Laid {
 }
 
 /** Where path `path` crosses the line `over` (#182), in order along it, each with the turn of a front that looks along the path there. */
-function crossings(path: Vec[], over: Vec[]): { x: number; y: number; ry: number }[] {
+function fords(path: Vec[], over: Vec[]): { x: number; y: number; ry: number }[] {
   const out: { x: number; y: number; ry: number }[] = []
   for (let i = 0; i + 1 < path.length; i++) {
     const [p, r] = [path[i], { x: path[i + 1].x - path[i].x, y: path[i + 1].y - path[i].y }]
@@ -384,7 +398,7 @@ function meadowPaths(g: ZoneGround, draw: () => number, { trees, beds, more, pav
   const targets: (RowLot | Vec)[] = [...scenes.map((s) => s.ground), ...(pavilion ? [pavilion] : []), mid]
   /** Whether a path along `pts` to `target` keeps to the grass and off what stands, past its first 2.4 m. */
   const keeps = (pts: Vec[], target: RowLot | Vec) => {
-    if (stream && (crossings(pts, stream).length > 1 || pts.filter((q) => nearPath(stream, q.x, q.y, SHORE)).length > 4)) return false
+    if (stream && (fords(pts, stream).length > 1 || pts.filter((q) => nearPath(stream, q.x, q.y, SHORE)).length > 4)) return false
     return pts.every((q, i) => {
       if (i * PATH.step < 2.4) return true
       if (field.sample(q.x, q.y) < 2 + room || !inside(block.loop, q.x, q.y)) return false
@@ -393,24 +407,9 @@ function meadowPaths(g: ZoneGround, draw: () => number, { trees, beds, more, pav
     })
   }
   const out: Vec[][] = []
-  const boxCorners = [
-    { x: block.x0, y: block.y0 },
-    { x: block.x1, y: block.y0 },
-    { x: block.x1, y: block.y1 },
-    { x: block.x0, y: block.y1 },
-  ]
-  const start = Math.floor(draw() * 4)
   const most = area(block.loop) < PATH.two ? 1 : 2
-  for (let k = 0; k < 4 && out.length < most; k++) {
-    const c = boxCorners[(start + k) % 4]
-    // Walk in from the corner of the Block's box to the grass.
-    const len = Math.hypot(mid.x - c.x, mid.y - c.y)
-    let e: Vec | null = null
-    for (let t = 0; t < len * 0.6 && !e; t += 0.5) {
-      const q = { x: c.x + ((mid.x - c.x) / len) * t, y: c.y + ((mid.y - c.y) / len) * t }
-      if (field.sample(q.x, q.y) >= 2.1 && inside(block.loop, q.x, q.y)) e = q
-    }
-    if (!e) continue
+  for (const e of waysIn(g, Math.floor(draw() * 4))) {
+    if (out.length >= most) break
     const target = targets[Math.min(out.length, targets.length - 1)]
     // To the edge of a scene's ground or the pavilion's floor, on the side it comes from.
     const far = Math.hypot(target.x - e.x, target.y - e.y)
@@ -498,16 +497,16 @@ function meadowDetails(
     kit.lot(lot++)
     kit.from(1, () => logPile(kit, logs.x, logs.y, ground, logs.a), spot(logs.x, logs.y))
   }
-  const apiary = by(groves[groves.length - 1] ?? middle(block), Math.PI / 4)
-  if (apiary) {
-    taken.push(apiary)
-    kit.stand(apiary.x, apiary.y, 3.2, 0.9, apiary.a - Math.PI / 2, 2)
+  const beeYard = by(groves[groves.length - 1] ?? middle(block), Math.PI / 4)
+  if (beeYard) {
+    taken.push(beeYard)
+    kit.stand(beeYard.x, beeYard.y, 3.2, 0.9, beeYard.a - Math.PI / 2, 2)
     kit.lot(lot++)
     kit.staged(
       (stage) => {
-        if (stage > 1) hives(kit, apiary.x, apiary.y, ground, apiary.a - Math.PI / 2, stage)
+        if (stage > 1) hives(kit, beeYard.x, beeYard.y, ground, beeYard.a - Math.PI / 2, stage)
       },
-      spot(apiary.x, apiary.y),
+      spot(beeYard.x, beeYard.y),
     )
   }
   // Tufts of tall grass, from Stage 1: along the meadow's edges, and either side of its stream.
@@ -648,7 +647,7 @@ function dogRun(blankets: Vec[], draw: () => number, ok: (q: Vec) => boolean) {
   }
   const loop = polyline([...pts, ...pts.slice(0, -1).reverse()])
   const stops = at.map((i) => loop.cum[i])
-  return { loop, stops, waits: stops.map(() => 4 + draw() * 7), paint: FINISH.coats[Math.floor(draw() * FINISH.coats.length)] }
+  return { loop, stops, waits: stops.map(() => 4 + draw() * 7), paint: PAINT.coats[Math.floor(draw() * PAINT.coats.length)] }
 }
 
 /**
@@ -656,7 +655,7 @@ function dogRun(blankets: Vec[], draw: () => number, ok: (q: Vec) => boolean) {
  * either side of its way, and back to `first`; it alights on each bed, somewhere on it, and rests there a while. On one
  * bed alone, it flies out over the grass and back.
  */
-function flutter(beds: Bed[], first: Bed, draw: () => number): { loop: Polyline; stops: number[]; waits: number[]; paint: string } {
+function flutter(beds: Patch[], first: Patch, draw: () => number): { loop: Polyline; stops: number[]; waits: number[]; paint: string } {
   const order = [first]
   while (order.length < beds.length) {
     const at = order[order.length - 1].p
@@ -836,7 +835,7 @@ function allotments(g: ZoneGround) {
   // those in flower, or of the crops where none is.
   const grown = plots.filter((p) => !given.has(p) && p.roll >= 0.14 && p.roll < 0.86)
   const flowers = grown.filter((p) => p.roll >= 0.64)
-  const over = (flowers.length ? flowers : grown).map((p): Bed => ({ p: { x: p.x, y: p.y }, w: w - 0.9, d: d - 1.4, colour: '' }))
+  const over = (flowers.length ? flowers : grown).map((p): Patch => ({ p: { x: p.x, y: p.y }, w: w - 0.9, d: d - 1.4 }))
   for (let k = 0; k < Math.min(over.length, over.length >= 7 ? 2 : 1); k++) {
     const from = over[(k * 3) % over.length]
     const tour = over
@@ -897,11 +896,11 @@ function fence(g: ZoneGround, h: number, draw: () => number): Vec | null {
       kit.stand(x, y, FENCE.gate + 0.4, 0.5, run.ry)
       kit.staged(
         (stage) => {
-          for (const side of [-1, 1]) kit.add(kit.cuboid(0.18, 1.7, 0.18), FINISH.post, ...at(half + (side * FENCE.gate) / 2), h, turn)
+          for (const side of [-1, 1]) kit.add(kit.cuboid(0.18, 1.7, 0.18), PAINT.post, ...at(half + (side * FENCE.gate) / 2), h, turn)
           const hinge = at(half - FENCE.gate / 2 + 0.1)
-          kit.add(kit.cuboid(1.1, 0.8, 0.06).clone().translate(0.55, 0, 0), FINISH.fence, ...hinge, h + 0.15, turn + 0.7)
+          kit.add(kit.cuboid(1.1, 0.8, 0.06).clone().translate(0.55, 0, 0), PAINT.fence, ...hinge, h + 0.15, turn + 0.7)
           if (stage > 1) {
-            kit.add(kit.cuboid(FENCE.gate + 0.5, 0.12, 0.14), FINISH.post, ...at(half), h + 1.7, turn)
+            kit.add(kit.cuboid(FENCE.gate + 0.5, 0.12, 0.14), PAINT.post, ...at(half), h + 1.7, turn)
             const lamp = at(half + FENCE.gate / 2)
             kit.add(kit.cuboid(0.28, 0.32, 0.28), kit.lit(CREAM, GLOWS.low), ...lamp, h + 1.82)
             kit.pool('cream', ...lamp, h, 3.4, 3.4)
@@ -927,9 +926,9 @@ function fence(g: ZoneGround, h: number, draw: () => number): Vec | null {
       (stage) => {
         for (const [a, b] of lengths) {
           for (const lift of stage === 1 ? [0.7] : [0.4, 0.8])
-            kit.add(kit.cuboid(1, 0.09, 0.06), FINISH.fence, ...at((a + b) / 2), h + lift, turn, b - a)
+            kit.add(kit.cuboid(1, 0.09, 0.06), PAINT.fence, ...at((a + b) / 2), h + lift, turn, b - a)
           const n = Math.max(1, Math.round((b - a) / 2))
-          for (let k = 0; k <= n; k++) kit.add(kit.cuboid(0.13, FENCE.tall, 0.13), FINISH.post, ...at(a + ((b - a) * k) / n), h, turn)
+          for (let k = 0; k <= n; k++) kit.add(kit.cuboid(0.13, FENCE.tall, 0.13), PAINT.post, ...at(a + ((b - a) * k) / n), h, turn)
         }
         kit.brick('building', ...start, h)
       },
@@ -1016,7 +1015,7 @@ function bed(kit: Kit, { p, w, d, colour }: Bed, h: number) {
   const rows = Math.max(2, Math.round(d / 0.7))
   for (let r = 0; r < rows; r++) {
     const y = p.y - d / 2 + ((r + 0.5) * d) / rows
-    kit.add(kit.cuboid(1, 0.3, 0.34), FINISH.rows, p.x, y, h + 0.14, 0, w - 0.5)
+    kit.add(kit.cuboid(1, 0.3, 0.34), PAINT.rows, p.x, y, h + 0.14, 0, w - 0.5)
     for (let x = p.x - w / 2 + 0.5 + (r % 2) * 0.22; x < p.x + w / 2 - 0.4; x += 0.48)
       kit.add(FLOWER, r % 3 === 1 ? BEDS[3] : colour, x, y + (draw() - 0.5) * 0.1, h + 0.46, draw() * TAU)
   }
@@ -1025,11 +1024,11 @@ function bed(kit: Kit, { p, w, d, colour }: Bed, h: number) {
 
 /** A meadow's stream along its middle line `pts` (#182), on the grass `h` up, as one brick: its banks, and its water over them. */
 function streamBed(kit: Kit, pts: Vec[], h: number) {
-  kit.push(ribbons([pts], 2 * SHORE, h + 0.02), FINISH.bank)
+  kit.push(ribbons([pts], 2 * SHORE, h + 0.02), PAINT.bank)
   kit.push(ribbons([pts], STREAM.wide, h + 0.035), kit.water)
   // A round pool at each end, where it rises and where it sinks away.
   for (const p of [pts[0], pts[pts.length - 1]]) {
-    kit.drum(FINISH.bank, p.x, p.y, h, SHORE + 0.5, SHORE + 0.5, 0.02)
+    kit.drum(PAINT.bank, p.x, p.y, h, SHORE + 0.5, SHORE + 0.5, 0.02)
     kit.drum(kit.water, p.x, p.y, h, SHORE + 0.15, SHORE + 0.15, 0.035)
   }
   kit.brick('ground', pts[0].x, pts[0].y, h)
@@ -1037,7 +1036,7 @@ function streamBed(kit: Kit, pts: Vec[], h: number) {
 
 /** A meadow's worn path along its middle line `pts` (#182), on the grass `h` up, as one brick: trodden earth. */
 function dirtPath(kit: Kit, pts: Vec[], h: number) {
-  kit.laid(ribbons([pts], PATH.wide, h + 0.012), FINISH.dirt, PATTERN.gravel)
+  kit.laid(ribbons([pts], PATH.wide, h + 0.012), PAINT.dirt, PATTERN.gravel)
   kit.brick('ground', pts[0].x, pts[0].y, h)
 }
 
@@ -1059,8 +1058,8 @@ function tufts(kit: Kit, spots: Vec[], h: number) {
       for (let i = 0; i < 4; i++) {
         const [a, r, tall] = [draw() * TAU, draw() * 0.3, 0.6 + draw() * 0.5]
         const [bx, by] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
-        kit.add(SHAPES.cone, FINISH.tufts[i % 3], bx, by, h, 0, 0.11, tall, 0.11)
-        if (!i) kit.add(SHAPES.thin, FINISH.heads, bx, by, h + tall * 0.7, 0, 0.05, 0.3, 0.05)
+        kit.add(SHAPES.cone, PAINT.tufts[i % 3], bx, by, h, 0, 0.11, tall, 0.11)
+        if (!i) kit.add(SHAPES.thin, PAINT.heads, bx, by, h + tall * 0.7, 0, 0.05, 0.3, 0.05)
       }
     }
     kit.brick('tree', spots[0].x, spots[0].y, h)
@@ -1074,9 +1073,7 @@ const LOG = new THREE.CylinderGeometry(0.17, 0.17, 1.5, 7).rotateZ(Math.PI / 2).
 function logPile(kit: Kit, x: number, y: number, h: number, ry: number) {
   kit.blockZoomProps(() => {
     const rows = [[-0.36, 0, 0.36], [-0.18, 0.18], [0]]
-    rows.forEach((row, j) =>
-      row.forEach((out, i) => kit.put(LOG, FINISH.logs[(i + j) % FINISH.logs.length], x, y, ry, 0, out, h + j * 0.3)),
-    )
+    rows.forEach((row, j) => row.forEach((out, i) => kit.put(LOG, PAINT.logs[(i + j) % PAINT.logs.length], x, y, ry, 0, out, h + j * 0.3)))
     kit.shadow(x, y, h, 2.2, 1.8, true)
     kit.brick('building', x, y, h)
   })
@@ -1084,11 +1081,10 @@ function logPile(kit: Kit, x: number, y: number, h: number, ry: number) {
 
 /** A beehive at `(x, y)` facing `ry`, `h` up (#182): boxes in pale paints, the `k`-th of its row, under a lid, on a stand if `stood`. */
 function hive(kit: Kit, x: number, y: number, h: number, ry: number, k: number, stood = true) {
-  if (stood) kit.add(kit.cuboid(0.5, 0.22, 0.5), FINISH.post, x, y, h, ry)
+  if (stood) kit.add(kit.cuboid(0.5, 0.22, 0.5), PAINT.post, x, y, h, ry)
   const [base, boxes] = [h + (stood ? 0.22 : 0), 2 + (k % 2)]
-  for (let j = 0; j < boxes; j++)
-    kit.add(kit.cuboid(0.56, 0.3, 0.56), FINISH.hives[(k + j) % FINISH.hives.length], x, y, base + j * 0.31, ry)
-  kit.add(kit.cuboid(0.66, 0.08, 0.66), FINISH.lid, x, y, base + boxes * 0.31, ry)
+  for (let j = 0; j < boxes; j++) kit.add(kit.cuboid(0.56, 0.3, 0.56), PAINT.hives[(k + j) % PAINT.hives.length], x, y, base + j * 0.31, ry)
+  kit.add(kit.cuboid(0.66, 0.08, 0.66), PAINT.lid, x, y, base + boxes * 0.31, ry)
 }
 
 /** Beehives in a row at `(x, y)` along `ry`'s right (#182), as one brick of Block-zoom props: two, and a third at Stage 3. */
@@ -1105,12 +1101,12 @@ function hives(kit: Kit, x: number, y: number, h: number, ry: number, stage: num
  * 1): legs, a shirt in `shirt`, a head, and a straw hat if `hat`.
  */
 function person(kit: Kit, x: number, y: number, h: number, ry: number, shirt: string, hat = true, s = 1) {
-  kit.add(kit.cuboid(0.34, 0.8, 0.26), FINISH.legs, x, y, h, ry, s, s, s)
+  kit.add(kit.cuboid(0.34, 0.8, 0.26), PAINT.legs, x, y, h, ry, s, s, s)
   kit.add(kit.cuboid(0.46, 0.62, 0.3), shirt, x, y, h + 0.8 * s, ry, s, s, s)
-  kit.add(SHAPES.sphere, FINISH.skin, x, y, h + 1.62 * s, 0, 0.19 * s, 0.2 * s, 0.19 * s)
+  kit.add(SHAPES.sphere, PAINT.skin, x, y, h + 1.62 * s, 0, 0.19 * s, 0.2 * s, 0.19 * s)
   if (!hat) return
-  kit.add(SHAPES.cylinder, FINISH.straw, x, y, h + 1.74 * s, 0, 0.36 * s, 0.04 * s, 0.36 * s)
-  kit.add(SHAPES.cone, FINISH.straw, x, y, h + 1.76 * s, 0, 0.2 * s, 0.2 * s, 0.2 * s)
+  kit.add(SHAPES.cylinder, PAINT.straw, x, y, h + 1.74 * s, 0, 0.36 * s, 0.04 * s, 0.36 * s)
+  kit.add(SHAPES.cone, PAINT.straw, x, y, h + 1.76 * s, 0, 0.2 * s, 0.2 * s, 0.2 * s)
 }
 
 /**
@@ -1122,7 +1118,7 @@ function kiteRise(kit: Kit, l: RowLot, stage: number, h: number) {
   const draw = mulberry32(spot(l.x, l.y) ^ 0x417e)
   const pick = (from: string[]) => from[Math.floor(draw() * from.length)]
   const [r, tall] = [Math.min(l.w, l.d) / 2 - 0.3, 1.1]
-  kit.add(SHAPES.sphere, FINISH.rise, l.x, l.y, h - 0.04, 0, r, tall, r)
+  kit.add(SHAPES.sphere, PAINT.rise, l.x, l.y, h - 0.04, 0, r, tall, r)
   const ry = Math.atan2(-WIND.x, WIND.y) // a front that looks downwind
   const flyers = [
     [0, 0, 1],
@@ -1131,9 +1127,9 @@ function kiteRise(kit: Kit, l: RowLot, stage: number, h: number) {
   for (const [k, [lx, ly, s]] of flyers.entries()) {
     const [x, y] = to(l.x, l.y, ry, lx, ly)
     const up = h - 0.08 + tall * Math.sqrt(1 - (lx * lx + ly * ly) / (r * r))
-    person(kit, x, y, up, ry, pick(FINISH.shirts), !k, s)
+    person(kit, x, y, up, ry, pick(PAINT.shirts), !k, s)
     kit.sway('kite', ...to(x, y, ry, 0.3 * s, 0.2), up + 1.45 * s, ry, {
-      paint: pick(FINISH.kites),
+      paint: pick(PAINT.kites),
       ...(k && { size: [0.7, 0.7] as [number, number] }),
     })
   }
@@ -1148,35 +1144,35 @@ function kiteRise(kit: Kit, l: RowLot, stage: number, h: number) {
  */
 function campsite(kit: Kit, l: RowLot, stage: number, h: number) {
   const draw = mulberry32(spot(l.x, l.y) ^ 0xca4b)
-  const first = Math.floor(draw() * FINISH.tents.length)
+  const first = Math.floor(draw() * PAINT.tents.length)
   const tent = (lx: number, ly: number, long: number, wide: number, tall: number, colour: string, turn: number) => {
     const [x, y] = to(l.x, l.y, l.ry, lx, ly)
     const ry = l.ry + turn
-    kit.add(kit.cuboid(wide + 0.3, 0.05, long + 0.3), FINISH.door, x, y, h, ry)
+    kit.add(kit.cuboid(wide + 0.3, 0.05, long + 0.3), PAINT.door, x, y, h, ry)
     kit.add(kit.gable(long, wide, tall), kit.lit(colour, GLOWS.band), x, y, h + 0.05, ry)
-    kit.put(kit.cuboid(wide * 0.3, tall * 0.7, 0.05), FINISH.door, x, y, ry, 0, long / 2 + 0.13, h + 0.05)
-    kit.add(kit.cuboid(0.1, 0.06, long + 0.4), FINISH.door, x, y, h + tall + 0.1, ry)
+    kit.put(kit.cuboid(wide * 0.3, tall * 0.7, 0.05), PAINT.door, x, y, ry, 0, long / 2 + 0.13, h + 0.05)
+    kit.add(kit.cuboid(0.1, 0.06, long + 0.4), PAINT.door, x, y, h + tall + 0.1, ry)
     kit.pool('cream', x, y, h, wide + 2.6, long + 2.6, ry)
   }
-  tent(-(l.w / 2 - 1.9), -(l.d / 2 - 2.6), 4.5, 2.9, 1.9, FINISH.tents[first], 0)
-  if (stage === 3) tent(l.w / 2 - 1.5, -(l.d / 2 - 1.7), 2.6, 1.9, 1.25, FINISH.tents[(first + 1) % FINISH.tents.length], 0.4)
+  tent(-(l.w / 2 - 1.9), -(l.d / 2 - 2.6), 4.5, 2.9, 1.9, PAINT.tents[first], 0)
+  if (stage === 3) tent(l.w / 2 - 1.5, -(l.d / 2 - 1.7), 2.6, 1.9, 1.25, PAINT.tents[(first + 1) % PAINT.tents.length], 0.4)
   const [fx, fy] = to(l.x, l.y, l.ry, l.w / 2 - 1.8, l.d / 2 - 1.9)
-  kit.add(SHAPES.cylinder, FINISH.stones, fx, fy, h, 0, 0.55, 0.16, 0.55)
-  kit.add(SHAPES.cone, kit.lit(FINISH.ember, GLOWS.low), fx, fy, h + 0.12, 0, 0.3, 0.42, 0.3)
+  kit.add(SHAPES.cylinder, PAINT.stones, fx, fy, h, 0, 0.55, 0.16, 0.55)
+  kit.add(SHAPES.cone, kit.lit(PAINT.ember, GLOWS.low), fx, fy, h + 0.12, 0, 0.3, 0.42, 0.3)
   kit.pool('amber', fx, fy, h, 3.4, 3.4)
   kit.steam(fx, fy, h + 0.6)
-  kit.put(kit.cuboid(1.3, 0.34, 0.36), FINISH.logs[0], l.x, l.y, l.ry, l.w / 2 - 1.8, l.d / 2 - 0.6, h)
-  person(kit, ...to(l.x, l.y, l.ry, l.w / 2 - 3, l.d / 2 - 1.5), h, l.ry - Math.PI / 2, FINISH.shirts[first], false)
+  kit.put(kit.cuboid(1.3, 0.34, 0.36), PAINT.logs[0], l.x, l.y, l.ry, l.w / 2 - 1.8, l.d / 2 - 0.6, h)
+  person(kit, ...to(l.x, l.y, l.ry, l.w / 2 - 3, l.d / 2 - 1.5), h, l.ry - Math.PI / 2, PAINT.shirts[first], false)
   kit.shadow(...to(l.x, l.y, l.ry, -(l.w / 2 - 1.9), -(l.d / 2 - 2.6)), h, 4.2, 5.6, true)
   kit.brick('tree', l.x, l.y, h)
 }
 
 /** A wheelbarrow at `(x, y)` facing `ry`, `h` up (#182), in the brick being built: a tray on a wheel and two legs, its handles behind. */
 function wheelbarrow(kit: Kit, x: number, y: number, h: number, ry: number) {
-  kit.put(kit.cuboid(0.62, 0.3, 0.9), FINISH.barrow, x, y, ry, 0, 0, h + 0.32)
-  kit.put(kit.cuboid(0.1, 0.36, 0.36), FINISH.legs, x, y, ry, 0, 0.55, h)
+  kit.put(kit.cuboid(0.62, 0.3, 0.9), PAINT.barrow, x, y, ry, 0, 0, h + 0.32)
+  kit.put(kit.cuboid(0.1, 0.36, 0.36), PAINT.legs, x, y, ry, 0, 0.55, h)
   for (const side of [-0.26, 0.26]) {
-    kit.put(kit.cuboid(0.05, 0.32, 0.05), FINISH.legs, x, y, ry, side, -0.3, h)
+    kit.put(kit.cuboid(0.05, 0.32, 0.05), PAINT.legs, x, y, ry, side, -0.3, h)
     kit.put(kit.cuboid(0.05, 0.05, 0.7), WOOD.stand, x, y, ry, side, -0.75, h + 0.5)
   }
 }
@@ -1190,25 +1186,25 @@ function gardener(kit: Kit, l: RowLot, stage: number, h: number) {
   const put = (geo: THREE.BufferGeometry, look: Parameters<Kit['add']>[1], lx: number, ly: number, z: number) =>
     kit.put(geo, look, l.x, l.y, l.ry, lx, ly, z)
   const [gx, gy, long, wide] = [-0.7, -0.95, 4.4, 2.1]
-  const panes = kit.lit(FINISH.panes, GLOWS.band)
-  put(kit.cuboid(long, 0.35, wide), FINISH.frame, gx, gy, h)
+  const panes = kit.lit(FRAME.glass, GLOWS.band)
+  put(kit.cuboid(long, 0.35, wide), FRAME.base, gx, gy, h)
   put(kit.cuboid(long - 0.1, 1.3, wide - 0.1), panes, gx, gy, h + 0.35)
   kit.add(kit.gable(long - 0.24, wide, 0.75), panes, ...to(l.x, l.y, l.ry, gx, gy), h + 1.65, l.ry + Math.PI / 2)
-  put(kit.cuboid(long + 0.1, 0.07, 0.07), FINISH.frame, gx, gy, h + 2.44)
+  put(kit.cuboid(long + 0.1, 0.07, 0.07), FRAME.base, gx, gy, h + 2.44)
   for (const i of [-1, 1]) {
-    put(kit.cuboid(long + 0.1, 0.07, 0.07), FINISH.frame, gx, gy + (i * wide) / 2, h + 1.62)
+    put(kit.cuboid(long + 0.1, 0.07, 0.07), FRAME.base, gx, gy + (i * wide) / 2, h + 1.62)
     for (const j of [-1, 1])
-      put(kit.cuboid(0.08, 1.3, 0.08), FINISH.frame, gx + (i * (long - 0.1)) / 2, gy + (j * (wide - 0.1)) / 2, h + 0.35)
+      put(kit.cuboid(0.08, 1.3, 0.08), FRAME.base, gx + (i * (long - 0.1)) / 2, gy + (j * (wide - 0.1)) / 2, h + 0.35)
   }
-  put(kit.cuboid(0.8, 1.45, 0.06), FINISH.frame, gx, gy + wide / 2, h + 0.1)
+  put(kit.cuboid(0.8, 1.45, 0.06), FRAME.base, gx, gy + wide / 2, h + 0.1)
   if (stage === 3)
-    for (const i of [-1.5, -0.5, 0.5, 1.5]) put(kit.cuboid(0.06, 1.3, 0.06), FINISH.frame, gx + i * 1.05, gy + wide / 2 - 0.02, h + 0.35)
+    for (const i of [-1.5, -0.5, 0.5, 1.5]) put(kit.cuboid(0.06, 1.3, 0.06), FRAME.base, gx + i * 1.05, gy + wide / 2 - 0.02, h + 0.35)
   for (let row = 0; row < (stage === 3 ? 2 : 1); row++)
     for (let k = 0; k < 7; k++)
       put(SHAPES.bush.clone().scale(0.2, 0.2, 0.2), CROPS[(k + row) % CROPS.length], -2.6 + k * 0.6, 1.1 + row * 0.7, h)
-  person(kit, ...to(l.x, l.y, l.ry, 2.1, 1.3), h, l.ry + Math.PI / 2, FINISH.shirts[spot(l.x, l.y) % FINISH.shirts.length])
+  person(kit, ...to(l.x, l.y, l.ry, 2.1, 1.3), h, l.ry + Math.PI / 2, PAINT.shirts[spot(l.x, l.y) % PAINT.shirts.length])
   put(kit.cuboid(0.06, 1.15, 0.06), WOOD.dark, 1.7, 1.45, h)
-  put(kit.cuboid(0.2, 0.26, 0.04), FINISH.lid, 1.7, 1.45, h)
+  put(kit.cuboid(0.2, 0.26, 0.04), PAINT.lid, 1.7, 1.45, h)
   wheelbarrow(kit, ...to(l.x, l.y, l.ry, 2.5, -0.6), h, l.ry + 0.5)
   kit.pool('window', ...to(l.x, l.y, l.ry, gx, gy), h, long + 2.4, wide + 2.4, l.ry)
   kit.shadow(...to(l.x, l.y, l.ry, gx, gy), h, long + 1, wide + 1.4, true)
@@ -1222,13 +1218,13 @@ function gardener(kit: Kit, l: RowLot, stage: number, h: number) {
 function apiary(kit: Kit, l: RowLot, stage: number, h: number) {
   const put = (geo: THREE.BufferGeometry, look: string, lx: number, ly: number, z: number) => kit.put(geo, look, l.x, l.y, l.ry, lx, ly, z)
   put(kit.cuboid(5.6, 1.3, 0.5), CROPS[2], 0, -(l.d / 2 - 0.6), h)
-  put(kit.cuboid(5, 0.1, 0.7), FINISH.fence, 0, -0.4, h + 0.3)
-  for (const lx of [-2.2, 0, 2.2]) put(kit.cuboid(0.12, 0.3, 0.6), FINISH.post, lx, -0.4, h)
+  put(kit.cuboid(5, 0.1, 0.7), PAINT.fence, 0, -0.4, h + 0.3)
+  for (const lx of [-2.2, 0, 2.2]) put(kit.cuboid(0.12, 0.3, 0.6), PAINT.post, lx, -0.4, h)
   const count = stage === 3 ? 5 : 4
   for (let k = 0; k < count; k++) hive(kit, ...to(l.x, l.y, l.ry, (k - (count - 1) / 2) * 1, -0.4), h + 0.4, l.ry, k, false)
   const [x, y] = to(l.x, l.y, l.ry, 1.6, 1.2)
-  person(kit, x, y, h, l.ry + Math.PI, FINISH.veil)
-  kit.add(SHAPES.cylinder, FINISH.veil, x, y, h + 1.42, 0, 0.3, 0.32, 0.3)
+  person(kit, x, y, h, l.ry + Math.PI, PAINT.veil)
+  kit.add(SHAPES.cylinder, PAINT.veil, x, y, h + 1.42, 0, 0.3, 0.32, 0.3)
   kit.shadow(...to(l.x, l.y, l.ry, 0, -0.6), h, 6, 2.4, true)
   kit.brick('building', l.x, l.y, h)
 }
@@ -1241,16 +1237,16 @@ function yard(kit: Kit, x: number, y: number, h: number, stage: number) {
   kit.blockZoomProps(() => {
     for (let k = 0; k < (stage > 1 ? 3 : 1); k++) {
       const bx = x - 1.8 + k * 1.25
-      kit.add(kit.cuboid(1.15, 0.9, 1.15), FINISH.fence, bx, y + 1.2, h)
-      kit.add(kit.cuboid(0.95, 0.06, 0.95), FINISH.compost, bx, y + 1.2, h + 0.9)
+      kit.add(kit.cuboid(1.15, 0.9, 1.15), PAINT.fence, bx, y + 1.2, h)
+      kit.add(kit.cuboid(0.95, 0.06, 0.95), PAINT.compost, bx, y + 1.2, h + 0.9)
     }
     kit.brick('building', x - 0.55, y + 1.2, h)
     if (stage === 1) return
     wheelbarrow(kit, x - 0.4, y - 0.8, h, 0.6)
     kit.brick('building', x - 0.4, y - 0.8, h)
-    kit.add(kit.cuboid(0.1, 1, 0.1), FINISH.post, x + 2.3, y + 1.3, h)
-    kit.add(kit.cuboid(0.5, 0.5, 0.14), FINISH.hose, x + 2.3, y + 1.2, h + 0.55)
-    kit.add(kit.cuboid(0.08, 0.05, 1.5), FINISH.hose, x + 2.1, y + 0.4, h)
+    kit.add(kit.cuboid(0.1, 1, 0.1), PAINT.post, x + 2.3, y + 1.3, h)
+    kit.add(kit.cuboid(0.5, 0.5, 0.14), PAINT.hose, x + 2.3, y + 1.2, h + 0.55)
+    kit.add(kit.cuboid(0.08, 0.05, 1.5), PAINT.hose, x + 2.1, y + 0.4, h)
     kit.brick('building', x + 2.3, y + 1.3, h)
   })
 }
