@@ -3,7 +3,7 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Bounds } from '../../sim/geometry'
 import { KERB } from '../blocks'
 import { KEI } from '../cars'
-import { AERIAL, CREAM, FRONTAGE, type Gap, GARDEN, HOME, type Hung, type Kit, LEDGE, SHAPES, spot, to } from '../kit'
+import { AERIAL, CREAM, FLAG, FRONTAGE, type Gap, GARDEN, HOME, type Kit, LEAVES, LEDGE, SHAPES, spot, to } from '../kit'
 import { PATTERN } from '../pattern'
 import { bench, gardenShed, stoneLantern } from '../props'
 import type { Footprint } from '../streets'
@@ -323,7 +323,7 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
     kit.from(
       home.car,
       () => {
-        kit.drive((pad.x0 + pad.x1) / 2, (pad.y0 + pad.y1) / 2, ground, pad.x1 - pad.x0, pad.y1 - pad.y0)
+        drive(kit, (pad.x0 + pad.x1) / 2, (pad.y0 + pad.y1) / 2, ground, pad.x1 - pad.x0, pad.y1 - pad.y0)
         kit.parked(KEI, park.x, park.y, ground + 0.02, park.ry, KEI.paints[spot(park.x, park.y) % KEI.paints.length])
       },
       spot(park.x, park.y),
@@ -337,14 +337,14 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
   kit.staged(
     (stage) => {
       const at = wall(front, stage, 0)
-      kit.closeOnly(() => kit.porch(at.x, at.y, ground, facing(front), stage))
+      kit.closeOnly(() => porch(kit, at.x, at.y, ground, facing(front), stage))
     },
     spot(x, y + 0.5),
   )
   if (home.laundry > 3) return
   kit.staged(
     (stage) => {
-      const washing = kit.washing()
+      const wash = washing(kit)
       if (stage < home.laundry) return
       const k = stage === 1 ? 0.7 : 1
       const along = home.pole ?? { ...wall(home.line, stage, home.out), ry: facing(home.line), len: (home.line % 2 ? w : d) * k - 0.8 }
@@ -356,11 +356,11 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
       const hung: Hung[] = []
       for (let j = 0; j < n; j++) {
         const at = -len / 2 + ((j + 0.5) * len) / n
-        if (futon && Math.abs(at) - washing.items[j].w / 2 < quilt / 2) continue
-        hung.push({ at, ...washing.items[j] })
+        if (futon && Math.abs(at) - wash.items[j].w / 2 < quilt / 2) continue
+        hung.push({ at, ...wash.items[j] })
       }
-      if (futon) hung.push({ at: 0, w: quilt, tall: 1.05, colour: washing.futon, futon: true })
-      kit.laundry(along.x, along.y, ground, along.ry, len, hung)
+      if (futon) hung.push({ at: 0, w: quilt, tall: 1.05, colour: wash.futon, futon: true })
+      laundry(kit, along.x, along.y, ground, along.ry, len, hung)
     },
     spot(x + 0.5, y),
   )
@@ -618,7 +618,7 @@ function garden(kit: Kit, home: Home, lawn: Lawn, plot: Plot, layout: ReturnType
   }
   if (pole) {
     const p = plot.at(pole.u, pole.v)
-    kit.from(2, () => kit.carpPole(p.x, p.y, ground, LOW_FINISH.carps), spot(p.x, p.y))
+    kit.from(2, () => carpPole(kit, p.x, p.y, ground, LOW_FINISH.carps), spot(p.x, p.y))
   }
   // The cat walks the run's top and back, sitting at each end a while.
   if (cat) {
@@ -1080,6 +1080,101 @@ function barbecue(kit: Kit, l: Footprint, at: At, side: number, stage: number, h
     }
     kit.brick('building', cx, cy, h)
   })
+}
+
+// A house's details that only low-density lays (#157, #179): their palette and their builders, beside the fill that
+// lays them (#210). A drive's concrete, for a kei car; cloths on a laundry pole in the cars' colours and white, and
+// futons' covers; and a bloom on one of the pot plants by the door (the pots are the kit's `HOME`'s, the bicycle by the
+// door `kit.bicycles`).
+const HOME_DETAILS = {
+  drive: '#d9d5cc',
+  pole: '#aab3bd',
+  laundry: ['#ffffff', '#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'],
+  futons: ['#fbd2dd', '#cbebfc', '#fbe3a2', '#e5dafb', '#c0e9e0'],
+  blooms: ['#ffadc8', '#f6d36a', '#fff7e8', '#c7b8f0'],
+}
+/**
+ * A carp streamer's pole in a garden (#179): how tall it stands, how far apart its carp fly down it and each one's size
+ * after the one above, and how far above the ground the lowest is lowered to for the night (m), the rest over it.
+ */
+const CARP_POLE = { tall: 11.5, every: 1.3, smaller: 0.16, low: 2.4 }
+/**
+ * Something hung on a laundry pole (#157), `at` m along it from its middle: a cloth `w` m wide hanging `tall` m, or, if
+ * `futon`, a futon folded over the pole at `../movers`' own size, `w` m wide.
+ */
+interface Hung {
+  at: number
+  w: number
+  tall: number
+  colour: string
+  futon?: boolean
+}
+
+/**
+ * A carp streamer's pole at `(x, y)`, `h` above the road (#179), as one brick that pops in like a tree: a tall white
+ * pole under a gilded ball, flying a carp in each of `colours` down it, the first the largest, which `../movers` flies
+ * as it flies the flags.
+ */
+function carpPole(kit: Kit, x: number, y: number, h: number, colours: string[]) {
+  const { tall, every, smaller, low } = CARP_POLE
+  kit.add(SHAPES.thin, FLAG.pole, x, y, h, 0, 0.1, tall, 0.1)
+  kit.add(SHAPES.bead, FLAG.finial, x, y, h + tall + 0.12, 0, 0.22, 0.22, 0.22)
+  colours.forEach((colour, k) =>
+    kit.fly('carp', x, y, h + tall - 0.35 - k * every, h + low + (colours.length - 1 - k) * 0.9, colour, { size: 1 - k * smaller }),
+  )
+  kit.brick('tree', x, y, h)
+}
+
+/** A concrete drive `w` (east–west) by `d` on a lawn, centred on `(x, y)`, as a brick (#157). */
+function drive(kit: Kit, x: number, y: number, h: number, w: number, d: number) {
+  kit.add(kit.cuboid(w, 0.05, d), HOME_DETAILS.drive, x, y, h)
+  kit.brick('ground', x, y, h)
+}
+
+/**
+ * A laundry pole `len` long centred on `(x, y)`, running along `ry`'s right (as a building whose front faces `ry`), on a
+ * stand at each end, with what is hung on it, as one brick (#157).
+ */
+function laundry(kit: Kit, x: number, y: number, h: number, ry: number, len: number, hung: Hung[]) {
+  const top = kit.poleStand(x, y, h, ry, len, HOME_DETAILS.pole)
+  for (const p of hung)
+    if (p.futon) kit.sway('futon', ...to(x, y, ry, p.at, 0), h + top + 0.06, ry, { paint: p.colour })
+    else kit.sway('cloth', ...to(x, y, ry, p.at, 0), h + top, ry, { paint: p.colour, size: [p.w, p.tall] })
+  kit.brick('tree', x, y, h)
+}
+
+/** Laundry for a pole (#157), its sizes and colours, and a futon's colour, drawn from the kit's stream. */
+function washing(kit: Kit) {
+  return {
+    items: Array.from({ length: 8 }, () => ({
+      w: kit.range(0.55, 0.78),
+      tall: kit.range(0.75, 1.15),
+      colour: kit.pick(HOME_DETAILS.laundry),
+    })),
+    futon: kit.pick(HOME_DETAILS.futons),
+  }
+}
+
+/**
+ * Pot plants by a front door at `(x, y)` in a wall whose front faces `ry`, as a brick, and from Stage 2 a bicycle
+ * standing along the wall, as `kit.bicycles`' brick (#157), true to size: a pot at Stage 1, two from Stage 2, and a
+ * third in flower at Stage 3.
+ */
+function porch(kit: Kit, x: number, y: number, h: number, ry: number, stage: number) {
+  const side = kit.rand() < 0.5 ? 1 : -1 // the side of the door the bicycle stands
+  const bloom = kit.pick(HOME_DETAILS.blooms)
+  const pots = [0, 1, 2].map(() => ({ colour: kit.pick(HOME.pots), s: kit.range(0.75, 1.1) }))
+  const at = (lx: number, ly: number) => to(x, y, ry, lx, ly)
+  pots.slice(0, stage).forEach(({ colour, s }, k) => {
+    const [px, py] = at(-side * (0.95 + k * 0.52), 0.34)
+    kit.add(SHAPES.pot, colour, px, py, h, 0, 0.19 * s, 0.32 * s, 0.19 * s)
+    kit.add(SHAPES.bush, LEAVES.round[k % 5], px, py, h + 0.44 * s, k, 0.27 * s, 0.32 * s, 0.27 * s)
+    if (k === 2)
+      for (const a of [0, 2.1, 4.2])
+        kit.add(SHAPES.bush, bloom, px + 0.12 * Math.cos(a), py + 0.12 * Math.sin(a), h + 0.62 * s, a, 0.08, 0.08, 0.08)
+  })
+  kit.brick('tree', x, y, h)
+  if (stage >= 2) kit.bicycles(...at(side * 1.45, 0.45), h, ry + Math.PI / 2, 1)
 }
 
 // The house: its palette, its plans and its builder, beside the fill that lays it (#207). Farms lay it too.

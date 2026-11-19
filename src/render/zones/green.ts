@@ -3,7 +3,7 @@ import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Polyline, type Vec } from '../../sim/geometry'
 import { area, KERB, type Block } from '../blocks'
 import { inside, type Field } from '../field'
-import { SHAPES, spot, to, type Kit } from '../kit'
+import { BENCH, SHAPES, spot, to, type Kit } from '../kit'
 import { clearOf, GROW, overlay, scatter, site } from '../landmarks'
 import type { Look } from './ground'
 
@@ -196,7 +196,7 @@ function meadowDetails(
     taken.push(p)
     const [ry, parasol] = [(lay() - 0.5) * 0.9, k === 1]
     kit.lot(lot++)
-    kit.from(k ? 3 : 2, () => kit.blanket(p.x, p.y, ground, ry, true, parasol), spot(p.x, p.y))
+    kit.from(k ? 3 : 2, () => blanket(kit, p.x, p.y, ground, ry, true, parasol), spot(p.x, p.y))
     k++
   }
   // Drifts of wildflowers, the layers each Stage adds: each drift mostly of one colour, off the benches and blankets.
@@ -376,6 +376,36 @@ export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) 
     }
   }
   kit.lot(-1)
+}
+
+// A picnic blanket's colours, its gingham's pale stripe and the basket (#152, #210); a parasol's pole is iron as a
+// bench's ends are (the kit's `BENCH`).
+const PICNIC = { blankets: ['#ffadc8', '#f6d36a', '#7fbf9d', '#c7b8f0', '#f0b43c'], stripe: '#fbf8f2', basket: '#c49a6c', lid: '#a1714c' }
+
+/**
+ * A picnic blanket laid at `(x, y)`, turned `ry`, as one brick (#152): gingham in one of the blankets' colours, with a
+ * basket on it if `basket`, and a parasol over it in another colour if `parasol`. Oversized a little.
+ */
+function blanket(kit: Kit, x: number, y: number, h: number, ry: number, basket: boolean, parasol: boolean) {
+  const [colour, shade] = [kit.pick(PICNIC.blankets), kit.pick(PICNIC.blankets)]
+  kit.add(kit.cuboid(2.6, 0.04, 2), colour, x, y, h, ry)
+  for (const k of [-1, 0, 1]) {
+    kit.local(kit.cuboid(0.18, 0.012, 2), PICNIC.stripe, x, y, ry, k * 0.78, 0, h + 0.04)
+    kit.local(kit.cuboid(2.6, 0.012, 0.18), PICNIC.stripe, x, y, ry, 0, k * 0.6, h + 0.04)
+  }
+  if (basket) {
+    kit.local(kit.cuboid(0.62, 0.36, 0.42), PICNIC.basket, x, y, ry, 0.72, 0.5, h + 0.04)
+    kit.local(kit.cuboid(0.66, 0.05, 0.46), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.4)
+    for (const k of [-1, 1]) kit.local(kit.cuboid(0.04, 0.26, 0.04), PICNIC.lid, x, y, ry, 0.72 + k * 0.24, 0.5, h + 0.45)
+    kit.local(kit.cuboid(0.52, 0.04, 0.04), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.71)
+  }
+  if (parasol) {
+    const [px, py] = to(x, y, ry, -0.95, 0.7)
+    kit.add(kit.cuboid(0.06, 2.3, 0.06), BENCH.iron, px, py, h)
+    kit.add(SHAPES.cone12, shade, px, py, h + 1.95, 0, 1.4, 0.5, 1.4)
+    kit.shadow(px, py, h, 3, 3, true)
+  }
+  kit.brick('ground', x, y, h)
 }
 
 // A water butt and its lid; and a cold frame's painted base and its glass, painted pale as the greenhouses' film is: the

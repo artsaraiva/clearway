@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
 import { middle, polyline, type Vec } from '../../sim/geometry'
 import { area, KERB } from '../blocks'
@@ -422,7 +423,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
     const n = Math.min(3, Math.floor(len / 1.3))
     for (let k = 0; k < n; k++) {
       const p = u(free + ((k + 0.5) * len) / n) - 0.4
-      if (clear(FRONT.banner, p, p + 0.8)) from(k < 2 ? banners : 3, at(p, FRONT.banner), (q) => kit.nobori(q.x, q.y, KERB, l.ry, cloth))
+      if (clear(FRONT.banner, p, p + 0.8)) from(k < 2 ? banners : 3, at(p, FRONT.banner), (q) => nobori(kit, q.x, q.y, KERB, l.ry, cloth))
     }
   }
   if (lanterns) {
@@ -433,7 +434,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
       [-0.1, 3],
       [0.1, 3],
     ])
-      from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => kit.lantern(p.x, p.y, KERB + 1.95, amber))
+      from(stage, at(t * l.w * 0.86, FRONT.lantern), (p) => lantern(kit, p.x, p.y, KERB + 1.95, amber))
   }
   doorPots(g, l, door)
 }
@@ -571,7 +572,7 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   kit.pool('stall', ...to(x, y, ry, 0, 0.6), KERB, 4.6, 3.6, ry)
   kit.shadow(x, y, KERB, 3.8, 2.2, false, ry)
   kit.brick('building', x, y, KERB)
-  kit.lantern(...to(x, y, ry, 1.5, 0.9), KERB + 2.05, true)
+  lantern(kit, ...to(x, y, ry, 1.5, 0.9), KERB + 2.05, true)
 }
 
 /** Pot plants about 0.7 m tall standing at `spots` on the pavement, as one Close-only brick (#175), each in a pot of its own colour. */
@@ -612,6 +613,54 @@ export function produce(kit: Kit, x: number, y: number, ry: number) {
       crate(kit, x, y, ry, lx, 0, KERB + z, 0.08, draw)
   })
   kit.brick('building', x, y, KERB)
+}
+
+// Nobori banners and paper lanterns: their palette, shapes and builders, beside the fill that lays them (#153, #210). A
+// banner's pole (its cloth and lettering are `../movers`'); a lantern's amber and its dark caps, the cream one the
+// bulb's own. A cream lantern glows at twice a lamp's strength, so it burns whiter than the lit window behind it, and an
+// amber one at a third of it, so it keeps its colour.
+const NOBORI = { pole: '#c4ccd4' }
+const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0.33 } }
+// A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
+const PAPER = new THREE.LatheGeometry(
+  [
+    [0.2, -0.5],
+    [0.31, -0.36],
+    [0.36, -0.12],
+    [0.36, 0.12],
+    [0.31, 0.36],
+    [0.2, 0.5],
+  ].map(([r, y]) => new THREE.Vector2(r, y)),
+  10,
+)
+const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
+
+/**
+ * A nobori banner at `(x, y)`, its cloth facing `ry` (0 north, π/2 west) and hung to the right of its pole from a rod
+ * across its top, as one brick (#153): the pole and rod stand still, and the cloth, a tall narrow one in `colour` with a
+ * pale band of lettering down it, flutters in the wind and is furled for the night as a flag is (`../movers`).
+ * Oversized a little, as the props are.
+ */
+function nobori(kit: Kit, x: number, y: number, h: number, ry: number, colour: string) {
+  kit.add(kit.cuboid(0.07, 3.7, 0.07), NOBORI.pole, x, y, h)
+  kit.local(kit.cuboid(0.8, 0.05, 0.05), NOBORI.pole, x, y, ry, 0.4, 0, h + 3.5)
+  kit.fly('nobori', x, y, h + 3.48, h + 3.48, colour, { ry })
+  kit.brick('tree', x, y, h)
+}
+
+/**
+ * A paper lantern hung on a short cord at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or amber,
+ * lit at dusk as the lamps are, with dark caps, a metre tall and oversized as the props are.
+ */
+function lantern(kit: Kit, x: number, y: number, h: number, amber: boolean) {
+  const paper: KitLook = amber
+    ? kit.lit(LANTERN.amber, LANTERN.glows.amber)
+    : { material: kit.bulb, tint: new THREE.Color(1, 1, 1), glow: LANTERN.glows.cream }
+  kit.add(PAPER, paper, x, y, h)
+  for (const at of [h + 0.46, h - 0.54]) kit.add(CAP, LANTERN.caps, x, y, at, 0, 0.22, 0.08, 0.22)
+  kit.add(kit.cuboid(0.03, 0.5, 0.03), LANTERN.caps, x, y, h + 0.54) // its cord
+  kit.pool(amber ? 'amber' : 'cream', x, y, KERB, POOL.lantern, POOL.lantern) // on the pavement it hangs over
+  kit.brick('lamp', x, y, h)
 }
 
 // The shop: its palette, its plan and its builder, beside the fill that lays it (#207).

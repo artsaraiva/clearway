@@ -1,7 +1,8 @@
+import * as THREE from 'three'
 import { mulberry32 } from '../../sim/demand'
 import type { Vec } from '../../sim/geometry'
 import { KERB } from '../blocks'
-import { FACES, FUTONS, GARDEN, type Kit, LEAVES, PLANT, SHAPES, spot, TANK, to } from '../kit'
+import { FACES, FUTONS, GARDEN, type Kit, LEAVES, PLANT, PLAY, SHAPES, spot, TANK, to } from '../kit'
 import { fit, lotsOf, overlap, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
 
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
@@ -104,9 +105,9 @@ function towerFoot(g: ZoneGround, podium: RowLot, taken: RowLot[], own: RowLot) 
         piece(1, b + paved / 2, inner + 0.6, (p) => kit.bench(p.x, p.y, KERB, ry))
         if (playground) {
           piece(2, mid, 0, (p) => kit.surface(p.x, p.y, KERB, b - a, dep, ry))
-          piece(2, a + 2.3, out - 1.3, (p) => kit.slide(p.x, p.y, KERB + 0.1, ry))
+          piece(2, a + 2.3, out - 1.3, (p) => slide(kit, p.x, p.y, KERB + 0.1, ry))
           if (b - a >= 5.8) piece(2, b - 2.1, -0.2, (p) => kit.swings(p.x, p.y, KERB + 0.1, ry))
-          piece(3, a + 1.3, inner + 1, (p) => kit.sandbox(p.x, p.y, KERB + 0.1, 1.8, 1.4, ry))
+          piece(3, a + 1.3, inner + 1, (p) => sandbox(kit, p.x, p.y, KERB + 0.1, 1.8, 1.4, ry))
           piece(3, b - 0.8, out - 0.8, (p) => kit.rider(p.x, p.y, KERB + 0.1, ry))
         } else {
           const blooms = ['#ffadc8', '#f6d36a', '#fff7e8', '#c7b8f0']
@@ -121,6 +122,37 @@ function towerFoot(g: ZoneGround, podium: RowLot, taken: RowLot[], own: RowLot) 
       }
     }
   }
+}
+
+// The props only high-density lays: their palette and builders, beside the fill that lays them (#210). A slide's posts,
+// deck and chute; a sandbox's sand and rim are the kit's playground colours (`PLAY`), as are the swings and the rider.
+const SLIDE = { frame: '#5aa69b', deck: '#f4f1ea', chute: '#f0c75e' }
+
+/**
+ * A slide at `(x, y)`, running down along `ry`'s right (its chute toward +x when `ry` is 0), as a brick that pops in
+ * (#155): a ladder to a deck on four posts, and the chute.
+ */
+function slide(kit: Kit, x: number, y: number, h: number, ry: number) {
+  const deck = 1.7
+  for (const i of [-0.55, 0.55])
+    for (const j of [-0.55, 0.55]) kit.local(kit.cuboid(0.14, deck + 1, 0.14), SLIDE.frame, x, y, ry, -1 + i, j, h)
+  kit.local(kit.cuboid(1.3, 0.12, 1.3), SLIDE.deck, x, y, ry, -1, 0, h + deck)
+  for (let k = 1; k < 5; k++) kit.local(kit.cuboid(0.12, 0.08, 1.1), SLIDE.deck, x, y, ry, -1.85, 0, h + (k * deck) / 5) // the ladder
+  const chute = new THREE.BoxGeometry(3.2, 0.12, 0.9).rotateZ(-Math.atan2(deck, 2.8)).translate(0.5, deck / 2 + 0.06, 0)
+  kit.local(chute, SLIDE.chute, x, y, ry, 0, 0, h)
+  chute.dispose()
+  kit.shadow(x, y, h, 5, 2.2, false, ry)
+  kit.brick('tree', x, y, h)
+}
+
+/** A sandbox `w` by `d` at `(x, y)`, turned `ry`, as a brick (#155): a wooden rim round the sand. */
+function sandbox(kit: Kit, x: number, y: number, h: number, w: number, d: number, ry: number) {
+  kit.local(kit.cuboid(w - 0.3, 0.2, d - 0.3), PLAY.sand, x, y, ry, 0, 0, h)
+  for (const k of [-1, 1]) {
+    kit.local(kit.cuboid(w, 0.34, 0.16), PLAY.rim, x, y, ry, 0, (k * (d - 0.16)) / 2, h)
+    kit.local(kit.cuboid(0.16, 0.34, d - 0.32), PLAY.rim, x, y, ry, (k * (w - 0.16)) / 2, 0, h)
+  }
+  kit.brick('ground', x, y, h)
 }
 
 // The residential tower: its palette and its builder, beside the fill that lays it (#207).

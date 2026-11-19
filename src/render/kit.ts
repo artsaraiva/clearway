@@ -6,7 +6,7 @@ import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
-import type { Beacon, BeaconColour, Flag, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
+import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
 import { clad, createPatterns, pave, PATTERN, tile, type Cladding, type Pattern } from './pattern'
 import { canvasTexture, gable, hip, roundedBox, tint } from './shapes'
 
@@ -36,61 +36,41 @@ export const DOOR_LIGHT = 2
 export const AERIAL = '#8e979f'
 export const STRAW = '#e8cf7f'
 const PAVILION = { posts: '#a1714c', roof: '#4d6575', floor: '#c49a6c' } // a Stage 3 park's, over its pond
-// Industrial details (#150): shipping containers in the roofs' colours, their frames and ribs a shade darker; and a
-// lamp over each door. Pallets and a truck's bay are industrial's own (`./zones/industrial`).
-const CONTAINERS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548', '#7f8c7c']
-/** A shipping container's size (m): long, wide and tall (#150). */
-export const CONTAINER = { long: 6.1, wide: 2.45, tall: 2.6 }
+// Industrial's shipping containers are its own (`./zones/industrial`, #210), as are its pallets and its trucks' bays.
 // Medium-density details (#156), each a thing of its own that any Zone may use: an outdoor AC unit's casing and its
-// fan's grille; a vending machine's paints and its dark trim, its lit front the lamps' bulb; a covered bike rack's
-// steel and roof, and its bicycles' frames (the cars' colours) and tyres; washing and futons; and the steel of outside
-// stairs and walkways, with their treads.
+// fan's grille; a vending machine's paints and its dark trim, its lit front the lamps' bulb; and a bicycle's frames (the
+// cars' colours), tyres and steel, which a covered bike rack's posts and rail take too. Washing, the rack's roof and
+// the steel of outside stairs and walkways are medium-density's own (`./zones/medium-density`, #210).
 export const AIRCON = { body: '#f2f3ef', grille: '#8e979f' }
 const VENDING = { paints: ['#f4f6f8', '#2fb39a', '#f0b43c', '#79c86a', '#e8925e', '#f4f6f8'], trim: '#4a525c' }
-const BIKES = {
+export const BIKES = {
   frames: ['#ffffff', '#db6982', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb', '#e9eef2', '#009dcb'],
   tyre: '#2f3440',
   steel: '#9aa3ad',
-  roof: '#d6e4d3',
 }
-// The paints a line of washing's white pieces take, and the bright covers of futons on a balcony's rail (brighter than
-// the towers', so they read against pale walls and white balconies).
-export const WASHING = ['#ffffff', '#ffffff', '#ffc52d', '#bc9ef2', '#a6dcef', '#fbe3a2', '#ff9cbb']
-export const STEEL = { frame: '#6f7986', tread: '#a7aeb6', pole: '#c4ccd4' }
 /** Outside stairs (#156): m along their flights, across their two lanes, and the depth of a landing. */
 export const STAIR = { long: 4.2, wide: 2.4, landing: 1.1 }
-/** Stairs up a wall (#156): m out from the wall, and how much longer than their rise their flight runs. */
-export const WALL_STAIR = { wide: 1.1, run: 1.2 }
 /** An open walkway along an apartment block's face (#156): m out from the wall, and its parapet's height. */
 export const WALKWAY = { deep: 1.3, parapet: 1 }
 /** A covered bike rack (#156): m long and deep from its back to its open front, and m along it a bicycle takes. */
 export const BIKE_RACK = { long: 4.4, deep: 2.2, per: 0.62 }
 /** A vending machine's footprint (#156): m across its front and deep. */
 export const VENDING_MACHINE = { wide: 1.1, deep: 0.85 }
-// Farm details (#149): a kei truck's white paint, its chassis and tyres, and the crates of a harvest; a scarecrow's
-// post, cloth head and shirts (the cars' colours).
-const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2'] }
+// Farm details (#149): the crates of a harvest, on a kei truck's bed and stacked in a farmyard (`./zones/farms`), and
+// the truck's white paint, its chassis and tyres; a scarecrow's post, cloth head and shirts (the cars' colours).
+export const HARVEST = ['#f0c75e', '#7fbf9d', '#f0c75e', '#e9eef2']
+const TRUCK = { paint: '#f4f6f8', chassis: '#4a525c', tyre: '#2f3440', crates: HARVEST }
 const SCARECROW = { post: '#a1714c', head: '#f4ead2', shirts: ['#db6982', '#64cb9f', '#ffc52d', '#bc9ef2', '#009dcb'] }
-// Low-density residential details (#157): a front door under a little canopy; solar panels' cells and frame; a
-// concrete drive, for a kei car (the cars', since #179); cloths on a laundry pole in the cars' colours and white, and
-// futons' covers; and pot plants by the door, with a bloom on one. The bicycle by the door is #156's.
+// Low-density residential details (#157): a front door under a little canopy; solar panels' cells and frame; and
+// pots for pot plants, by a house's door and in the scenes. A garden's drive, laundry and porch are low-density's own
+// (`./zones/low-density`, #210).
 export const HOME = {
   door: DOOR,
   cells: '#2d3b55',
-  drive: '#d9d5cc',
   trim: '#c4ccd4', // solar panels' frames
-  pole: '#aab3bd',
-  laundry: ['#ffffff', '#ffffff', '#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'],
-  futons: ['#fbd2dd', '#cbebfc', '#fbe3a2', '#e5dafb', '#c0e9e0'],
   pots: ['#c49a6c', '#e9e4da', '#5aa69b', '#b85a4c'],
-  blooms: ['#ffadc8', '#f6d36a', '#fff7e8', '#c7b8f0'],
 }
-// Shop details (#153): nobori banners' poles, and paper lanterns (the bulb's cream, and an amber). The banners' cloths
-// and their lettering are `./movers`'; the vending machines and bicycles are #156's.
-const NOBORI = { pole: '#c4ccd4' }
-// A cream lantern glows at twice a lamp's strength, so it burns whiter than the lit window behind it, and an amber one
-// at a third of it, so it keeps its colour.
-const LANTERN = { amber: '#f6b04a', caps: '#4a525c', glows: { cream: 2, amber: 0.33 } }
+// Shops' nobori banners and paper lanterns are their own (`./zones/shops`, #210).
 // Light pools (#174), warm on the ground at night: under a lamp, as far as the pavement goes round its post, up to
 // `lamp` m and at least `least`; under a paper lantern, `lantern` m across; before a vending machine's lit front and a
 // shop's lit window, `front` m out from it and `deep` m deep. Each pool's colour, the strength of its light in it.
@@ -148,32 +128,16 @@ const bulbTint = (colour: string) => {
   const [c, cream] = [new THREE.Color(colour), new THREE.Color(CREAM)]
   return new THREE.Color(c.r / cream.r, c.g / cream.g, c.b / cream.b)
 }
-// A paper lantern's body, a barrel a metre tall turned on a lathe, open at the ends its caps cover.
-const PAPER = new THREE.LatheGeometry(
-  [
-    [0.2, -0.5],
-    [0.31, -0.36],
-    [0.36, -0.12],
-    [0.36, 0.12],
-    [0.31, 0.36],
-    [0.2, 0.5],
-  ].map(([r, y]) => new THREE.Vector2(r, y)),
-  10,
-)
-const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
-// Green details (#152): a bench's wooden slats and its iron ends; and a picnic blanket's colours, its gingham's pale
-// stripe, the basket and a parasol's pole. Water butts and cold frames are green's own (`./zones/green`).
-const BENCH = { wood: '#c49a6c', iron: '#6f7986' }
-const PICNIC = { blankets: ['#ffadc8', '#f6d36a', '#7fbf9d', '#c7b8f0', '#f0b43c'], stripe: '#fbf8f2', basket: '#c49a6c', lid: '#a1714c' }
+// Green details (#152): a bench's wooden slats and its iron ends, which a picnic parasol's pole takes too. The picnic
+// blanket, water butts and cold frames are green's own (`./zones/green`).
+export const BENCH = { wood: '#c49a6c', iron: '#6f7986' }
 // High-density residential details (#155): a rooftop helipad's pad and its paint; the covers of futons aired over the
-// railings; and a playground's soft ground, slide, swings, sandbox and spring rider.
+// railings; and a playground's soft ground, swings, spring rider and sand, and the wooden rim of a sandbox and of a
+// flower bed. The slide is high-density's own (`./zones/high-density`, #210).
 const HELIPAD = { pad: '#4f7a62', ring: '#f6d36a', mark: '#f6d36a' }
 export const FUTONS = ['#fbd2dd', '#fff7e8', '#e0f2d4', '#fbe3a2', '#e5dafb', '#ffffff']
-const PLAY = {
+export const PLAY = {
   ground: '#8fd1a8',
-  frame: '#5aa69b',
-  deck: '#f4f1ea',
-  chute: '#f0c75e',
   swings: '#ea8548',
   seat: '#4a525c',
   chain: '#9aa3ad',
@@ -186,16 +150,10 @@ export const GARDEN = { lawn: LAWN, hedge: HEDGE, sand: PLAY.sand }
 const BUSH = new THREE.IcosahedronGeometry(1, 0) // a balcony plant's leaves: a few faces, laid by the thousand
 export const TANK = { body: '#cea680', lid: '#b68b63' } // a water tank on the roof of homes
 export const [DECK, PLANT] = ['#dfe3e7', '#cfd5dc'] // a flat roof's deck, and the plant boxes and masts on it
-const FLAG = { pole: '#e9eef2', finial: '#f0c75e' } // a flagpole and its finial (#154)
+/** A flagpole and its finial (#154), an office's and a garden's carp pole's (#179). */
+export const FLAG = { pole: '#e9eef2', finial: '#f0c75e' }
 // How brightly a parked taxi's roof lamp glows at night (#177).
 const TAXI_LAMP = 1.2
-/** A flagpole (#154): how tall it stands, and how far above the road its flag is lowered to for the night (m). */
-const FLAGPOLE = { tall: 8.5, low: 3 }
-/**
- * A carp streamer's pole in a garden (#179): how tall it stands, how far apart its carp fly down it and each one's size
- * after the one above, and how far above the ground the lowest is lowered to for the night (m), the rest over it.
- */
-const CARP_POLE = { tall: 11.5, every: 1.3, smaller: 0.16, low: 2.4 }
 export const LEAVES = {
   round: ['#7bcd5d', '#5fbc51', '#92d76e', '#6bc357', '#85cf61'],
   sakura: ['#ffbbd1', '#ffa1c1', '#ffd1df', '#ffadc8'],
@@ -211,7 +169,7 @@ const SPHERE = new THREE.SphereGeometry(1, 16, 12)
 const COARSE_SPHERE = new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
 const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
 const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
-const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial
+const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial, and a carp pole's
 const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
 const CONE8 = new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0) // a parasol (#175), laid by the hundred
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
@@ -225,11 +183,12 @@ const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helip
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /**
  * Shapes the kit lays, for the builders beside it (`./props`, `./streets`, `./zones`), each standing on y = 0 but the
- * discs and the awning: `cone` is the parasol's eight-sided cone and `cone12` the twelve-sided one, `disc` faces -z and
- * `centred` is a cylinder centred on its middle.
+ * discs and the awning: `cone` is the parasol's eight-sided cone and `cone12` the twelve-sided one, `disc` faces -z,
+ * `centred` is a cylinder centred on its middle and `bead` a ball centred on its middle.
  */
 export const SHAPES = {
   thin: THIN,
+  bead: BEAD,
   sphere: SPHERE,
   bush: BUSH,
   pot: POT,
@@ -299,17 +258,6 @@ export interface Gap {
   side: number
   at: number
   wide: number
-}
-/**
- * Something hung on a laundry pole (#157), `at` m along it from its middle: a cloth `w` m wide hanging `tall` m, or, if
- * `futon`, a futon folded over the pole at `./movers`' own size, `w` m wide.
- */
-export interface Hung {
-  at: number
-  w: number
-  tall: number
-  colour: string
-  futon?: boolean
 }
 export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
@@ -813,8 +761,10 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     sy = 1,
     sz = 1,
   ) => add(geo, look, ...to(x, y, ry, lx, ly), h, ry, sx, sy, sz)
-  // A flight of stairs (#156): a slab `w` wide and `t` thick sloping up `rise` over `run`, up toward +x (or -x for a
-  // negative `run`), centred on its middle.
+  /**
+   * A flight of stairs (#156): a slab `w` wide and `t` thick sloping up `rise` over `run`, up toward +x (or -x for a
+   * negative `run`), centred on its middle, cut once per size: the kit disposes of it.
+   */
   const flight = memo((run: number, rise: number, w: number, t: number) =>
     new THREE.BoxGeometry(Math.hypot(run, rise), t, w).rotateZ(Math.atan2(rise, run)),
   )
@@ -867,32 +817,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     row(x, y, h, ry, count, gap, slant)
     shadow(x, y, h, count * gap + 0.6, 2.4, false, ry)
     brick('building', x, y, h)
-  }
-  /**
-   * Steel outside stairs (#156), centred on `(x, y)`, their flights running along their front `ry`: two flights a
-   * storey in two lanes, turning at a landing half-way, from the first of `tops` (m above the road) to each of the rest,
-   * with a landing at each, posts at the corners and a railing up the outer side. They join the next brick.
-   */
-  const stairs = (x: number, y: number, ry: number, tops: number[]) => {
-    const { long: L, wide: W, landing: D } = STAIR
-    const [run, lane] = [L - 2 * D, (W - 0.1) / 2]
-    for (let f = 0; f + 1 < tops.length; f++) {
-      const [lo, hi] = [tops[f], tops[f + 1]]
-      const half = (hi - lo) / 2
-      // Out along one lane to the half-landing at the far end, and back along the other to the next floor.
-      put(flight(-run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, (W - lane) / 2, lo + half / 2)
-      put(flight(-run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, W / 2 - 0.03, lo + half / 2 + 0.5)
-      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, -(L - D) / 2, 0, lo + half - 0.14)
-      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, -L / 2 + 0.03, 0, lo + half)
-      put(flight(run, half, lane, 0.14), STEEL.tread, x, y, ry, 0, -(W - lane) / 2, lo + 1.5 * half)
-      put(flight(run, half, 0.05, 0.9), STEEL.frame, x, y, ry, 0, -W / 2 + 0.03, lo + 1.5 * half + 0.5)
-      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, (L - D) / 2, 0, hi - 0.14)
-      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, L / 2 - 0.03, 0, hi)
-    }
-    const top = tops[tops.length - 1] + 0.9
-    for (const lx of [-1, 1])
-      for (const ly of [-1, 1])
-        put(cuboid(0.14, top - tops[0], 0.14), STEEL.frame, x, y, ry, lx * (L / 2 - 0.07), ly * (W / 2 - 0.07), tops[0])
   }
   /**
    * A beacon's bulb of radius `r` at `(x, y)`, `h` above the road (#155), white or amber, never red: `./movers` draws it
@@ -1066,6 +990,21 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     tipped,
     airCon,
     markOf,
+
+    // What the props one Zone lays (`./zones`, #210) build with beyond the above: what flies from a pole; a laundry pole's
+    // stand, which low- and medium-density both lay; the bicycles' row, which `bicycles` lays too; and stairs' flights,
+    // cut once per size.
+    /**
+     * Something that flies from the top of a pole at `(x, y)`, `h` above the road, and flutters in the wind (`./movers`'
+     * `Flag`, #154): a flag, a nobori or a carp, in `colour`, lowered to `low` m above the road for the night and turned
+     * or sized as `more` has it. It rides the next brick closed.
+     */
+    fly(kind: FlagKind, x: number, y: number, h: number, low: number, colour: string, more: Pick<Flag, 'ry' | 'size'> = {}) {
+      flags.push({ kind, at: new THREE.Vector3(x, h, -y), low, colour, ...more, brick: bricks.length })
+    },
+    poleStand,
+    row,
+    flight,
 
     /** Build at Stage `s.to`, or, when `s.from` differs, a Tile's Stage-up from one to the other. Stage 2 unless told. */
     stages(s: Stages) {
@@ -1280,34 +1219,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     mover,
 
     /**
-     * A flagpole at `(x, y)`, `h` above the road, flying a flag in `colour` (`./movers`), as one brick that pops in like
-     * a tree (#154). Pole and flag stand oversized a little, as the props do.
-     */
-    flag(x: number, y: number, h: number, colour: string) {
-      const { tall, low } = FLAGPOLE
-      add(THIN, FLAG.pole, x, y, h, 0, 0.09, tall, 0.09)
-      add(BEAD, FLAG.finial, x, y, h + tall + 0.08, 0, 0.16, 0.16, 0.16)
-      flags.push({ kind: 'flag', at: new THREE.Vector3(x, h + tall - 0.12, -y), low: h + low, colour, brick: bricks.length }) // the brick about to close
-      brick('tree', x, y, h)
-    },
-
-    /**
-     * A carp streamer's pole at `(x, y)`, `h` above the road (#179), as one brick that pops in like a tree: a tall white
-     * pole under a gilded ball, flying a carp in each of `colours` down it, the first the largest, which `./movers` flies
-     * as it flies the flags.
-     */
-    carpPole(x: number, y: number, h: number, colours: string[]) {
-      const { tall, every, smaller, low } = CARP_POLE
-      add(THIN, FLAG.pole, x, y, h, 0, 0.1, tall, 0.1)
-      add(BEAD, FLAG.finial, x, y, h + tall + 0.12, 0, 0.22, 0.22, 0.22)
-      colours.forEach((colour, k) => {
-        const at = new THREE.Vector3(x, h + tall - 0.35 - k * every, -y)
-        flags.push({ kind: 'carp', at, low: h + low + (colours.length - 1 - k) * 0.9, colour, size: 1 - k * smaller, brick: bricks.length })
-      })
-      brick('tree', x, y, h)
-    },
-
-    /**
      * A kei truck parked at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick (#149): a white cab and a
      * flat bed with low gates, oversized as the cars are. Its bed carries two crates at Stage 2 and is full at Stage 3.
      */
@@ -1337,131 +1248,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      */
     parked,
 
-    /** A concrete drive `w` (east–west) by `d` on a lawn, centred on `(x, y)`, as a brick (#157). */
-    drive(x: number, y: number, h: number, w: number, d: number) {
-      add(cuboid(w, 0.05, d), HOME.drive, x, y, h)
-      brick('ground', x, y, h)
-    },
-
-    /**
-     * A laundry pole `len` long centred on `(x, y)`, running along `ry`'s right (as a building whose front faces `ry`),
-     * on a stand at each end, with what is hung on it, as one brick (#157).
-     */
-    laundry(x: number, y: number, h: number, ry: number, len: number, hung: Hung[]) {
-      const top = poleStand(x, y, h, ry, len, HOME.pole)
-      for (const p of hung)
-        if (p.futon) sway('futon', ...to(x, y, ry, p.at, 0), h + top + 0.06, ry, { paint: p.colour })
-        else sway('cloth', ...to(x, y, ry, p.at, 0), h + top, ry, { paint: p.colour, size: [p.w, p.tall] })
-      brick('tree', x, y, h)
-    },
-
-    /**
-     * A pole of washing standing at `(x, y)`, its line along `ry`'s right, as one brick (#178): a steel pole on a stand
-     * at each end, as a garden's laundry pole stands (#157), and a line of washing (`./movers`' `washing`) in a paint from
-     * the kit's stream, which sways.
-     */
-    washingPole(x: number, y: number, h: number, ry: number) {
-      const top = poleStand(x, y, h, ry, 2.8, STEEL.pole)
-      sway('washing', x, y, h + top, ry, { paint: pick(WASHING) })
-      brick('tree', x, y, h)
-    },
-
-    /** Laundry for a pole (#157), its sizes and colours, and a futon's colour, drawn from the kit's stream. */
-    washing: () => ({
-      items: Array.from({ length: 8 }, () => ({ w: range(0.55, 0.78), tall: range(0.75, 1.15), colour: pick(HOME.laundry) })),
-      futon: pick(HOME.futons),
-    }),
-
-    /**
-     * Pot plants by a front door at `(x, y)` in a wall whose front faces `ry`, as a brick, and from Stage 2 a bicycle
-     * standing along the wall, as `kit.bicycles`' brick (#157), true to size: a pot at Stage 1, two from Stage 2, and a
-     * third in flower at Stage 3.
-     */
-    porch(x: number, y: number, h: number, ry: number, stage: number) {
-      const side = rand() < 0.5 ? 1 : -1 // the side of the door the bicycle stands
-      const bloom = pick(HOME.blooms)
-      const pots = [0, 1, 2].map(() => ({ colour: pick(HOME.pots), s: range(0.75, 1.1) }))
-      const at = (lx: number, ly: number) => to(x, y, ry, lx, ly)
-      pots.slice(0, stage).forEach(({ colour, s }, k) => {
-        const [px, py] = at(-side * (0.95 + k * 0.52), 0.34)
-        add(POT, colour, px, py, h, 0, 0.19 * s, 0.32 * s, 0.19 * s)
-        add(BUSH, LEAVES.round[k % 5], px, py, h + 0.44 * s, k, 0.27 * s, 0.32 * s, 0.27 * s)
-        if (k === 2)
-          for (const a of [0, 2.1, 4.2])
-            add(BUSH, bloom, px + 0.12 * Math.cos(a), py + 0.12 * Math.sin(a), h + 0.62 * s, a, 0.08, 0.08, 0.08)
-      })
-      brick('tree', x, y, h)
-      if (stage >= 2) bicycles(...at(side * 1.45, 0.45), h, ry + Math.PI / 2, 1)
-    },
-
-    /**
-     * Crates stacked on the ground at `(x, y)`, `count` of them two to a layer, turned `ry`, as one brick: a farmyard's
-     * harvest waiting to go.
-     */
-    crates(x: number, y: number, h: number, ry: number, count: number) {
-      for (let k = 0; k < count; k++)
-        local(cuboid(0.74, 0.44, 0.58), pick(TRUCK.crates), x, y, ry, k % 2 ? 0.4 : -0.4, 0, h + Math.floor(k / 2) * 0.46)
-      shadow(x, y, h, 2.2, 1.6, false, ry)
-      brick('building', x, y, h)
-    },
-
-    /**
-     * Shipping containers stacked on the ground at `(x, y)`, their length along `ry` (0 east–west), as one brick (#150):
-     * the layers from `first` up to `layers`, each a box in its own colour with its frame and ribs a shade darker.
-     */
-    containers(x: number, y: number, h: number, ry: number, layers: number, first = 0) {
-      const { long: L, wide: W, tall: H } = CONTAINER
-      for (let k = first; k < layers; k++) {
-        const colour = pick(CONTAINERS)
-        const frame = `#${new THREE.Color(colour).multiplyScalar(0.78).getHexString()}`
-        const at = h + k * H
-        add(cuboid(L - 0.24, H - 0.12, W - 0.1), colour, x, y, at + 0.06, ry)
-        for (const end of [-1, 1]) local(cuboid(0.14, H, W), frame, x, y, ry, end * (L / 2 - 0.07), 0, at)
-        for (let r = 1; r < 6; r++) local(cuboid(0.1, H - 0.3, W + 0.04), frame, x, y, ry, -L / 2 + (r * L) / 6, 0, at + 0.15)
-      }
-      if (!first) shadow(x, y, h, L + 1.2, W + 1.2, false, ry)
-      brick('building', x, y, h + first * H)
-    },
-
-    /**
-     * Steel outside stairs centred on `(x, y)`, their flights running along `ry`'s right, as one brick (#156): two
-     * flights a storey from the first of `tops` (m above the road) to each of the others, as an apartment block has up
-     * one end of its walkways.
-     */
-    outsideStairs(x: number, y: number, ry: number, tops: number[]) {
-      stairs(x, y, ry, tops)
-      if (finished()) {
-        // A light at each landing, under the next or on a post over the top one, and a pool at their foot (#178).
-        const { long: L, landing: D } = STAIR
-        for (const at of tops.slice(1)) put(cuboid(0.24, 0.14, 0.24), lit(CREAM, DOOR_LIGHT), x, y, ry, (L - D) / 2, 0, at + 2.1)
-        pool('door', ...to(x, y, ry, 0, 0), tops[0], STAIR.long + 1.6, STAIR.wide + 1.6, ry)
-      }
-      shadow(x, y, tops[0], STAIR.long + 1, STAIR.wide + 1, false, ry)
-      brick('building', x, y, tops[0])
-    },
-
-    /**
-     * A straight flight of steel stairs up a wall, centred on `(x, y)` with its flight along `ry`'s right and the wall
-     * at its back, rising `rise` m toward its end `toward` (1: its right, -1: its left) to a landing there with a door
-     * in the wall, as one brick (#156): the stairs up the end of a small apartment house's row.
-     */
-    wallStairs(x: number, y: number, h: number, ry: number, rise: number, toward: number) {
-      const { landing: D } = STAIR
-      const W = WALL_STAIR.wide
-      const run = rise * WALL_STAIR.run
-      const L = run + D
-      put(flight(toward * run, rise, W - 0.1, 0.14), STEEL.tread, x, y, ry, (-toward * D) / 2, 0, h + rise / 2)
-      put(flight(toward * run, rise, 0.05, 0.9), STEEL.frame, x, y, ry, (-toward * D) / 2, W / 2 - 0.03, h + rise / 2 + 0.5)
-      const end = toward * (L / 2 - D / 2) // the landing's middle
-      put(cuboid(D, 0.14, W), STEEL.tread, x, y, ry, end, 0, h + rise - 0.14)
-      put(cuboid(D, 0.9, 0.05), STEEL.frame, x, y, ry, end, W / 2 - 0.03, h + rise)
-      put(cuboid(0.05, 0.9, W), STEEL.frame, x, y, ry, toward * (L / 2 - 0.03), 0, h + rise)
-      for (const lx of [end - D / 2 + 0.06, end + D / 2 - 0.06]) put(cuboid(0.12, rise, 0.12), STEEL.frame, x, y, ry, lx, W / 2 - 0.06, h)
-      put(cuboid(0.9, 2.05, 0.12), DOOR, x, y, ry, end, -W / 2 - 0.02, h + rise)
-      shadow(x, y, h, L + 0.8, W + 0.8, false, ry)
-      brick('building', x, y, h)
-    },
-
     /**
      * A vending machine with its back to a wall, standing at `(x, y)` with its front facing `ry`, as one brick (#156):
      * a box in one of a few paints, a little large as the props are, its front a panel of the lamps' bulb that lights at
@@ -1475,22 +1261,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       put(cuboid(W - 0.4, 0.22, 0.06), VENDING.trim, x, y, ry, 0, D / 2, h + 0.16)
       pool('vending', ...to(x, y, ry, 0, D / 2 + POOL.front.vending), h, W + 1.4, POOL.deep.vending, ry)
       shadow(x, y, h, W + 0.8, D + 0.8, false, ry)
-      brick('building', x, y, h)
-    },
-
-    /**
-     * A covered bike rack `len` long centred on `(x, y)`, open to its front `ry`, with `bikes` bicycles in it, as one
-     * brick (#156): steel posts and a pale roof, a rail along the back, and the bicycles side by side facing out.
-     */
-    bikeRack(x: number, y: number, h: number, ry: number, len: number, bikes: number) {
-      const D = BIKE_RACK.deep
-      for (const lx of [-1, 1])
-        for (const ly of [-1, 1]) put(cuboid(0.1, 2.25, 0.1), BIKES.steel, x, y, ry, lx * (len / 2 - 0.08), ly * (D / 2 - 0.08), h)
-      put(cuboid(len + 0.3, 0.08, D + 0.3), BIKES.roof, x, y, ry, 0, 0, h + 2.25)
-      put(cuboid(len - 0.2, 0.08, 0.08), BIKES.steel, x, y, ry, 0, -D / 2 + 0.25, h + 0.55)
-      const n = Math.min(bikes, Math.floor((len - 0.3) / BIKE_RACK.per))
-      row(...to(x, y, ry, -len / 2 + 0.15 + (BIKE_RACK.per * n) / 2, -0.05), h, ry, n, BIKE_RACK.per)
-      shadow(x, y, h, len + 1, D + 1, false, ry)
       brick('building', x, y, h)
     },
 
@@ -1532,34 +1302,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     },
 
     /**
-     * A nobori banner at `(x, y)`, its cloth facing `ry` (0 north, π/2 west) and hung to the right of its pole from a rod
-     * across its top, as one brick (#153): the pole and rod stand still, and the cloth, a tall narrow one in `colour`
-     * with a pale band of lettering down it, flutters in the wind and is furled for the night as a flag is (`./movers`).
-     * Oversized a little, as the props are.
-     */
-    nobori(x: number, y: number, h: number, ry: number, colour: string) {
-      add(cuboid(0.07, 3.7, 0.07), NOBORI.pole, x, y, h)
-      local(cuboid(0.8, 0.05, 0.05), NOBORI.pole, x, y, ry, 0.4, 0, h + 3.5)
-      flags.push({ kind: 'nobori', at: new THREE.Vector3(x, h + 3.48, -y), low: h + 3.48, colour, ry, brick: bricks.length }) // the brick about to close
-      brick('tree', x, y, h)
-    },
-
-    /**
-     * A paper lantern hung on a short cord at `(x, y)`, its middle `h` above the road, as one brick (#153): cream or
-     * amber, lit at dusk as the lamps are, with dark caps, a metre tall and oversized as the props are.
-     */
-    lantern(x: number, y: number, h: number, amber: boolean) {
-      const paper: Look = amber
-        ? lit(LANTERN.amber, LANTERN.glows.amber)
-        : { material: bulb, tint: new THREE.Color(1, 1, 1), glow: LANTERN.glows.cream }
-      add(PAPER, paper, x, y, h)
-      for (const at of [h + 0.46, h - 0.54]) add(CAP, LANTERN.caps, x, y, at, 0, 0.22, 0.08, 0.22)
-      add(cuboid(0.03, 0.5, 0.03), LANTERN.caps, x, y, h + 0.54) // its cord
-      pool(amber ? 'amber' : 'cream', x, y, KERB, POOL.lantern, POOL.lantern) // on the pavement it hangs over
-      brick('lamp', x, y, h)
-    },
-
-    /**
      * A park bench at `(x, y)`, its front facing `ry` (0 north, π/2 west), as one brick that drops in (#152): wooden
      * slats on iron ends, 2 m long, oversized a little as the props are.
      */
@@ -1573,22 +1315,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       }
       shadow(x, y, h, 2.8, 1.4, true, ry) // round, as the trees' are: a meadow then draws no other shadow
       brick('building', x, y, h)
-    },
-
-    /**
-     * A slide at `(x, y)`, running down along `ry`'s right (its chute toward +x when `ry` is 0), as a brick that pops in
-     * (#155): a ladder to a deck on four posts, and the chute.
-     */
-    slide(x: number, y: number, h: number, ry: number) {
-      const deck = 1.7
-      for (const i of [-0.55, 0.55]) for (const j of [-0.55, 0.55]) local(cuboid(0.14, deck + 1, 0.14), PLAY.frame, x, y, ry, -1 + i, j, h)
-      local(cuboid(1.3, 0.12, 1.3), PLAY.deck, x, y, ry, -1, 0, h + deck)
-      for (let k = 1; k < 5; k++) local(cuboid(0.12, 0.08, 1.1), PLAY.deck, x, y, ry, -1.85, 0, h + (k * deck) / 5) // the ladder
-      const chute = new THREE.BoxGeometry(3.2, 0.12, 0.9).rotateZ(-Math.atan2(deck, 2.8)).translate(0.5, deck / 2 + 0.06, 0)
-      local(chute, PLAY.chute, x, y, ry, 0, 0, h)
-      chute.dispose()
-      shadow(x, y, h, 5, 2.2, false, ry)
-      brick('tree', x, y, h)
     },
 
     /** A frame of two swings at `(x, y)`, or of one if `one` (#178), its bar along `ry`'s right, as a brick that pops in (#155). */
@@ -1608,42 +1334,6 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       }
       shadow(x, y, h, wide + 1.6, 2.4, false, ry)
       brick('tree', x, y, h)
-    },
-
-    /** A sandbox `w` by `d` at `(x, y)`, turned `ry`, as a brick (#155): a wooden rim round the sand. */
-    sandbox(x: number, y: number, h: number, w: number, d: number, ry: number) {
-      local(cuboid(w - 0.3, 0.2, d - 0.3), PLAY.sand, x, y, ry, 0, 0, h)
-      for (const k of [-1, 1]) {
-        local(cuboid(w, 0.34, 0.16), PLAY.rim, x, y, ry, 0, (k * (d - 0.16)) / 2, h)
-        local(cuboid(0.16, 0.34, d - 0.32), PLAY.rim, x, y, ry, (k * (w - 0.16)) / 2, 0, h)
-      }
-      brick('ground', x, y, h)
-    },
-
-    /**
-     * A picnic blanket laid at `(x, y)`, turned `ry`, as one brick (#152): gingham in one of the blankets' colours, with
-     * a basket on it if `basket`, and a parasol over it in another colour if `parasol`. Oversized a little.
-     */
-    blanket(x: number, y: number, h: number, ry: number, basket: boolean, parasol: boolean) {
-      const [colour, shade] = [pick(PICNIC.blankets), pick(PICNIC.blankets)]
-      add(cuboid(2.6, 0.04, 2), colour, x, y, h, ry)
-      for (const k of [-1, 0, 1]) {
-        local(cuboid(0.18, 0.012, 2), PICNIC.stripe, x, y, ry, k * 0.78, 0, h + 0.04)
-        local(cuboid(2.6, 0.012, 0.18), PICNIC.stripe, x, y, ry, 0, k * 0.6, h + 0.04)
-      }
-      if (basket) {
-        local(cuboid(0.62, 0.36, 0.42), PICNIC.basket, x, y, ry, 0.72, 0.5, h + 0.04)
-        local(cuboid(0.66, 0.05, 0.46), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.4)
-        for (const k of [-1, 1]) local(cuboid(0.04, 0.26, 0.04), PICNIC.lid, x, y, ry, 0.72 + k * 0.24, 0.5, h + 0.45)
-        local(cuboid(0.52, 0.04, 0.04), PICNIC.lid, x, y, ry, 0.72, 0.5, h + 0.71)
-      }
-      if (parasol) {
-        const [px, py] = to(x, y, ry, -0.95, 0.7)
-        add(cuboid(0.06, 2.3, 0.06), BENCH.iron, px, py, h)
-        add(CONE, shade, px, py, h + 1.95, 0, 1.4, 0.5, 1.4)
-        shadow(px, py, h, 3, 3, true)
-      }
-      brick('ground', x, y, h)
     },
 
     /** A spring rider at `(x, y)` facing `ry`, as a brick that pops in (#155): a little animal to rock on. */
