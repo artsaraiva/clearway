@@ -7,9 +7,6 @@ import { replan, route } from './routing'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
 
-export { VEHICLE_TYPES, type VehicleType } from './demand'
-export { PREWARM } from './metric'
-
 export interface Vehicle {
   id: number
   type: VehicleType

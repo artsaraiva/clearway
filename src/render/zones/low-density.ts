@@ -756,7 +756,7 @@ function carport(kit: Kit, x: number, y: number, w: number, d: number, out: numb
 // pergola with string lights. Before its Stage a scene's lot is a lawn with a young tree.
 
 /** The scenes a low-density Block picks from (#179). */
-export type LowScene = 'koi' | 'paddling' | 'kennel' | 'persimmon' | 'barbecue'
+type LowScene = 'koi' | 'paddling' | 'kennel' | 'persimmon' | 'barbecue'
 /** The least each scene's lawn measures across, m. */
 const LOW_SCENES: Record<LowScene, number> = { koi: 8, paddling: 7.4, kennel: 7.6, persimmon: 7, barbecue: 7.8 }
 /** A low-density Block's scene (#179), and the lot it takes, whose house is not built. */

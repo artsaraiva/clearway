@@ -463,6 +463,3 @@ function vehicles(net: Network) {
   }
   return out
 }
-
-/** Whether the tree built has the scene check's hooks; false for an older ref's, whose report holds meshes and no more. */
-export const hasHooks = () => hooked

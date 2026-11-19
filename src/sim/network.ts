@@ -2,7 +2,7 @@ import type { Change, JunctionSpec, NetworkSpec, Priority } from './spec'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
 import type { Vehicle } from './sim'
 
-export type LaneKind = 'road' | 'ring' | 'connection'
+type LaneKind = 'road' | 'ring' | 'connection'
 
 export interface Lane {
   /** Stable across Rebuilds. */
@@ -27,7 +27,7 @@ export interface Lane {
   conn?: Connection
 }
 
-export interface Conflict {
+interface Conflict {
   other: Connection
   /** Conflict point as arc length along this Connection's lane, and along the other's. */
   s: number
@@ -84,7 +84,7 @@ export interface Network {
   gateways: Record<string, Arm>
 }
 
-export const RING_SPEED = 9
+const RING_SPEED = 9
 const MAX_LATERAL_ACCEL = 3
 const ENTRY_SETBACK = 10 // approach stop line distance outside the Ring's outer edge
 // Half the width of an Arm's mouth on the Ring: its lanes plus MOUTH_MARGIN, and at least MIN_MOUTH, since a narrower

@@ -23,7 +23,7 @@ export type JunctionSpec =
   | { type: 'priority'; at: Point }
 
 /** A straight Road. An end is a Junction id, or the point where the Road leaves the map (a Gateway). Attributes override `roadDefaults`. */
-export interface RoadSpec extends Partial<RoadAttributes> {
+interface RoadSpec extends Partial<RoadAttributes> {
   from: Point | string
   to: Point | string
   /** Lanes per direction: [from→to, to→from]. */

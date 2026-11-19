@@ -30,6 +30,5 @@ jobs:
       - run: npm test
       # The rules of finish that are facts about what was placed (#191). Builds every Zone's City in Node: no browser.
       - run: npm run check:scene -- all
-      # Exports nothing imports. Reported, not enforced, until the standing ones are cleared (#201).
+      # Exports nothing imports (knip.json says where it looks). Drop the `export`, or the code if it is dead.
       - run: npm run lint:exports
-        continue-on-error: true
