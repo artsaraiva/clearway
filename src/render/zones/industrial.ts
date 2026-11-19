@@ -50,8 +50,8 @@ const INDUSTRIAL_FINISH = {
   second: 2500,
   ground: { in: 0.8, clear: 0.5, ends: 1.5, lampRoom: 1.2, poleRoom: 0.8, shedRoom: 0.6 },
   sizes: {
-    crane: smaller([14, 4.2], [8, 3.8]),
-    tanks: smaller([12, 4.2], [7, 3.5]),
+    crane: smaller([14, 4.4], [8, 4]),
+    tanks: smaller([12, 4.4], [7, 3.9]),
     rack: smaller([16, 3.2], [9, 2.8]),
   } as Record<IndustrialScene, (readonly [number, number])[]>,
 }
@@ -59,12 +59,13 @@ const INDUSTRIAL_FINISH = {
 // Block's edge where it meets the fence; from Stage 2 a walkway along the door wall `walk` m out, a line along its edge,
 // and hazard stripes before each door `hazard` m deep; all painted `line` but the stripes, in the bays' paint.
 const YARD_GROUND = { tarmac: '#a9a59e', line: '#f4f1ea', walk: 1.3, hazard: 0.55 }
-// A fence along the Block's edge where it faces a Road (#181), `in` m in from it: mesh panels `tall` m tall between posts
+// A fence along the Block's edge where it faces a Road (#181), `in` m in from it, behind the walkers on the pavement
+// (`../walkers`' `INSET`, 1.6 m): mesh panels `tall` m tall between posts
 // about `bay` m apart, in its paint with darker posts, broken where anything stands and `poles`, `lamps` and `trees` m
 // from the kerbside's; no stretch under `least` m. Where it breaks for what stands in a yard (a truck's way out), a
 // gate: taller posts, and its leaf slid open behind the fence beside it, `leaf` m long at most.
 const FENCE = {
-  in: 1.8,
+  in: 2.5,
   tall: 1.75,
   bay: 2.5,
   paint: '#7d9188',
@@ -88,7 +89,7 @@ const YARD_KIT = {
   steel: '#6f7986',
   light: '#fff1d6',
   glow: 1.4,
-  inside: 2.3,
+  inside: 3.1,
 }
 
 /**
@@ -509,11 +510,13 @@ function bay(kit: Kit, x: number, y: number, h: number, ry: number, l: number, w
 // The scenes (#181): a gantry crane over a stack of containers, its girders high enough that the spreader its trolley
 // carries (`TROLLEY`) clears the stack by `clear` m and a little, two high at Stage 2 and three at Stage 3, in the crane's yellow with dark bogies and a cab, its trolley waiting
 // `waits` s (a range each draws its own from) over each end of the stack; a tank farm, its tanks `tall` m tall at Stage
-// 2 and `taller` at Stage 3, in pale paints under a band, in a concrete bund, a catwalk over their tops at Stage 3; and a
+// 2 and `taller` at Stage 3, in pale paints under a band, in a concrete bund behind `walk` m left along the ground's
+// front for the walkers on the pavement, a catwalk over their tops at Stage 3; and a
 // pipe rack, its bents about `bay` m apart and `tall` m tall (`taller` at Stage 3, with a lower tier), carrying pipes in
 // `pipes`' paints.
 const CRANE = { clear: 0.4, paint: '#e8b84a', dark: '#4a525c', cab: '#f4f1ea', glass: '#41566c', waits: [5, 12], girders: 1.65 }
 const TANKS = {
+  walk: 1.3,
   tall: 5.6,
   taller: 7.2,
   paints: ['#eef0ee', '#e6dfcf', '#d9e2dc'],
@@ -589,18 +592,20 @@ function crane(kit: Kit, l: RowLot, stage: number) {
   )
   kit.shadow(l.x, l.y, KERB, l.w + 1, l.d + 1, false, l.ry)
   kit.brick('building', l.x, l.y, KERB)
-  // The stack, a container's length and a little to each spot along the ground.
-  const { long } = CONTAINER
+  // The stack, a container's length and a little to each spot along the ground, against the back legs so that the
+  // walkers on the pavement pass between it and the front legs.
+  const { long, wide } = CONTAINER
+  const row = -(span - 0.45 - wide / 2)
   const n = Math.max(1, Math.floor((l.w - 1) / (long + 0.3)))
   for (let k = 0; k < n; k++) {
     const u = (k - (n - 1) / 2) * (long + 0.3)
-    const p = turned(l.x, l.y, l.ry, u, 0)
+    const p = turned(l.x, l.y, l.ry, u, row)
     const high = 1 + (kit.rand() < 0.6 ? 1 : 0) + (stage === 3 ? 1 : 0)
     containers(kit, p.x, p.y, KERB, l.ry, high)
   }
   // The trolley, over each end of the stack in turn.
   const reach = Math.max(1.2, ((n - 1) * (long + 0.3)) / 2)
-  const [a, b] = [turned(l.x, l.y, l.ry, -reach, 0), turned(l.x, l.y, l.ry, reach, 0)]
+  const [a, b] = [turned(l.x, l.y, l.ry, -reach, row), turned(l.x, l.y, l.ry, reach, row)]
   const waits = [0, 1].map(() => CRANE.waits[0] + kit.rand() * (CRANE.waits[1] - CRANE.waits[0]))
   kit.mover('trolley', polyline([a, b, a]), [0, 2 * reach], 0, KERB + tall + 0.7, { waits })
 }
@@ -611,34 +616,38 @@ function crane(kit: Kit, l: RowLot, stage: number) {
  * at Stage 3, with a catwalk over their tops.
  */
 function tanks(kit: Kit, l: RowLot, stage: number) {
-  const { paints, bands, bund, steel } = TANKS
-  kit.paving(l.x, l.y, KERB, l.w, l.d, l.ry, bund, PATTERN.paving)
+  const { paints, bands, bund, steel, walk } = TANKS
+  // The bund behind the walkers' way along the front of the ground.
+  const [deep, back] = [l.d - walk, -walk / 2]
+  const c = turned(l.x, l.y, l.ry, 0, back)
+  kit.paving(c.x, c.y, KERB, l.w, deep, l.ry, bund, PATTERN.paving)
   for (const k of [-1, 1]) {
-    kit.local(kit.cuboid(l.w, 0.55, 0.22), bund, l.x, l.y, l.ry, 0, k * (l.d / 2 - 0.11), KERB)
-    kit.local(kit.cuboid(0.22, 0.55, l.d - 0.44), bund, l.x, l.y, l.ry, k * (l.w / 2 - 0.11), 0, KERB)
+    kit.local(kit.cuboid(l.w, 0.55, 0.22), bund, l.x, l.y, l.ry, 0, back + k * (deep / 2 - 0.11), KERB)
+    kit.local(kit.cuboid(0.22, 0.55, deep - 0.44), bund, l.x, l.y, l.ry, k * (l.w / 2 - 0.11), back, KERB)
   }
-  const r = Math.min(1.75, l.d / 2 - 0.5)
+  const r = Math.min(1.75, deep / 2 - 0.4)
   const n = Math.max(2, Math.min(4, Math.floor((l.w - 0.6) / (2 * r + 0.7))))
   const gap = (l.w - 0.6) / n
   const tall = stage === 3 ? TANKS.taller : TANKS.tall
   const [paint, band] = [kit.pick(paints), kit.pick(bands)]
   for (let k = 0; k < n; k++) {
     const u = -l.w / 2 + 0.3 + (k + 0.5) * gap
-    const p = turned(l.x, l.y, l.ry, u, 0)
+    const p = turned(l.x, l.y, l.ry, u, back)
     const high = tall - 0.5 * (k % 2)
     wrapped(kit, paint, p.x, p.y, KERB, r, high, PATTERN.plates, 2, 1.2, spot(p.x, p.y))
     kit.add(CYLINDER, band, p.x, p.y, KERB + high - 1.1, 0, r + 0.04, 0.5, r + 0.04)
     kit.add(kit.cuboid(0.7, 0.35, 0.7), steel, p.x, p.y, KERB + high) // its hatch
-    kit.local(kit.cuboid(0.3, 0.3, l.d / 2 - r), steel, l.x, l.y, l.ry, u, -(r + l.d / 2) / 2, KERB + 0.3) // its pipe out the back
+    kit.local(kit.cuboid(0.3, 0.3, deep / 2 - r), steel, l.x, l.y, l.ry, u, back - (r + deep / 2) / 2, KERB + 0.3) // its pipe out the back
   }
   // A ladder up the first tank's front.
   const first = -l.w / 2 + 0.3 + gap / 2
-  for (const k of [-1, 1]) kit.local(kit.cuboid(0.07, tall, 0.07), steel, l.x, l.y, l.ry, first + k * 0.22, r + 0.12, KERB)
-  for (let z = 0.5; z < tall; z += 0.6) kit.local(kit.cuboid(0.5, 0.05, 0.05), steel, l.x, l.y, l.ry, first, r + 0.12, KERB + z)
+  for (const k of [-1, 1]) kit.local(kit.cuboid(0.07, tall, 0.07), steel, l.x, l.y, l.ry, first + k * 0.22, back + r + 0.12, KERB)
+  for (let z = 0.5; z < tall; z += 0.6) kit.local(kit.cuboid(0.5, 0.05, 0.05), steel, l.x, l.y, l.ry, first, back + r + 0.12, KERB + z)
   if (stage === 3) {
     const span = (n - 1) * gap
-    kit.local(kit.cuboid(span, 0.1, 0.8), steel, l.x, l.y, l.ry, first + span / 2, 0, KERB + tall + 0.05)
-    for (const k of [-1, 1]) kit.local(kit.cuboid(span, 0.05, 0.05), steel, l.x, l.y, l.ry, first + span / 2, k * 0.4, KERB + tall + 1)
+    kit.local(kit.cuboid(span, 0.1, 0.8), steel, l.x, l.y, l.ry, first + span / 2, back, KERB + tall + 0.05)
+    for (const k of [-1, 1])
+      kit.local(kit.cuboid(span, 0.05, 0.05), steel, l.x, l.y, l.ry, first + span / 2, back + k * 0.4, KERB + tall + 1)
   }
   kit.shadow(l.x, l.y, KERB, l.w + 1, l.d + 1, false, l.ry)
   kit.brick('building', l.x, l.y, KERB)
