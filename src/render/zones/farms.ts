@@ -6,7 +6,7 @@ import { KERB } from '../blocks'
 import { inside } from '../field'
 import { CREAM, DOOR, HARVEST, type Kit, type Look as KitLook, LEDGE, SHAPES, spot, STRAW, to } from '../kit'
 import { clearOf, GRASS, overlay, site } from '../landmarks'
-import { PATTERN } from '../pattern'
+import { PATTERN, type Pattern } from '../pattern'
 import { bench, GLOWS, menuBoard, STALL, STONE, WOOD } from '../props'
 import { person, wheelbarrow } from './green'
 import { corners, near, overlap, runs, stands, type Look, type RowLot, type ZoneGround } from './ground'
@@ -62,10 +62,11 @@ const TUNNEL = mergeGeometries([
 // m: the radius of a tractor's turns, how far short of a row's end it stops, half the room it takes, with a little to
 // spare, and the longest loop it works in whole laps, so that it ends each day where it set out.
 const TRACTOR = { turn: 0.6, short: 1, half: 1.4, most: 180 }
-// To the Finish (#184). An irrigation channel: its concrete, how wide it and its water are (m), and how far it lies
-// from the first row's place. A round bale, lying on its side along x, and one wrapped in film. A fruit tree's trunk,
+// To the Finish (#184). Concrete, a channel's and a barn's floor. An irrigation channel: how wide it and its water are
+// (m), how far it lies from the first row's place, and the shortest row it takes the place of. A round bale, lying on its side along x, and one wrapped in film. A fruit tree's trunk,
 // leaves and fruit, its crown and a fruit as shapes. A drying rack's timber and its sheaves. A sluice's timber and iron.
-const CHANNEL = { bank: '#cfc8ba', wide: 1, water: 0.6, off: 0.3, least: 10 }
+const CONCRETE = '#cfc8ba'
+const CHANNEL = { bank: CONCRETE, wide: 1, water: 0.6, off: 0.3, least: 10 }
 const BALE = new THREE.CylinderGeometry(0.75, 0.75, 1.25, 10).rotateZ(Math.PI / 2).translate(0, 0.75, 0)
 const WRAPPED = '#eef1ee'
 const FRUIT_TREE = { trunk: '#a1714c', leaves: ['#6bc357', '#5fbc51', '#85cf61'], fruit: ['#f0b43c', '#e8925e', '#f6d36a'], grass: GRASS }
@@ -78,7 +79,7 @@ const LADDER = mergeGeometries([
   ...[-0.3, 0.3].map((x) => new THREE.BoxGeometry(0.07, 3.3, 0.07).translate(x, 1.65, 0)),
   ...[0.5, 1, 1.5, 2, 2.5, 3].map((y) => new THREE.BoxGeometry(0.6, 0.05, 0.05).translate(0, y, 0)),
 ]).rotateX(-0.3)
-// The people of a farm's scenes: their shirts.
+// The people of a farm's scenes: their shirts, which a stand's nobori take too.
 const SHIRTS = ['#f6d36a', '#7fbf9d', '#fbf8f2', '#c7b8f0']
 /** The scenes a farm Block without a farmstead picks from (#184), the farmstead being the first of one that has it. */
 type FarmScene = 'orchard' | 'stand'
@@ -526,7 +527,7 @@ function farm(g: ZoneGround) {
     })
 
   /** A slab of ground over the patch `q`, `lift` m up, in `colour`, wearing `kind` along the rows; it joins the next brick. */
-  const lay = (q: Patch, colour: string, kind: (typeof PATTERN)[keyof typeof PATTERN], lift = 0, tall = 0.05) => {
+  const lay = (q: Patch, colour: string, kind: Pattern, lift = 0, tall = 0.05) => {
     const [w, d] = along ? [q.s1 - q.s0, q.t1 - q.t0] : [q.t1 - q.t0, q.s1 - q.s0]
     const p = onMap(along, (q.s0 + q.s1) / 2, (q.t0 + q.t1) / 2)
     const box = kit.cuboid(w, tall, d)
@@ -621,7 +622,6 @@ function farm(g: ZoneGround) {
   plots.forEach((plot, i) => {
     const { rows, bx, by, crop: colour, fallow } = plot
     const { kind, houses, under, scare, where, turn, egret } = drawn[i]
-    const tractors = worked?.plot === i || second?.plot === i
     kit.lot(plot.lot)
     kit.staged((stage) => {
       const own = mulberry32(plot.seed ^ 0x51ed)
@@ -652,7 +652,7 @@ function farm(g: ZoneGround) {
       }
       kit.brick(kind === 'glass' && stage >= under ? 'building' : 'tree', bx, by, ground, kind === 'glass' && stage >= under ? 2 : 0)
     }, plot.seed)
-    const shares = kind === 'paddy' ? SCARECROWS.paddy : kind === 'crops' && !tractors ? SCARECROWS.crops : null
+    const shares = kind === 'paddy' ? SCARECROWS.paddy : kind === 'crops' ? SCARECROWS.crops : null
     const first = shares ? shares.findIndex((share) => scare < share) + 1 : 0 // the first Stage it has a scarecrow
     const centre = rows[Math.floor(rows.length / 2)]
     if (first && centre && centre.b - centre.a > 8) {
@@ -678,7 +678,8 @@ function farm(g: ZoneGround) {
       1,
       () => {
         lay({ s0: a, s1: b, t0: t - CHANNEL.wide / 2, t1: t + CHANNEL.wide / 2 }, CHANNEL.bank, PATTERN.paving, 0, 0.12)
-        lay({ s0: a + 0.2, s1: b - 0.2, t0: t - CHANNEL.water / 2, t1: t + CHANNEL.water / 2 }, PADDY.water, PATTERN.paving, 0.11, 0.02)
+        const [w, d] = along ? [b - a - 0.4, CHANNEL.water] : [CHANNEL.water, b - a - 0.4]
+        kit.add(kit.cuboid(w, 0.02, d), PADDY.water, at.x, at.y, ground + 0.11)
         kit.brick('ground', at.x, at.y, ground)
         kit.blockZoomProps(() => {
           const ry = along ? 0 : Math.PI / 2
@@ -819,7 +820,7 @@ function barn(kit: Kit, x: number, y: number, h: number, ry: number, stage: numb
   for (const k of [-1, 1]) wall((W - door) / 2, thick, k * (door / 2 + (W - door) / 4), D / 2 - thick / 2, 2)
   put(kit.cuboid(door, T - 3.8, thick), walls, 0, D / 2 - thick / 2, 3.8)
   kit.tiled(kit.gable(D + 0.8, W + 1, 2.6), BARN.roof, x, y, h + T, ry, seed + 3, PATTERN.ribbed)
-  put(kit.cuboid(W - 2 * thick, 0.07, D - 2 * thick), CHANNEL.bank, 0, 0, 0) // its floor, over its contact shadow
+  put(kit.cuboid(W - 2 * thick, 0.07, D - 2 * thick), CONCRETE, 0, 0, 0) // its floor, over its contact shadow
   // Its door's two leaves, each with its rails: folded back, or shut.
   for (const k of [-1, 1]) {
     const lx = k * (open ? door / 2 + 0.88 : 0.9)
@@ -946,10 +947,11 @@ function fruitTree(kit: Kit, x: number, y: number, h: number, s: number, fruit: 
     [x + Math.cos(a) * 1.1 * s, y + Math.sin(a) * 1.1 * s, 3.1 * s, 1.4 * s],
   ]
   for (const [cx, cy, up, r] of crowns) kit.add(CROWN, pick(FRUIT_TREE.leaves), cx, cy, h + up, 0, r, r * 0.85, r)
+  // Its fruit is drawn whether or not it bears any, so that the trees after it draw alike at every Stage.
+  const [colour, lifts] = [pick(FRUIT_TREE.fruit), [draw(), draw(), draw()]]
   if (!fruit) return
-  const colour = pick(FRUIT_TREE.fruit)
   for (let k = 0; k < 3; k++) {
-    const [b, lift] = [a + 1 + k * 2.1, 0.2 + draw() * 0.5]
+    const [b, lift] = [a + 1 + k * 2.1, 0.2 + lifts[k] * 0.5]
     const out = 1.9 * s * Math.sqrt(1 - lift * lift)
     kit.add(
       FRUIT,
@@ -992,7 +994,7 @@ function orchard(kit: Kit, l: RowLot, stage: number, h: number, on: boolean) {
 }
 
 /**
- * A roadside produce stand on its ground `l` (#184), facing the Road, the earth `h` up: a timber counter on gravel, bare
+ * A roadside produce stand on its ground `l` (#184), facing a Road where its Block has room on one, the earth `h` up: a timber counter on gravel, bare
  * until it is `on`; then under a tiled roof on posts, crates of produce on the counter and before it, a lantern that
  * lights at dusk, a nobori, a price board and an honesty box on a post; at Stage 3 a second nobori, more crates,
  * pumpkins and a bench.
@@ -1018,9 +1020,9 @@ function produceStand(kit: Kit, l: RowLot, stage: number, h: number, on: boolean
   kit.shadow(...at(0, 0.2), h, 6.4, 3.4, false, l.ry)
   kit.brick('building', l.x, l.y, h)
   if (!on) return
-  nobori(kit, ...at(-3.1, 1.2), h, l.ry, '#7fbf9d')
-  if (stage === 3) nobori(kit, ...at(3.1, -0.9), h, l.ry, '#f6d36a')
-  menuBoard(kit, ...at(3, 1.5), l.ry)
+  nobori(kit, ...at(-3.1, 1.2), h, l.ry, SHIRTS[1])
+  if (stage === 3) nobori(kit, ...at(3.1, -0.9), h, l.ry, SHIRTS[0])
+  menuBoard(kit, ...at(3, 1.5), l.ry, h + 0.02 - KERB)
   kit.blockZoomProps(() => {
     // The honesty box on its post, a slot in its lid.
     put(kit.cuboid(0.1, 1, 0.1), WOOD.dark, -2.2, 1.5, 0)
@@ -1028,7 +1030,8 @@ function produceStand(kit: Kit, l: RowLot, stage: number, h: number, on: boolean
     put(kit.cuboid(0.2, 0.02, 0.05), WOOD.dark, -2.2, 1.5, 1.3)
     kit.brick('building', ...at(-2.2, 1.5), h)
     if (stage < 3) return
-    for (const [k, u] of [-0.9, -0.3, 0.4].entries()) kit.add(SPHERE, '#f0b43c', ...at(u, 1.4 + (k % 2) * 0.3), h, 0, 0.26, 0.2, 0.26)
+    for (const [k, u] of [-0.9, -0.3, 0.4].entries())
+      kit.add(SPHERE, FRUIT_TREE.fruit[0], ...at(u, 1.4 + (k % 2) * 0.3), h, 0, 0.26, 0.2, 0.26)
     kit.brick('building', ...at(-0.3, 1.5), h)
   })
   if (stage === 3) bench(kit, ...at(1.2, -1.5), l.ry + Math.PI, h)
