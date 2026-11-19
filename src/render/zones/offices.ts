@@ -158,7 +158,6 @@ function offices(g: ZoneGround) {
       kit.staged((stage) => officeScene(kit, kind, s, stage, from), spot(s.x, s.y))
       if (entry) kit.from(from, () => foodTruck(kit, s, entry), spot(s.x, s.y) + 1)
     })
-    g.kept.push(s)
   }
   if (taxi) {
     kit.from(1, () => taxiBay(kit, taxi), spot(taxi.x, taxi.y))
@@ -169,7 +168,6 @@ function offices(g: ZoneGround) {
       // Facing along the kerb with the pavement on its left, as a car stands at a Japanese kerb.
       kit.from(n ? 3 : 2, () => kit.parked(TAXI, p.x, p.y, KERB + 0.02, taxi.ry + Math.PI / 2, paint), spot(p.x, p.y))
     })
-    g.kept.push(taxi)
   }
 }
 

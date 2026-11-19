@@ -43,7 +43,7 @@ const FLAT_DISC = new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2)
 // further off. A mover's loop stands as wide as its kind (`./movers`), but for what works a wall or flies.
 const STANDS = { cell: 0.5, band: 4, low: 0.06, tall: 0.4, clear: 0.5 }
 
-/** Something that stands on a Block near its edge, as a look lays it: what the street's furniture keeps off. */
+/** A box `w` by `d` centred on `(x, y)` and turned `ry`, as a look lays something on a Block. */
 export interface Footprint {
   x: number
   y: number
@@ -233,16 +233,15 @@ export interface Kerbside {
   poles: Vec[]
   /** What its Zone built (`standing`). */
   stands: Stands
-  /** What its Zone said it stands near the edge (#175), besides. */
-  kept: Footprint[]
 }
 
 /**
  * The street furniture round Block `block` (#175, on every Tile since #176), each piece a brick: see the module's head.
- * It keeps clear of what `kerbside` says stands there. The kerbstone line is `kerbLine`'s.
+ * It keeps clear of what `kerbside` says stands there, and of the ground its Zone claimed (`kit.unclaimed`, #218). The
+ * kerbstone line is `kerbLine`'s.
  */
 export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network, spec: NetworkSpec, kerbside: Kerbside) {
-  const { lamps, trees, poles, stands, kept } = kerbside
+  const { lamps, trees, poles, stands } = kerbside
   const { loop } = block
   const { inward, along, length } = walk(loop)
   const laneWidth = (road: string) => spec.roads[road]?.laneWidth ?? spec.roadDefaults.laneWidth
@@ -339,15 +338,11 @@ export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network
   }
 
   // Along the edge, a point at a time: drain grates on the kerb line of the straight runs, and a planter or a pair of
-  // bollards wherever the pavement has run bare for `RUN.most` m. What a Zone keeps (#175) is kept clear by a planter's
-  // half length and a little, so that one laid beside it stops short of it (#193).
+  // bollards wherever the pavement has run bare for `RUN.most` m. The ground a Zone claimed (#198) is kept clear by a
+  // planter's half length and a little, so that one laid beside it stops short of it (#193, #218).
   const busy = (p: Vec) =>
     stands(p.x, p.y, 0.7, true) ||
-    kept.some((f) => {
-      const [c, s] = [Math.cos(f.ry), Math.sin(f.ry)]
-      const [dx, dy] = [p.x - f.x, p.y - f.y]
-      return Math.abs(dx * c + dy * s) < f.w / 2 + 1.1 && Math.abs(-dx * s + dy * c) < f.d / 2 + 1.1
-    }) ||
+    !kit.unclaimed(p.x, p.y, 0, 0, 0, 1.1) ||
     [...lamps, ...trees].some((q) => near(p, q, 2.2)) ||
     byPole(p, POLE_ROOM.furniture) ||
     corners.some((q) => near(p, q, RAIL.reach + 1))

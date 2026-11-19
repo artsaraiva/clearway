@@ -199,7 +199,6 @@ function terraces(g: ZoneGround) {
   )
   for (const { kind, ground, from } of scenes) {
     kit.scene(kind, () => kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y)))
-    g.kept.push(ground)
     kit.stand(ground.x, ground.y, ground.w, ground.d, ground.ry)
   }
   gardens(
@@ -413,7 +412,6 @@ function bins(g: ZoneGround, draw: () => number) {
   const l = alongEdge(g, draw, runs(g, 0.65), [[2.1, 1.1]], room, ok)
   if (!l) return
   g.kit.stand(l.x, l.y, l.w, l.d, l.ry)
-  g.kept.push(l)
   g.kit.from(1, () => binStore(g.kit, l.x, l.y, l.ry + Math.PI), spot(l.x, l.y))
 }
 
@@ -625,7 +623,6 @@ function courtyards(g: ZoneGround) {
   if (!kit.finished) return
   for (const { kind, ground, from } of scenes) {
     kit.scene(kind, () => kit.staged((stage) => mediumScene(kit, kind, ground, stage, from), spot(ground.x, ground.y)))
-    g.kept.push(ground)
   }
   for (const b of built) courtGround(g, b)
   parking(g, plans, aroundWings)
@@ -833,7 +830,6 @@ function bareGround(g: ZoneGround, built: Built[], way: Vec[]) {
         const l = { ...p, w, d: deep, ry: run?.ry ?? 0, onRoad: false }
         if (!clear(l)) continue
         g.kit.stand(l.x, l.y, l.w, l.d, l.ry)
-        g.kept.push(l)
         if (w === park[0]) parkedBays(g, l)
         else if (w === court[0]) pocketCourt(g, l)
         else bedTree(g, l.x, l.y)
@@ -889,7 +885,6 @@ function plantings(g: ZoneGround, b: Built, way: Vec[]) {
             spot(p.x, p.y),
           )
           kit.stand(p.x, p.y, u1 - u0, deep, ry)
-          g.kept.push({ ...p, w: u1 - u0, d: deep, ry })
         }
         i = j + 1
       }
@@ -952,7 +947,6 @@ function courtGround(g: ZoneGround, b: Built) {
         // Clear of what stands but for a sliver (0.15 m in from each side of both), nor before a door (#193).
         if (!kit.unclaimed(l.x, l.y, l.w, l.d, ry, -0.15, ['stand']) || !kit.unclaimed(l.x, l.y, l.w, l.d, ry, 0, BAYS_AND_DOORS)) continue
         kit.stand(l.x, l.y, l.w, l.d, ry)
-        g.kept.push(l)
         return pocketCourt(g, l)
       }
     }
@@ -1002,7 +996,6 @@ function parking(g: ZoneGround, draw: () => number, room: RowLot[]) {
   if (!l) return
   const m = turned(l.x, l.y, l.ry, 0, -0.2)
   g.kit.stand(m.x, m.y, l.w + 0.4, l.d + 0.4, l.ry) // and a margin, so no hedge stands on its lines
-  g.kept.push(l)
   parkedBays(g, l)
 }
 

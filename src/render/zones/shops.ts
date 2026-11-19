@@ -87,7 +87,6 @@ function shops(g: ZoneGround) {
     const scene = scenes.get(i)
     // The end of its front its door is at, drawn from where it stands: the vending machines stand at the other.
     const door: 1 | -1 = mulberry32(spot(l.x, l.y))() < 0.5 ? -1 : 1
-    g.kept.push({ ...turned(l.x, l.y, l.ry, 0, SHOPS.margin / 2), w: l.w, d: l.d + SHOPS.margin, ry: l.ry })
     if (scene?.kind === 'stall') {
       kit.scene('stall', () => kit.staged((stage) => stallCourt(g, l, stage, scene.from, paving)))
       continue
@@ -101,8 +100,13 @@ function shops(g: ZoneGround) {
     else seamFront(g, l, door)
   }
   kit.lot(-1)
-  // Each lot's ground and what stands on its walls, once the pavement before its front is laid (#198).
+  // Each lot's ground and what stands on its walls, once the pavement before its front is laid (#198); and that pavement
+  // out to the kerb, which the kerbside's planters and bollards keep off (#218).
   for (const w of lots.map(walled)) kit.stand(w.x, w.y, w.w, w.d, w.ry)
+  for (const l of lots) {
+    const p = turned(l.x, l.y, l.ry, 0, (l.d + SHOPS.margin) / 2)
+    kit.stand(p.x, p.y, l.w, SHOPS.margin, l.ry)
+  }
   shoppers(g, lots, scenes)
   yards(g, lots, SHOPS.trees)
   backYard(g, lots)
@@ -164,7 +168,6 @@ function backYard(g: ZoneGround, lots: RowLot[]) {
     if (!stands(g, x, y, 2.4, 5, 1.5, ry) || !kit.unclaimed(x, y, truck.w, truck.d, ry)) continue
     kit.stand(x, y, truck.w, truck.d, ry)
     kit.from(parked++ ? 3 : 2, () => kit.keiTruck(x, y, KERB, ry), spot(x, y))
-    g.kept.push(truck) // which the kerbside's planters keep off
   }
 }
 

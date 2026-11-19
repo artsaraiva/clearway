@@ -9,7 +9,7 @@ import { inside, type Field } from './field'
 import type { Kit } from './kit'
 import { bikeLane, island, site, tower, towerGround } from './landmarks'
 import type { Scenery } from './scenery'
-import { dressKerbside, kerbLine, standing, type Footprint } from './kerbside'
+import { dressKerbside, kerbLine, standing } from './kerbside'
 import { LOOKS } from './zones'
 import { park, plaza } from './zones/parks'
 import { verge } from './zones/unzoned'
@@ -106,14 +106,13 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   const from = kit.mark() // what stands on the Block from here on, which the street furniture keeps off
   /**
    * Last, whatever fills the Block: its street trees `kerbsideTrees` planted, and its kerbside dressed round what
-   * stands on it from `from` on, the street trees and what its Zone says stands near its edge (`kept`), as its
-   * street lights and road plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike
-   * lane's too).
+   * stands on it from `from` on, the street trees and the ground its Zone claimed (#218), as its street lights and
+   * road plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike lane's too).
    */
-  const dress = (kerbsideTrees: Vec[] = [], kept: Footprint[] = []) => {
+  const dress = (kerbsideTrees: Vec[] = []) => {
     const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
     for (const t of kerbsideTrees) kit.tree(t.x, t.y, KERB, KERBSIDE_TREES.size, 'round')
-    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands, kept })
+    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands })
   }
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
@@ -153,9 +152,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     }
   }
 
-  const kept: Footprint[] = []
-  if (look)
-    look.fill({ kit, block, field, reserved, kerbsideTrees, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))), kept })
+  if (look) look.fill({ kit, block, field, reserved, kerbsideTrees, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
   else verge(kit, field, block, kerbsideTrees)
-  dress(kerbsideTrees, kept)
+  dress(kerbsideTrees)
 }

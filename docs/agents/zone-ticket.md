@@ -34,7 +34,7 @@ Each line is a defect a review caught once.
 - **Neighbours:** a building's Form differs from every Lot beside it, by the test the finished Zones share.
 - **Scenes** take their ground from a stream of their own, one a Block from Stage 2 and a second at Stage 3 on 2,500 m² or more, each with a standing piece larger than a car at every hour.
 - **Movers that come and go** cross the kerb at a Road, clear of poles, lamps and street trees.
-- **Ask the kit before placing:** a piece stands only where `kit.unclaimed` says the ground is free of bays and door steps.
+- **Ask the kit before placing:** a piece stands only where `kit.unclaimed` says the ground is free of bays, door steps and what stands, then claims its own with `kit.stand`. The kerbside's planters, bollards and benches keep off every claim too, so claim what stands near the edge rather than keeping a list.
 - **Every lit thing near the ground** leaves a pool on the one instanced decal mesh.
 - **Small props are Block-zoom props,** hidden at City zoom and during a reveal.
 - **Parked vehicles** come from the cars' skins and paints.
