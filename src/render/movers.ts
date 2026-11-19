@@ -590,7 +590,10 @@ function kite(): THREE.BufferGeometry {
       .rotateY(Math.PI / 4)
       .rotateX(-lean + 0.5)
       .translate(0, up, -out),
-  ) // turned an eighth, to be seen from every side // leaning back on the wind, over the end of its string
+  ) // turned an eighth to be seen from every side, leaning back on the wind, over the end of its string
+  // Its sail's two sides both face the sky for the light, so that neither is seen dark from below the sun.
+  const lit = flying[0].attributes.normal
+  for (let i = 0; i < lit.count; i++) lit.setXYZ(i, 0, 1, 0)
   const string = painted(
     box(0.05, len, 0.05, STRING)
       .translate(0, len / 2, 0)
