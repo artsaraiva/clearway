@@ -6,7 +6,7 @@ import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
-import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, Pool, Sway, SwayKind } from './movers'
+import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, PlumeKind, Pool, Sway, SwayKind } from './movers'
 import { clad, createPatterns, pave, PATTERN, tile, type Cladding, type Pattern } from './pattern'
 import { canvasTexture, gable, hip, roundedBox, tint } from './shapes'
 
@@ -162,7 +162,9 @@ export const LEAVES = {
 
 // Petals fallen round a sakura (#148): how many lie round a tree of size 0.8 and how far they reach for its size, the
 // most round any tree, their colours, and the disc each is.
-const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1', '#ffe3ec'] }
+const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1', '#ffe3ec'], scale: [1, 1, 1] }
+// Leaves fallen round a park's round tree (#180), as petals round a sakura: fewer, nearer, narrow, in greens and ochre.
+const LEAVES_FALLEN = { count: 12, reach: 4, most: 40, colours: ['#9cc95a', '#c3c65a', '#d3b05c'], scale: [0.55, 1, 0.4] }
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
@@ -706,19 +708,16 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
    * Steam rising from `(x, y)`, `h` above the road, as from a noodle shop's vent or a food stall's pot (#175): small
    * puffs that `./movers` lets rise through the working day, riding the next brick closed.
    */
-  const steam = (x: number, y: number, h: number) => {
-    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, steam: true })
-  }
+  const steam = (x: number, y: number, h: number) => plume('steam', x, y, h)
   /** Smoke rising from a chimney's top at `(x, y)`, `h` above the road (#150), riding the next brick closed. */
-  const smoke = (x: number, y: number, h: number) => {
-    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length })
-  }
+  const smoke = (x: number, y: number, h: number) => plume('smoke', x, y, h)
   /**
-   * A fountain's spray thrown up from `(x, y)`, `h` above the road, or petals drifting down from a sakura's crown there
-   * (#180): puffs that `./movers` lets fly through the working day, riding the next brick closed.
+   * A plume of `kind` from `(x, y)`, `h` above the road, riding the next brick closed: a chimney's smoke or steam, or
+   * (#180) a fountain's spray thrown up or petals drifting down from a sakura's crown, puffs that `./movers` lets fly
+   * through the working day.
    */
-  const plume = (kind: 'spray' | 'petals', x: number, y: number, h: number) => {
-    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, kind })
+  const plume = (kind: PlumeKind, x: number, y: number, h: number) => {
+    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, ...(kind !== 'smoke' && { kind }) })
   }
   /** A pot plant `s` m tall at `(x, y)`, `h` above the road (#175): a pot from `draw`'s colours under a bush of leaves. */
   const pot = (x: number, y: number, h: number, s: number, draw: () => number) => {
@@ -1190,9 +1189,9 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
      * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
      * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Tile zoom at under half the
-     * triangles.
+     * triangles. A round tree with `leaves` has leaves fallen round it, as a sakura's petals, in greens and ochre (#180).
      */
-    tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false) {
+    tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false, leaves = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)
       if (kind === 'pine') {
         for (let i = 0; i < 3; i++) {
@@ -1216,14 +1215,16 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
           )
         }
       }
-      if (kind === 'sakura') {
+      const fallen = kind === 'sakura' ? PETALS : kind === 'round' && leaves ? LEAVES_FALLEN : null
+      if (fallen) {
         const fall = mulberry32(spot(x, y))
         const clear = h > KERB + 0.1 ? 2.4 : 0.5
-        const n = Math.min(PETALS.most, Math.round(PETALS.count * (s / 0.8) ** 2))
+        const n = Math.min(fallen.most, Math.round(fallen.count * (s / 0.8) ** 2))
         for (let i = 0; i < n; i++) {
-          const [a, r, colour, turn] = [fall() * TAU, Math.sqrt(fall()) * s * PETALS.reach, Math.floor(fall() * 3), fall() * TAU]
+          const [a, r, colour, turn] = [fall() * TAU, Math.sqrt(fall()) * s * fallen.reach, Math.floor(fall() * 3), fall() * TAU]
           const [px, py] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
-          if (onBlock(px, py, clear)) add(PETAL, PETALS.colours[colour], px, py, h + 0.08, turn)
+          if (onBlock(px, py, clear))
+            add(PETAL, fallen.colours[colour], px, py, h + 0.08, turn, ...(fallen.scale as [number, number, number]))
         }
       }
       shadow(x, y, h, s * 6.8, s * 6.8, true)
@@ -1270,12 +1271,14 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
 
     /**
      * A pavilion standing on its floor at `(x, y)`, `h` above the road, as one brick: four wooden posts under a hipped
-     * roof, open on every side, the kind that stands over a Japanese garden's pond.
+     * roof, open on every side, the kind that stands over a Japanese garden's pond; its roof in tile rows if `inTiles`
+     * (#180), where the kit builds patterned.
      */
-    pavilion(x: number, y: number, h: number) {
+    pavilion(x: number, y: number, h: number, inTiles = false) {
       add(cuboid(4.2, 0.3, 4.2), PAVILION.floor, x, y, h)
       for (const i of [-1, 1]) for (const j of [-1, 1]) add(cuboid(0.3, 2.6, 0.3), PAVILION.posts, x + i * 1.75, y + j * 1.75, h + 0.3)
-      add(PYRAMID, PAVILION.roof, x, y, h + 2.9, Math.PI / 4, 3.6, 1.8, 3.6)
+      if (inTiles) tiled(PYRAMID.clone().scale(3.6, 1.8, 3.6), PAVILION.roof, x, y, h + 2.9, Math.PI / 4, spot(x, y))
+      else add(PYRAMID, PAVILION.roof, x, y, h + 2.9, Math.PI / 4, 3.6, 1.8, 3.6)
       shadow(x, y, h, 6, 6, true) // round, as the trees' are: a park or a meadow then draws no other shadow
       brick('building', x, y, h)
     },

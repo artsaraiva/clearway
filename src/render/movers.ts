@@ -72,10 +72,12 @@ export interface Mover {
 export interface Plume {
   at: THREE.Vector3
   brick: number
-  steam?: boolean
-  /** A plume of another kind than smoke or steam (#180): a fountain's spray, or petals drifting down from a sakura. */
-  kind?: 'spray' | 'petals'
+  /** Its kind, smoke unless given: steam (#175), a fountain's spray or petals drifting down from a sakura (#180). */
+  kind?: Exclude<PlumeKind, 'smoke'>
 }
+
+/** The kinds of plume (`PLUMES`): a chimney's smoke, steam, a fountain's spray and a sakura's drifting petals. */
+export type PlumeKind = 'smoke' | 'steam' | 'spray' | 'petals'
 
 /**
  * The kinds of thing that flies from a pole and flutters in the wind (#154), each with its own model and wave: a flag, a
@@ -165,7 +167,7 @@ interface Kind {
    * Whether it works by night (#180), as fireflies do: round its loop by the run's clock and never stopping, lit as the
    * lamps are, and unseen by day.
    */
-  night?: boolean
+  byNight?: boolean
 }
 const KINDS: Record<MoverKind, Kind> = {
   tractor: { speed: 2.8, bob: 0.035, rate: 15, model: tractor, wide: 2.6 },
@@ -191,7 +193,7 @@ const KINDS: Record<MoverKind, Kind> = {
     beat: 5,
     wings: { rest: -1.3, fan: 0, night: -1.3, open: 0.15, sweep: 0.75 },
   },
-  firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, night: true },
+  firefly: { speed: 0.35, bob: 0.3, rate: 1.3, model: firefly, wide: 0, byNight: true },
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -211,7 +213,7 @@ const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
 // A fountain's spray (#180) is thrown up and falls back (`fall`, m/s²) into its basin, and petals drift down from a
 // sakura, in their own colour.
 const PLUMES: Record<
-  'smoke' | 'steam' | 'spray' | 'petals',
+  PlumeKind,
   {
     every: number
     lasts: number
@@ -1017,10 +1019,10 @@ export function createMovers() {
       // A winged kind's model carries each instance's wing angle, so it takes a copy of its own.
       const beats = KINDS[kind].beat !== undefined
       const geometry = beats ? model.clone().setAttribute('wing', new THREE.InstancedBufferAttribute(new Float32Array(count), 1)) : model
-      const night = KINDS[kind].night
-      const mesh = new THREE.InstancedMesh(geometry, beats ? winged : night ? glowing : material, count)
+      const { byNight } = KINDS[kind]
+      const mesh = new THREE.InstancedMesh(geometry, beats ? winged : byNight ? glowing : material, count)
       mesh.name = kind
-      mesh.castShadow = !beats && !night // a wing's shadow would not beat with it, and a speck of light casts none
+      mesh.castShadow = !beats && !byNight // a wing's shadow would not beat with it, and a speck of light casts none
       mesh.receiveShadow = true
       mesh.frustumCulled = false // instances move; the mesh's own bounds mean nothing
       meshes.set(kind, mesh)
@@ -1113,7 +1115,7 @@ export function createMovers() {
    * Where mover `v` that works by night (#180) is: round its loop by the run's clock, from where its phase puts it, never
    * stopping, so that it drifts on whatever the hour and wherever it was built.
    */
-  const drift = (v: Mover) => {
+  const wander = (v: Mover) => {
     const len = v.loop.length
     const s = (((t * KINDS[v.kind].speed + (phaseOf(v) / (Math.PI * 2)) * len) % len) + len) % len
     return { ...along(v.loop, s), moving: true, off: Infinity, away: Infinity, up: 0 }
@@ -1227,14 +1229,14 @@ export function createMovers() {
           const i = counts.get(v.kind) ?? 0
           counts.set(v.kind, i + 1)
           const pose = e.playing?.pose(e.build, v.brick) ?? { scale: 1, lift: 0 }
-          const { bob, rate, fly, beat, night, wings = WINGS } = KINDS[v.kind]
-          const p = night ? drift(v) : place(v)
+          const { bob, rate, fly, beat, byNight, wings = WINGS } = KINDS[v.kind]
+          const p = byNight ? wander(v) : place(v)
           // In flight, risen off its path, eased up from a stop and down onto the next.
           const rise = fly ? fly.up * smooth(Math.min(1, p.off / fly.ease)) : 0
           const phase = phaseOf(v)
           const hop = p.moving ? bob * Math.abs(Math.sin(t * rate + phase)) * (fly ? smooth(Math.min(1, p.off / fly.ease)) : 1) : 0
           // Away (#177): unseen at its stop there, and shrinking as it nears it along its loop.
-          const seen = night ? dark * (1 - FIREFLY.pulse + FIREFLY.pulse * Math.sin(t * 2.3 + phase * 3)) : 1
+          const seen = byNight ? dark * (1 - FIREFLY.pulse + FIREFLY.pulse * Math.sin(t * 2.3 + phase * 3)) : 1
           const size = Math.max(0.001, pose.scale * smooth(Math.min(1, p.away / AWAY)) * seen)
           q.setFromAxisAngle(up, p.heading)
           m.compose(at.set(p.x, v.h + p.up + pose.lift + rise + hop, -p.y), q, scale.setScalar(size))
@@ -1293,7 +1295,7 @@ export function createMovers() {
       for (const e of entries) {
         for (const p of e.plumes) {
           if (!working || !stands(e, p.plume.brick)) continue
-          const kind = p.plume.kind ?? (p.plume.steam ? 'steam' : 'smoke')
+          const kind = p.plume.kind ?? 'smoke'
           const { every, drift } = PLUMES[kind]
           for (p.next -= dt; p.next <= 0; p.next += every) {
             const { x, y, z } = p.plume.at

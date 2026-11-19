@@ -104,7 +104,7 @@ export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   offices: { triangles: 2.25e6, meshes: 160 },
   shops: { triangles: 2.6e6, meshes: 160 },
   industrial: { triangles: 1.05e6, meshes: 155 },
-  parks: { triangles: 2.6e6, meshes: 160 }, // #180: 2.33 M at Stage 3 with coarse trees; its lanterns' bulbs and Block-zoom benches a mesh each
+  parks: { triangles: 2.6e6, meshes: 160 }, // #180: 2.39 M at Stage 3 with coarse trees; its lanterns' bulbs and Block-zoom benches a mesh each
   green: { triangles: 2.45e6, meshes: 108 },
   farms: { triangles: 1.35e6, meshes: 150 },
   unzoned: { triangles: 1.4e6, meshes: 108 },

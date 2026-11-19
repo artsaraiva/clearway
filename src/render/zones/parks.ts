@@ -6,9 +6,10 @@ import { inside, type Field } from '../field'
 import { type Kit, SHAPES, spot, to } from '../kit'
 import { clearOf, DECK, fountain, GRASS, GROW, overlay, PLAZA, site, STONE } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { bench, GLOWS, stoneLantern, WOOD } from '../props'
-import { distance, overlap, runs, stands, type Look, type RowLot, type ZoneGround } from './ground'
-import { facesRoad, placeScenes, sceneOrder, type Scene } from './scenes'
+import { BLOOMS, bench, GLOWS, shrine, STONE as STONES, stoneLantern, WOOD } from '../props'
+import { ribbons } from '../ribbons'
+import { distance, runs, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { clearOfKerbside, facesRoad, placeScenes, sceneOrder, type Scene } from './scenes'
 
 // Parks: a park with a pond, or on a Block under 1,600 m² by its bounding box, one time in three, a plaza with a fountain.
 const PARKS = { small: 1600, plaza: 0.35 }
@@ -37,7 +38,7 @@ const TAU = Math.PI * 2
 const PARK = {
   lawn: 0.24,
   border: { in: 2.7, thick: 0.8, tall: [0.45, 0.6, 0.7], gap: 2.6, leaves: '#4f8f45', bloom: '#f2b6c9' },
-  path: { wide: 1.7, edge: 0.16, proud: 0.05, step: 1.2, strays: 2.4, gravel: '#ddd2b9', stone: '#bdb4a6' },
+  path: { wide: 1.7, edge: 0.16, proud: 0.05, step: 1.2, strays: 2.4, gravel: '#ddd2b9' },
   trees: { apart: 2.8, path: 2.3 },
   paths: [1600, 3500],
 }
@@ -46,7 +47,7 @@ const INNER = PARK.border.in + PARK.border.thick / 2 + 0.5
 
 /**
  * A park's pond to the Finish (#180): the stones round its rim, reeds and their tips, lily pads and their flowers, its
- * island's stepping stones and the wooden bridge to it (wood, never vermilion), and its fallen leaves under the trees.
+ * island's stepping stones and the wooden bridge to it (wood, never vermilion).
  */
 const POND = {
   rocks: ['#8f8a80', '#a29d92', '#7f7b73'],
@@ -57,25 +58,20 @@ const POND = {
   stone: '#c9c2b5',
   wood: '#b98a5a',
   rail: '#9c7048',
-  leaves: ['#9cc95a', '#c3c65a', '#d3b05c'],
 }
 
 /**
  * What a park's and a plaza's scenes and pieces are built of (#180): a verdigris roof, a tea house's plaster, posts and
- * shoji (lit at night), a stone torii and its straw rope, a bandstand's and a clock tower's cream, a stone footing, the
- * clock's hands, and the blooms of a plaza's beds.
+ * shoji (lit at night), a bandstand's and a clock tower's cream, and the clock's hands. Their stone footings and the
+ * paths' edges are the props' darker stone.
  */
 const BUILT = {
   roof: '#6f8f80',
   plaster: '#efe6d3',
   post: '#8a6446',
   shoji: '#fff4dc',
-  torii: '#cfc8bb',
-  rope: '#efe2bf',
   cream: '#f1ead9',
-  foot: '#bdb4a6',
   hands: '#3a4252',
-  blooms: ['#f2b6c9', '#ffe08a', '#f6f1e6', '#c9a7e8'],
 }
 
 /** The scenes a park picks from (#180), and the ground each takes (m along its front and deep). */
@@ -172,14 +168,11 @@ function plazaFinish(g: ZoneGround, centre: Vec) {
   for (const a of ways.filter((w) => !taken.includes(w)).slice(0, 2)) {
     const p = out(a, 7.4)
     if (!free(p.x, p.y, 3.4, 1.4, p.ry, 0.4)) continue
-    kit.stand(p.x, p.y, 3.4, 1.4, p.ry, 2)
-    const bloom = BUILT.blooms[spot(p.x, p.y) % BUILT.blooms.length]
-    kit.from(2, () => kit.flowerBed(p.x, p.y, h, 3.2, 1.2, p.ry, bloom), spot(p.x, p.y))
+    const bloom = BLOOMS[spot(p.x, p.y) % BLOOMS.length]
+    standAndBuild(kit, p.x, p.y, 3.4, 1.4, p.ry, 2, () => kit.flowerBed(p.x, p.y, h, 3.2, 1.2, p.ry, bloom))
     for (const side of [-1, 1]) {
       const [lx, ly] = to(p.x, p.y, p.ry, side * 2.9, 0)
-      if (!free(lx, ly, 0.8, 0.8, 0, 0.3)) continue
-      kit.stand(lx, ly, 0.8, 0.8, 0, 2)
-      kit.from(2, () => stoneLantern(kit, lx, ly, p.ry, h), spot(lx, ly))
+      if (free(lx, ly, 0.8, 0.8, 0, 0.3)) standAndBuild(kit, lx, ly, 0.8, 0.8, 0, 2, () => stoneLantern(kit, lx, ly, p.ry, h))
     }
   }
   // Benches round the fountain, facing it, between the ways out.
@@ -188,13 +181,18 @@ function plazaFinish(g: ZoneGround, centre: Vec) {
     for (const off of [0.42, -0.42]) {
       const p = out(ways[0] + (k * Math.PI) / 2 + off + Math.PI / 4, 6.7)
       if (!free(p.x, p.y, 2.2, 1, p.ry, 0.3)) continue
-      const from = n < 2 ? 1 : n < 4 ? 2 : 3
-      kit.stand(p.x, p.y, 2.2, 1, p.ry, from)
-      kit.from(from, () => bench(kit, p.x, p.y, p.ry, h), spot(p.x, p.y))
+      standAndBuild(kit, p.x, p.y, 2.2, 1, p.ry, n < 2 ? 1 : n < 4 ? 2 : 3, () => bench(kit, p.x, p.y, p.ry, h))
       n++
       break
     }
     if (n >= 6) break
+  }
+  // Stage 3 lights the plaza more: two stone lanterns on the ring of benches, where they find room.
+  for (let k = 0, lit = 0; k < 8 && lit < 2; k++) {
+    const p = out(ways[0] + (k * Math.PI) / 4 + Math.PI / 8, 6.9)
+    if (!free(p.x, p.y, 0.8, 0.8, 0, 0.3)) continue
+    standAndBuild(kit, p.x, p.y, 0.8, 0.8, 0, 3, () => stoneLantern(kit, p.x, p.y, p.ry, h))
+    lit++
   }
   // A kiosk toward a corner, beside the tree there, facing the fountain, from Stage 2.
   kiosk: for (let k = 0; k < 4; k++) {
@@ -206,8 +204,7 @@ function plazaFinish(g: ZoneGround, centre: Vec) {
     ]) {
       const p = out(ways[k] + Math.PI / 4 + off, r)
       if (!free(p.x, p.y, 2.6, 2.4, p.ry, 0.5)) continue
-      kit.stand(p.x, p.y, 2.6, 2.4, p.ry, 2)
-      kit.from(2, () => kiosk(kit, p.x, p.y, p.ry, h), spot(p.x, p.y))
+      standAndBuild(kit, p.x, p.y, 2.6, 2.4, p.ry, 2, () => kiosk(kit, p.x, p.y, p.ry, h))
       break kiosk
     }
   }
@@ -239,9 +236,19 @@ function edgePlanters(g: ZoneGround, h: number, draw: () => number) {
       const [x, y] = [run.a.x + run.ux * s, run.a.y + run.uy * s]
       const ry = run.ry
       if (!stands(g, x, y, 2.4, 0.9, 0.6, ry) || !kit.unclaimed(x, y, 2.4, 0.9, ry, 0.4)) continue
-      if ([...g.lamps, ...g.poles].some((p) => Math.hypot(p.x - x, p.y - y) < 2.2)) continue
+      if (
+        !clearOfKerbside(
+          g,
+          [
+            { x, y },
+            { x, y },
+          ],
+          [2.2, 2.2, 0],
+        )
+      )
+        continue
       kit.stand(x, y, 2.4, 0.9, ry)
-      const bloom = BUILT.blooms[Math.floor(draw() * BUILT.blooms.length)]
+      const bloom = BLOOMS[Math.floor(draw() * BLOOMS.length)]
       kit.staged((stage) => kit.flowerBed(x, y, h, 2.4, 0.9, ry, stage > 1 ? bloom : PARK.border.leaves), spot(x, y))
     }
   }
@@ -255,6 +262,8 @@ interface Pond {
   ry: number
   s: number
   h: number
+  /** Its stone rim's radii, a metre out from the water's for its size. */
+  rim: { rx: number; ry: number }
   /** Its island, from Stage 2. */
   island: { x: number; y: number; rx: number; ry: number }
   /** The x of its deck's middle, from Stage 2, at whose end its pavilion stands at Stage 3. */
@@ -262,6 +271,15 @@ interface Pond {
   /** Where its stepping stones cross from the island to the shore, from Stage 2, and its bridge, at Stage 3. */
   stones: [Vec, Vec] | null
   bridge: [Vec, Vec] | null
+}
+
+/**
+ * Lay claim to ground `w` by `d` at `(x, y)` turned `ry` for a piece standing from Stage `from` (#180), and build it
+ * there on a stream seeded from where it stands.
+ */
+function standAndBuild(kit: Kit, x: number, y: number, w: number, d: number, ry: number, from: number, build: () => void) {
+  kit.stand(x, y, w, d, ry, from)
+  kit.from(from, build, spot(x, y))
 }
 
 /** Under 1 inside the ellipse at `(cx, cy)` of radii `rx` and `ry`, 1 on it, and over 1 outside. */
@@ -274,27 +292,30 @@ function exit(p: Vec, u: Vec, cx: number, cy: number, rx: number, ry: number): n
   return (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a)
 }
 
-/** Whether `(x, y)` lies within `pad` m of a pond's stone rim (radii 13.6 by 9.6 m for its size), or on it. */
-const onPond = (p: Pond, x: number, y: number, pad: number) => ellipse(x, y, p.x, p.y, 13.6 * p.s + pad, 9.6 * p.s + pad) < 1
+/** Whether `(x, y)` lies within `pad` m of a pond's stone rim, or on it. */
+const onPond = (p: Pond, x: number, y: number, pad: number) => ellipse(x, y, p.x, p.y, p.rim.rx + pad, p.rim.ry + pad) < 1
+
+/** Where a pond's bridge and stepping stones meet its shore, if it has them: what else on its rim keeps clear of. */
+const shoreEnds = (p: Pond) => [p.bridge?.[1], p.stones?.[1]].filter((e): e is Vec => !!e)
 
 /**
  * Whether `(x, y)` lies on a pond's open water `margin` m clear of its edge, its island and, unless the thing passes
- * `under` them, its deck, its pavilion, its bridge and its stepping stones.
+ * `under` them, its stepping stones and what stands on the water, claimed on the kit: the deck, the pavilion, the bridge
+ * and the reeds.
  */
-function openWater(p: Pond, x: number, y: number, margin: number, under = false): boolean {
+function openWater(kit: Kit, p: Pond, x: number, y: number, margin: number, under = false): boolean {
   if (ellipse(x, y, p.x, p.y, p.rx - margin, p.ry - margin) >= 1) return false
   const i = p.island
   if (ellipse(x, y, i.x, i.y, i.rx + margin, i.ry + margin) < 1) return false
   if (under) return true
-  if (x > p.deck - 3.2 - margin && x < p.deck + 7.7 + margin && Math.abs(y - p.y) < 2.4 + margin) return false
-  return [p.bridge, p.stones].every((seg) => !seg || distance({ x, y }, seg[0], seg[1]) >= 0.9 + margin)
+  return (!p.stones || distance({ x, y }, ...p.stones) >= 0.9 + margin) && kit.unclaimed(x, y, 0, 0, 0, margin)
 }
 
 /**
  * A loop round a pond's open water `margin` m clear (`openWater`), wobbling by `wobble` of its radius: from the ellipses
  * tried largest first, their middles in the order `draw` shuffles them; null where none fits.
  */
-function waterLoop(p: Pond, margin: number, draw: () => number, under = false, wobble = 0): Vec[] | null {
+function waterLoop(kit: Kit, p: Pond, margin: number, draw: () => number, under = false, wobble = 0): Vec[] | null {
   const offsets = [-0.4, -0.2, 0, 0.2, 0.4].flatMap((fx) => [-0.4, -0.2, 0, 0.2, 0.4].map((fy) => [fx, fy, draw()]))
   offsets.sort((a, b) => a[2] - b[2])
   const phase = draw() * TAU
@@ -306,7 +327,7 @@ function waterLoop(p: Pond, margin: number, draw: () => number, under = false, w
         const w = 1 + wobble * Math.sin(3 * a + phase)
         return { x: cx + Math.cos(a) * k * p.rx * w, y: cy + Math.sin(a) * k * p.ry * w }
       })
-      if (pts.every((q) => openWater(p, q.x, q.y, margin, under))) return [...pts, pts[0]]
+      if (pts.every((q) => openWater(kit, p, q.x, q.y, margin, under))) return [...pts, pts[0]]
     }
   }
   return null
@@ -314,8 +335,8 @@ function waterLoop(p: Pond, margin: number, draw: () => number, under = false, w
 
 /**
  * Where a pond's stepping stones and bridge cross to its island (#180): each from the island's edge to the shore along
- * the first way out, of those that keep off the deck's end, whose water is as wide as it takes; the bridge and the
- * stones on different ways.
+ * the first way out, of those that keep off the deck's end, whose water is as wide as it takes for the pond's size; the
+ * bridge and the stones on different ways.
  */
 function crossings(p: Omit<Pond, 'stones' | 'bridge'>): Pick<Pond, 'stones' | 'bridge'> {
   const { island: i } = p
@@ -328,12 +349,18 @@ function crossings(p: Omit<Pond, 'stones' | 'bridge'>): Pick<Pond, 'stones' | 'b
   }
   const bridgeWay = ways.find((u) => {
     const { wide, end } = span(u)
-    return wide >= 2 && wide <= 7.5 && end.x > p.deck + 8
+    return wide >= 2 && wide <= 7.5 * Math.max(1, p.s) && end.x > p.deck + 8
   })
   const bridge = bridgeWay ? span(bridgeWay) : null
   const stoneWay = ways.find((u) => {
     const { wide, end } = span(u)
-    return u !== bridgeWay && wide >= 1.2 && wide <= 6 && end.x > p.deck + 8 && (!bridgeWay || u.x * bridgeWay.x + u.y * bridgeWay.y < 0.3)
+    return (
+      u !== bridgeWay &&
+      wide >= 1.2 &&
+      wide <= 6 * Math.max(1, p.s) &&
+      end.x > p.deck + 8 &&
+      (!bridgeWay || u.x * bridgeWay.x + u.y * bridgeWay.y < 0.3)
+    )
   })
   const stones = stoneWay ? span(stoneWay) : null
   const reach = (c: { from: Vec; end: Vec } | null, past: number): [Vec, Vec] | null => {
@@ -353,9 +380,10 @@ function crossings(p: Omit<Pond, 'stones' | 'bridge'>): Pick<Pond, 'stones' | 'b
  * - Stage 2: every tree, and the deck.
  * - Stage 3: the trees grown on, a pavilion over the water at the end of the deck, and an island with a pine.
  * Built to the Finish (#180, a Zone's Block `g`), the lawn is mown in stripes, the pond has its rocks, reeds, lily pads,
- * island, stepping stones, bridge and what moves on it (`pondFinish`), the park has its scenes, gravel paths from its
- * corners, a border of azaleas along its Roads, stone lanterns and benches (`parkFinish`), and its trees are coarse,
- * stand apart and keep off what the rest claimed, dropping leaves and petals.
+ * island, stepping stones, bridge, a tiled roof on its pavilion and what moves on it (`pondFinish`), the park has its
+ * scenes, gravel paths from its corners, a border of azaleas along its Roads, stone lanterns and benches (`parkFinish`),
+ * and its trees are coarse, stand apart and keep off what the rest claimed; from Stage 2 the round ones drop leaves and
+ * one sakura in two lets petals drift down from its crown.
  */
 export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideTrees: Vec[] = [], g?: ZoneGround) {
   const finish = !!g && kit.finished
@@ -366,6 +394,8 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideT
   const at = pond ?? site(field, block, 29.2 * s, 21.2 * s, middle(block), kerbsideTrees, 1)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
+  // To the Finish, the island lies to the north or the south of the pond's middle, as the pond lies (#180).
+  const side = finish && at && spot(at.x, at.y) % 2 ? -1 : 1
   const water: Pond | null = at
     ? (() => {
         const shape = {
@@ -375,34 +405,33 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideT
           ry: 8.8 * s,
           s,
           h: ground,
-          island: { x: at.x + 5 * s, y: at.y + 2.2 * s, rx: 2.6 * s, ry: 2 * s },
+          rim: { rx: 13.6 * s, ry: 9.6 * s },
+          island: { x: at.x + 5 * s, y: at.y + side * 2.2 * s, rx: 2.6 * s, ry: 2 * s },
           deck: at.x - 10.8 * s,
         }
         return { ...shape, ...crossings(shape) }
       })()
     : null
-  if (at) {
-    kit.drum(STONE, at.x, at.y, ground, 13.6 * s, 9.6 * s, 0.32)
-    kit.drum(kit.water, at.x, at.y, ground + 0.08, 12.6 * s, 8.8 * s, 0.32)
-    if (finish && water) rocks(kit, water)
-    kit.brick('ground', at.x, at.y, ground + 0.08) // as low as the rim: ground what stands may reach over
-  }
-  if (at) {
-    const deck = at.x - 10.8 * s
-    if (finish) kit.stand(deck, at.y, 6.4, 2.2, 0, 2)
+  if (water) {
+    const { deck, island } = water
+    if (finish) {
+      kit.stand(deck, water.y, 6.4, 2.2, 0, 2)
+      kit.stand(deck + 5.3, water.y, 4.4, 4.4, 0, 3)
+    }
+    kit.drum(STONE, water.x, water.y, ground, water.rim.rx, water.rim.ry, 0.32)
+    kit.drum(kit.water, water.x, water.y, ground + 0.08, water.rx, water.ry, 0.32)
+    if (finish) rocks(kit, water)
+    kit.brick('ground', water.x, water.y, ground + 0.08) // as low as the rim: ground what stands may reach over
     kit.from(2, () => {
-      kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), DECK, deck, at.y, ground + 0.32)
-      kit.brick('ground', deck, at.y, ground)
+      kit.add(kit.box(6.4, 0.48, 2, 0.4, 0.12), DECK, deck, water.y, ground + 0.32)
+      kit.brick('ground', deck, water.y, ground)
     })
-    if (finish) kit.stand(deck + 5.3, at.y, 4.4, 4.4, 0, 3)
     kit.from(3, () => {
-      kit.pavilion(deck + 5.3, at.y, ground + 0.5)
-      if (finish) pavilionLantern(kit, deck + 5.3, at.y, ground + 0.5)
-      if (finish) return
-      const [ix, iy] = [at.x + 5 * s, at.y + 2.2 * s]
-      kit.drum(GRASS, ix, iy, ground + 0.08, 2.6 * s, 2 * s, 0.6)
-      kit.brick('ground', ix, iy, ground)
-      kit.tree(ix, iy, ground + 0.68, 0.55, 'pine')
+      kit.pavilion(deck + 5.3, water.y, ground + 0.5, finish)
+      if (finish) return pavilionLantern(kit, deck + 5.3, water.y, ground + 0.5)
+      kit.drum(GRASS, island.x, island.y, ground + 0.08, island.rx, island.ry, 0.6)
+      kit.brick('ground', island.x, island.y, ground)
+      kit.tree(island.x, island.y, ground + 0.68, 0.55, 'pine')
     })
   }
   const paths = finish && g ? parkFinish(g, water) : []
@@ -412,7 +441,7 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideT
   for (let tries = 0, n = 0; tries < trees * 8 && n < trees; tries++) {
     const [tx, ty] = [kit.range(block.x0, block.x1), kit.range(block.y0, block.y1)]
     if (field.sample(tx, ty) < 5 || !inside(block.loop, tx, ty) || !clearOf(kerbsideTrees, tx, ty, 0, 0, 3)) continue
-    if (at && ((tx - at.x) / (17.2 * s)) ** 2 + ((ty - at.y) / (12.8 * s)) ** 2 < 1) continue
+    if (at && ellipse(tx, ty, at.x, at.y, 17.2 * s, 12.8 * s) < 1) continue
     if (finish && !roomForTree(kit, planted, paths, tx, ty)) continue
     const [tree, kind] = [kit.range(0.75, 1.2), kit.chance(0.2) ? 'sakura' : kit.chance(0.15) ? 'pine' : 'round'] as const
     const young = n % 2 === 0 // planted at Stage 1
@@ -422,8 +451,8 @@ export function park(kit: Kit, field: Field, block: Block, pond?: Vec, kerbsideT
     kit.staged((stage) => {
       if (!young && stage === 1) return
       const grown = GROW[stage - 1] * tree
-      if (finish && stage > 1) underTree(kit, tx, ty, ground, grown, kind)
-      kit.tree(tx, ty, ground, grown, kind, finish)
+      if (finish && stage > 1 && kind === 'sakura' && spot(tx, ty) % 2) kit.plume('petals', tx, ty, ground + 4.2 * grown) // rides the tree's brick
+      kit.tree(tx, ty, ground, grown, kind, finish, finish && stage > 1)
     })
     n++
   }
@@ -442,36 +471,19 @@ const nearPath = (path: Vec[], x: number, y: number, room: number) =>
   path.some((a, i) => i > 0 && distance({ x, y }, path[i - 1], a) < room)
 
 /**
- * What lies under a park's tree grown to `s` from Stage 2 (#180): leaves fallen round a round tree, in greens and a
- * little ochre, and from one sakura in two petals drifting down from its crown. Drawn from where it stands, so that the
- * tree's own draws are untouched; laid before the tree, so that they ride its brick.
- */
-function underTree(kit: Kit, x: number, y: number, h: number, s: number, kind: 'round' | 'sakura' | 'pine') {
-  const draw = mulberry32(spot(x, y) ^ 0x1eaf)
-  if (kind === 'sakura' && draw() < 0.5) kit.plume('petals', x, y, h + 4.2 * s)
-  if (kind !== 'round') return
-  for (let i = 0; i < 18; i++) {
-    const [a, r, colour, turn] = [draw() * TAU, Math.sqrt(draw()) * s * 4, Math.floor(draw() * 3), draw() * TAU]
-    const [px, py] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
-    if (kit.onGround(px, py, 2.4)) kit.add(SHAPES.petal, POND.leaves[colour], px, py, h + 0.02, turn, 0.55, 1, 0.4)
-  }
-}
-
-/**
- * The stones round a pond's rim (#180), at every Stage: low enough to lie as part of its rim's ground, and none where
- * the deck, the bridge or the stepping stones meet the shore. Drawn from the pond's own stream.
+ * The stones round a pond's rim (#180), at every Stage: low enough to lie as part of its rim's ground, and none on the
+ * deck's claim or where the bridge or the stepping stones meet the shore. Drawn from the pond's own stream.
  */
 function rocks(kit: Kit, p: Pond) {
   const draw = mulberry32(spot(p.x, p.y) ^ 0x50c5)
-  const ends = [p.bridge?.[1], p.stones?.[1]].filter((e): e is Vec => !!e)
+  const ends = shoreEnds(p)
   const count = Math.round((TAU * Math.sqrt((p.rx ** 2 + p.ry ** 2) / 2)) / 2.2)
   for (let i = 0; i < count; i++) {
     const a = ((i + draw() * 0.6) / count) * TAU
     const [x, y] = [p.x + Math.cos(a) * (p.rx + 0.1), p.y + Math.sin(a) * (p.ry + 0.1)]
     const [w, d, tall] = [0.6 + draw() * 0.4, 0.5 + draw() * 0.35, 0.22 + draw() * 0.08]
     const colour = POND.rocks[Math.floor(draw() * POND.rocks.length)]
-    if (Math.abs(y - p.y) < 1.6 && x < p.x - p.rx + 2) continue // the deck's
-    if (ends.some((e) => Math.hypot(e.x - x, e.y - y) < 1.8)) continue
+    if (!kit.unclaimed(x, y, w, d, 0) || ends.some((e) => Math.hypot(e.x - x, e.y - y) < 1.8)) continue // the deck's foot
     kit.add(SHAPES.bush, colour, x, y, p.h + 0.1, draw() * TAU, w, tall, d)
   }
 }
@@ -532,12 +544,11 @@ function pondFinish(kit: Kit, p: Pond) {
     kit.stand(mid.x, mid.y, 1.8, len, ry, 3)
     kit.from(3, () => bridge(kit, a, b, p.h), spot(mid.x, mid.y))
   }
-  // Reeds in clumps round the edge, from Stage 2, clear of the deck and of where the crossings meet the shore.
-  const ends = [span?.[1], stones?.[1]].filter((e): e is Vec => !!e)
+  // Reeds in clumps round the edge, from Stage 2, clear of what is claimed and of where the crossings meet the shore.
+  const ends = shoreEnds(p)
   for (let k = 0, tries = 0; k < 4 && tries < 16; tries++) {
     const a = draw() * TAU
     const [x, y] = [p.x + Math.cos(a) * (p.rx - 0.4), p.y + Math.sin(a) * (p.ry - 0.4)]
-    if (x < p.deck + 8.5 && Math.abs(y - p.y) < 3.4) continue
     if (ends.some((e) => Math.hypot(e.x - x, e.y - y) < 2.6) || !kit.unclaimed(x, y, 1.3, 1.3, 0, 0.4)) continue
     kit.stand(x, y, 1.3, 1.3, 0, 2)
     kit.from(2, () => reeds(kit, x, y, p.h), spot(x, y))
@@ -546,7 +557,7 @@ function pondFinish(kit: Kit, p: Pond) {
   // Lily pads in two drifts on open water, from Stage 2.
   for (let k = 0, tries = 0; k < 2 && tries < 20; tries++) {
     const [x, y] = [p.x + (draw() - 0.5) * 1.6 * p.rx, p.y + (draw() - 0.5) * 1.6 * p.ry]
-    if (!openWater(p, x, y, 1.4)) continue
+    if (!openWater(kit, p, x, y, 1.4)) continue
     kit.from(2, () => lilies(kit, x, y, surface), spot(x, y))
     k++
   }
@@ -557,14 +568,14 @@ function pondFinish(kit: Kit, p: Pond) {
         [1, 3],
       ]
     : [[0, 2]]) as [number, number][]) {
-    const pts = waterLoop(p, 1.3, draw)
+    const pts = waterLoop(kit, p, 1.3, draw)
     if (!pts) continue
     const loop = polyline(pts)
     const stops = [0, loop.length / 2]
     kit.from(from, () => kit.mover('swanboat', loop, stops, k, surface - 0.02, { waits: [5, 5] }), spot(pts[0].x, pts[0].y) + k)
   }
   for (let k = 0; k < 2; k++) {
-    const pts = waterLoop(p, 0.9, draw, false, 0.08)
+    const pts = waterLoop(kit, p, 0.9, draw, false, 0.08)
     if (!pts) continue
     const loop = polyline(pts)
     const stops = [0, 0.3, 0.65].map((f) => f * loop.length)
@@ -573,7 +584,7 @@ function pondFinish(kit: Kit, p: Pond) {
   }
   const shades = ['#33434a', '#3f4f55', '#56656b']
   for (let k = 0; k < 4; k++) {
-    const pts = waterLoop(p, 0.7, draw, true, 0.14)
+    const pts = waterLoop(kit, p, 0.7, draw, true, 0.14)
     if (!pts) continue
     const loop = polyline(pts)
     const stops = [0, loop.length / 2]
@@ -659,8 +670,8 @@ type ParkGround = Scene<ParkScene>
  */
 function parkFinish(g: ZoneGround, p: Pond | null): Vec[][] {
   const { kit, block } = g
-  const centre = middle(block)
-  const draw = mulberry32(spot(centre.x, centre.y) ^ 0x4a7c)
+  const mid = middle(block)
+  const draw = mulberry32(spot(mid.x, mid.y) ^ 0x4a7c)
   const h = KERB + PARK.lawn
   const scenes = parkScenes(g, p, draw)
   for (const { kind, ground: l, from } of scenes) {
@@ -669,7 +680,8 @@ function parkFinish(g: ZoneGround, p: Pond | null): Vec[][] {
       kit.staged(
         (stage) => {
           if (stage < from) return
-          ;({ shrine, teahouse, bandstand })[kind](kit, l, stage, h)
+          if (kind === 'shrine') shrine(kit, l.x, l.y, l.w, l.d, l.ry, stage, h)
+          else ({ teahouse, bandstand })[kind](kit, l, stage, h)
         },
         spot(l.x, l.y),
       ),
@@ -708,7 +720,7 @@ function parkScenes(g: ZoneGround, p: Pond | null, draw: () => number): ParkGrou
       const facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2) : dy > 0 ? 0 : Math.PI
       for (const ry of [facing, facing + Math.PI / 2, facing - Math.PI / 2]) {
         if (!stands(g, q.x, q.y, w, d, INNER, ry) || !kit.unclaimed(q.x, q.y, w, d, ry, 1)) continue
-        if (p && corners(q, w, d, ry).some((c) => onPond(p, c.x, c.y, 0.5))) continue
+        if (p && footprint(q, w, d, ry).some((c) => onPond(p, c.x, c.y, 0.5))) continue
         return { ground: { x: q.x, y: q.y, w, d, ry, onRoad: false } }
       }
     }
@@ -716,14 +728,10 @@ function parkScenes(g: ZoneGround, p: Pond | null, draw: () => number): ParkGrou
   })
 }
 
-/** The corners and the middles of the sides of ground `w` by `d` at `q` turned `ry`, and its middle. */
-function corners(q: Vec, w: number, d: number, ry: number): Vec[] {
-  const out: Vec[] = []
-  for (const i of [-1, 0, 1]) for (const j of [-1, 0, 1]) out.push(xy(to(q.x, q.y, ry, (i * w) / 2, (j * d) / 2)))
-  return out
+/** Nine points over ground `w` by `d` at `q` turned `ry`: its corners, the middles of its sides and its middle. */
+function footprint(q: Vec, w: number, d: number, ry: number): Vec[] {
+  return [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => turned(q.x, q.y, ry, (i * w) / 2, (j * d) / 2)))
 }
-
-const xy = ([x, y]: [number, number]): Vec => ({ x, y })
 
 /**
  * A park's gravel paths (#180), drawn from `draw`: from two, three or four of its corners, by the Block's size, winding
@@ -737,7 +745,7 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
   const mid = middle(block)
   const rim = (q: Vec): Vec => {
     if (!p) return mid
-    const k = Math.sqrt(ellipse(q.x, q.y, p.x, p.y, 13.6 * p.s + 0.3, 9.6 * p.s + 0.3))
+    const k = Math.sqrt(ellipse(q.x, q.y, p.x, p.y, p.rim.rx + 0.3, p.rim.ry + 0.3))
     return { x: p.x + (q.x - p.x) / k, y: p.y + (q.y - p.y) / k }
   }
   /** Whether a path along `pts` keeps to the lawn, off the pond and what is claimed, past its first `from` m. */
@@ -751,7 +759,7 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
       return last || kit.unclaimed(q.x, q.y, 0, 0, 0, PARK.path.wide / 2 + 0.3)
     })
   const out: Vec[][] = []
-  const entries = [
+  const boxCorners = [
     { x: block.x0, y: block.y0 },
     { x: block.x1, y: block.y0 },
     { x: block.x1, y: block.y1 },
@@ -759,7 +767,7 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
   ]
   const start = Math.floor(draw() * 4)
   for (let k = 0; k < 4 && out.length < most; k++) {
-    const c = entries[(start + k) % 4]
+    const c = boxCorners[(start + k) % 4]
     // Walk in from the corner of the Block's box to the lawn.
     const [ux, uy] = [mid.x - c.x, mid.y - c.y]
     const len = Math.hypot(ux, uy)
@@ -778,7 +786,7 @@ function parkPaths(g: ZoneGround, p: Pond | null, scenes: ParkGround[], draw: ()
     if (path) out.push(path)
   }
   for (const { ground: l } of scenes) {
-    const f = xy(to(l.x, l.y, l.ry, 0, l.d / 2 + 0.2))
+    const f = turned(l.x, l.y, l.ry, 0, l.d / 2 + 0.2)
     const near = [...out.flat(), ...(p ? [rim(f)] : [])].sort(
       (a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y),
     )[0]
@@ -804,84 +812,33 @@ function winding(a: Vec, b: Vec, strays: number, waves: number): Vec[] {
 
 /**
  * A gravel path along its middle line `pts` on a lawn whose top is `h` up (#180), as one brick: the gravel, and its
- * stone edge either side, standing a little proud of the lawn.
+ * stone edge either side, laid a little proud of the lawn.
  */
 function gravelPath(kit: Kit, pts: Vec[], h: number) {
-  const { wide, edge, proud, gravel, stone } = PARK.path
-  const half = wide / 2
-  kit.laid(ribbon(pts, -half, half, h + 0.012), gravel, PATTERN.gravel)
-  for (const side of [-1, 1]) {
-    kit.push(ribbon(pts, side * half, side * (half + edge), h + proud), stone)
-    kit.push(upright(pts, side * (half + edge), h - 0.02, h + proud, true), stone)
-    kit.push(upright(pts, side * half, h + 0.012, h + proud, false), stone)
-  }
+  const { wide, edge, proud, gravel } = PARK.path
+  kit.laid(ribbons([pts], wide, h + 0.012), gravel, PATTERN.gravel)
+  kit.push(ribbons([aside(pts, (wide + edge) / 2), aside(pts, -(wide + edge) / 2)], edge, h + proud), STONES.dark)
   kit.brick('ground', pts[0].x, pts[0].y, h)
 }
 
-/** A strip along a middle line `pts`, flat at `y` m up from `a` to `b` m to its left (below 0, its right), facing up, in place (Three coordinates). */
-function ribbon(pts: Vec[], a: number, b: number, y: number): THREE.BufferGeometry {
-  return strip(
-    pts,
-    (i, at) => [at(i, a, y), at(i + 1, a, y), at(i, b, y), at(i + 1, b, y)],
-    () => new THREE.Vector3(0, 1, 0),
-  )
-}
-
-/**
- * An upright strip along a middle line `pts`, at `a` m to its left (below 0, its right) from `y` to `top` m up, facing
- * away from the line if `out`, else toward it, in place (Three coordinates).
- */
-function upright(pts: Vec[], a: number, y: number, top: number, out: boolean): THREE.BufferGeometry {
-  const side = (Math.sign(a) || 1) * (out ? 1 : -1)
-  return strip(
-    pts,
-    (i, at) => [at(i, a, y), at(i + 1, a, y), at(i, a, top), at(i + 1, a, top)],
-    (n) => new THREE.Vector3(n.x * side, 0, -n.y * side),
-  )
-}
-
-/**
- * The quads along a middle line `pts`, each from `quad`'s four corners (two on one edge, two on the other), wound to face
- * `facing` of the line's left at each point, as one geometry.
- */
-function strip(
-  pts: Vec[],
-  quad: (i: number, at: (i: number, off: number, up: number) => THREE.Vector3) => THREE.Vector3[],
-  facing: (left: Vec) => THREE.Vector3,
-): THREE.BufferGeometry {
-  const left = pts.map((_, i) => {
+/** The line `off` m to the left of a middle line `pts` (below 0, its right). */
+function aside(pts: Vec[], off: number): Vec[] {
+  return pts.map((p, i) => {
     const [q, r] = [pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i + 1)]]
     const len = Math.hypot(r.x - q.x, r.y - q.y) || 1
-    return { x: -(r.y - q.y) / len, y: (r.x - q.x) / len }
+    return { x: p.x - ((r.y - q.y) / len) * off, y: p.y + ((r.x - q.x) / len) * off }
   })
-  const at = (i: number, off: number, up: number) => new THREE.Vector3(pts[i].x + left[i].x * off, up, -(pts[i].y + left[i].y * off))
-  const v: number[] = []
-  const [e1, e2, n] = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
-  const tri = (p: THREE.Vector3, q: THREE.Vector3, r: THREE.Vector3, want: THREE.Vector3) => {
-    n.crossVectors(e1.subVectors(q, p), e2.subVectors(r, p))
-    for (const c of n.dot(want) >= 0 ? [p, q, r] : [p, r, q]) v.push(c.x, c.y, c.z)
-  }
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const [p0, p1, q0, q1] = quad(i, at)
-    const want = facing(left[i])
-    tri(p0, q0, p1, want)
-    tri(p1, q0, q1, want)
-  }
-  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
-  geo.computeVertexNormals()
-  return geo
 }
 
 /**
  * A border of azaleas along a park's Roads, `PARK.border.in` m in (#180): low clipped bushes, taller with each Stage
  * and in bloom at Stage 3, open where a path comes in and round each lamp, pole and street tree, and each length cut
- * back where it would meet one already laid, as at a shallow corner between two runs.
+ * back where it would meet what is claimed, as another run's at a shallow corner; each claims its ground.
  */
 function border(g: ZoneGround, paths: Vec[][], h: number) {
   const { kit } = g
   const { thick, tall, gap, leaves, bloom } = PARK.border
   const kerbside = [...g.lamps, ...g.poles, ...g.kerbsideTrees]
-  const laid: RowLot[] = []
   for (const run of runs(g, PARK.border.in).filter(facesRoad)) {
     // Where along the run to leave open, as [from, to] in m.
     const open: [number, number][] = [
@@ -906,17 +863,20 @@ function border(g: ZoneGround, paths: Vec[][], h: number) {
       const m = (a + b) / 2
       return { x: run.a.x + run.ux * m, y: run.a.y + run.uy * m, w: b - a, d: thick, ry: run.ry, onRoad: true }
     }
+    const free = (l: RowLot) => kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
     for (const length of lengths) {
-      while (length[1] - length[0] >= 1.2) {
-        const met = laid.find((o) => overlap(o, piece(length[0], length[1]), 0))
-        if (!met) break
-        const nearer = Math.hypot(met.x - (run.a.x + run.ux * length[0]), met.y - (run.a.y + run.uy * length[0]))
-        const farther = Math.hypot(met.x - (run.a.x + run.ux * length[1]), met.y - (run.a.y + run.uy * length[1]))
-        length[nearer < farther ? 0 : 1] += nearer < farther ? 0.2 : -0.2
+      // Cut back the end that meets a claim, and if both do, both.
+      while (length[1] - length[0] >= 1.2 && !free(piece(length[0], length[1]))) {
+        if (!free(piece(length[0], length[0] + 0.6))) length[0] += 0.2
+        if (!free(piece(length[1] - 0.6, length[1]))) length[1] -= 0.2
+        else if (free(piece(length[0], length[0] + 0.6))) length[0] += 0.2 // a claim along its middle: shrink until it clears
       }
     }
     const kept = lengths.filter(([a, b]) => b - a >= 1.2)
-    laid.push(...kept.map(([a, b]) => piece(a, b)))
+    for (const [a, b] of kept) {
+      const l = piece(a, b)
+      kit.stand(l.x, l.y, l.w, l.d, l.ry)
+    }
     lengths.splice(0, lengths.length, ...kept)
     if (!lengths.length) continue
     const turn = Math.atan2(run.uy, run.ux)
@@ -961,14 +921,12 @@ function lanternsAndBenches(g: ZoneGround, p: Pond | null, paths: Vec[][], h: nu
   }
   const lantern = (x: number, y: number, ry: number, from: number) => {
     if (!free(x, y, 0.8, 0.8, 0)) return false
-    kit.stand(x, y, 0.8, 0.8, 0, from)
-    kit.from(from, () => stoneLantern(kit, x, y, ry, h), spot(x, y))
+    standAndBuild(kit, x, y, 0.8, 0.8, 0, from, () => stoneLantern(kit, x, y, ry, h))
     return true
   }
   const seat = (x: number, y: number, ry: number, from: number) => {
     if (!free(x, y, 2.2, 1, ry)) return false
-    kit.stand(x, y, 2.2, 1, ry, from)
-    kit.from(from, () => bench(kit, x, y, ry, h), spot(x, y))
+    standAndBuild(kit, x, y, 2.2, 1, ry, from, () => bench(kit, x, y, ry, h))
     return true
   }
   const off = PARK.path.wide / 2 + PARK.path.edge + 0.75
@@ -983,7 +941,7 @@ function lanternsAndBenches(g: ZoneGround, p: Pond | null, paths: Vec[][], h: nu
   if (!p) return
   for (let k = 0, placed = 0; k < 12 && placed < 2; k++) {
     const a = (k / 12) * TAU + 0.3
-    const [x, y] = [p.x + Math.cos(a) * (13.6 * p.s + 2.4), p.y + Math.sin(a) * (9.6 * p.s + 2.4)]
+    const [x, y] = [p.x + Math.cos(a) * (p.rim.rx + 2.4), p.y + Math.sin(a) * (p.rim.ry + 2.4)]
     const ry = Math.atan2(-(p.x - x), p.y - y) // its front toward the water
     if (seat(x, y, ry, 2)) placed++
   }
@@ -992,52 +950,16 @@ function lanternsAndBenches(g: ZoneGround, p: Pond | null, paths: Vec[][], h: nu
 const pose = (q: { x: number; y: number; ry: number }): [number, number, number] => [q.x, q.y, q.ry]
 
 /**
- * A small shrine on its ground `l` (#180), facing its front, the lawn `h` up, as one brick and its lanterns: a stone
- * torii at the front, stepping slabs to a wooden shrine on a stone base under a tiled gable, and a stone lantern either
- * side of the way; at Stage 3 a straw rope on the torii and a stone basin of water beside the way.
- */
-function shrine(kit: Kit, l: RowLot, stage: number, h: number) {
-  const put = (
-    geo: THREE.BufferGeometry,
-    look: string | Parameters<Kit['add']>[1],
-    lx: number,
-    ly: number,
-    z: number,
-    sx = 1,
-    sy = 1,
-    sz = 1,
-  ) => kit.put(geo, look, l.x, l.y, l.ry, lx, ly, z, sx, sy, sz)
-  const front = l.d / 2 - 0.8
-  for (const lx of [-1.25, 1.25]) put(kit.cuboid(0.34, 3.3, 0.34), BUILT.torii, lx, front, h)
-  put(kit.cuboid(3.8, 0.28, 0.44), BUILT.torii, 0, front, h + 3.3)
-  put(kit.cuboid(3.1, 0.2, 0.26), BUILT.torii, 0, front, h + 2.6)
-  if (stage === 3) put(kit.cuboid(2.5, 0.14, 0.18), BUILT.rope, 0, front, h + 2.4)
-  for (let ly = front - 0.9; ly > -l.d / 2 + 2.6; ly -= 0.9) put(kit.cuboid(0.9, 0.05, 0.6), POND.stone, 0, ly, h)
-  const back = -l.d / 2 + 1.5
-  put(kit.cuboid(2.2, 0.5, 1.8), POND.stone, 0, back, h)
-  put(kit.cuboid(1.6, 1.3, 1.3), WOOD.dark, 0, back, h + 0.5)
-  put(kit.cuboid(0.9, 0.9, 0.04), WOOD.stand, 0, back + 0.66, h + 0.6) // its doors
-  kit.tiled(kit.gable(2.3, 2, 0.75), BUILT.roof, ...to(l.x, l.y, l.ry, 0, back), h + 1.8, l.ry + Math.PI / 2, spot(l.x, l.y))
-  if (stage === 3) {
-    kit.drum(STONE, ...to(l.x, l.y, l.ry, 1.35, back + 3.4), h, 0.45, 0.45, 0.55)
-    kit.drum(kit.water, ...to(l.x, l.y, l.ry, 1.35, back + 3.4), h + 0.1, 0.36, 0.36, 0.48)
-  }
-  kit.shadow(l.x, l.y, h, 3.8, l.d - 1, false, l.ry)
-  kit.brick('building', l.x, l.y, h)
-  for (const lx of [-1.45, 1.45]) stoneLantern(kit, ...to(l.x, l.y, l.ry, lx, back + 1.9), l.ry, h)
-}
-
-/**
  * A tea house on its ground `l` (#180), facing its front, the lawn `h` up, as one brick and its lantern: plaster walls
  * between wooden posts on a stone footing, shoji on every side that glow at night and leave their light round it, a
- * veranda along its front and a hipped roof in verdigris tiles; at Stage 3 a bench and a parasol beside it.
+ * veranda along its front and a hipped roof in verdigris tiles; at Stage 3 a parasol beside it.
  */
 function teahouse(kit: Kit, l: RowLot, stage: number, h: number) {
   const put = (geo: THREE.BufferGeometry, look: Parameters<Kit['add']>[1], lx: number, ly: number, z: number) =>
     kit.put(geo, look, l.x, l.y, l.ry, lx, ly, z)
   const [w, d, tall, by] = [4.2, 3, 2.4, -0.45]
   const floor = h + 0.35
-  put(kit.cuboid(w + 0.4, 0.35, d + 0.4), BUILT.foot, 0, by, h)
+  put(kit.cuboid(w + 0.4, 0.35, d + 0.4), STONES.dark, 0, by, h)
   put(kit.cuboid(w, tall, d), BUILT.plaster, 0, by, floor)
   for (const i of [-1, 0, 1])
     for (const j of [-1, 1]) {
@@ -1052,9 +974,9 @@ function teahouse(kit: Kit, l: RowLot, stage: number, h: number) {
   put(kit.cuboid(w + 0.4, 0.12, 0.9), WOOD.pale, 0, by + d / 2 + 0.45, floor - 0.12)
   kit.tiled(kit.hip(d + 1.2, w + 1.4, 1.3), BUILT.roof, ...to(l.x, l.y, l.ry, 0, by), floor + tall, l.ry, spot(l.x, l.y))
   if (stage === 3) {
-    const [px, py] = to(l.x, l.y, l.ry, -2.9, 1.6)
+    const [px, py] = to(l.x, l.y, l.ry, -2.75, 1.75)
     kit.add(SHAPES.thin, WOOD.dark, px, py, h, 0, 0.04, 2.3, 0.04)
-    kit.add(SHAPES.cone, BUILT.cream, px, py, h + 1.9, 0, 1.25, 0.55, 1.25)
+    kit.add(SHAPES.cone, BUILT.cream, px, py, h + 1.9, 0, 0.9, 0.45, 0.9)
   }
   kit.pool('window', ...to(l.x, l.y, l.ry, 0, by), h, w + 3, d + 3, l.ry)
   kit.shadow(...to(l.x, l.y, l.ry, 0, by), h, w + 1.2, d + 1.2, false, l.ry)
@@ -1064,30 +986,31 @@ function teahouse(kit: Kit, l: RowLot, stage: number, h: number) {
 
 /**
  * A bandstand on its ground `l` (#180), the ground `h` up, as one brick: an eight-sided stone platform with steps at its
- * front, cream posts round it under a verdigris roof with a finial, and a lantern hung in its middle that lights the
- * floor at night; at Stage 3 four more lanterns round its eaves.
+ * front, cream posts and rails round it, open at the steps, under a roof of verdigris tiles with a finial, and a lantern
+ * hung in its middle that lights the floor at night; at Stage 3 four more lanterns round its eaves.
  */
 function bandstand(kit: Kit, l: RowLot, stage: number, h: number) {
   const r = 2.4
   const floor = h + 0.6
   kit.add(SHAPES.cylinder, POND.stone, l.x, l.y, h, l.ry, r, 0.6, r)
   kit.put(kit.cuboid(1.4, 0.3, 0.5), POND.stone, l.x, l.y, l.ry, 0, r + 0.15, h)
+  // Its posts round the way its front faces, and a rail between each two but the two either side of its steps.
+  const front = l.ry + Math.PI / 2
   for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * TAU + Math.PI / 8
+    const a = front + ((k + 0.5) * Math.PI) / 4
     kit.add(SHAPES.thin, BUILT.cream, l.x + Math.cos(a) * (r - 0.25), l.y + Math.sin(a) * (r - 0.25), floor, 0, 0.09, 2.7, 0.09)
-    if (k !== 1 && k !== 2) {
-      const b = ((k + 0.5) / 8) * TAU + Math.PI / 8
-      const [cx, cy] = [l.x + Math.cos(b) * (r - 0.35), l.y + Math.sin(b) * (r - 0.35)]
-      kit.add(kit.cuboid(1.75, 0.07, 0.07), BUILT.cream, cx, cy, floor + 0.85, b + Math.PI / 2)
-    }
+    if (k === 7) continue
+    const b = front + ((k + 1) * Math.PI) / 4
+    const [cx, cy] = [l.x + Math.cos(b) * (r - 0.35), l.y + Math.sin(b) * (r - 0.35)]
+    kit.add(kit.cuboid(1.75, 0.07, 0.07), BUILT.cream, cx, cy, floor + 0.85, b + Math.PI / 2)
   }
-  kit.add(SHAPES.cone, BUILT.roof, l.x, l.y, floor + 2.7, Math.PI / 8, r + 0.5, 1.4, r + 0.5)
+  kit.tiled(SHAPES.cone.clone().scale(r + 0.5, 1.4, r + 0.5), BUILT.roof, l.x, l.y, floor + 2.7, front + Math.PI / 8, spot(l.x, l.y))
   kit.add(SHAPES.bead, BUILT.cream, l.x, l.y, floor + 4.2, 0, 0.18, 0.18, 0.18)
   const glow = kit.lit(BUILT.shoji, GLOWS.low)
   kit.add(kit.cuboid(0.4, 0.5, 0.4), glow, l.x, l.y, floor + 2)
   if (stage === 3)
     for (let k = 0; k < 4; k++) {
-      const a = (k / 4) * TAU + Math.PI / 4
+      const a = front + (k / 4) * TAU + Math.PI / 4
       kit.add(SHAPES.bead, glow, l.x + Math.cos(a) * (r + 0.2), l.y + Math.sin(a) * (r + 0.2), floor + 2.5, 0, 0.16, 0.2, 0.16)
     }
   kit.pool('cream', l.x, l.y, floor, 2 * r + 1.6, 2 * r + 1.6)
@@ -1097,7 +1020,7 @@ function bandstand(kit: Kit, l: RowLot, stage: number, h: number) {
 
 /**
  * A clock tower on its ground `l` (#180), facing its front, the paving `h` up, as one brick: a cream shaft on a stone
- * base, a clock on each of its four sides, lit at night, under a verdigris cap and a finial; taller at Stage 3.
+ * base, a clock on each of its four sides, lit at night, under a cap of verdigris tiles and a finial; taller at Stage 3.
  */
 function clockTower(kit: Kit, l: RowLot, stage: number, h: number) {
   const shaft = stage === 3 ? 4.4 : 3.6
@@ -1112,21 +1035,21 @@ function clockTower(kit: Kit, l: RowLot, stage: number, h: number) {
     kit.put(kit.cuboid(0.05, 0.36, 0.03), BUILT.hands, l.x, l.y, ry, 0, 0.78, top + 0.66)
     kit.put(kit.cuboid(0.26, 0.05, 0.03), BUILT.hands, l.x, l.y, ry, 0.11, 0.78, top + 0.68)
   }
-  kit.add(SHAPES.pyramid, BUILT.roof, l.x, l.y, top + 1.4, l.ry + Math.PI / 4, 1.25, 1, 1.25)
+  kit.tiled(SHAPES.pyramid.clone().scale(1.25, 1, 1.25), BUILT.roof, l.x, l.y, top + 1.4, l.ry + Math.PI / 4, spot(l.x, l.y))
   kit.add(SHAPES.bead, BUILT.cream, l.x, l.y, top + 2.45, 0, 0.12, 0.12, 0.12)
   kit.shadow(l.x, l.y, h, 2.2, 2.2, false, l.ry)
   kit.brick('building', l.x, l.y, h)
 }
 
 /**
- * A kiosk at `(x, y)` facing `ry`, the paving `h` up (#180), as one brick: a cream booth under a verdigris roof, a
- * window along its front over a counter, lit at night, which leaves its light before it.
+ * A kiosk at `(x, y)` facing `ry`, the paving `h` up (#180), as one brick: a cream booth under a hipped roof of verdigris
+ * tiles, a window along its front over a counter, lit at night, which leaves its light before it.
  */
 function kiosk(kit: Kit, x: number, y: number, ry: number, h: number) {
   kit.put(kit.cuboid(2.2, 2.3, 1.8), BUILT.cream, x, y, ry, 0, 0, h)
   kit.put(kit.cuboid(1.7, 0.85, 0.05), kit.lit(BUILT.shoji, GLOWS.band), x, y, ry, 0, 0.92, h + 1.05)
   kit.put(kit.cuboid(2, 0.08, 0.4), WOOD.pale, x, y, ry, 0, 1.05, h + 0.95)
-  kit.put(kit.cuboid(2.7, 0.16, 2.3), BUILT.roof, x, y, ry, 0, 0.1, h + 2.3)
+  kit.tiled(kit.hip(2.3, 2.7, 0.7), BUILT.roof, ...to(x, y, ry, 0, 0.1), h + 2.3, ry, spot(x, y))
   kit.pool('window', ...to(x, y, ry, 0, 1.8), h, 3, 2.2, ry)
   kit.shadow(x, y, h, 2.6, 2.2, false, ry)
   kit.brick('building', x, y, h)
