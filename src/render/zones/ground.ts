@@ -325,3 +325,102 @@ export const turned = (x: number, y: number, ry: number, lx: number, ly: number)
   const [px, py] = to(x, y, ry, lx, ly)
   return { x: px, y: py }
 }
+
+/** How far along run `r` the point `q` lies from its start (m), and how far off its line. */
+export const alongRun = (r: Run, q: Vec) => (q.x - r.a.x) * r.ux + (q.y - r.a.y) * r.uy
+export const offRun = (r: Run, q: Vec) => Math.abs((q.x - r.a.x) * r.nx + (q.y - r.a.y) * r.ny)
+
+/**
+ * The lengths of run `run` of a Block's outline that a border `thick` m thick takes, as [from, to] in m along it (#180
+ * a park's azaleas, #182 an allotments' fence): open a metre at each end, round each lamp, pole and street tree, and
+ * over each of `gaps`; each cut back where it would meet what is claimed, as another run's at a shallow corner; and
+ * 1.2 m or longer. Each claims its ground.
+ */
+export function borderLengths(g: ZoneGround, run: Run, thick: number, gaps: [number, number][]): [number, number][] {
+  const { kit } = g
+  // Where along the run to leave open, as [from, to] in m.
+  const open: [number, number][] = [[-1, 1], [run.len - 1, run.len + 1], ...gaps]
+  for (const q of [...g.lamps, ...g.poles, ...g.kerbsideTrees])
+    if (offRun(run, q) < 1.3) open.push([alongRun(run, q) - 1, alongRun(run, q) + 1])
+  open.sort((a, b) => a[0] - b[0])
+  const lengths: [number, number][] = []
+  let from = 0
+  for (const [a, b] of open) {
+    if (a - from >= 1.2) lengths.push([from, a])
+    from = Math.max(from, b)
+  }
+  /** The length from `a` to `b` m along the run, as ground. */
+  const piece = (a: number, b: number): RowLot => {
+    const m = (a + b) / 2
+    return { x: run.a.x + run.ux * m, y: run.a.y + run.uy * m, w: b - a, d: thick, ry: run.ry, onRoad: true }
+  }
+  const free = (l: RowLot) => kit.unclaimed(l.x, l.y, l.w, l.d, l.ry)
+  for (const length of lengths) {
+    // Cut back the end that meets a claim, and if both do, both.
+    while (length[1] - length[0] >= 1.2 && !free(piece(length[0], length[1]))) {
+      if (!free(piece(length[0], length[0] + 0.6))) length[0] += 0.2
+      if (!free(piece(length[1] - 0.6, length[1]))) length[1] -= 0.2
+      else if (free(piece(length[0], length[0] + 0.6))) length[0] += 0.2 // a claim along its middle: shrink until it clears
+    }
+  }
+  const kept = lengths.filter(([a, b]) => b - a >= 1.2)
+  for (const [a, b] of kept) {
+    const l = piece(a, b)
+    kit.stand(l.x, l.y, l.w, l.d, l.ry)
+  }
+  return kept
+}
+
+/** Whether `(x, y)` lies within `room` m of a path's middle line `path`. */
+export const nearPath = (path: Vec[], x: number, y: number, room: number) =>
+  path.some((a, i) => i > 0 && distance({ x, y }, path[i - 1], a) < room)
+
+/** The middle line of a path from `a` to `b`, straying `strays` m to one side in `waves` arcs, a point every `step` m. */
+export function winding(a: Vec, b: Vec, strays: number, waves: number, step: number): Vec[] {
+  const len = Math.hypot(b.x - a.x, b.y - a.y)
+  const n = Math.max(2, Math.ceil(len / step))
+  const [nx, ny] = [-(b.y - a.y) / len, (b.x - a.x) / len]
+  const amp = Math.sign(strays) * Math.min(Math.abs(strays), 0.12 * len)
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const u = i / n
+    const off = amp * Math.sin(Math.PI * u * waves)
+    return { x: a.x + (b.x - a.x) * u + nx * off, y: a.y + (b.y - a.y) * u + ny * off }
+  })
+}
+
+/** The line `off` m to the left of a middle line `pts` (below 0, its right). */
+export function aside(pts: Vec[], off: number): Vec[] {
+  return pts.map((p, i) => {
+    const [q, r] = [pts[Math.max(0, i - 1)], pts[Math.min(pts.length - 1, i + 1)]]
+    const len = Math.hypot(r.x - q.x, r.y - q.y) || 1
+    return { x: p.x - ((r.y - q.y) / len) * off, y: p.y + ((r.x - q.x) / len) * off }
+  })
+}
+
+/**
+ * Where a path comes in to a Block's ground from each corner of its bounding box, in order round from corner `first`:
+ * the first point on the way to the Block's middle that lies on it 2.1 m in from its edge, as a lawn begins; none for a
+ * corner with no such point in the first 0.6 of the way.
+ */
+export function waysIn({ field, block }: Pick<ZoneGround, 'field' | 'block'>, first: number): Vec[] {
+  const mid = middle(block)
+  const boxCorners = [
+    { x: block.x0, y: block.y0 },
+    { x: block.x1, y: block.y0 },
+    { x: block.x1, y: block.y1 },
+    { x: block.x0, y: block.y1 },
+  ]
+  const out: Vec[] = []
+  for (let k = 0; k < 4; k++) {
+    const c = boxCorners[(first + k) % 4]
+    const [ux, uy] = [mid.x - c.x, mid.y - c.y]
+    const len = Math.hypot(ux, uy)
+    for (let t = 0; t < len * 0.6; t += 0.5) {
+      const q = { x: c.x + (ux / len) * t, y: c.y + (uy / len) * t }
+      if (field.sample(q.x, q.y) < 2.1 || !inside(block.loop, q.x, q.y)) continue
+      out.push(q)
+      break
+    }
+  }
+  return out
+}
