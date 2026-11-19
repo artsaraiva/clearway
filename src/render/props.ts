@@ -58,7 +58,7 @@ export function bedTree(kit: Kit, x: number, y: number, r: number, s: number, co
 export const bench = (kit: Kit, x: number, y: number, ry: number, h = KERB) => kit.blockZoomProps(() => kit.bench(x, y, h, ry))
 
 /**
- * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179): a footing, a
+ * A stone lantern at `(x, y)` facing `ry`, `h` above the road (#178, a shrine's; a koi pond's since #179; a park's since #180): a footing, a
  * post, a fire box that lights at dusk and leaves its pool, and a cap.
  */
 export function stoneLantern(kit: Kit, x: number, y: number, ry: number, h = KERB) {
