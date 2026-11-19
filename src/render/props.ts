@@ -155,3 +155,17 @@ export function waiting(kit: Kit, { x, y, ry }: Footprint, r: number, s: number,
   bedTree(kit, x, y, r, s, coarse)
   for (const k of [-1, 1]) bench(kit, ...to(x, y, ry, k * out, 0), ry + (k * Math.PI) / 2)
 }
+
+/** A lantern hung in a pavilion: its cord and its paper. */
+const HUNG = { cord: '#8a6446', paper: '#fff4dc' }
+
+/**
+ * A lantern hung in a pavilion standing on its floor at `(x, y)`, `h` up (#180 a park's, #182 a meadow's), lit at night,
+ * and its pool on the floor.
+ */
+export function pavilionLantern(kit: Kit, x: number, y: number, h: number) {
+  kit.add(SHAPES.thin, HUNG.cord, x, y, h + 2.55, 0, 0.02, 0.35, 0.02)
+  kit.add(kit.cuboid(0.42, 0.5, 0.42), kit.lit(HUNG.paper, GLOWS.low), x, y, h + 2.05)
+  kit.pool('cream', x, y, h + 0.3, 4, 4)
+  kit.brick('lamp', x, y, h)
+}
