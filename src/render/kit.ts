@@ -1121,11 +1121,11 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
 
     /**
      * Ground laid from a geometry already in place (Three coordinates) in `look` (#180), as a park's lawn or its paths:
-     * wearing `kind`'s pattern on its top where the kit builds patterned, radial paving round `middle`. It joins the next
-     * brick.
+     * wearing `kind`'s pattern on its top where the kit builds patterned, radial paving round `middle`, a quarter turn
+     * round if `quarter` (#184). It joins the next brick.
      */
-    laid(geo: THREE.BufferGeometry, look: Look, kind: Pattern, middle?: { x: number; y: number }) {
-      push(patterned ? pave(geo, kind, middle) : geo, look)
+    laid(geo: THREE.BufferGeometry, look: Look, kind: Pattern, middle?: { x: number; y: number }, quarter = false) {
+      push(patterned ? pave(geo, kind, middle, quarter) : geo, look)
     },
 
     /** Say where loose things on the ground, such as fallen petals, may lie: `on(x, y, clear)`, on the Block `clear` m in from its edge. */

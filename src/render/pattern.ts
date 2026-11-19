@@ -263,16 +263,23 @@ export function tile(
 
 /**
  * Lay paving joints, or `kind`'s other paving, over the faces of a geometry in place (Three coordinates) that look up, in
- * m on the map: radial paving (#180) in m from `middle`, a point on the map, which the shader turns into rings.
+ * m on the map: radial paving (#180) in m from `middle`, a point on the map, which the shader turns into rings. With
+ * `quarter` the pattern lies a quarter turn round (#184), as a field's furrows run north–south with its rows.
  */
-export function pave(geo: THREE.BufferGeometry, kind: Pattern = PATTERN.paving, middle = { x: 0, y: 0 }): THREE.BufferGeometry {
+export function pave(
+  geo: THREE.BufferGeometry,
+  kind: Pattern = PATTERN.paving,
+  middle = { x: 0, y: 0 },
+  quarter = false,
+): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
   const per = kind === PATTERN.lawn ? REPEAT.lawn : kind === PATTERN.meadow ? REPEAT.meadow : kind === PATTERN.radial ? 1 : REPEAT.paving
   return wear(geo, (uv, worn) => {
     for (let i = 0; i < pos.count; i++) {
       if (nor.getY(i) < 0.9) continue
-      uv.set([(pos.getX(i) - middle.x) / per, (-pos.getZ(i) - middle.y) / per], 2 * i)
+      const [u, v] = [(pos.getX(i) - middle.x) / per, (-pos.getZ(i) - middle.y) / per]
+      uv.set(quarter ? [v, u] : [u, v], 2 * i)
       worn[3 * i] = kind + 0.5
     }
   })

@@ -15,12 +15,10 @@ interface Known {
 
 /** The Zones not yet built to the Finish (#173), with the ticket that builds each. */
 const UNFINISHED: Record<string, string> = {
-  farms: '#184',
   unzoned: '#185',
 }
 /** The rules each unfinished Zone breaks today, which its ticket takes on. */
 const BROKEN: Record<string, string[]> = {
-  farms: ['keeps-clear', 'paths-clear', 'blank-wall', 'blank-roof', 'scenes', 'empty-pavement'],
   unzoned: ['empty-pavement'],
 }
 /** Left by #193: the bare pavement runs it did not break; #195 owns them. */
@@ -98,6 +96,6 @@ export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   industrial: { triangles: 1.3e6, meshes: 155 }, // #181: about a tenth over the 1.21 M it builds at Stage 3 on seed 2, the heaviest
   parks: { triangles: 2.6e6, meshes: 160 }, // #180: 2.39 M at Stage 3 with coarse trees; its lanterns' bulbs and Block-zoom benches a mesh each
   green: { triangles: 2.2e6, meshes: 125 }, // #182: 1.90 M at Stage 3 with coarse trees; its lanterns' bulbs, a stream's water and Block-zoom props a mesh each
-  farms: { triangles: 1.35e6, meshes: 150 },
+  farms: { triangles: 1.55e6, meshes: 160 }, // #184: about a tenth over the 1.39 M it builds at Stage 3 on seed 2, the heaviest; its lit greenhouses' bulbs and Block-zoom props a mesh each
   unzoned: { triangles: 1.4e6, meshes: 108 },
 }

@@ -1104,7 +1104,7 @@ function hives(kit: Kit, x: number, y: number, h: number, ry: number, stage: num
  * A person standing at `(x, y)` facing `ry`, `h` up (#182), in the brick being built, `s` their size (a child's under
  * 1): legs, a shirt in `shirt`, a head, and a straw hat if `hat`.
  */
-function person(kit: Kit, x: number, y: number, h: number, ry: number, shirt: string, hat = true, s = 1) {
+export function person(kit: Kit, x: number, y: number, h: number, ry: number, shirt: string, hat = true, s = 1) {
   kit.add(kit.cuboid(0.34, 0.8, 0.26), PAINT.legs, x, y, h, ry, s, s, s)
   kit.add(kit.cuboid(0.46, 0.62, 0.3), shirt, x, y, h + 0.8 * s, ry, s, s, s)
   kit.add(SHAPES.sphere, PAINT.skin, x, y, h + 1.62 * s, 0, 0.19 * s, 0.2 * s, 0.19 * s)
@@ -1177,7 +1177,7 @@ function campsite(kit: Kit, l: RowLot, stage: number, h: number) {
 }
 
 /** A wheelbarrow at `(x, y)` facing `ry`, `h` up (#182), in the brick being built: a tray on a wheel and two legs, its handles behind. */
-function wheelbarrow(kit: Kit, x: number, y: number, h: number, ry: number) {
+export function wheelbarrow(kit: Kit, x: number, y: number, h: number, ry: number) {
   kit.put(kit.cuboid(0.62, 0.3, 0.9), PAINT.barrow, x, y, ry, 0, 0, h + 0.32)
   kit.put(kit.cuboid(0.1, 0.36, 0.36), PAINT.legs, x, y, ry, 0, 0.55, h)
   for (const side of [-0.26, 0.26]) {

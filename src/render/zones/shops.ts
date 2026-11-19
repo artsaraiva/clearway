@@ -678,7 +678,7 @@ const CAP = new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)
  * pale band of lettering down it, flutters in the wind and is furled for the night as a flag is (`../movers`).
  * Oversized a little, as the props are.
  */
-function nobori(kit: Kit, x: number, y: number, h: number, ry: number, colour: string) {
+export function nobori(kit: Kit, x: number, y: number, h: number, ry: number, colour: string) {
   kit.add(kit.cuboid(0.07, 3.7, 0.07), NOBORI.pole, x, y, h)
   kit.local(kit.cuboid(0.8, 0.05, 0.05), NOBORI.pole, x, y, ry, 0.4, 0, h + 3.5)
   kit.fly('nobori', x, y, h + 3.48, h + 3.48, colour, { ry })
