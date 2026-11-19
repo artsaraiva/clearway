@@ -1,10 +1,12 @@
 // The scene check's runner (#191): builds each Zone's City at each Stage and seed, runs the rules over each report, and
-// prints what failed, what is known, the building forms and scenes built, and how the meshes compare with a ref.
+// prints what failed, what is known, the building forms and scenes built, and how the meshes compare with a ref; and on
+// asking, what it built of each kind and where.
 import { ZONES } from '../../../src/city/city'
 import type { Stage } from '../../../src/game/game'
 import { buildReport, type Drop } from './build'
+import { boxOf } from './geometry'
 import { CEILINGS, knownOf } from './known'
-import type { Failure, Report } from './report'
+import type { Box, Failure, Report } from './report'
 import { rules, sameLots } from './rules'
 
 /** What `npm run check:scene` was asked: see the usage at the head of `../check.mjs`. */
@@ -14,6 +16,9 @@ export interface Options {
   stages: number[]
   seeds: number
   all: boolean
+  /** Print what each Stage built of each kind (--counts), and where the first few of `where`'s kind stand (--where). */
+  counts: boolean
+  where?: string
   city: Drop[]
   /** The ref's own `buildReport`, from a copy of its tree, with --against; and its name. */
   baseline?: { build: typeof buildReport; label: string }
@@ -51,6 +56,61 @@ function mix(reports: Report[]): Map<number, Map<string, number>> {
     for (const s of r.scenes) counts.set(`scene ${s.kind}`, (counts.get(`scene ${s.kind}`) ?? 0) + 1)
   }
   return out
+}
+
+/** How many of each name, as `name n` by name. */
+function tally(names: string[]): string {
+  const n = new Map<string, number>()
+  for (const s of names) n.set(s, (n.get(s) ?? 0) + 1)
+  return (
+    [...n]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([s, k]) => `${s} ${k}`)
+      .join(', ') || 'none'
+  )
+}
+
+/** What a City built on its Blocks, by kind: things by their label (`Thing.what`), scenes and movers by theirs, and pools. */
+function counts(r: Report) {
+  const things = r.things.filter((t) => t.block >= 0)
+  const pools = things.reduce((n, t) => n + t.pools, 0)
+  console.log(`  counts Stage ${r.stage}: ${things.length} things, ${r.scenes.length} scenes, ${r.movers.length} movers, ${pools} pools`)
+  console.log(`           things ${tally(things.map((t) => t.what))}`)
+  console.log(`           scenes ${tally(r.scenes.map((s) => s.kind))}`)
+  console.log(`           movers ${tally(r.movers.map((m) => m.kind))}`)
+}
+
+/** Places printed of each of scenes, movers and things with --where: the first, one a Block. */
+const PLACES = 5
+
+/** A box's middle, as `npm run shots` takes a Close point: a sim point, m. */
+const closeOn = (b: Box) => `--close=${Math.round((b.x0 + b.x1) / 2)},${Math.round((b.y0 + b.y1) / 2)}`
+
+/** Where the scenes, movers and things of `kind` stand in a City, the first few of each, one a Block. */
+function places(r: Report, kind: string) {
+  const corners = (b: Box) => [
+    { x: b.x0, y: b.y0 },
+    { x: b.x1, y: b.y1 },
+  ]
+  // A mover stands where it rests, as the shots show it unless told to --run.
+  const found = Object.entries({
+    scene: r.scenes
+      .filter((s) => s.kind === kind && s.things.length)
+      .map((s) => ({ ...s, box: boxOf(s.things.flatMap((i) => corners(r.things[i].box))) })),
+    mover: r.movers.filter((m) => m.kind === kind).map((m) => ({ ...m, box: r.things[m.thing].box })),
+    thing: r.things.filter((t) => t.block >= 0 && t.what === kind),
+  }).filter(([, of]) => of.length)
+  if (!found.length) return console.log(`  where  Stage ${r.stage}: no ${kind} (--counts lists what each Stage built)`)
+  console.log(`  where  Stage ${r.stage}: ${found.map(([what, of]) => `${of.length} ${what}${of.length > 1 ? 's' : ''}`).join(', ')}`)
+  for (const [what, of] of found) {
+    const blocks = new Set<number>()
+    for (const p of of) {
+      if (blocks.has(p.block)) continue
+      blocks.add(p.block)
+      console.log(`           ${what} ${kind}, Tile ${p.tile}: ${closeOn(p.box)}`)
+      if (blocks.size === PLACES) break
+    }
+  }
 }
 
 /** Run the check. Returns the exit code: 1 if any rule failed in a way no known failure accounts for. */
@@ -132,6 +192,11 @@ export async function main(o: Options): Promise<number> {
         console.log(
           `  mesh   Stage ${stage}: CHANGED from ${o.baseline!.label}, ${tris} against ${(b.triangles / 1e6).toFixed(2)} M and ${b.meshes}`,
         )
+    }
+    // What the sheets' seed built of each kind, and where.
+    for (const r of reports.filter((x) => x.seed === seeds[0])) {
+      if (o.counts) counts(r)
+      if (o.where) places(r, o.where)
     }
   }
   const total = ((performance.now() - started) / 1000).toFixed(1)

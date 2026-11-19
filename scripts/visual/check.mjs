@@ -2,12 +2,19 @@
 // finish of #173 that can be asserted over what was placed, across seeds. No browser, no GPU, no pictures.
 //
 // Usage: npm run check:scene -- <zones | unzoned | all> [--stages 1,2,3] [--seeds 1] [--against <git ref>] [--all]
+//          [--counts] [--where <kind>]
 //
 // Prints, for each Zone, a pass or fail line per rule, each failure with its Stage, seed, Tile and Block, what and by how
 // much; the building forms and scenes it built at each Stage; and with --against, the same counts and a hash of every
 // mesh on the ref, so that a Zone whose meshes changed stands out. Rules today's main breaks are listed as known with
 // the issue that owns each (scene/known.ts): they print, but only a new failure exits non-zero. --seeds sweeps that
 // many seeds of the Blocks' fill, seed 3 (the sheets') first; --all prints every failure, not the first few of each.
+//
+// On seed 3, the City the sheets shoot: --counts prints at each Stage how many things of each kind stand on the Zone's
+// Blocks (the kit's method or the Zone's building that built each, else its fill: house, gardenShed, bench), its scenes
+// and movers by kind, and its pools. --where <kind> prints where the first few scenes, movers and things of that kind
+// stand at each Stage, one a Block, with their Tile: the middle of each as a sim point (m), to pass on as it is to
+// `npm run shots -- <zone> --stages <stage> --close=x,y`, adding `,m` for more metres of road across the shot.
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,6 +31,8 @@ const { values, positionals } = parseArgs({
     seeds: { type: 'string', default: '1' },
     against: { type: 'string' },
     all: { type: 'boolean', default: false },
+    counts: { type: 'boolean', default: false },
+    where: { type: 'string' },
   },
 })
 
@@ -55,6 +64,8 @@ try {
     stages: values.stages.split(',').map(Number),
     seeds: Number(values.seeds),
     all: values.all,
+    counts: values.counts,
+    where: values.where,
     city: CITY,
   })
 } finally {

@@ -41,6 +41,7 @@ Each line is a defect a review caught once.
 
 ## Running it
 
+- **What you built, and where:** `npm run check:scene -- <zone> --counts` prints how many of each thing, scene, mover and pool each Stage built; `--where <kind>` prints where the first few of a kind stand, as `--close=x,y` points for `npm run shots`. No throwaway scripts against `buildReport`.
 - **Sheets** land in `scripts/visual/out/`, which is ignored by git and survives a restart. The session's scratch folder does not.
 - **The approved sheets** are in this repo under `refs/screenshots/main`: `git fetch origin refs/screenshots/main:refs/screenshots/main`, then `git show refs/screenshots/main:.scratch/visual-style/pr-175/reference-noon-street.jpg > <file>`.
 - **Run a command and let it finish.** A background loop that waits on `pgrep` never ends.
