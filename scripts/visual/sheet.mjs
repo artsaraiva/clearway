@@ -2,7 +2,7 @@
 import { rmSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-const LABELS = 150
+const LABEL_WIDTH = 150
 const GAP = 8
 
 /**
@@ -12,7 +12,7 @@ const GAP = 8
 export async function writeSheet(browser, file, { title, columns, rows, width }) {
   const css = `
     body { margin: 0; background: #f6f6f3; color: #1b2030; font: 700 26px system-ui, sans-serif }
-    .grid { display: grid; grid-template-columns: ${LABELS}px repeat(${columns.length}, ${width}px); gap: ${GAP}px; place-items: center }
+    .grid { display: grid; grid-template-columns: ${LABEL_WIDTH}px repeat(${columns.length}, ${width}px); gap: ${GAP}px; place-items: center }
     .grid b { line-height: 36px; text-align: center }
     img { display: block; width: ${width}px }
     h1 { margin: 0; padding: 14px 16px; font-size: 36px }`
@@ -23,7 +23,7 @@ export async function writeSheet(browser, file, { title, columns, rows, width })
   ].join('')
   const html = `${file}.html`
   writeFileSync(html, `<!doctype html><style>${css}</style><h1>${title}</h1><div class="grid">${grid}</div>`)
-  const page = await browser.newPage({ viewport: { width: LABELS + columns.length * (width + GAP), height: 400 } })
+  const page = await browser.newPage({ viewport: { width: LABEL_WIDTH + columns.length * (width + GAP), height: 400 } })
   try {
     await page.goto(pathToFileURL(html).href)
     await page.screenshot({ path: file, fullPage: true, type: 'jpeg', quality: 84 })
