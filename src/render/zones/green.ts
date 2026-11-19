@@ -410,16 +410,20 @@ function meadowPaths(g: ZoneGround, draw: () => number, { trees, beds, more, pav
   const most = area(block.loop) < PATH.two ? 1 : 2
   for (const e of waysIn(g, Math.floor(draw() * 4))) {
     if (out.length >= most) break
-    const target = targets[Math.min(out.length, targets.length - 1)]
-    // To the edge of a scene's ground or the pavilion's floor, on the side it comes from.
-    const far = Math.hypot(target.x - e.x, target.y - e.y)
-    const short = 'w' in target ? Math.min(target.w, target.d) / 2 : target === pavilion ? 2.4 : 0
-    if (far < short + 4) continue
-    const end = { x: target.x + ((e.x - target.x) / far) * short, y: target.y + ((e.y - target.y) / far) * short }
+    // To the edge of a scene's ground or the pavilion's floor, on the side it comes from: the first of them from this
+    // path's own on that a way in keeps to.
     const strays = (draw() < 0.5 ? -1 : 1) * PATH.strays
     const waves = draw() < 0.6 ? 1 : 2
-    const path = [strays, -strays, 0].map((a) => winding(e, end, a, waves, PATH.step)).find((pts) => keeps(pts, target))
-    if (path) out.push(path)
+    for (const target of targets.slice(Math.min(out.length, targets.length - 1))) {
+      const far = Math.hypot(target.x - e.x, target.y - e.y)
+      const short = 'w' in target ? Math.min(target.w, target.d) / 2 : target === pavilion ? 2.4 : 0
+      if (far < short + 4) continue
+      const end = { x: target.x + ((e.x - target.x) / far) * short, y: target.y + ((e.y - target.y) / far) * short }
+      const path = [strays, -strays, 0].map((a) => winding(e, end, a, waves, PATH.step)).find((pts) => keeps(pts, target))
+      if (!path) continue
+      out.push(path)
+      break
+    }
   }
   return out
 }
@@ -1110,8 +1114,8 @@ function person(kit: Kit, x: number, y: number, h: number, ry: number, shirt: st
 }
 
 /**
- * A kite flown from a rise on its ground `l` (#182), the grass `h` up, as one brick: a mown mound, a flyer on its top
- * facing downwind, and their kite on its string, which swings on the wind through the working day and is taken in for
+ * A kite flown from a rise on its ground `l` (#182), the grass `h` up, as one brick: a mown mound, a lantern on a post at
+ * its foot, a flyer on its top facing downwind, and their kite on its string, which swings on the wind through the working day and is taken in for
  * the night; at Stage 3 a child beside them flies a second.
  */
 function kiteRise(kit: Kit, l: RowLot, stage: number, h: number) {
@@ -1133,6 +1137,11 @@ function kiteRise(kit: Kit, l: RowLot, stage: number, h: number) {
       ...(k && { size: [0.7, 0.7] as [number, number] }),
     })
   }
+  // A lantern on a post at the foot of the rise, on the side the default camera sees, lit at night.
+  const [px, py] = [l.x + r * 0.62, l.y - r * 0.62]
+  kit.add(kit.cuboid(0.12, 1.5, 0.12), PAINT.post, px, py, h)
+  kit.add(kit.cuboid(0.3, 0.34, 0.3), kit.lit(CREAM, GLOWS.low), px, py, h + 1.5)
+  kit.pool('cream', px, py, h, 3.6, 3.6)
   kit.shadow(l.x, l.y, h, 2 * r + 0.8, 2 * r + 0.8, true)
   kit.brick('tree', l.x, l.y, h)
 }
