@@ -446,7 +446,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
     // Before the window where no bicycles or menu board stand, from Stage 2: crates of produce, or a plant stand,
     // Block-zoom.
     const q = at(u(ware + 0.9), 0.45)
-    if (clear(0.45, u(ware + 0.2), u(ware + 1.6)) && take(u(ware + 0.9), 0.45, 1.4, 0.5, 0.025))
+    if (clear(0.45, u(ware + 0.2), u(ware + 1.6)) && take(u(ware + 0.9), 0.45, 1.4, 0.5, 0.0125))
       // 0.45 m off the pots
       kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
   }

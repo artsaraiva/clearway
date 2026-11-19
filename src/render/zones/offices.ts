@@ -333,13 +333,13 @@ function grove(g: ZoneGround, lot: Bounds) {
   if (paved) kit.from(1, () => kit.paving(cx, cy, KERB, paved.w, paved.d, 0, PLANTER, PATTERN.plaza), spot(cx, cy) + 5)
   /**
    * Whether ground `l` is free: on the Block, clear of the lamps and the street trees, and unclaimed but for a sliver
-   * (0.15 m in from each side of both); and if so, claimed.
+   * (0.15 m in from each side of it and what stands); and if so, claimed.
    */
   const free = (l: RowLot, clear: number) => {
     const ok =
       stands(g, l.x, l.y, l.w, l.d, clear, l.ry) &&
       !g.lamps.some((p) => near(l, p.x, p.y, 1.4)) &&
-      kit.unclaimed(l.x, l.y, l.w - 0.3, l.d - 0.3, l.ry, -0.15)
+      kit.unclaimed(l.x, l.y, l.w, l.d, l.ry, -0.15)
     if (ok) kit.stand(l.x, l.y, l.w, l.d, l.ry)
     return ok
   }
