@@ -821,8 +821,8 @@ const PERSIMMON = { leaves: ['#5fbc51', '#6bc357', '#4f9f45'], fruit: '#ec8f4a',
 const BARBECUE = { wood: '#a1714c', stone: '#bdb4a6', grill: '#3a3f4b', table: '#e8e2d6', chairs: '#c49a6c', patio: '#d9d1c3' }
 
 /**
- * A koi pond (#179): a pond with a rim of stones, koi in it, Block-zoom; a pine beside it and a stone lantern that lights
- * at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
+ * A koi pond (#179): a pond with a rim of stones, koi in it, Block-zoom; a pine beside it and a stone lantern that
+ * lights at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
  */
 function koi(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
   const [rx, rz] = [Math.min(2.6, l.w / 2 - 1.6), Math.min(1.8, l.d / 2 - 1.9)]

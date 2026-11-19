@@ -150,8 +150,8 @@ function placeCity({ city, zone, stage }: Ask): Game {
 }
 
 /**
- * The materials renamed since the hash was written, by their names now and then: an older ref's kit is read by the names
- * now, and the hash takes each by its name then, so that a ref from before reads as the same.
+ * The materials renamed since the hash was written, by their names now and then: an older ref's kit is read by the
+ * names now, and the hash takes each by its name then, so that a ref from before reads as the same.
  */
 const RENAMED: Record<string, string> = { blockZoom: 'close' } // the Block-zoom props' material, until #202
 const NOW = Object.fromEntries(Object.entries(RENAMED).map(([now, then]) => [then, now]))

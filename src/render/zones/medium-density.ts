@@ -917,8 +917,8 @@ function courtPlan(built: Built[], lot: Bounds, shape: number, floors: number, p
 
 /**
  * The ground of apartment building `b` (#178), from Stage 1, where it stands clear of `taken`: in an L's inner corner, a
- * court in setts with a tree in a round bed and a bench, Block-zoom; in an O's or a U's court, which `courtyards` paves,
- * a bench by its tree; and by a bar, a pocket court (`pocketCourt`) at its foot where there is ground.
+ * court in setts with a tree in a round bed and a bench, Block-zoom; in an O's or a U's court, which `courtyards`
+ * paves, a bench by its tree; and by a bar, a pocket court (`pocketCourt`) at its foot where there is ground.
  */
 function courtGround(g: ZoneGround, b: Built, taken: RowLot[]) {
   const { kit } = g
@@ -1150,7 +1150,8 @@ function shrine(kit: Kit, x: number, y: number, w: number, d: number, ry: number
 
 /**
  * A pocket park at Stage `stage` (#178): a lawn behind a low hedge, one swing over sand, a tree, a bench facing the
- * swing, Block-zoom, and a lamp at its front corner that leaves its pool; at Stage 3 a spring rider and a bed of flowers.
+ * swing, Block-zoom, and a lamp at its front corner that leaves its pool; at Stage 3 a spring rider and a bed of
+ * flowers.
  */
 function pocketPark(kit: Kit, x: number, y: number, w: number, d: number, ry: number, stage: number) {
   const at = (u: number, v: number) => to(x, y, ry, u, v)

@@ -1,5 +1,5 @@
 // The scene check (#191): builds the 26-Tile City of each Zone in Node, without drawing it, and asserts the rules of
-// finish of #173 that can be asserted over what was placed, across seeds. No browser, no GPU, no pictures.
+// Finish of #173 that can be asserted over what was placed, across seeds. No browser, no GPU, no pictures.
 //
 // Usage: npm run check:scene -- <zones | unzoned | all> [--stages 1,2,3] [--seeds 1] [--against <git ref>] [--all]
 //          [--counts] [--where <kind>]

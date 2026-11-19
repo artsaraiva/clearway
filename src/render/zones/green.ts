@@ -70,8 +70,8 @@ const ALLOTMENT = { w: 6.4, d: 4.6, path: 1.3 } // m: a plot, and the gravel pat
 
 /**
  * A meadow Block: open grass but for groves of trees, one to about every 700 m² and at least two, and a few beds of
- * flowers, all clear of the street trees `kerbsideTrees`. Its details (`meadowDetails`, #152): wildflowers, benches, picnic
- * blankets and butterflies. With the Stage:
+ * flowers, all clear of the street trees `kerbsideTrees`. Its details (`meadowDetails`, #152): wildflowers, benches,
+ * picnic blankets and butterflies. With the Stage:
  * - Stage 1: three saplings to a grove, and no beds.
  * - Stage 2: five trees to a grove, and the beds.
  * - Stage 3: the trees grown on, three more beds, and a pavilion by the first grove where there is room.
@@ -297,8 +297,8 @@ function flutter(beds: Bed[], first: Bed, draw: () => number): { loop: Polyline;
 
 /**
  * An allotments Block: gravel cut into plots on a grid, each bare soil with rows of crops or flowers, a shed, or
- * nothing, where it stands clear of the street trees `kerbsideTrees`. Each plot is a brick and a lot. Its details (#152): a
- * scarecrow, water butts and cold frames, each on the lot of its plot. With the Stage:
+ * nothing, where it stands clear of the street trees `kerbsideTrees`. Each plot is a brick and a lot. Its details
+ * (#152): a scarecrow, water butts and cold frames, each on the lot of its plot. With the Stage:
  * - Stage 1: half the plots still bare, shorter crops, and no sheds; a scarecrow on half the Blocks.
  * - Stage 2: as above; a scarecrow on every Block, a water butt by each shed, and cold frames on some plots.
  * - Stage 3: every plot worked, taller crops, and beans climbing canes on some; a second scarecrow on a big Block, and

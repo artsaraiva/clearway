@@ -47,7 +47,8 @@ export interface Seeded {
 export const SEEDED: Seeded = { landmarks: 4, avenue: 0.3 }
 
 // m beyond a Block's bounds within which a utility pole stands round it (#176): more than the street furniture, which
-// stands within a metre of the Block's edge, keeps off a pole (`./kerbside`), so a pole farther out never matters to it.
+// stands within a metre of the Block's edge, keeps off a pole (`./kerbside`), so a pole farther out never matters to
+// it.
 const POLES_ROUND = 3
 
 /** What stands on the Blocks. */

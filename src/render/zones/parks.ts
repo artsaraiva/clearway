@@ -21,8 +21,8 @@ function parks({ kit, field, block, kerbsideTrees }: ZoneGround) {
 
 /**
  * A plaza Block: paved in a warmer stone, and open, or with a fountain at `centre` and four trees around it where they
- * stand clear of the street trees `kerbsideTrees`. The fountain grows with the Stage (`fountain`), and so do the trees, which
- * at Stage 3 stand in round stone planters.
+ * stand clear of the street trees `kerbsideTrees`. The fountain grows with the Stage (`fountain`), and so do the trees,
+ * which at Stage 3 stand in round stone planters.
  */
 export function plaza(kit: Kit, field: Field, block: Block, centre?: Vec, kerbsideTrees: Vec[] = []) {
   overlay(kit, field, block, 0.4, 0.08, PLAZA)

@@ -374,15 +374,15 @@ export interface Finish {
   furniture?: boolean
 }
 
-// Block-zoom props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which they
-// stand whole. Tile zoom, one Tile filling the screen, is about 4; City zoom, the whole City in frame, is under 1.
+// Block-zoom props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which
+// they stand whole. Tile zoom, one Tile filling the screen, is about 4; City zoom, the whole City in frame, is under 1.
 const BLOCK_ZOOM = { from: 2.2, to: 3.2 }
 
 /**
  * The materials of the static scenery, shared by every Block so that all of them merge into one mesh per material.
  * Slab, Blocks and walls take their colours on `solid`, which lays the surface pattern over them (`./pattern`) unless
- * `finish` turns it off. Block-zoom props take theirs on `blockZoom`, `solid` drawn apart so that it can fade them out as the
- * camera leaves Tile zoom, and hide them beyond it.
+ * `finish` turns it off. Block-zoom props take theirs on `blockZoom`, `solid` drawn apart so that it can fade them out
+ * as the camera leaves Tile zoom, and hide them beyond it.
  */
 export function createMaterials(finish: Finish = { pattern: true, pools: true }) {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
@@ -405,8 +405,8 @@ if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.
     dither(shader)
   }
   blockZoom.customProgramCacheKey = () => `blockZoom ${solid.customProgramCacheKey()}`
-  // The shadow `blockZoom` casts, dropping the same share of the shadow map's texels as it fades, so that a prop's shadow
-  // fades with it.
+  // The shadow `blockZoom` casts, dropping the same share of the shadow map's texels as it fades, so that a prop's
+  // shadow fades with it.
   const blockZoomDepth = new THREE.MeshDepthMaterial()
   blockZoomDepth.onBeforeCompile = dither
   blockZoomDepth.customProgramCacheKey = () => 'blockZoom depth'
@@ -513,8 +513,8 @@ if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.
       patterns?.setGlow(windows)
     },
     /**
-     * Show the Block-zoom props as the camera's zoom has them: whole from Tile zoom inward, fading out as the camera leaves
-     * it, as the clouds fade in, and not drawn at all farther out, where most Tiles are on screen.
+     * Show the Block-zoom props as the camera's zoom has them: whole from Tile zoom inward, fading out as the camera
+     * leaves it, as the clouds fade in, and not drawn at all farther out, where most Tiles are on screen.
      */
     setZoom(zoom: number) {
       blockZoomFade.value = THREE.MathUtils.clamp((zoom - BLOCK_ZOOM.from) / (BLOCK_ZOOM.to - BLOCK_ZOOM.from), 0, 1)
@@ -954,8 +954,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     deeper: materials.finish.deeper ?? 1,
 
     /**
-     * Build what `fn` adds as street furniture: Block-zoom props (`blockZoomProps`, #176), or at every zoom where the dev
-     * switch `furniture` asks for it, as #175 built it.
+     * Build what `fn` adds as street furniture: Block-zoom props (`blockZoomProps`, #176), or at every zoom where the
+     * dev switch `furniture` asks for it, as #175 built it.
      */
     furniture(fn: () => void) {
       if (materials.finish.furniture) fn()
@@ -1121,7 +1121,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
      * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
-     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Tile zoom at under half the triangles.
+     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Tile zoom at under half the
+     * triangles.
      */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)

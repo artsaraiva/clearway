@@ -1,11 +1,11 @@
-// The rules of finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
+// The rules of Finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
 // failed, with where and by how much. Rules that need judgement are approximations, and say what they leave out.
 import { boxesMeet, disc, overlap, toEdge, within } from './geometry'
 import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report'
 
 /** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
 export const TOLERANCE = 0.1
-/** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's focal piece is larger (rule 5). */
+/** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's standing piece is larger (rule 5). */
 export const CAR = { long: 4.3, tall: 3 }
 /** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
 export const SECOND_SCENE = 2500
@@ -223,24 +223,24 @@ export const neighbours: Rule = (r) => {
 const filled = (r: Report, block: number) => !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
 /**
  * Whether a Block is filled by its Zone: not given over to the seed's coral tower (`./landmarks`' `tower`), the Block's
- * focal piece in place of a scene (#193).
+ * Landmark in place of a scene (#193).
  */
 const zoned = (r: Report, block: number) =>
   !!r.blocks[block].zone && filled(r, block) && !r.things.some((t) => t.block === block && t.fill === 'tower')
 
 /**
- * Whether a thing is a scene's focal piece, larger than a car (rule 5): standing, drawn at every distance, and longer than
- * a car is (its feet spread over more than `CAR.long` m one way) or taller than `CAR.tall`. Approximation: "larger"
- * is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a pergola
- * over the tables or a 4 m sculpture is.
+ * Whether a thing is a scene's standing piece, larger than a car (rule 5): standing, drawn at every zoom, and longer
+ * than a car is (its feet spread over more than `CAR.long` m one way) or taller than `CAR.tall`. Approximation:
+ * "larger" is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a
+ * pergola over the tables or a 4 m sculpture is.
  */
-export const focal = (t: Thing) =>
+export const standingPiece = (t: Thing) =>
   standing(t) && t.layer === 'solid' && (Math.max(t.box.x1 - t.box.x0, t.box.y1 - t.box.y0) >= CAR.long || t.top - t.base >= CAR.tall)
 
 /**
  * From Stage 2 each Block has a scene, and a second at Stage 3 on a Block of `SECOND_SCENE` m² or more (rule 5). A
- * scene counts once it has a focal piece (`focal`), whatever moves on it: a food truck's court with its truck away
- * must still have one.
+ * scene counts once it has a standing piece (`standingPiece`), whatever moves on it: a food truck's court with its
+ * truck away must still have one.
  */
 export const scenes: Rule = (r) => {
   if (r.stage < 2) return []
@@ -248,7 +248,7 @@ export const scenes: Rule = (r) => {
   r.blocks.forEach((b, i) => {
     if (!zoned(r, i)) return
     const own = r.scenes.filter((s) => s.block === i)
-    const counted = own.filter((s) => s.things.some((id) => focal(r.things[id])))
+    const counted = own.filter((s) => s.things.some((id) => standingPiece(r.things[id])))
     const need = r.stage === 3 && b.area >= SECOND_SCENE ? 2 : 1
     if (counted.length >= need) return
     const empty = own.filter((s) => !counted.includes(s)).map((s) => s.kind)

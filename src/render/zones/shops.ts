@@ -333,7 +333,8 @@ function shoppers(g: ZoneGround, lots: RowLot[], scenes: Map<number, { kind: Sho
  * from the Stage its roll gives it (`FRONT`), and more come at Stage 3: a second vending machine on half the fronts with
  * one, two more bicycles where there is room before the door, a third banner and two more lanterns. A front with no
  * vending machine has a menu board on the pavement. What stands on the pavement keeps on the Block, 0.6 m in from its
- * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Block-zoom props.
+ * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Block-zoom
+ * props.
  */
 function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const { kit, field } = g
@@ -439,10 +440,10 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   doorPots(g, l, door)
 }
 
-// The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a focal
-// piece larger than a car, seen from Tile zoom: a greengrocer's stand spilling onto the pavement, a florist's, a row of
-// capsule machines, or a food stall with its lantern and steam. Pot plants, menu boards, crates and stools are Block-zoom props
-// (the kit's `blockZoomProps`), hidden beyond Tile zoom.
+// The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a
+// standing piece larger than a car, seen from Tile zoom: a greengrocer's stand spilling onto the pavement, a florist's,
+// a row of capsule machines, or a food stall with its lantern and steam. Pot plants, menu boards, crates and stools are
+// Block-zoom props (the kit's `blockZoomProps`), hidden beyond Tile zoom.
 
 /** The scenes a shops Block picks from (#175). */
 export type ShopScene = 'greengrocer' | 'florist' | 'capsules' | 'stall'
@@ -550,8 +551,8 @@ export function capsules(kit: Kit, x: number, y: number, ry: number, len: number
 /**
  * A food stall (yatai) at `(x, y)`, its counter facing `ry`, as one brick (#175): a timber cart on wheels under a roof on
  * four posts, a noren along the roof's edge, a pot on the counter whose steam rises through the working day, an amber
- * lantern at its corner that lights at dusk and leaves its pool, and stools before the counter, which are Block-zoom props.
- * About 3.4 m long and 2.6 m deep with its stools.
+ * lantern at its corner that lights at dusk and leaves its pool, and stools before the counter, which are Block-zoom
+ * props. About 3.4 m long and 2.6 m deep with its stools.
  */
 export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   const roof = STALL.roofs[spot(x, y) % STALL.roofs.length]
@@ -752,8 +753,8 @@ function frontOf(w: number, door: 1 | -1) {
  * round, and tile rows inside a stone parapet on its flat roof. Its front: a glass door in a frame under a noren, a
  * shop window showing goods over a sill, a signboard over a striped awning, and on a Road a tall sign standing out
  * from the wall and a billboard on the roof. Its roof: AC condensers, a panel water tank and, on some, a terrace. At
- * its back: gas cylinders, a pipe, crates and an AC unit, which are Block-zoom props. Its colours and which signs it would
- * have are drawn before anything a Stage changes:
+ * its back: gas cylinders, a pipe, crates and an AC unit, which are Block-zoom props. Its colours and which signs it
+ * would have are drawn before anything a Stage changes:
  * - Stage 1: one storey, a narrower shop window, a signboard unlit, one condenser.
  * - Stage 2: its storeys; the signboard lit; on a Road, on some, a tall sign and a billboard; on some, a water tank.
  * - Stage 3: a storey more and a pale cornice over the ground floor; on a Road, both signs and an arcade over the

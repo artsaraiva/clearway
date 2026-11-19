@@ -121,8 +121,8 @@ function offices(g: ZoneGround) {
     const tower = standBack(body, taken)
     if (!tower) continue
     const { x, y, w, d } = tower
-    // Its form: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot beside
-    // it already has that form, one of the others by their shares, drawn from the plan.
+    // Its form: its own stream's third draw, after its height's two, as it always was; or, where a tower on a lot
+    // beside it already has that form, one of the others by their shares, drawn from the plan.
     const own = mulberry32(seed)
     own()
     own()
@@ -505,8 +505,8 @@ function flags(
 
 // Offices (#177): the scenes an offices Block picks from, each on ground it reserves along the Block's edge, `w` m along
 // it and `d` deep, its front facing `ry` toward the Road; the piece on each tower's plaza; and a taxi bay at the kerb.
-// Benches and planters are Block-zoom props, as the street's furniture is. Before its Stage a scene's ground is paved, with a
-// tree in a round bed, so that no ground stands empty.
+// Benches and planters are Block-zoom props, as the street's furniture is. Before its Stage a scene's ground is paved,
+// with a tree in a round bed, so that no ground stands empty.
 
 /** The scenes an offices Block picks from (#177). */
 export type OfficeScene = 'court' | 'sculpture' | 'truck'
@@ -641,7 +641,7 @@ export function truckPath({ x, y, w, d, ry }: Footprint, entry: TruckEntry): Vec
 }
 
 /**
- * A food truck's court at Stage `stage` (#177), on its paving: tables at its back under a pergola, its focal piece
+ * A food truck's court at Stage `stage` (#177), on its paving: tables at its back under a pergola, its standing piece
  * whether or not the truck that parks at its front through the middle of the day (`foodTruck`) is there, and a menu
  * board, Block-zoom. Lamps hung under the pergola leave their pools; at Stage 3 a third table, and string lights under
  * it in the lamps' place, which leave a pool.

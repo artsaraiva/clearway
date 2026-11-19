@@ -1,4 +1,4 @@
-// The scene report (#191): what a City's Blocks were built with, as data, for the rules of finish (`./rules`) to read.
+// The scene report (#191): what a City's Blocks were built with, as data, for the rules of Finish (`./rules`) to read.
 // Plain numbers only, so that a test can write one by hand.
 
 /** A point on the map, m: `x` east, `y` north. */
@@ -112,7 +112,7 @@ export interface Block {
   tile: string
   /** Its Zone's id, or none: an unzoned Tile. */
   zone?: string
-  /** Whether its Zone is built to the level of finish (#173). */
+  /** Whether its Zone is built to the Finish (#173). */
   finished: boolean
   stage: number
   loop: Pt[]

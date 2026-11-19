@@ -332,8 +332,8 @@ function foodTruck(): THREE.BufferGeometry {
 
 /**
  * A delivery scooter (#178), facing +x, centred under its middle and standing on y = 0, oversized more than the cars are,
- * so that it reads from Tile zoom: two wheels, a body in white for its paint under its seat, a leg shield and handlebars, a
- * delivery box on its carrier, and its rider in a jacket and a white helmet.
+ * so that it reads from Tile zoom: two wheels, a body in white for its paint under its seat, a leg shield and
+ * handlebars, a delivery box on its carrier, and its rider in a jacket and a white helmet.
  */
 function scooter(): THREE.BufferGeometry {
   const [PAINT, TYRE, DARK, BOX, LEGS, JACKET, SKIN, HELMET] = [
@@ -480,8 +480,8 @@ function washing(): THREE.BufferGeometry {
 
 /**
  * A butterfly (#152), facing +x and centred on its body, its wings flat along z: a dark body and four white wings with
- * dark tips, for the paint each takes, about 0.85 m across, oversized so that it reads at Block zoom. Its wings beat in the
- * vertex shader (`createMovers`), about the body, by the angle each instance's `wing` gives.
+ * dark tips, for the paint each takes, about 0.85 m across, oversized so that it reads at Block zoom. Its wings beat in
+ * the vertex shader (`createMovers`), about the body, by the angle each instance's `wing` gives.
  */
 function butterfly(): THREE.BufferGeometry {
   const [WING, DARK] = ['#ffffff', '#4a525c']

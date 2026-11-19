@@ -13,7 +13,7 @@ export interface Known {
   why: string
 }
 
-/** The Zones not yet built to the level of finish (#173), with the ticket that builds each. */
+/** The Zones not yet built to the Finish (#173), with the ticket that builds each. */
 const UNFINISHED: Record<string, string> = {
   parks: '#180',
   industrial: '#181',
@@ -36,7 +36,7 @@ const FOUND = '#195'
 
 export const KNOWN: Known[] = [
   ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
-    rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the level of finish` })),
+    rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the Finish` })),
   ),
   // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
   // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).

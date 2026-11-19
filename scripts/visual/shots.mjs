@@ -12,9 +12,9 @@
 // --views takes city, tile and block, the three zooms; --times takes morning, noon, afternoon, dusk and night. --tile
 // and --block replace every Zone's Tile-zoom and Block-zoom points, sim points in metres (a Tile is 100 m) with the
 // metres of road across the screen (110 and 60 unless given, 60 being the closest the camera comes); a point with a
-// negative coordinate takes `=` (`--block=-31,-45`). --turns 1 shoots the default heading alone. --run lets the world run that many seconds at each time of day
-// before its shots, so moving details stand mid-work and chimneys smoke; without it they stand where they rest.
-// --query adds dev parameters to the game's URL, such as `finish=none`.
+// negative coordinate takes `=` (`--block=-31,-45`). --turns 1 shoots the default heading alone. --run lets the world
+// run that many seconds at each time of day before its shots, so moving details stand mid-work and chimneys smoke;
+// without it they stand where they rest. --query adds dev parameters to the game's URL, such as `finish=none`.
 //
 // A comparison is two runs into two folders, their sheets set side by side: for the packed Tile of #175, as built and
 // laid deeper, `npm run shots -- shops --views tile --stages 2,3 --turns 1 --times noon,night --run 20 --out

@@ -90,9 +90,9 @@ export function blockSeed(scenery: Scenery, { x0, y0, x1, y1 }: Bounds): number 
 /**
  * What stands on one Block, added to `kit` brick by brick: a roundabout's island, a landmark or special Block from
  * the scenery, a bike lane on a narrow Block, and otherwise what its Tile's Zone builds (`./zones`), or grass on an
- * unzoned Tile, with lamps at its corners, trees along the avenues and its kerbside dressed (`./kerbside`). It reads only
- * the Block, its surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. Where the
- * Block lies seeds its random choices and nothing more: a Zone builds alike anywhere in the City.
+ * unzoned Tile, with lamps at its corners, trees along the avenues and its kerbside dressed (`./kerbside`). It reads
+ * only the Block, its surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. Where
+ * the Block lies seeds its random choices and nothing more: a Zone builds alike anywhere in the City.
  */
 export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone, poles }: Surroundings) {
   const at = (p: [number, number]) => inside(block.loop, ...p)
@@ -105,9 +105,10 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   for (const { x, y } of lamps) kit.lamp(x, y, KERB)
   const from = kit.mark() // what stands on the Block from here on, which the street furniture keeps off
   /**
-   * Last, whatever fills the Block: its street trees `kerbsideTrees` planted, and its kerbside dressed round what stands on it
-   * from `from` on, the street trees and what its Zone says stands near its edge (`kept`), as its street lights and road
-   * plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike lane's too).
+   * Last, whatever fills the Block: its street trees `kerbsideTrees` planted, and its kerbside dressed round what
+   * stands on it from `from` on, the street trees and what its Zone says stands near its edge (`kept`), as its
+   * street lights and road plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike
+   * lane's too).
    */
   const dress = (kerbsideTrees: Vec[] = [], kept: Footprint[] = []) => {
     const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false

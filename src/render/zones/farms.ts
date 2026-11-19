@@ -144,9 +144,9 @@ function furrows(worked: Row[], rows: Row[], home: number, along: boolean): { lo
 /**
  * A farm Block: ploughed ground under fields of crop rows that run along the Block, five rows to a field of one crop,
  * and on some Blocks a farmstead near one end: a farmhouse, and a barn with its silo. Rows and farmstead keep clear of
- * the street trees `kerbsideTrees`. The farmstead and each field are a lot, and each field is a brick. Its details (#149):
- * some fields are rice paddies, some go under vinyl greenhouses, scarecrows stand in some, a kei truck stands in the
- * farmyard, and tractors work the fields of crops. With the Stage:
+ * the street trees `kerbsideTrees`. The farmstead and each field are a lot, and each field is a brick. Its details
+ * (#149): some fields are rice paddies, some go under vinyl greenhouses, scarecrows stand in some, a kei truck stands
+ * in the farmyard, and tractors work the fields of crops. With the Stage:
  * - Stage 1: a cottage and a barn with no silo (`./low-density`'s `house`, and `barn`), shoots in most fields and the rest left
  *   fallow, a fallow paddy flooded and bare; a scarecrow in some paddies.
  * - Stage 2: as above, every field grown; a tractor, the kei truck with two crates, the first greenhouses and more
