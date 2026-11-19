@@ -7,7 +7,7 @@ import { KERB } from './blocks'
 import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
 import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, PlumeKind, Pool, Sway, SwayKind } from './movers'
-import { clad, createPatterns, pave, PATTERN, tile, type Cladding, type Pattern } from './pattern'
+import { clad, createPatterns, pave, PATTERN, tile, wrap, type Cladding, type Pattern } from './pattern'
 import { canvasTexture, gable, hip, roundedBox, tint } from './shapes'
 
 const TAU = Math.PI * 2
@@ -915,6 +915,28 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   }
 
   /**
+   * Add a copy of a cylinder (three's `CylinderGeometry`, its foot at y = 0) standing at `(x, y)`, `h` above the road,
+   * `r` in radius and `tall` m tall, wearing `kind` round its side (`./pattern`'s `wrap`) where the kit builds patterned,
+   * in bays of about `bay` m and storeys of `storey` m, `lit` of its floors lit for a curtain wall, as `seed` (any whole
+   * number) has it: a round office tower's glass (#177), a tank's plates or a chimney's brick (#181).
+   */
+  const wrapped = (
+    geo: THREE.BufferGeometry,
+    look: Look,
+    x: number,
+    y: number,
+    h: number,
+    r: number,
+    tall: number,
+    { kind, bay, storey, lit = 0 }: { kind: Pattern; bay: number; storey: number; lit?: number },
+    seed: number,
+  ) => {
+    if (!patterned) return add(geo, look, x, y, h, 0, r, tall, r)
+    const g = wrap(geo.toNonIndexed(), 2 * Math.PI * r, tall, bay, storey, lit, mulberry32(seed)(), kind)
+    push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.identity(), new THREE.Vector3(r, tall, r))), look)
+  }
+
+  /**
    * A car parked at `(x, y)`, its front facing `ry`, as one brick (#177, #178): the cars' `model` in `paint`, in plain
    * boxes: its body, cabin and glass, a taxi's roof lamp lit at night, its tyres, and its lamps as they are by day.
    */
@@ -943,6 +965,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     put,
     cladded,
     tiled,
+    wrapped,
     /** A gable roof `wid` across and `h` high, `len` long, its ridge along z (`./shapes`' `gable`), cut once per size: the kit disposes of it. */
     gable: gableRoof,
     /** A hipped roof (`./shapes`' `hip`), cut once per size as `gable` is (#178). */

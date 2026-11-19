@@ -685,11 +685,11 @@ function gondola(): THREE.BufferGeometry {
 }
 /**
  * A gantry crane's trolley (#181), riding the tops of two girders 3.3 m apart along x and centred on its middle, y = 0
- * the girders' top: its frame and hoist, and under it on four ropes a container's spreader `TROLLEY.drop` m down, in
- * the crane's yellow, its length along x as the containers under it lie.
+ * the girders' top: its frame and hoist, and under it on four ropes a container's spreader `TROLLEY.drop` m down, its
+ * length along x as the containers under it lie. Frame and spreader are white, for the crane's paint it takes.
  */
 function trolley(): THREE.BufferGeometry {
-  const [FRAME, HOIST, ROPE] = ['#e8b84a', '#4a525c', '#2f3440']
+  const [FRAME, HOIST, ROPE] = ['#ffffff', '#4a525c', '#2f3440']
   const { drop } = TROLLEY
   const parts = [
     part(2.2, 0.35, 3.9, 0, 0, 0, FRAME), // the frame across both girders
