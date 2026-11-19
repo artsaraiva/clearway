@@ -6,7 +6,7 @@ import type { NetworkSpec } from '../sim/spec'
 import { CELL, cellBounds, junctionId } from '../sim/tiles'
 import { KERB, type Block } from './blocks'
 import type { Field } from './field'
-import { avenue, lampSpots, STREET_TREES } from './fill'
+import { avenue, lampSpots, KERBSIDE_TREES } from './fill'
 import type { Kit } from './kit'
 import type { Scenery } from './scenery'
 
@@ -179,7 +179,7 @@ export function standPoles(
     const spots: Post[] = []
     if (avenue(scenery, lane)) {
       // The street trees stand half a spacing from the lane's start and a spacing apart: the poles go between them.
-      for (let k = 1; k * STREET_TREES.spacing < lane.length; k++) spots.push(at(k * STREET_TREES.spacing, k % 2 === 0))
+      for (let k = 1; k * KERBSIDE_TREES.spacing < lane.length; k++) spots.push(at(k * KERBSIDE_TREES.spacing, k % 2 === 0))
     } else {
       // Half a spacing in from the cell's edges and a spacing apart, every other pole with a drum, counted from the
       // cell's south-west corner so that the drums alternate across a seam too.

@@ -4,7 +4,7 @@ import { KERB, twiceArea, type Block } from '../blocks'
 import { inside, type Field } from '../field'
 import { to, type Kit } from '../kit'
 import { GROW } from '../landmarks'
-import type { Footprint } from '../streets'
+import type { Footprint } from '../kerbside'
 
 // What a Zone's look builds on, and how the Zones share to cut it up: lots split from the Block, rows of lots and runs
 // along its edge, and whether a footprint stands on it clear of what must stay free (`./index` has each Zone's look).
@@ -21,14 +21,14 @@ export interface ZoneGround {
   /** Landmarks' ground, which no building may stand on. */
   reserved: Bounds[]
   /** The Block's street trees, which buildings keep clear of. */
-  street: Vec[]
+  kerbsideTrees: Vec[]
   /** The lamps at the Block's corners, which what stands on the ground keeps clear of (#150). */
   lamps: Vec[]
   /** The utility poles round the Block (`../poles`), which a food truck turning in over the kerb keeps clear of (#177). */
   poles: Vec[]
   /** A number in [0, 1) the seed draws for the Block's Tile, the same for each of its Blocks: for what a look picks once a Tile. */
   tileDraw: number
-  /** What the look stands near the Block's edge, which the street's furniture keeps off (`../streets`, #175). */
+  /** What the look stands near the Block's edge, which the street's furniture keeps off (`../kerbside`, #175). */
   kept: Footprint[]
 }
 
@@ -37,7 +37,7 @@ export interface Look {
   /** Whether the seed may stand its coral tower landmark on a Tile of this Zone. */
   landmarks: boolean
   /**
-   * Whether it is built to the level of finish (#173): wearing surface pattern and leaving pools of light at night
+   * Whether it is built to the Finish (#173): wearing surface pattern and leaving pools of light at night
    * (the kit's `finish`). Shops since the prototype (#174), and offices since #177.
    */
   finish?: boolean
@@ -60,9 +60,9 @@ function split(lot: Bounds, max: number, range: (a: number, b: number) => number
 }
 
 /** A lot with its edge nearest each street tree moved back behind the tree's crown. */
-function backFromTrees(cut: Bounds, street: Vec[]): Bounds {
+function backFromTrees(cut: Bounds, kerbsideTrees: Vec[]): Bounds {
   const lot = { ...cut }
-  for (const t of street) {
+  for (const t of kerbsideTrees) {
     if (t.x < lot.x0 - TREE_ROOM || t.x > lot.x1 + TREE_ROOM || t.y < lot.y0 - TREE_ROOM || t.y > lot.y1 + TREE_ROOM) continue
     const inward = [t.x - lot.x0, lot.x1 - t.x, t.y - lot.y0, lot.y1 - t.y]
     const edge = inward.indexOf(Math.min(...inward))
@@ -75,10 +75,10 @@ function backFromTrees(cut: Bounds, street: Vec[]): Bounds {
 }
 
 /** The Block's lots: its bounding box `margin` m in, split into lots no longer than `max`, each back from the street trees. */
-export function lotsOf({ kit, block, street }: ZoneGround, margin: number, max: number): Bounds[] {
+export function lotsOf({ kit, block, kerbsideTrees }: ZoneGround, margin: number, max: number): Bounds[] {
   const lots: Bounds[] = []
   split({ x0: block.x0 + margin, y0: block.y0 + margin, x1: block.x1 - margin, y1: block.y1 - margin }, max, kit.range, lots)
-  return lots.map((lot) => backFromTrees(lot, street))
+  return lots.map((lot) => backFromTrees(lot, kerbsideTrees))
 }
 
 /**
@@ -87,7 +87,7 @@ export function lotsOf({ kit, block, street }: ZoneGround, margin: number, max: 
  * about every 3 m, closer than a Road is wide, so no Road crosses it unseen.
  */
 export function stands(
-  { block, field, reserved, street }: ZoneGround,
+  { block, field, reserved, kerbsideTrees }: ZoneGround,
   x: number,
   y: number,
   w: number,
@@ -108,7 +108,9 @@ export function stands(
   const [hw, hd] = [(Math.abs(c) * w + Math.abs(s) * d) / 2, (Math.abs(s) * w + Math.abs(c) * d) / 2]
   const box = { x0: x - hw, y0: y - hd, x1: x + hw, y1: y + hd }
   if (reserved.some((r) => overlaps(box, r))) return false
-  return !street.some((t) => t.x > box.x0 - TREE_ROOM && t.x < box.x1 + TREE_ROOM && t.y > box.y0 - TREE_ROOM && t.y < box.y1 + TREE_ROOM)
+  return !kerbsideTrees.some(
+    (t) => t.x > box.x0 - TREE_ROOM && t.x < box.x1 + TREE_ROOM && t.y > box.y0 - TREE_ROOM && t.y < box.y1 + TREE_ROOM,
+  )
 }
 
 /**

@@ -1,13 +1,13 @@
 // Frame time with 1,000 cars, draw calls and triangles, each Zone all over the 26-Tile City: the working tree against a
 // git ref, interleaved round by round so that whatever else is drawing on the GPU lands on both alike.
 //
-// Usage: npm run bench:visual -- <zones | unzoned | all> [--against <git ref>] [--stages 3] [--views framed] [--times noon]
+// Usage: npm run bench:visual -- <zones | unzoned | all> [--against <git ref>] [--stages 3] [--views city] [--times noon]
 //          [--rounds 3] [--query <params>]
 //
 // Prints each bench as it runs, then a Markdown table of medians for the PR. Compare numbers only within one table: the
-// same City reads up to a millisecond apart from one day to the next. --views takes framed, the whole City in frame,
-// and street, one Tile filling the screen (#173); --times takes noon and night. --query adds dev parameters to the
-// game's URL on both sides, such as `finish=none`.
+// same City reads up to a millisecond apart from one day to the next. --views takes city, City zoom, the whole City in
+// frame, and tile, Tile zoom, one Tile filling the screen (#173); --times takes noon and night. --query adds dev
+// parameters to the game's URL on both sides, such as `finish=none`.
 import { parseArgs } from 'node:util'
 import { buildCity, DEFAULT_POINTS, frameAll, launch, lookAt, METRES, open, stageAll, zoneNames, zonesFrom } from './city.mjs'
 import { closeAll, serve } from './serve.mjs'
@@ -17,7 +17,7 @@ const { values, positionals } = parseArgs({
   options: {
     against: { type: 'string' },
     stages: { type: 'string', default: '3' },
-    views: { type: 'string', default: 'framed' },
+    views: { type: 'string', default: 'city' },
     times: { type: 'string', default: 'noon' },
     rounds: { type: 'string', default: '3' },
     query: { type: 'string', default: '' },
@@ -26,12 +26,12 @@ const { values, positionals } = parseArgs({
 const stages = values.stages.split(',').map(Number)
 const rounds = Number(values.rounds)
 const views = values.views.split(',')
-if (views.some((v) => !['framed', 'street'].includes(v))) throw new Error('--views takes framed and street')
+if (views.some((v) => !['city', 'tile'].includes(v))) throw new Error('--views takes city and tile')
 const DAY = { noon: 0.25, night: 0.75 }
 const times = values.times.split(',')
 if (times.some((t) => !(t in DAY))) throw new Error('--times takes noon and night')
-// Street: one Tile filling the screen, as `npm run shots` frames it.
-const STREET = { ...DEFAULT_POINTS.street[0], metres: METRES.street }
+// Tile zoom: one Tile filling the screen, as `npm run shots` frames it.
+const TILE_ZOOM = { ...DEFAULT_POINTS.tile[0], metres: METRES.tile }
 
 /**
  * In the page, after the camera is placed: one frame's draw calls and triangles at the time of day `day`, then the ms per
@@ -109,7 +109,7 @@ try {
         for (const stage of stages) {
           await stageAll(page, stage)
           for (const view of views) {
-            await (view === 'street' ? page.evaluate(lookAt, STREET) : page.evaluate(frameAll))
+            await (view === 'tile' ? page.evaluate(lookAt, TILE_ZOOM) : page.evaluate(frameAll))
             for (const time of times) {
               const r = await page.evaluate(measure, DAY[time])
               const key = `${zone} ${stage} ${view} ${time}`

@@ -5,7 +5,7 @@ import { area, KERB } from '../blocks'
 import { AIRCON, CREAM, FRONTAGE, type Kit, type Look as KitLook, pale, POOL, SHAPES, spot, to, VENDING_MACHINE } from '../kit'
 import { GROW } from '../landmarks'
 import { BOARD, cafeTable, menuBoard, STALL, WOOD } from '../props'
-import { planter } from '../streets'
+import { planter } from '../kerbside'
 import { besideRow, near, overlap, rows, stands, turned, walled, yards, type Look, type RowLot, type ZoneGround } from './ground'
 import { PATTERN } from '../pattern'
 import type { Stage } from '../../game/game'
@@ -37,7 +37,7 @@ const FRONT = {
   room: 1.4,
   cloths: ['#2fb39a', '#f0b43c', '#ff9ab8', '#79c86a', '#a58ad8', '#e8925e', '#5cc0d6'],
 } as const
-// Shops to the level of finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
+// Shops built to the Finish (#175): each shop's form, picked so that no two neighbours share one, and the share of
 // noodle shops, one in eight; the scenes a Block picks from, the narrowest lot a scene takes (m), so that it is longer than a car, or the
 // widest on a Road where none is that wide, the shortest a stand may be (m), a car's length and a little, and the area (m²) from which a Block
 // has a second at Stage 3; how deep the coloured paving before the fronts is (m) and its colours, one a Block; and how
@@ -61,7 +61,7 @@ export const look: Look = { landmarks: false, finish: true, fill: shops }
 
 /**
  * Shops: low shops shoulder to shoulder along every edge, each with its front, and trees behind. Every shop is one
- * storey at Stage 1 and a storey higher at Stage 3, built to the level of finish (#175, `shop`) as its lot's
+ * storey at Stage 1 and a storey higher at Stage 3, built to the Finish (#175, `shop`) as its lot's
  * plan has it (`shopPlans`): a front colour and a form that differ from its neighbours', and one shop in eight a noodle
  * shop whose vent steams. From Stage 2 one lot on a Road holds the Block's scene, and at Stage 3 a second on a Block of
  * 2,500 m² or more (`sceneLots`). Coloured paving lies before the fronts from Stage 2, and shoppers walk the fronts on a
@@ -210,7 +210,7 @@ function sceneFront(g: ZoneGround, l: RowLot, door: 1 | -1, scene: { kind: ShopS
   const build = { greengrocer, florist, capsules }[scene.kind as Exclude<ShopScene, 'stall'>]
   const p = at(u, scene.kind === 'capsules' ? 0.32 : 0.85)
   // What its stand spills toward the kerb at Stage 3 keeps off the poles, the lamps and the street trees there (#193).
-  const kerbside = [...g.poles, ...g.lamps, ...g.street]
+  const kerbside = [...g.poles, ...g.lamps, ...g.kerbsideTrees]
   const free = (x: number, y: number) => !kerbside.some((q) => Math.hypot(q.x - x, q.y - y) < 0.8)
   kit.scene(scene.kind, () =>
     kit.staged((stage) => stage >= scene.from && build(kit, p.x, p.y, l.ry, len - 0.2, stage, free), spot(p.x, p.y)),
@@ -258,7 +258,7 @@ function stallCourt(g: ZoneGround, l: RowLot, stage: number, from: number, pavin
   }
 }
 
-/** Pot plants either side of shop `l`'s door, Close-only, from Stage 1 (#175); or, if `outer`, on its outer side alone. */
+/** Pot plants either side of shop `l`'s door, Block-zoom, from Stage 1 (#175); or, if `outer`, on its outer side alone. */
 function doorPots(g: ZoneGround, l: RowLot, door: 1 | -1, outer = false) {
   const spots = frontOf(l.w, door)
     .pots.slice(0, outer ? 1 : 2)
@@ -333,7 +333,8 @@ function shoppers(g: ZoneGround, lots: RowLot[], scenes: Map<number, { kind: Sho
  * from the Stage its roll gives it (`FRONT`), and more come at Stage 3: a second vending machine on half the fronts with
  * one, two more bicycles where there is room before the door, a third banner and two more lanterns. A front with no
  * vending machine has a menu board on the pavement. What stands on the pavement keeps on the Block, 0.6 m in from its
- * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Close-only.
+ * edge, and clear of the lamps at its corners and the street trees. The bicycles, pots and menu board are Block-zoom
+ * props.
  */
 function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const { kit, field } = g
@@ -341,7 +342,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const half = l.w / 2
   /** Where the point `u` m along the front from its middle and `o` m out from it lies on the map. */
   const at = (u: number, o: number) => turned(l.x, l.y, l.ry, u, l.d / 2 + o)
-  const others = [...g.lamps, ...g.street]
+  const others = [...g.lamps, ...g.kerbsideTrees]
   /** Whether the pavement `o` m out from the front at each of `us` along it is clear. */
   const clear = (o: number, ...us: number[]) =>
     us.every((u) => {
@@ -399,7 +400,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
     /** `n` bicycles on from the `k`-th, from Stage `stage`. */
     const row = (stage: number, k: number, n: number) =>
       from(stage, at(u(t(k + (n - 1) / 2)), FRONT.row), (p) =>
-        kit.closeOnly(() => kit.bicycles(p.x, p.y, KERB, l.ry, n, FRONT.gap, FRONT.slant)),
+        kit.blockZoomProps(() => kit.bicycles(p.x, p.y, KERB, l.ry, n, FRONT.gap, FRONT.slant)),
       )
     const reach = [FRONT.row - 0.15, FRONT.row + 0.85] // the pavement the row stands on
     if (n >= 2 && reach.every((o) => clear(o, u(t(0)), u(t(n - 1))))) {
@@ -412,7 +413,7 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   const ware = Math.max(free, board)
   if (ware < doorFrame - 1.8 && wares < FRONT.wares) {
     // Before the window where no bicycles or menu board stand, from Stage 2: crates of produce, or a plant stand,
-    // Close-only.
+    // Block-zoom.
     const q = at(u(ware + 0.9), 0.45)
     if (clear(0.45, u(ware + 0.2), u(ware + 1.6)) && offPots(l, door, u(ware + 0.9), 0.7))
       kit.from(2, () => (wares < FRONT.wares / 2 ? produce : plantStand)(kit, q.x, q.y, l.ry), spot(q.x, q.y))
@@ -439,10 +440,10 @@ function shopFront(g: ZoneGround, l: RowLot, door: 1 | -1) {
   doorPots(g, l, door)
 }
 
-// The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a focal
-// piece larger than a car, seen from Street: a greengrocer's stand spilling onto the pavement, a florist's, a row of
-// capsule machines, or a food stall with its lantern and steam. Pot plants, menu boards, crates and stools are Close-only
-// (the kit's `closeOnly`), hidden beyond Street.
+// The shops' scenes and the small things before their fronts (#175), built from the kit's shapes. A scene is a
+// standing piece larger than a car, seen from Tile zoom: a greengrocer's stand spilling onto the pavement, a florist's,
+// a row of capsule machines, or a food stall with its lantern and steam. Pot plants, menu boards, crates and stools are
+// Block-zoom props (the kit's `blockZoomProps`), hidden beyond Tile zoom.
 
 /** The scenes a shops Block picks from (#175). */
 export type ShopScene = 'greengrocer' | 'florist' | 'capsules' | 'stall'
@@ -550,8 +551,8 @@ export function capsules(kit: Kit, x: number, y: number, ry: number, len: number
 /**
  * A food stall (yatai) at `(x, y)`, its counter facing `ry`, as one brick (#175): a timber cart on wheels under a roof on
  * four posts, a noren along the roof's edge, a pot on the counter whose steam rises through the working day, an amber
- * lantern at its corner that lights at dusk and leaves its pool, and stools before the counter, which are Close-only.
- * About 3.4 m long and 2.6 m deep with its stools.
+ * lantern at its corner that lights at dusk and leaves its pool, and stools before the counter, which are Block-zoom
+ * props. About 3.4 m long and 2.6 m deep with its stools.
  */
 export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   const roof = STALL.roofs[spot(x, y) % STALL.roofs.length]
@@ -566,7 +567,7 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   const [px, py] = to(x, y, ry, -0.7, -0.15)
   kit.add(SHAPES.thin, '#9aa3ad', px, py, KERB + 1.35, 0, 0.32, 0.4, 0.32)
   kit.steam(px, py, KERB + 1.9)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const lx of [-1, 0, 1]) kit.put(SHAPES.thin, STALL.stool, x, y, ry, lx * 0.95, 1.15, KERB, 0.2, 0.62, 0.2)
   })
   kit.pool('stall', ...to(x, y, ry, 0, 0.6), KERB, 4.6, 3.6, ry)
@@ -575,23 +576,23 @@ export function foodStall(kit: Kit, x: number, y: number, ry: number) {
   lantern(kit, ...to(x, y, ry, 1.5, 0.9), KERB + 2.05, true)
 }
 
-/** Pot plants about 0.7 m tall standing at `spots` on the pavement, as one Close-only brick (#175), each in a pot of its own colour. */
+/** Pot plants about 0.7 m tall standing at `spots` on the pavement, as one Block-zoom brick (#175), each in a pot of its own colour. */
 export function pots(kit: Kit, spots: [number, number][]) {
   if (!spots.length) return
   const draw = mulberry32(spot(...spots[0]))
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const [x, y] of spots) kit.pot(x, y, KERB, 0.7 * (0.75 + draw() * 0.5), draw)
   })
   kit.brick('building', ...spots[0], KERB)
 }
 
 /**
- * A plant stand at `(x, y)` against a shop front facing `ry`, as one Close-only brick (#175): two timber steps with pot
+ * A plant stand at `(x, y)` against a shop front facing `ry`, as one Block-zoom brick (#175): two timber steps with pot
  * plants on them.
  */
 export function plantStand(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (let k = 0; k < 2; k++) {
       const [ly, z] = [0.2 - k * 0.32, KERB + 0.35 + k * 0.35]
       kit.put(kit.cuboid(1.3, z - KERB, 0.32), WOOD.stand, x, y, ry, 0, ly, KERB)
@@ -601,10 +602,10 @@ export function plantStand(kit: Kit, x: number, y: number, ry: number) {
   kit.brick('building', x, y, KERB)
 }
 
-/** Crates of produce at `(x, y)`, facing `ry`, as one Close-only brick (#175): two on the pavement and one on top. */
+/** Crates of produce at `(x, y)`, facing `ry`, as one Block-zoom brick (#175): two on the pavement and one on top. */
 export function produce(kit: Kit, x: number, y: number, ry: number) {
   const draw = mulberry32(spot(x, y))
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const [lx, z] of [
       [-0.32, 0],
       [0.32, 0],
@@ -671,7 +672,7 @@ const SHOP = {
   uppers: ['#fff7e8', '#ffe9d2', '#fde2e4', '#e3f4dc', '#fff1c7', '#e6f0fb'],
   stripe: FRONTAGE.stripe,
 }
-// Shops to the level of finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
+// Shops built to the Finish (#175). A front: a glass door in a frame under a shop curtain (noren) of three panels
 // with a crest, a shop window over a sill, a signboard over the awning with marks for lettering, and a tall sign
 // standing out from the wall; the marks pale on a dark board and dark on a pale one. A roof: a parapet in stone round a
 // flat roof, AC condensers, a panel water tank on a steel stand, a billboard on two posts, a stair house on a setback
@@ -746,14 +747,14 @@ function frontOf(w: number, door: 1 | -1) {
 
 /**
  * A shop at Stage `plan.stage`, as one brick: `w` along its front and `d` deep, its front facing `ry`, built to the
- * level of finish (#175) as its lot plans it. A ground floor in its front's colour under pale storeys, the walls and
+ * Finish (#175) as its lot plans it. A ground floor in its front's colour under pale storeys, the walls and
  * roof wearing surface pattern where the kit builds patterned (#174): panels and high windows on the ground floor's
  * back and ends, a service door in the middle of its back, siding and a window in every bay of each upper storey all
  * round, and tile rows inside a stone parapet on its flat roof. Its front: a glass door in a frame under a noren, a
  * shop window showing goods over a sill, a signboard over a striped awning, and on a Road a tall sign standing out
  * from the wall and a billboard on the roof. Its roof: AC condensers, a panel water tank and, on some, a terrace. At
- * its back: gas cylinders, a pipe, crates and an AC unit, which are Close-only. Its colours and which signs it would
- * have are drawn before anything a Stage changes:
+ * its back: gas cylinders, a pipe, crates and an AC unit, which are Block-zoom props. Its colours and which signs it
+ * would have are drawn before anything a Stage changes:
  * - Stage 1: one storey, a narrower shop window, a signboard unlit, one condenser.
  * - Stage 2: its storeys; the signboard lit; on a Road, on some, a tall sign and a billboard; on some, a water tank.
  * - Stage 3: a storey more and a pale cornice over the ground floor; on a Road, both signs and an arcade over the
@@ -836,7 +837,7 @@ function shop(kit: Kit, x: number, y: number, h: number, w: number, d: number, r
   const bars = Math.max(1, Math.round(ww / 1.7))
   for (let k = 1; k < bars; k++)
     kit.local(kit.cuboid(0.06, 2, 0.16), frame, x, y, ry, windowAt - ww / 2 + (k * ww) / bars, face + 0.04, h + 0.8)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (let u = windowAt - ww / 2 + 0.3; u < windowAt + ww / 2 - 0.25; u += 0.42 + draw() * 0.2) {
       const tall = 0.18 + draw() * 0.3
       kit.local(kit.cuboid(0.3, tall, 0.2), goods[Math.floor(draw() * goods.length)], x, y, ry, u, face + 0.15, h + 0.76)
@@ -881,7 +882,7 @@ function shop(kit: Kit, x: number, y: number, h: number, w: number, d: number, r
     if (back) {
       kit.local(kit.cuboid(w - 0.1, 0.1, back + 0.3), SHOPFRONT.balcony, x, y, ry, 0, face - (back + 0.3) / 2, top)
       kit.local(kit.cuboid(w - 0.1, 0.9, 0.12), upper, x, y, ry, 0, face - 0.1, top + 0.1)
-      kit.closeOnly(() => {
+      kit.blockZoomProps(() => {
         for (const k of [-0.3, 0.3]) kit.pot(...to(x, y, ry, k * w, face - 0.55), top + 0.1, 0.32, draw)
       })
     }
@@ -979,8 +980,8 @@ function shop(kit: Kit, x: number, y: number, h: number, w: number, d: number, r
       kit.local(kit.cuboid(0.26, 0.44, 0.62), kit.markOf(tallSign, true), x, y, ry, signAt, face + 0.36, z + 0.32 + k * 0.72)
   }
 
-  // At the back, Close-only: gas cylinders, a pipe up the wall, crates from Stage 2, and an AC unit at Stage 3.
-  kit.closeOnly(() => {
+  // At the back, Block-zoom: gas cylinders, a pipe up the wall, crates from Stage 2, and an AC unit at Stage 3.
+  kit.blockZoomProps(() => {
     for (const k of [0, 1]) kit.put(THIN, '#b6c3cc', x, y, ry, door * (w / 2 - 0.6 - k * 0.44), -face - 0.26, h, 0.18, 1.15, 0.18)
     kit.local(kit.cuboid(0.1, 3.6, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 0.45), -face - 0.07, h)
     kit.local(kit.cuboid(1.4, 0.1, 0.1), '#c4ccd4', x, y, ry, -door * (w / 2 - 1.1), -face - 0.07, h + 3.2)

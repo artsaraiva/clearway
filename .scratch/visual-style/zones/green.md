@@ -20,7 +20,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   - A picnic blanket lies on the open grass from Stage 2, with a basket on it, and a second at Stage 3 under a parasol, with a third on a Block of 2,500 m² or more: gingham 2.6 m by 2 m, turned a little, at least 4 m from trees and beds.
   - Butterflies flit between the beds through the working day, one to every two beds from Stage 2 and one more to every three at Stage 3, at most three each: each goes round the beds from one of them, nearest first, weaving 0.7 m either side of its way, alights on each bed and rests there 3 to 9 s with its wings nearly closed and fanning.
     It flies at 1.4 m/s, rising about a metre off the beds and bobbing as it goes, its wings beating seven times a second.
-    It is 0.85 m across, oversized so it reads close up, and seen only close up.
+    It is 0.85 m across, oversized so it reads at Block zoom, and seen only there.
     At night it rests on a bed with its wings closed.
   - In the allotments a scarecrow, the farms', stands in the plot of crops nearest the Block's middle, from Stage 1 on half the Blocks and from Stage 2 on the rest, and a second at Stage 3 in the plot farthest from it on a Block of 12 plots or more.
     A water butt stands at the front corner of every shed, from Stage 2 as the shed does.

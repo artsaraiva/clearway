@@ -65,7 +65,7 @@ function report(things: Thing[], more: Partial<Report> = {}): Report {
     moving: { '0,0': 1 },
     colours: {},
     vehicles: [],
-    closeHidden: true,
+    blockZoomHidden: true,
     triangles: 0,
     meshes: 0,
     hash: '',
@@ -157,7 +157,7 @@ describe('neighbours-differ', () => {
     return { tile: '0,0', block: 0, index, box: boxOf(ground), form, ground }
   }
 
-  it('fails two lots side by side of one form, as two touching towers of one style were', () => {
+  it('fails two lots side by side of one form, as two touching towers of one form were', () => {
     const r = report([], { lots: [lot(0, -5, 'office round'), lot(1, 5, 'office round')] })
     expect(neighbours(r).map((f) => f.what)).toEqual(['lots 0 and 1 side by side are both "office round"'])
   })

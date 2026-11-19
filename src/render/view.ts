@@ -58,7 +58,7 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
 /**
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
  * the Blocks' field and the lighting follow the City as it grows, and the camera goes wherever the player takes it.
- * `finishing` says whether the Zones built to the level of finish wear their surface pattern and light pools (#174): both,
+ * `finishing` says whether the Zones built to the Finish wear their surface pattern and light pools (#174): both,
  * unless a sheet turns one off to show the Zone without it.
  */
 export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish) {

@@ -1,5 +1,5 @@
 // The scene check (#191): builds the 26-Tile City of each Zone in Node, without drawing it, and asserts the rules of
-// finish of #173 that can be asserted over what was placed, across seeds. No browser, no GPU, no pictures.
+// Finish of #173 that can be asserted over what was placed, across seeds. No browser, no GPU, no pictures.
 //
 // Usage: npm run check:scene -- <zones | unzoned | all> [--stages 1,2,3] [--seeds 1] [--against <git ref>] [--all]
 //          [--counts] [--where <kind>]
@@ -14,7 +14,7 @@
 // Blocks (the kit's method or the Zone's building that built each, else its fill: house, gardenShed, bench), its scenes
 // and movers by kind, and its pools. --where <kind> prints where the first few scenes, movers and things of that kind
 // stand at each Stage, one a Block, with their Tile: the middle of each as a sim point (m), to pass on as it is to
-// `npm run shots -- <zone> --stages <stage> --close=x,y`, adding `,m` for more metres of road across the shot.
+// `npm run shots -- <zone> --stages <stage> --block=x,y`, adding `,m` for more metres of road across the shot.
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'

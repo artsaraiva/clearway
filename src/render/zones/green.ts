@@ -13,7 +13,7 @@ const GREEN = { allotments: 0.35 }
 /** Green's look (`./index`). */
 export const look: Look = {
   landmarks: false,
-  fill: ({ kit, field, block, street }) => (kit.chance(GREEN.allotments) ? allotments : meadow)(kit, field, block, street),
+  fill: ({ kit, field, block, kerbsideTrees }) => (kit.chance(GREEN.allotments) ? allotments : meadow)(kit, field, block, kerbsideTrees),
 }
 
 // Green: a meadow's grass and its beds of flowers; allotments' gravel paths, the soil of their plots, the crops and
@@ -70,13 +70,13 @@ const ALLOTMENT = { w: 6.4, d: 4.6, path: 1.3 } // m: a plot, and the gravel pat
 
 /**
  * A meadow Block: open grass but for groves of trees, one to about every 700 m² and at least two, and a few beds of
- * flowers, all clear of the street trees `street`. Its details (`meadowDetails`, #152): wildflowers, benches, picnic
- * blankets and butterflies. With the Stage:
+ * flowers, all clear of the street trees `kerbsideTrees`. Its details (`meadowDetails`, #152): wildflowers, benches,
+ * picnic blankets and butterflies. With the Stage:
  * - Stage 1: three saplings to a grove, and no beds.
  * - Stage 2: five trees to a grove, and the beds.
  * - Stage 3: the trees grown on, three more beds, and a pavilion by the first grove where there is room.
  */
-export function meadow(kit: Kit, field: Field, block: Block, street: Vec[]) {
+export function meadow(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 2, 0.24, MEADOW)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
@@ -87,7 +87,7 @@ export function meadow(kit: Kit, field: Field, block: Block, street: Vec[]) {
   ]
   for (const [g, grove] of groves.entries()) {
     const near = { ...block, x0: grove.x - 7, x1: grove.x + 7, y0: grove.y - 7, y1: grove.y + 7 }
-    for (const [k, p] of scatter(kit, field, near, 5, 4.5, Infinity, 3.4, street).entries()) {
+    for (const [k, p] of scatter(kit, field, near, 5, 4.5, Infinity, 3.4, kerbsideTrees).entries()) {
       const [size, kind] = [kit.range(0.75, 1.15), kit.chance(0.25) ? 'pine' : kit.chance(0.2) ? 'sakura' : 'round'] as const
       kit.lot(g)
       kit.staged((stage) => {
@@ -102,7 +102,7 @@ export function meadow(kit: Kit, field: Field, block: Block, street: Vec[]) {
     kit.brick('tree', p.x, p.y, ground)
   }
   const beds: Bed[] = []
-  for (const [k, p] of scatter(kit, field, block, 5, 4, Infinity, 7, street).entries()) {
+  for (const [k, p] of scatter(kit, field, block, 5, 4, Infinity, 7, kerbsideTrees).entries()) {
     const it = { p, w: kit.range(3, 5.5), d: kit.range(1.6, 2.6), colour: kit.pick(BEDS) }
     kit.lot(groves.length + k)
     kit.from(2, () => bed(it))
@@ -112,13 +112,13 @@ export function meadow(kit: Kit, field: Field, block: Block, street: Vec[]) {
   // Stage 3's beds and pavilion, drawn on the stream `from` seeds here, as it would have seeded it: known before they
   // are built, so that the details keep clear of them at every Stage (#152).
   const late = (range: (a: number, b: number) => number) => {
-    const more = scatter({ range }, field, block, 3, 4, Infinity, 7, [...street, ...beds.map((b) => b.p), ...planted]).map((p) => ({
+    const more = scatter({ range }, field, block, 3, 4, Infinity, 7, [...kerbsideTrees, ...beds.map((b) => b.p), ...planted]).map((p) => ({
       p,
       w: range(3, 5.5),
       d: range(1.6, 2.6),
       colour: BEDS[Math.floor(range(0, 1) * BEDS.length)],
     }))
-    return { more, pavilion: site(field, block, 7, 7, groves[0], [...street, ...planted, ...beds.map((b) => b.p)], 2.5) }
+    return { more, pavilion: site(field, block, 7, 7, groves[0], [...kerbsideTrees, ...planted, ...beds.map((b) => b.p)], 2.5) }
   }
   const seed = (kit.range(0, 1) * 4294967296) >>> 0
   const draw = mulberry32(seed)
@@ -132,7 +132,7 @@ export function meadow(kit: Kit, field: Field, block: Block, street: Vec[]) {
     },
     seed,
   )
-  meadowDetails(kit, block, ground, { street, groves, planted, beds, more: third.more, pavilion: third.pavilion })
+  meadowDetails(kit, block, ground, { kerbsideTrees, groves, planted, beds, more: third.more, pavilion: third.pavilion })
 }
 
 /** A bed of flowers on a meadow: where it lies, how big it is and its colour. */
@@ -155,19 +155,19 @@ function meadowDetails(
   block: Block,
   ground: number,
   {
-    street,
+    kerbsideTrees,
     groves,
     planted,
     beds,
     more,
     pavilion,
-  }: { street: Vec[]; groves: Vec[]; planted: Vec[]; beds: Bed[]; more: Bed[]; pavilion: Vec | null },
+  }: { kerbsideTrees: Vec[]; groves: Vec[]; planted: Vec[]; beds: Bed[]; more: Bed[]; pavilion: Vec | null },
 ) {
   const all = [...beds, ...more]
   const clear = (p: Vec, room: number, trees = 1.8) =>
     kit.onGround(p.x, p.y, room) &&
     planted.every((t) => Math.hypot(t.x - p.x, t.y - p.y) >= trees) &&
-    street.every((t) => Math.hypot(t.x - p.x, t.y - p.y) >= 3.4) &&
+    kerbsideTrees.every((t) => Math.hypot(t.x - p.x, t.y - p.y) >= 3.4) &&
     all.every((b) => Math.abs(b.p.x - p.x) > b.w / 2 + 1.6 || Math.abs(b.p.y - p.y) > b.d / 2 + 1.6) &&
     (!pavilion || Math.hypot(pavilion.x - p.x, pavilion.y - p.y) >= 5.5)
   const taken: Vec[] = [] // benches and blankets, which the rest keep off
@@ -297,14 +297,14 @@ function flutter(beds: Bed[], first: Bed, draw: () => number): { loop: Polyline;
 
 /**
  * An allotments Block: gravel cut into plots on a grid, each bare soil with rows of crops or flowers, a shed, or
- * nothing, where it stands clear of the street trees `street`. Each plot is a brick and a lot. Its details (#152): a
- * scarecrow, water butts and cold frames, each on the lot of its plot. With the Stage:
+ * nothing, where it stands clear of the street trees `kerbsideTrees`. Each plot is a brick and a lot. Its details
+ * (#152): a scarecrow, water butts and cold frames, each on the lot of its plot. With the Stage:
  * - Stage 1: half the plots still bare, shorter crops, and no sheds; a scarecrow on half the Blocks.
  * - Stage 2: as above; a scarecrow on every Block, a water butt by each shed, and cold frames on some plots.
  * - Stage 3: every plot worked, taller crops, and beans climbing canes on some; a second scarecrow on a big Block, and
  *   cold frames on twice as many plots.
  */
-export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) {
+export function allotments(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 1.6, 0.12, GRAVEL)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
@@ -315,7 +315,7 @@ export function allotments(kit: Kit, field: Field, block: Block, street: Vec[]) 
   for (let x = block.x0 + 3 + w / 2; x + w / 2 <= block.x1 - 3; x += w + path) {
     for (let y = block.y0 + 3 + d / 2; y + d / 2 <= block.y1 - 3; y += d + path) {
       const corners = [-1, 1].flatMap((i) => [-1, 1].map((j) => field.sample(x + (i * w) / 2, y + (j * d) / 2)))
-      if (Math.min(...corners) < 1.8 || !inside(block.loop, x, y) || !clearOf(street, x, y, w, d, 0.8)) continue
+      if (Math.min(...corners) < 1.8 || !inside(block.loop, x, y) || !clearOf(kerbsideTrees, x, y, w, d, 0.8)) continue
       // Its roll, and the seed of its own stream, which `staged` would draw here.
       const [roll, seed] = [kit.range(0, 1), (kit.range(0, 1) * 4294967296) >>> 0]
       plots.push({ x, y, roll, seed, lot: plots.length })

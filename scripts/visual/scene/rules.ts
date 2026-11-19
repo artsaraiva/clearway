@@ -1,11 +1,11 @@
-// The rules of finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
+// The rules of Finish (#173) that can be asserted over a scene report (#191): each a function from a report to what
 // failed, with where and by how much. Rules that need judgement are approximations, and say what they leave out.
 import { boxesMeet, disc, overlap, toEdge, within } from './geometry'
 import type { Box, Claim, Failure, Hull, Lot, Pt, Report, Thing } from './report'
 
 /** m two outlines may overlap before it counts: what a rounded corner or a bevel can account for. */
 export const TOLERANCE = 0.1
-/** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's focal piece is larger (rule 5). */
+/** A parked car, as the sim's one car type is drawn: 4.3 m by 2 m. A scene's standing piece is larger (rule 5). */
 export const CAR = { long: 4.3, tall: 3 }
 /** m² of the Block from which a Block has a second scene at Stage 3 (rule 5). */
 export const SECOND_SCENE = 2500
@@ -27,8 +27,8 @@ const POOL_REACH = 1
 const PARKED = new Set(['keiTruck', 'keiCar', 'taxi', 'parked'])
 /** What is the Block itself, or lies along its whole edge: its outline's hull is not where it stands. */
 const GROUND = new Set(['pavement', 'kerbLine', 'island', 'laySlab', 'markPlate'])
-/** What a fill dresses the kerbside with, which `./streets` already keeps off what stands (#176). */
-const KERBSIDE = new Set(['dressStreet', 'planter', 'bollards'])
+/** What a fill dresses the kerbside with, which `src/render/kerbside.ts` already keeps off what stands (#176). */
+const KERBSIDE = new Set(['dressKerbside', 'planter', 'bollards'])
 
 /** A rule over one report. */
 export type Rule = (r: Report) => Failure[]
@@ -97,14 +97,14 @@ const BED = 0.8
 
 /**
  * Two standing things may share ground when one is built to stand with the other: the parts of one scene, a tree in a
- * bed or a planter, Close-only props of one kind in a cluster (pot plants), or the kerbside's own furniture, which
- * `./streets` lays together. Everything else keeps clear.
+ * bed or a planter, Block-zoom props of one kind in a cluster (pot plants), or the kerbside's own furniture, which
+ * `src/render/kerbside.ts` lays together. Everything else keeps clear.
  */
 export function together(a: Thing, b: Thing): boolean {
   if (a.scene >= 0 && a.scene === b.scene) return true
   const planted = (t: Thing, bed: Thing) => t.kind === 'tree' && t.what === 'tree' && bed.top - bed.base < BED
   if (planted(a, b) || planted(b, a)) return true
-  if (a.layer === 'close' && b.layer === 'close' && a.what === b.what) return true
+  if (a.layer === 'blockZoom' && b.layer === 'blockZoom' && a.what === b.what) return true
   return KERBSIDE.has(a.what) && KERBSIDE.has(b.what)
 }
 
@@ -223,24 +223,24 @@ export const neighbours: Rule = (r) => {
 const filled = (r: Report, block: number) => !r.things.some((t) => t.block === block && (t.fill === 'bikeLane' || t.what === 'island'))
 /**
  * Whether a Block is filled by its Zone: not given over to the seed's coral tower (`./landmarks`' `tower`), the Block's
- * focal piece in place of a scene (#193).
+ * Landmark in place of a scene (#193).
  */
 const zoned = (r: Report, block: number) =>
   !!r.blocks[block].zone && filled(r, block) && !r.things.some((t) => t.block === block && t.fill === 'tower')
 
 /**
- * Whether a thing is a scene's focal piece, larger than a car (rule 5): standing, drawn at every distance, and longer than
- * a car is (its feet spread over more than `CAR.long` m one way) or taller than `CAR.tall`. Approximation: "larger"
- * is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a pergola
- * over the tables or a 4 m sculpture is.
+ * Whether a thing is a scene's standing piece, larger than a car (rule 5): standing, drawn at every zoom, and longer
+ * than a car is (its feet spread over more than `CAR.long` m one way) or taller than `CAR.tall`. Approximation:
+ * "larger" is read from its size, not its look, so a parasol over a table (2.8 m across, 2.6 m tall) is not one, and a
+ * pergola over the tables or a 4 m sculpture is.
  */
-export const focal = (t: Thing) =>
+export const standingPiece = (t: Thing) =>
   standing(t) && t.layer === 'solid' && (Math.max(t.box.x1 - t.box.x0, t.box.y1 - t.box.y0) >= CAR.long || t.top - t.base >= CAR.tall)
 
 /**
  * From Stage 2 each Block has a scene, and a second at Stage 3 on a Block of `SECOND_SCENE` m² or more (rule 5). A
- * scene counts once it has a focal piece (`focal`), whatever moves on it: a food truck's court with its truck away
- * must still have one.
+ * scene counts once it has a standing piece (`standingPiece`), whatever moves on it: a food truck's court with its
+ * truck away must still have one.
  */
 export const scenes: Rule = (r) => {
   if (r.stage < 2) return []
@@ -248,7 +248,7 @@ export const scenes: Rule = (r) => {
   r.blocks.forEach((b, i) => {
     if (!zoned(r, i)) return
     const own = r.scenes.filter((s) => s.block === i)
-    const counted = own.filter((s) => s.things.some((id) => focal(r.things[id])))
+    const counted = own.filter((s) => s.things.some((id) => standingPiece(r.things[id])))
     const need = r.stage === 3 && b.area >= SECOND_SCENE ? 2 : 1
     if (counted.length >= need) return
     const empty = own.filter((s) => !counted.includes(s)).map((s) => s.kind)
@@ -282,20 +282,20 @@ export const pools: Rule = (r) =>
     .map((t) => fail('pools', r, t, `${t.what} is lit and leaves no pool`, `${m(t.bulbLow)} up`))
 
 /**
- * Close-only props are not drawn with the whole City in frame: their material hides itself there. And small props are
- * Close-only (#173's three distances), on the Zones built to the level of finish: a standing thing under
- * a metre on every side and 1.3 m tall, unlit, drawn on the scenery at every distance, should be hidden beyond Street.
- * Approximation: "small" is its size; a small thing meant to read from Framed would show here.
+ * Block-zoom props are not drawn at City zoom: their material hides itself there. And small props are Block-zoom props
+ * (#173's three zooms), on the Zones built to the Finish: a standing thing under a metre on every side and 1.3 m tall,
+ * unlit, drawn on the scenery at every zoom, should be hidden beyond Tile zoom.
+ * Approximation: "small" is its size; a small thing meant to read at City zoom would show here.
  */
-export const closeOnly: Rule = (r) => [
-  ...(r.closeHidden ? [] : [fail('close-only', r, {}, 'Close-only props are drawn with the whole City in frame', 'zoom 1')]),
+export const blockZoomProps: Rule = (r) => [
+  ...(r.blockZoomHidden ? [] : [fail('block-zoom', r, {}, 'Block-zoom props are drawn at City zoom', 'zoom 1')]),
   ...r.things
     .filter((t) => {
       if (t.block < 0 || !r.blocks[t.block].finished || !standing(t) || t.layer !== 'solid' || t.bulbs) return false
       const [w, d] = [t.box.x1 - t.box.x0, t.box.y1 - t.box.y0]
       return Math.max(w, d) < 1 && t.top - t.base < 1.3 && t.kind !== 'tree' && t.kind !== 'lamp'
     })
-    .map((t) => fail('close-only', r, t, `${t.what} is small and drawn at Framed`, `${m(t.top - t.base)} tall`)),
+    .map((t) => fail('block-zoom', r, t, `${t.what} is small and drawn at City zoom`, `${m(t.top - t.base)} tall`)),
 ]
 
 /** A colour's OKLCH lightness, chroma and hue (°), from its hex. */
@@ -409,7 +409,7 @@ export function rules(ceilings: Record<string, { triangles: number; meshes: numb
     moves,
     'empty-pavement': emptyPavement,
     pools,
-    'close-only': closeOnly,
+    'block-zoom': blockZoomProps,
     colours,
     budget: budget(ceilings),
   }

@@ -14,7 +14,7 @@ import { createKit, type Brick, type Kit, type Materials, type Part, type Stages
 import { standPoles, stringWires, type LineEnd } from './poles'
 import type { Beacon, Flag, Mover, Plume, Pool, Sway } from './movers'
 import { laySlab } from './slab'
-import { markPlate } from './streets'
+import { markPlate } from './kerbside'
 import { LOOKS } from './zones'
 
 /** Authored scenery standing at a point. `name` is its label on the map. */
@@ -47,7 +47,8 @@ export interface Seeded {
 export const SEEDED: Seeded = { landmarks: 4, avenue: 0.3 }
 
 // m beyond a Block's bounds within which a utility pole stands round it (#176): more than the street furniture, which
-// stands within a metre of the Block's edge, keeps off a pole (`./streets`), so a pole farther out never matters to it.
+// stands within a metre of the Block's edge, keeps off a pole (`./kerbside`), so a pole farther out never matters to
+// it.
 const POLES_ROUND = 3
 
 /** What stands on the Blocks. */
@@ -107,7 +108,7 @@ export type Building = Generator<void, Build>
 
 /**
  * Give every geometry of one material each vertex attribute that any of them has, zero where it had none, so that they
- * merge: on a Tile built to the level of finish only what wears a pattern carries `pattern` (#174). A build with no
+ * merge: on a Tile built to the Finish only what wears a pattern carries `pattern` (#174). A build with no
  * pattern carries none, and its vertices read none: WebGL reads an attribute a geometry lacks as zero, and nothing in
  * the game sets another default (three would only for a ShaderMaterial's `defaultAttributeValues`).
  */
@@ -246,7 +247,7 @@ export function createScenery(
       for (const g of geometries) g.dispose()
       const mesh = new THREE.Mesh(merged, material)
       mesh.castShadow = !material.transparent
-      if (material === materials.close) mesh.customDepthMaterial = materials.closeDepth
+      if (material === materials.blockZoom) mesh.customDepthMaterial = materials.blockZoomDepth
       mesh.receiveShadow = true
       if (material.transparent) mesh.renderOrder = 2
       meshes.push(mesh)

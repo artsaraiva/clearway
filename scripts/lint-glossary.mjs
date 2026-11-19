@@ -9,14 +9,20 @@
 // the word carries `glossary-ok` in a comment. A line the same change removes elsewhere is a move, and is left alone.
 import { execFileSync } from 'node:child_process'
 
-/** Each word, where it counts, and the term to use. `comments` reads a line's comment alone: `street` is a field too. */
+/** Each word, where it counts, and the term to use. `comments` reads a line's comment alone: `streets` is a field too. */
 const WORDS = [
   { word: /\bDistricts?\b/, say: 'City (District is retired)' },
   {
-    // Not the camera distance as a flag, a value or a file name (`--views street`, `-street.jpg`), nor what is accepted.
+    // Not inside a flag, a list, a path or a file name (`--street`, `-street.jpg`), nor what is accepted.
     word: /(?<![-,=/`.\w])streets?\b(?![-.,`]|['’]s furniture| (lights?|furniture|trees?)\b)/,
     comments: true,
     say: 'Road, or Kerbside for the pavement and what stands on it',
+  },
+  {
+    // The camera's three distances as #173 named them: Framed, and Street and Close where they name a distance (after a
+    // word that places the camera, as Close-only, or as points and shots), and their old flags.
+    word: /\bFramed\b|\b(?:at|from|beyond|leaves) (?:Street|Close)\b|\b(?:Street|Close)(?:-only| and (?:Street|Close)| points?| shots?)\b|--(?:street|close|views[ =][\w,]*(?:framed|street|close))\b/,
+    say: 'City zoom, Tile zoom or Block zoom',
   },
   { word: /\bentrance/i, say: 'door for a building, Gateway for a Road at the City’s edge' },
   { word: /\bPieces?\b/, say: 'Tile, or part for a model’s box' },

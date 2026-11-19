@@ -6,7 +6,7 @@ import { KEI } from '../cars'
 import { AERIAL, CREAM, FLAG, FRONTAGE, type Gap, GARDEN, HOME, type Kit, LEAVES, LEDGE, SHAPES, spot, to } from '../kit'
 import { PATTERN } from '../pattern'
 import { bench, gardenShed, stoneLantern } from '../props'
-import type { Footprint } from '../streets'
+import type { Footprint } from '../kerbside'
 import { distance, fit, lotsOf, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import { beside, kerbAhead, placeScenes, sceneOrder, type Scene } from './scenes'
 import { gable } from '../shapes'
@@ -34,7 +34,7 @@ const HOMES = {
 } as const
 // How big a lot left to a tree grows at each Stage, as a share of a full tree.
 const SAPLING = [0.5, 0.75, 1]
-// Low-density residential to the level of finish (#179). Each Block's plan is drawn from a stream of its own, so the
+// Low-density residential built to the Finish (#179). Each Block's plan is drawn from a stream of its own, so the
 // kit's draws, and with them every lot's house, its colours and its size, are as before but for what the plan sets: a
 // house's roof, a gable along its long side as before unless a house on a lot beside it has one, when it takes another
 // that none of them has; and the lots the Block's scenes take, whose houses are not built.
@@ -82,7 +82,7 @@ interface Lawn {
  *   more gardens.
  * - Stage 3: a third pot in flower, a car on every drive, panels on half the roofs, laundry in half the gardens and a
  *   futon airing on some of it, and the hedge open at the door and the drive.
- * To the level of finish (#179), each house is built to its plan (`housePlan`) and its garden laid out round it
+ * To the Finish (#179), each house is built to its plan (`housePlan`) and its garden laid out round it
  * (`garden`); a low block wall runs along every lawn's front, and each Block has its scenes (`lowScenes`).
  */
 function houses(g: ZoneGround) {
@@ -314,8 +314,8 @@ function homeOf(g: ZoneGround, x: number, y: number, w: number, d: number): Home
 /**
  * A house's details (#157), each drawn from where it stands: its kei car on its drive; pot plants and a bicycle by its
  * front door, which move out with the wall as the house grows; and a laundry pole in its side yard or, with none, along
- * the wall of a free side, moving out with it too. To the level of finish (#179) the car is the cars' kei wagon in their
- * paints, and the pots and the bicycle are Close-only.
+ * the wall of a free side, moving out with it too. To the Finish (#179) the car is the cars' kei wagon in their
+ * paints, and the pots and the bicycle are Block-zoom props.
  */
 function homeDetails(kit: Kit, home: Home, ground: number) {
   const { x, y, w, d, front, pad, park } = home
@@ -337,7 +337,7 @@ function homeDetails(kit: Kit, home: Home, ground: number) {
   kit.staged(
     (stage) => {
       const at = wall(front, stage, 0)
-      kit.closeOnly(() => porch(kit, at.x, at.y, ground, facing(front), stage))
+      kit.blockZoomProps(() => porch(kit, at.x, at.y, ground, facing(front), stage))
     },
     spot(x, y + 0.5),
   )
@@ -596,7 +596,7 @@ function gardenOf(lawn: Lawn, plot: Plot) {
 }
 
 /**
- * A house's garden to the level of finish (#179), as `gardenOf` laid it out: the low block wall along the front with its
+ * A house's garden built to the Finish (#179), as `gardenOf` laid it out: the low block wall along the front with its
  * gate, its posts and its letter box, and stepping stones from the gate to the door (`frontage`); from Stage 2 the flower
  * border, the vegetable patch, the shed, the carp and the cat; and at Stage 3 a carport over the car.
  */
@@ -821,8 +821,8 @@ const PERSIMMON = { leaves: ['#5fbc51', '#6bc357', '#4f9f45'], fruit: '#ec8f4a',
 const BARBECUE = { wood: '#a1714c', stone: '#bdb4a6', grill: '#3a3f4b', table: '#e8e2d6', chairs: '#c49a6c', patio: '#d9d1c3' }
 
 /**
- * A koi pond (#179): a pond with a rim of stones, koi in it, Close-only; a pine beside it and a stone lantern that lights
- * at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
+ * A koi pond (#179): a pond with a rim of stones, koi in it, Block-zoom; a pine beside it and a stone lantern that
+ * lights at dusk and leaves its pool; at Stage 3 a wooden bridge over its narrow end and a second lantern.
  */
 function koi(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
   const [rx, rz] = [Math.min(2.6, l.w / 2 - 1.6), Math.min(1.8, l.d / 2 - 1.9)]
@@ -836,7 +836,7 @@ function koi(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: num
     kit.add(SHAPES.bush, POND.stones[Math.floor(draw() * 3)], sx, sy, h - 0.05, draw() * 6.28, 0.32 + 0.12 * draw(), 0.22, 0.3)
   }
   kit.brick('ground', px, py, h)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (let k = 0; k < 5; k++) {
       const [fx, fy] = to(px, py, l.ry, (draw() - 0.5) * rx * 1.2, (draw() - 0.5) * rz * 1.1)
       kit.add(kit.cuboid(0.5, 0.04, 0.17), POND.koi[k % 4], fx, fy, h + 0.03, draw() * 6.28)
@@ -866,7 +866,7 @@ function koi(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: num
 
 /**
  * A paddling pool (#179): an inflatable ring of water on the lawn, half under a striped sunshade on four poles that stand
- * clear of it, two folding chairs in the shade, Close-only; at Stage 3 a float on the water and a third chair.
+ * clear of it, two folding chairs in the shade, Block-zoom; at Stage 3 a float on the water and a third chair.
  */
 function paddling(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
   const r = 1.45
@@ -895,7 +895,7 @@ function paddling(kit: Kit, l: Footprint, at: At, side: number, stage: number, h
     )
   kit.shadow(sx, sy, h, sw + 1, sd + 1, false, l.ry)
   kit.brick('building', sx, sy, h)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     const chairs = stage === 3 ? [-0.9, 0.9, 0] : [-0.9, 0.9]
     for (const [k, v] of chairs.entries()) {
       const [cx, cy] = to(sx, sy, l.ry, -side * (1.4 + (k === 2 ? 0.8 : 0)), v)
@@ -913,7 +913,7 @@ function paddling(kit: Kit, l: Footprint, at: At, side: number, stage: number, h
 
 /**
  * A dog's kennel in its run (#179): a low timber fence round three sides of a run at the back of the lawn, a kennel
- * under a little gable with the dog sitting before it, Close-only, and a tree for shade; at Stage 3 a puppy by it.
+ * under a little gable with the dog sitting before it, Block-zoom, and a tree for shade; at Stage 3 a puppy by it.
  */
 function kennel(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
   const [rw, rd] = [Math.min(5.4, l.w - 2.2), Math.min(3.8, l.d / 2)]
@@ -942,7 +942,7 @@ function kennel(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: 
   kit.put(kit.gable(1.35, 1.4, 0.5), KENNEL.roof, kx, ky, l.ry, 0, 0, h + 0.85)
   kit.shadow(kx, ky, h, 1.7, 1.5, false, l.ry)
   kit.brick('building', kx, ky, h)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     dog(kit, ...to(kx, ky, l.ry, 0.1, 1.15), l.ry, h, 1)
     kit.add(SHAPES.cylinder, '#9aa3ad', ...to(kx, ky, l.ry, 0.75, 0.9), h, 0, 0.17, 0.08, 0.17) // its bowl
     if (stage === 3) dog(kit, ...to(kx, ky, l.ry, -0.85, 1.4), l.ry + 0.6, h, 0.62)
@@ -965,7 +965,7 @@ function dog(kit: Kit, x: number, y: number, ry: number, h: number, s: number) {
 
 /**
  * A persimmon tree in fruit (#179): a broad tree with its fruit orange among its leaves, a ladder against it, a basket of
- * fruit and a bench in its shade, Close-only; at Stage 3 a rack of persimmons strung up to dry, and fruit fallen on the
+ * fruit and a bench in its shade, Block-zoom; at Stage 3 a rack of persimmons strung up to dry, and fruit fallen on the
  * lawn.
  */
 function persimmon(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
@@ -994,7 +994,7 @@ function persimmon(kit: Kit, l: Footprint, at: At, side: number, stage: number, 
   }
   kit.shadow(tx, ty, h, 7.5 * s, 7.5 * s, true)
   kit.brick('tree', tx, ty, h)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     // A ladder against the tree, a basket of fruit at its foot, and a bench in its shade.
     const [lx, ly] = to(tx, ty, l.ry, -side * 0.9, 0.9)
     const ladder = new THREE.BoxGeometry(0.06, 3, 0.06).rotateX(-0.32)
@@ -1018,7 +1018,7 @@ function persimmon(kit: Kit, l: Footprint, at: At, side: number, stage: number, 
     for (let f = 0; f < 6; f++) kit.put(SHAPES.bush, PERSIMMON.fruit, qx, qy, l.ry, -0.8 + k * 0.4, 0, h + 1.85 - f * 0.24, 0.1, 0.1, 0.1)
   kit.shadow(qx, qy, h, 2.8, 1, false, l.ry)
   kit.brick('building', qx, qy, h)
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (let f = 0; f < 5; f++)
       kit.add(SHAPES.bush, PERSIMMON.fruit, ...to(tx, ty, l.ry, (draw() - 0.5) * 4, (draw() - 0.5) * 3 + 1.2), h + 0.08, f, 0.12, 0.1, 0.12)
     kit.brick('ground', tx, ty, h)
@@ -1027,7 +1027,7 @@ function persimmon(kit: Kit, l: Footprint, at: At, side: number, stage: number, 
 
 /**
  * A garden with a barbecue (#179): a paved patio under a pergola hung with string lights, which light at dusk and leave
- * their pool, a table and chairs under it, Close-only, and a grill whose smoke rises through the working day; at Stage
+ * their pool, a table and chairs under it, Block-zoom, and a grill whose smoke rises through the working day; at Stage
  * 3 a second table.
  */
 function barbecue(kit: Kit, l: Footprint, at: At, side: number, stage: number, h: number) {
@@ -1068,7 +1068,7 @@ function barbecue(kit: Kit, l: Footprint, at: At, side: number, stage: number, h
   kit.shadow(gx, gy, h, 1.8, 1.3, false, l.ry)
   kit.brick('building', gx, gy, h)
   const tables = stage === 3 ? [-0.8, 0.9] : [0]
-  kit.closeOnly(() => {
+  kit.blockZoomProps(() => {
     for (const u of tables) {
       const [tx, ty] = to(cx, cy, l.ry, u, 0.2)
       kit.add(kit.cuboid(1.3, 0.06, 0.8), BARBECUE.table, tx, ty, h + 0.72, l.ry)
@@ -1183,7 +1183,7 @@ const { disc: FACING_DISC } = SHAPES
 const WALLS = ['#fdeed6', '#ffd7b6', '#e0f2d4', '#cbebfc', '#fbe3a2', '#fbd2dd', '#e5dafb', '#fff7e8', '#c0e9e0']
 const ROOFS = ['#d56454', '#4d7d9c', '#5aa69b', '#d09c53', '#8b7dbf', '#ea8548']
 const CHIMNEY = '#c9b8a6' // a Stage 3 house's, through its roof
-// Low-density residential to the level of finish (#179). A house: a bay of its walls (m); how steeply its roofs climb
+// Low-density residential built to the Finish (#179). A house: a bay of its walls (m); how steeply its roofs climb
 // (rise over run, as the gable it always had climbs over a house 8 m deep); on its ridge a TV aerial on the share of
 // the houses from Stages 1, 2 and 3 the roll drawn where it stands gives it; at Stage 3 a balcony along its front's upper
 // storey on a share of the houses, and on a share of the rest a dormer in its roof; a porch light by its door, how
@@ -1276,12 +1276,12 @@ function houseRoofs(wings: HouseWing[], roof: HouseRoof): HouseRoofShape[] {
 }
 
 /**
- * A house to the level of finish (#179) at Stage `stage`, its footprint at that Stage `w` (east–west) by `d` centred on
+ * A house built to the Finish (#179) at Stage `stage`, its footprint at that Stage `w` (east–west) by `d` centred on
  * `(x, y)`, its walls `wall` tall in `walls` under roofs in `roofs`, as `plan` lays it out, solar panels on its sunny
  * slope if `solar`: wings in siding with a shuttered window in every bay on every face, under flat tiles; a porch roof
  * over its door with a porch light that leaves its pool; a TV aerial on its ridge on some; at Stage 3 a ledge between
  * its two storeys, a chimney, and a balcony along its front's upper storey or a dormer in its roof on some; and at its
- * back, Close-only, an AC unit, a gas meter and a downpipe. `end` is the end of its ridge its chimney stands at.
+ * back, Block-zoom, an AC unit, a gas meter and a downpipe. `end` is the end of its ridge its chimney stands at.
  */
 function home(
   kit: Kit,
@@ -1365,10 +1365,10 @@ function home(
       const [cx, cy] = onRoof(end * Math.max(0, Math.min(ridgeHalf, main.len / 2 - 1.5)), 0.18 * (main.wid - 1.12), -sunny)
       kit.add(kit.cuboid(0.9, main.pitch + 1.4, 0.9), CHIMNEY, cx, cy, h + wall + 0.3)
     }
-    // A TV aerial at the other end of the ridge, Close-only: plain boxes, as they come by the hundred.
+    // A TV aerial at the other end of the ridge, Block-zoom: plain boxes, as they come by the hundred.
     if (aerialRoll < HOME_FINISH.aerial[stage - 1]) {
       const [px, py] = onRoof(-end * Math.max(0, ridgeHalf - 0.3), 0, 1)
-      kit.closeOnly(() => {
+      kit.blockZoomProps(() => {
         kit.add(kit.cuboid(0.07, 2.4, 0.07), AERIAL, px, py, h + wall + main.pitch - 0.3)
         for (const [k, len] of [1.3, 0.85].entries())
           kit.add(kit.cuboid(len, 0.04, 0.05), AERIAL, px, py, h + wall + main.pitch + 1.3 + k * 0.38, ry + turn * Math.PI)
@@ -1406,10 +1406,10 @@ function home(
     // A porch light by the door, under the porch roof or the balcony, and its pool before the door.
     kit.put(kit.cuboid(0.2, 0.26, 0.12), kit.lit(CREAM, HOME_FINISH.lamp), x, y, ry, 0.85, front + 0.06, h + 1.95)
     kit.pool('door', ...at(0, front + 1.5), h, 3.2, 2.4, ry)
-    // At its back, Close-only: an AC unit on the ground, a gas meter on the wall, and a downpipe at a corner.
+    // At its back, Block-zoom: an AC unit on the ground, a gas meter on the wall, and a downpipe at a corner.
     const back = wings[wings.length - 1]
     const rear = -deep / 2
-    kit.closeOnly(() => {
+    kit.blockZoomProps(() => {
       kit.put(kit.cuboid(0.12, wall - 0.3, 0.12), HOME_FINISH.pipe, x, y, ry, back.u + back.w / 2 - 0.25, rear - 0.08, h)
       const meter = back.u - back.w / 2 + 0.8
       kit.put(kit.cuboid(0.36, 0.46, 0.16), HOME_FINISH.meter.box, x, y, ry, meter, rear - 0.08, h + 1.1)
@@ -1427,7 +1427,7 @@ function home(
  * - Stage 1: a cottage, one low storey on 70% of the footprint, with a narrow band.
  * - Stage 2: the house on the whole footprint, one tall storey.
  * - Stage 3: two storeys with a ledge between them, and a chimney through the roof near one gable end.
- * A house given a `plan` (#179) is built to the level of finish instead, its finish drawn after its colours and
+ * A house given a `plan` (#179) is built to the Finish instead, its finish drawn after its colours and
  * its size within its Stage, from where it stands (`home`): its walls in siding with shuttered windows on every face,
  * under a roof of its plan's form.
  */

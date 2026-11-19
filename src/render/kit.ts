@@ -182,7 +182,7 @@ const RING = new THREE.RingGeometry(0.8, 1, 40).rotateX(-Math.PI / 2) // a helip
 // One stripe of an awning, sloping down away from the wall it hangs on: a building's front is its -z.
 const AWNING = new THREE.BoxGeometry(1, 0.1, 1.7).rotateX(-0.36)
 /**
- * Shapes the kit lays, for the builders beside it (`./props`, `./streets`, `./zones`), each standing on y = 0 but the
+ * Shapes the kit lays, for the builders beside it (`./props`, `./kerbside`, `./zones`), each standing on y = 0 but the
  * discs and the awning: `cone` is the parasol's eight-sided cone and `cone12` the twelve-sided one, `disc` faces -z,
  * `centred` is a cylinder centred on its middle and `bead` a ball centred on its middle.
  */
@@ -333,7 +333,7 @@ export interface Scene {
   kind: string
 }
 
-/** The building form a lot was built in (#191), such as an office tower's style, which rule 10 holds neighbours apart by. */
+/** The building form a lot was built in (#191), such as an office tower's, which rule 10 holds neighbours apart by. */
 export interface Form {
   lot: number
   form: string
@@ -355,34 +355,34 @@ export interface Part {
 }
 
 /**
- * What a Zone built to the level of finish (#173) wears: surface pattern over its walls, roofs and paving, and pools of
+ * What a Zone built to the Finish (#173) wears: surface pattern over its walls, roofs and paving, and pools of
  * light on its ground at night (#174). Each can be turned off, for a sheet that shows the Zone with and without.
  */
 export interface Finish {
   pattern: boolean
   pools: boolean
   /**
-   * Dev only (#175): how much deeper than built the Zones built to the level of finish lay what stands on their Blocks,
+   * Dev only (#175): how much deeper than built the Zones built to the Finish lay what stands on their Blocks,
    * for the user to compare a packed Tile with the open one. 1 unless given; lanes, Roads and the sim never change.
    */
   deeper?: number
   /**
    * Dev only (#176): draw the street furniture (guard rails, convex mirrors, planters, bollards and benches) at every
-   * distance on `solid`, with its contact shadows, as #175 drew it round a shops Tile, for the user to compare with it
-   * Close-only. Close-only unless set.
+   * zoom on `solid`, with its contact shadows, as #175 drew it round a shops Tile, for the user to compare with it
+   * as Block-zoom props. Block-zoom props unless set.
    */
   furniture?: boolean
 }
 
-// Close-only props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which they
-// stand whole. Street, one Tile filling the screen, is about 4; the whole City framed is under 1.
-const CLOSE_ZOOM = { from: 2.2, to: 3.2 }
+// Block-zoom props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which
+// they stand whole. Tile zoom, one Tile filling the screen, is about 4; City zoom, the whole City in frame, is under 1.
+const BLOCK_ZOOM = { from: 2.2, to: 3.2 }
 
 /**
  * The materials of the static scenery, shared by every Block so that all of them merge into one mesh per material.
  * Slab, Blocks and walls take their colours on `solid`, which lays the surface pattern over them (`./pattern`) unless
- * `finish` turns it off. Close-only props take theirs on `close`, `solid` drawn apart so that it can fade them out as the
- * camera leaves Street, and hide them beyond it.
+ * `finish` turns it off. Block-zoom props take theirs on `blockZoom`, `solid` drawn apart so that it can fade them out
+ * as the camera leaves Tile zoom, and hide them beyond it.
  */
 export function createMaterials(finish: Finish = { pattern: true, pools: true }) {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
@@ -390,26 +390,26 @@ export function createMaterials(finish: Finish = { pattern: true, pools: true })
   if (patterns) solid.onBeforeCompile = patterns.patch
   // `solid`'s patches, read as it compiles so that it takes the Stage Inspector's too, then a dither that drops a share
   // of its pixels as it fades: no blending, so nothing has to be sorted, and only this program carries the discard.
-  const close = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
-  const closeFade = { value: 1 }
+  const blockZoom = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
+  const blockZoomFade = { value: 1 }
   const dither = (shader: THREE.WebGLProgramParametersWithUniforms) => {
-    shader.uniforms.closeFade = closeFade
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float closeFade;').replace(
+    shader.uniforms.blockZoomFade = blockZoomFade
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float blockZoomFade;').replace(
       '#include <clipping_planes_fragment>',
       `#include <clipping_planes_fragment>
-if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= closeFade) discard;`,
+if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= blockZoomFade) discard;`,
     )
   }
-  close.onBeforeCompile = (shader, renderer) => {
+  blockZoom.onBeforeCompile = (shader, renderer) => {
     solid.onBeforeCompile(shader, renderer)
     dither(shader)
   }
-  close.customProgramCacheKey = () => `close ${solid.customProgramCacheKey()}`
-  // The shadow `close` casts, dropping the same share of the shadow map's texels as it fades, so that a prop's shadow
-  // fades with it.
-  const closeDepth = new THREE.MeshDepthMaterial()
-  closeDepth.onBeforeCompile = dither
-  closeDepth.customProgramCacheKey = () => 'close depth'
+  blockZoom.customProgramCacheKey = () => `blockZoom ${solid.customProgramCacheKey()}`
+  // The shadow `blockZoom` casts, dropping the same share of the shadow map's texels as it fades, so that a prop's
+  // shadow fades with it.
+  const blockZoomDepth = new THREE.MeshDepthMaterial()
+  blockZoomDepth.onBeforeCompile = dither
+  blockZoomDepth.customProgramCacheKey = () => 'blockZoom depth'
   // One glass for every window, so that windows add no draw calls. Its vertex colour tints it: white for the glass
   // itself, or the ratio to a paler or a darker glass. A darker tint lights its windows less (the glow goes with the
   // square of the tint's green, up to full), and each vertex's `glow` scales how brightly it lights.
@@ -490,9 +490,9 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
 
   return {
     solid,
-    close,
-    /** What a mesh of `close` casts its shadow with (its `customDepthMaterial`): it fades as `close` does. */
-    closeDepth,
+    blockZoom,
+    /** What a mesh of `blockZoom` casts its shadow with (its `customDepthMaterial`): it fades as `blockZoom` does. */
+    blockZoomDepth,
     glass,
     /** The tints of `glass` a building's windows take, one picked per building: the glass, a paler and a darker one. */
     windows: [new THREE.Color(1, 1, 1), shade('#b4d6e3'), shade('#7aa9c9')],
@@ -504,7 +504,7 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
     water,
     roundShadow,
     squareShadow,
-    /** Whether the Zones built to the level of finish wear their surface pattern and their light pools. */
+    /** Whether the Zones built to the Finish wear their surface pattern and their light pools. */
     finish,
     /** Light the windows and lamps as the time of day has them. */
     setGlow({ windows, lamps }: Glow) {
@@ -513,12 +513,12 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
       patterns?.setGlow(windows)
     },
     /**
-     * Show the Close-only props as the camera's zoom has them: whole from Street inward, fading out as the camera leaves
-     * it, as the clouds fade in, and not drawn at all farther out, where most Tiles are on screen.
+     * Show the Block-zoom props as the camera's zoom has them: whole from Tile zoom inward, fading out as the camera
+     * leaves it, as the clouds fade in, and not drawn at all farther out, where most Tiles are on screen.
      */
     setZoom(zoom: number) {
-      closeFade.value = THREE.MathUtils.clamp((zoom - CLOSE_ZOOM.from) / (CLOSE_ZOOM.to - CLOSE_ZOOM.from), 0, 1)
-      close.visible = closeFade.value > 0
+      blockZoomFade.value = THREE.MathUtils.clamp((zoom - BLOCK_ZOOM.from) / (BLOCK_ZOOM.to - BLOCK_ZOOM.from), 0, 1)
+      blockZoom.visible = blockZoomFade.value > 0
     },
   }
 }
@@ -531,7 +531,7 @@ if (closeFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.0671
 export function createKit(rand: () => number, materials: Materials, label?: () => string) {
   const range = (a: number, b: number) => a + (b - a) * rand()
   const pick = <T>(a: T[]) => a[Math.floor(rand() * a.length)]
-  const { solid, close, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
+  const { solid, blockZoom, glass, windows, unlit, glassOf, bulb, water, roundShadow, squareShadow } = materials
 
   const parts: Part[] = []
   const bricks: Brick[] = []
@@ -587,9 +587,9 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const doorway = (x: number, y: number, ry: number, w: number, out = 0) =>
     claim('door', ...to(x, y, ry, 0, out + 0.6), Math.max(0.6, w - 0.4), 1.2, ry)
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
-  // Close-only prop, painted on `close` (`closeOnly`).
-  let [patterned, pooled, closing] = [false, false, false]
-  /** Whether what is built from here on is to the level of finish (`finish`), as far as the materials allow (#178). */
+  // Block-zoom prop, painted on `blockZoom` (`blockZoomProps`).
+  let [patterned, pooled, inBlockZoomProps] = [false, false, false]
+  /** Whether what is built from here on is to the Finish (`finish`), as far as the materials allow (#178). */
   const finished = () => patterned || pooled
   let open = 0 // parts from here on belong to the next brick
   // The Stages built, and the fate and the lot of the bricks closed from now on.
@@ -614,7 +614,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: closing ? close : solid, brick: -1 })
+    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       const lit = look.material === glass || look.material === bulb
@@ -655,12 +655,12 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     const colour = new THREE.Color(POOL.colours[kind]).multiplyScalar(POOL.strengths[kind])
     pools.push({ at: new THREE.Vector3(x, h + 0.06, -y), w, d, ry, colour, brick: bricks.length })
   }
-  /** Build what `fn` adds as Close-only props, painted on `close`, which hides them beyond Street (#175). */
-  const closeOnly = (fn: () => void) => {
-    const was = closing
-    closing = true
+  /** Build what `fn` adds as Block-zoom props, painted on `blockZoom`, which hides them beyond Tile zoom (#175). */
+  const blockZoomProps = (fn: () => void) => {
+    const was = inBlockZoomProps
+    inBlockZoomProps = true
     fn()
-    closing = was
+    inBlockZoomProps = was
   }
   /** The bulb painted `colour` by day and lit in it at night, `glow` as bright as a lamp: #153's amber, #175's signs. */
   const lit = (colour: string, glow: number): Look => ({ material: bulb, tint: bulbTint(colour), glow })
@@ -705,7 +705,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   const box = memo((w: number, h: number, d: number, r: number, b: number) => roundedBox(w, h, d, r, b))
   /** A contact shadow under a footprint `w` by `d`, round or square, turned `ry`. */
   const shadow = (x: number, y: number, h: number, w: number, d: number, round = false, ry = 0) =>
-    closing || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Close-only prop
+    inBlockZoomProps || add(PLANE, round ? roundShadow : squareShadow, x, y, h + 0.05, ry, w, 1, d) // none under a Block-zoom prop
   // Plain boxes, unrounded, for the fine parts of a building (a floor of glass, a fin, a mullion).
   const cuboid = memo((w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0))
   // Gable roofs, which repeat along a terraced row, and hipped ones (#178).
@@ -914,7 +914,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     range,
     pick,
     chance: (p: number) => rand() < p,
-    closeOnly,
+    blockZoomProps,
     lit,
     pot,
     /**
@@ -924,13 +924,13 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     pool,
     /**
      * Whether the kerbside is dressed (#175, on every Tile since #176): a kerbstone line, tactile paving, street
-     * furniture, street lights and marks on the road plate. It goes with the level of finish, as far as the materials'
+     * furniture, street lights and marks on the road plate. It goes with the Finish, as far as the materials'
      * `finish` allows it at all, so that a sheet or a bench with none shows the kerbside as it was.
      */
     get dressed() {
       return materials.finish.pattern || materials.finish.pools
     },
-    /** Whether what is built from here on is to the level of finish (`finish`), as far as the materials allow (#178). */
+    /** Whether what is built from here on is to the Finish (`finish`), as far as the materials allow (#178). */
     get finished() {
       return finished()
     },
@@ -941,7 +941,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     },
 
     /**
-     * What the kit built since `from` (a `mark`), for the street furniture to keep off (`./streets`, #176): its parts'
+     * What the kit built since `from` (a `mark`), for the street furniture to keep off (`./kerbside`, #176): its parts'
      * geometries in place, and the loops of its movers.
      */
     since(from: { parts: number; movers: number }) {
@@ -954,12 +954,12 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     deeper: materials.finish.deeper ?? 1,
 
     /**
-     * Build what `fn` adds as street furniture: Close-only (`closeOnly`, #176), or at every distance where the dev
-     * switch `furniture` asks for it, as #175 built it.
+     * Build what `fn` adds as street furniture: Block-zoom props (`blockZoomProps`, #176), or at every zoom where the
+     * dev switch `furniture` asks for it, as #175 built it.
      */
     furniture(fn: () => void) {
       if (materials.finish.furniture) fn()
-      else closeOnly(fn)
+      else blockZoomProps(fn)
     },
 
     steam,
@@ -1012,7 +1012,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     },
 
     /**
-     * Build what follows to the level of finish (#173) if `on`, wearing surface pattern and leaving pools of light, as
+     * Build what follows to the Finish (#173) if `on`, wearing surface pattern and leaving pools of light, as
      * far as the materials' `finish` allows (#174).
      */
     finish(on: boolean) {
@@ -1121,7 +1121,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * has petals fallen round it, as many to the square metre whatever its size. They are drawn from where it stands,
      * so the kit's own stream is untouched, and they lie only on the Block: on a raised lawn, only well in from the
      * Block's edge, so that none hangs over the pavement beyond the lawn. A `coarse` tree's spheres have fewer faces, for
-     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Street at under half the triangles.
+     * the trees a Zone lays by the dozen on its Blocks (#178): they read the same from Tile zoom at under half the
+     * triangles.
      */
     tree(x: number, y: number, h: number, s: number, kind: TreeKind, coarse = false) {
       add(CYLINDER, '#a1714c', x, y, h, 0, 0.36 * s, 3 * s, 0.36 * s)

@@ -10,7 +10,7 @@ import type { Look } from './ground'
 import { house } from './low-density'
 
 /** Farms' look (`./index`). */
-export const look: Look = { landmarks: false, fill: ({ kit, field, block, street }) => farm(kit, field, block, street) }
+export const look: Look = { landmarks: false, fill: ({ kit, field, block, kerbsideTrees }) => farm(kit, field, block, kerbsideTrees) }
 
 const TAU = Math.PI * 2
 // Farms: ploughed ground, and the crops of its fields.
@@ -144,9 +144,9 @@ function furrows(worked: Row[], rows: Row[], home: number, along: boolean): { lo
 /**
  * A farm Block: ploughed ground under fields of crop rows that run along the Block, five rows to a field of one crop,
  * and on some Blocks a farmstead near one end: a farmhouse, and a barn with its silo. Rows and farmstead keep clear of
- * the street trees `street`. The farmstead and each field are a lot, and each field is a brick. Its details (#149):
- * some fields are rice paddies, some go under vinyl greenhouses, scarecrows stand in some, a kei truck stands in the
- * farmyard, and tractors work the fields of crops. With the Stage:
+ * the street trees `kerbsideTrees`. The farmstead and each field are a lot, and each field is a brick. Its details
+ * (#149): some fields are rice paddies, some go under vinyl greenhouses, scarecrows stand in some, a kei truck stands
+ * in the farmyard, and tractors work the fields of crops. With the Stage:
  * - Stage 1: a cottage and a barn with no silo (`./low-density`'s `house`, and `barn`), shoots in most fields and the rest left
  *   fallow, a fallow paddy flooded and bare; a scarecrow in some paddies.
  * - Stage 2: as above, every field grown; a tractor, the kei truck with two crates, the first greenhouses and more
@@ -155,7 +155,7 @@ function furrows(worked: Row[], rows: Row[], home: number, along: boolean): { lo
  *   the furrows, and a windbreak of pines behind the house; a second tractor, more greenhouses and scarecrows, the
  *   truck's bed full and a stack of crates beside it.
  */
-export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
+export function farm(kit: Kit, field: Field, block: Block, kerbsideTrees: Vec[]) {
   overlay(kit, field, block, 1.6, 0.14, FURROWS)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
@@ -163,7 +163,7 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
   const along = block.x1 - block.x0 >= block.y1 - block.y0
   // A farmstead on some Blocks only, so that the fields lead.
   const end = along ? { x: block.x0 + 12, y: mid.y } : { x: mid.x, y: block.y1 - 12 }
-  const yard = kit.chance(0.45) ? site(field, block, 22, 16, end, street, 1) : null
+  const yard = kit.chance(0.45) ? site(field, block, 22, 16, end, kerbsideTrees, 1) : null
   if (yard) {
     kit.lot(0)
     const [hx, hy] = [yard.x - (along ? 0 : 6), yard.y + (along ? 5 : 0)]
@@ -180,7 +180,7 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
     kit.from(3, () => {
       for (let k = -1.5; k <= 1.5; k++) {
         const [px, py] = along ? [hx + k * 2.9, hy + 4.3] : [hx - 5.6, hy + k * 2.9]
-        if (field.sample(px, py) >= 1.6 && inside(block.loop, px, py) && clearOf(street, px, py, 0, 0, 3))
+        if (field.sample(px, py) >= 1.6 && inside(block.loop, px, py) && clearOf(kerbsideTrees, px, py, 0, 0, 3))
           kit.tree(px, py, ground, kit.range(0.5, 0.62), 'pine')
       }
     })
@@ -275,7 +275,12 @@ export function farm(kit: Kit, field: Field, block: Block, street: Vec[]) {
       const ends = along
         ? [field.sample(x - length / 2, y), field.sample(x + length / 2, y)]
         : [field.sample(x, y - length / 2), field.sample(x, y + length / 2)]
-      if (Math.min(...ends, field.sample(x, y)) < 1.6 || !inside(block.loop, x, y) || inYard(x, y) || !clearOf(street, x, y, w, d, 1))
+      if (
+        Math.min(...ends, field.sample(x, y)) < 1.6 ||
+        !inside(block.loop, x, y) ||
+        inYard(x, y) ||
+        !clearOf(kerbsideTrees, x, y, w, d, 1)
+      )
         continue
       here.push({ x0: x - w / 2, y0: y - d / 2, x1: x + w / 2, y1: y + d / 2 })
     }

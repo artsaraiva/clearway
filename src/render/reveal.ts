@@ -154,15 +154,21 @@ export function createReveal(materials: Materials, pool = 140) {
     return moving
   }
   const moving = new Map<THREE.Material, THREE.Material>(
-    [materials.solid, materials.close, materials.glass, materials.bulb, materials.water, materials.roundShadow, materials.squareShadow].map(
-      (m) => [m, copy(m)],
-    ),
+    [
+      materials.solid,
+      materials.blockZoom,
+      materials.glass,
+      materials.bulb,
+      materials.water,
+      materials.roundShadow,
+      materials.squareShadow,
+    ].map((m) => [m, copy(m)]),
   )
   const depth = copy(new THREE.MeshDepthMaterial())
-  const closeDepth = copy(materials.closeDepth) // the Close-only props' shadow, fading as they do (#175)
+  const blockZoomDepth = copy(materials.blockZoomDepth) // the Block-zoom props' shadow, fading as they do (#175)
   /**
-   * Keep the copies as their materials are now: the windows and lamps glow with the time of day, and the Close-only
-   * props fade with the camera's zoom and hide beyond Street (#175).
+   * Keep the copies as their materials are now: the windows and lamps glow with the time of day, and the Block-zoom
+   * props fade with the camera's zoom and hide beyond Tile zoom (#175).
    */
   const follow = () => {
     for (const [original, copied] of moving) {
@@ -206,7 +212,7 @@ export function createReveal(materials: Materials, pool = 140) {
     for (const mesh of next.meshes) {
       const own = mesh.material as THREE.Material
       mesh.material = moving.get(own)!
-      if (mesh.castShadow) mesh.customDepthMaterial = own === materials.close ? closeDepth : depth
+      if (mesh.castShadow) mesh.customDepthMaterial = own === materials.blockZoom ? blockZoomDepth : depth
       mesh.frustumCulled = false // bricks move off the mesh's bounds
     }
     const rows = Math.max(1, Math.ceil((2 * next.bricks.length) / ROW))
@@ -221,7 +227,7 @@ export function createReveal(materials: Materials, pool = 140) {
     for (const mesh of next.meshes) {
       const original = [...moving].find(([, m]) => m === mesh.material)
       if (original) mesh.material = original[0]
-      mesh.customDepthMaterial = original?.[0] === materials.close ? materials.closeDepth : undefined
+      mesh.customDepthMaterial = original?.[0] === materials.blockZoom ? materials.blockZoomDepth : undefined
       mesh.frustumCulled = true
     }
   }
@@ -317,7 +323,7 @@ export function createReveal(materials: Materials, pool = 140) {
      */
     warm(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, ahead: Build) {
       hide(ahead)
-      for (const copied of moving.values()) copied.visible = true // the Close-only props too, hidden or not
+      for (const copied of moving.values()) copied.visible = true // the Block-zoom props too, hidden or not
       scene.add(...ahead.meshes)
       renderer.render(scene, camera)
       scene.remove(...ahead.meshes)
