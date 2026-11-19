@@ -88,7 +88,7 @@ const KINDS: readonly FarmScene[] = ['orchard', 'stand']
 const SCENES = { second: 2500, size: { orchard: [12, 9], stand: [7, 4.2] } as Record<FarmScene, [number, number]> }
 // The farmyard: m along the Block and across it; in its frame (x to the right of one who faces the fields, y toward
 // them), where the farmhouse, the barn, the well, the chicken run, the kei truck and its crates stand, the barn's door
-// and where a tractor parks inside it.
+// and where a tractor parks inside it: just inside the door, where it shows from the yard.
 const YARD = {
   along: 22,
   across: 16,
@@ -99,7 +99,7 @@ const YARD = {
   truck: [4.75, -4.2],
   crates: [6.8, -4.2],
   door: [3.5, 10],
-  parked: [3.5, 5],
+  parked: [3.5, 7.7],
 } as const
 
 /**
@@ -819,6 +819,7 @@ function barn(kit: Kit, x: number, y: number, h: number, ry: number, stage: numb
   for (const k of [-1, 1]) wall((W - door) / 2, thick, k * (door / 2 + (W - door) / 4), D / 2 - thick / 2, 2)
   put(kit.cuboid(door, T - 3.8, thick), walls, 0, D / 2 - thick / 2, 3.8)
   kit.tiled(kit.gable(D + 0.8, W + 1, 2.6), BARN.roof, x, y, h + T, ry, seed + 3, PATTERN.ribbed)
+  put(kit.cuboid(W - 2 * thick, 0.07, D - 2 * thick), CHANNEL.bank, 0, 0, 0) // its floor, over its contact shadow
   // Its door's two leaves, each with its rails: folded back, or shut.
   for (const k of [-1, 1]) {
     const lx = k * (open ? door / 2 + 0.88 : 0.9)
@@ -876,7 +877,7 @@ function chickenRun(kit: Kit, x: number, y: number, h: number, ry: number) {
     () => {
       const put = (geo: THREE.BufferGeometry, look: KitLook, lx: number, ly: number, z: number) =>
         kit.local(geo, look, x, y, ry, lx, ly, h + z)
-      put(kit.cuboid(w - 0.1, 0.04, d - 0.1), STRAW, 0, 0, 0)
+      put(kit.cuboid(w - 0.1, 0.07, d - 0.1), STRAW, 0, 0, 0) // over the run's contact shadow
       for (const [len, lx, ly, turn] of [
         [w, 0, d / 2, 0],
         [w, 0, -d / 2, 0],
