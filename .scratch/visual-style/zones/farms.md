@@ -11,7 +11,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Built to the Finish
 
-- **Farms built to the Finish** ([#184](https://github.com/artsaraiva/clearway/issues/184), `src/render/zones/farms.ts`, `src/render/movers.ts`), the whole of its menu.
+- **Farms built to the Finish** ([#184](https://github.com/artsaraiva/dioramania/issues/184), `src/render/zones/farms.ts`, `src/render/movers.ts`), the whole of its menu.
   The kit's draws are as on `main` (the farmstead's chance, each field's crop, fallow and stream), and each field is still what #149 drew from where it lies; what #184 adds is drawn after those, or from a stream of the Block's own.
   - Ground: the Block is trodden earth, and each field lies on soil of its own in furrows 0.4 m apart that run with its rows: pale under crops and greenhouses, dark where it is freshly tilled or lies fallow at Stage 1, straw-pale stubble where it is cut, mown grass under an orchard. Surface pattern on the shared material; the soil pattern takes a quarter turn where the rows run north–south.
   - Headlands: rows stop 4.5 m short of the Block's ends, 3 m short of a farmyard or a scene and 2 m beside one, which leaves a lane 1.5 m beyond their ends on the earth, where a tractor turns clear of the pavement.
@@ -43,7 +43,7 @@ For the user to accept or drop with the images:
 
 ### Details
 
-- **Farm details** ([#149](https://github.com/artsaraiva/clearway/issues/149), `src/render/zones/farms.ts`), each field's drawn from where it lies, so no other field and nothing else on its Block changes:
+- **Farm details** ([#149](https://github.com/artsaraiva/dioramania/issues/149), `src/render/zones/farms.ts`), each field's drawn from where it lies, so no other field and nothing else on its Block changes:
   - About one field in five is a rice paddy at every Stage: pale aqua water inside a low bank, under two rows of shoots to each row of crop, 0.16, 0.34 and 0.46 m tall at Stages 1 to 3.
     A paddy left fallow at Stage 1 is flooded and bare.
   - About one field in eight goes under vinyl greenhouses at Stage 2, and one in five at Stage 3: long pale arched tunnels, 3.5 m across and 2.3 m high, two side by side over a field and at most 26 m long, with a hoop every 2.4 m and a door at each end.
@@ -57,7 +57,7 @@ For the user to accept or drop with the images:
 ## Colours
 
 - **Farms**: crops `#7bc35e` `#e3c76a` `#a6d36b` `#5aae58` `#d9b45c`, barns `#7e9aab` `#b85a4c` `#8aa58b` under `#5b6b7a`, silos `#e9eef2` with domes `#9aa7b2`, straw `#e8cf7f`
-- **Farms built to the Finish ([#184](https://github.com/artsaraiva/clearway/issues/184))**: trodden earth `#d9c4a0`, soil pale `#cdb08a` (the ploughed ground of before) and dark `#b8966c`, stubble `#dcc88e`, an orchard's grass `#b0df88`;
+- **Farms built to the Finish ([#184](https://github.com/artsaraiva/dioramania/issues/184))**: trodden earth `#d9c4a0`, soil pale `#cdb08a` (the ploughed ground of before) and dark `#b8966c`, stubble `#dcc88e`, an orchard's grass `#b0df88`;
   the channel's concrete `#cfc8ba` (the barn's floor too) under the paddies' water, the sluice's posts `#a1714c` and gate `#8e979f`;
   fruit trees' trunks `#a1714c`, leaves `#6bc357` `#5fbc51` `#85cf61` and fruit `#f0b43c` `#e8925e` `#f6d36a`; wrapped bales `#eef1ee`; racks' poles `#a1714c`, sheaves `#d6ac4f` under `#b98f3f`, and the cut rice's stubble rows `#cfae58`;
   the farmhouse's plaster `#f4ead2` `#efe6d6` `#e9dcc0` under tiles `#56636f` `#5f6a63` `#6b5f58`, its timber `#8a6446`, deck `#c49a6c`, door `#8a5a3c` and ledge `#fbf6ef`;
@@ -65,7 +65,7 @@ For the user to accept or drop with the images:
   the stand's timber `#c49a6c` `#a1714c` `#d8b98b` under a roof of the stalls' `#55705f` `#3f4a5e` `#8a5a3c`, its nobori `#7fbf9d` and `#f6d36a`, pumpkins `#f0b43c`, its honesty box cream `#fff4dc`;
   people's shirts `#f6d36a` `#7fbf9d` `#fbf8f2` `#c7b8f0`;
   egrets white `#fbfaf5` on legs `#3f4650` with a bill `#e3bd4a`; chickens white `#fbf8f2` with a comb `#d98672`, a beak `#e3bd4a` and legs `#d9a441`
-- **Farm details ([#149](https://github.com/artsaraiva/clearway/issues/149))**: paddy water `#a9d9d6` under shoots `#8fd46c` (`#7bc35e` at Stage 3);
+- **Farm details ([#149](https://github.com/artsaraiva/dioramania/issues/149))**: paddy water `#a9d9d6` under shoots `#8fd46c` (`#7bc35e` at Stage 3);
   greenhouses' film `#eef5f2`, hoops `#d3ddda` and doors `#c9d6d2`;
   tractors persimmon `#ea8548` with a canopy `#f4f1ea`, tyres `#2f3440` and a grille and seat `#4a525c`;
   the kei truck `#f4f6f8` on a chassis `#4a525c`, its crates `#f0c75e` `#7fbf9d` `#e9eef2`;
@@ -73,7 +73,7 @@ For the user to accept or drop with the images:
 
 ## Frame time
 
-### Built to the Finish ([#184](https://github.com/artsaraiva/clearway/issues/184))
+### Built to the Finish ([#184](https://github.com/artsaraiva/dioramania/issues/184))
 
 Every Tile of the 26-Tile City a farm at Stage 3, 1,000 cars, medians of three rounds against `main` (`npm run bench:visual -- farms --against origin/main --views city,tile --times noon,night`), all under the 12 ms budget:
 
@@ -86,12 +86,12 @@ Every Tile of the 26-Tile City a farm at Stage 3, 1,000 cars, medians of three r
 
 The static scenery is 1.28 M triangles at Stage 3 on seed 3 against `main`'s 1.13 M, and 1.39 M on seed 2, the heaviest; its ceiling in the scene check is 1.55 M triangles and 160 meshes, as the other finished Zones': the lit greenhouses and lanterns bring the bulb's mesh to every Tile, and the sluices and honesty boxes the Block-zoom props'.
 
-### Farm details ([#149](https://github.com/artsaraiva/clearway/issues/149))
+### Farm details ([#149](https://github.com/artsaraiva/dioramania/issues/149))
 
-Farm details ([#149](https://github.com/artsaraiva/clearway/issues/149)), every Tile of the 26-Tile City a farm at Stage 3, cost 0.46 ms (6.72 against `main`'s 6.26), for six more draw calls and 0.34 M more triangles.
+Farm details ([#149](https://github.com/artsaraiva/dioramania/issues/149)), every Tile of the 26-Tile City a farm at Stage 3, cost 0.46 ms (6.72 against `main`'s 6.26), for six more draw calls and 0.34 M more triangles.
 Their 106 tractors take 0.04 ms a frame to place and about 0.1 ms to draw: the rest is the greenhouses and the paddies' shoots.
 
-## Amended by [#149](https://github.com/artsaraiva/clearway/issues/149) (2026-11-17)
+## Amended by [#149](https://github.com/artsaraiva/dioramania/issues/149) (2026-11-17)
 
 Farms carry details of their own, picked by the user from a sheet of Stages 1 to 3: rice paddies, vinyl greenhouses, scarecrows, a kei truck in the farmyard, and tractors that work the fields.
 The tractors are the first moving details, and build the machinery every Zone's will use: drawn instanced outside the merged scenery, arriving with a Rebuild's bricks and leaving with their Tile, at work through the day and at rest by night (Block fill, below).

@@ -8,7 +8,7 @@ Level tuning assumes every Level starts from an empty network plus Pre-warm. Swi
 
 ## Since the tile sandbox (2026-11-15)
 
-The same rebuild now runs whenever the City changes: a Tile placed, a Swap or an Undo ([#83](https://github.com/artsaraiva/clearway/issues/83)). The glossary calls it a Rebuild; Reveal and Level are retired. Demand comes from the City's open ends in place of a Level, and the swapped Tile's Changes are the one part of the configuration not carried over.
+The same rebuild now runs whenever the City changes: a Tile placed, a Swap or an Undo ([#83](https://github.com/artsaraiva/dioramania/issues/83)). The glossary calls it a Rebuild; Reveal and Level are retired. Demand comes from the City's open ends in place of a Level, and the swapped Tile's Changes are the one part of the configuration not carried over.
 
 ## Superseded (2026-11-20)
 

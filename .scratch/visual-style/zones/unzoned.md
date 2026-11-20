@@ -7,15 +7,15 @@ An unzoned Tile is not a Zone and has no Stage: its Blocks are a verge, the same
 
 ### Built to the Finish
 
-- **Unzoned Tiles built to the Finish** ([#185](https://github.com/artsaraiva/clearway/issues/185), `src/render/zones/unzoned.ts`, `src/render/pattern.ts`), the whole of its menu, which takes over [#158](https://github.com/artsaraiva/clearway/issues/158).
+- **Unzoned Tiles built to the Finish** ([#185](https://github.com/artsaraiva/dioramania/issues/185), `src/render/zones/unzoned.ts`, `src/render/pattern.ts`), the whole of its menu, which takes over [#158](https://github.com/artsaraiva/dioramania/issues/158).
   The bushes draw from the kit's stream as on `main` and stand where they stood; every other piece draws from a stream of its own, seeded from where its Block lies, keeps off what was laid before it and off a landmark's ground, and what stands claims its ground, so the kerbside keeps off it.
   - Ground: rough grass in two tones, surface pattern on the shared material and no triangles: pale where it is short and deeper in ragged clumps 1.5 to 5 m across where it grows long, each 25 cm a shade of its own, repeating every 16 m.
     The verge wears it on every unzoned Tile, though an unzoned Tile has no look to ask for the Finish.
   - A puddle on a little over half the Blocks (0.55), 5.6 m or more in from the edge: three rounds of water run together, 2.5 to 4.5 m across in all, each on a rim of mud. Flat colour that mirrors the sky; it is not the kit's water, which would bring a mesh to every Tile.
   - Rocks in clusters, one to about every 600 m² of Block and at least one: a boulder 1.3 to 2 m long and 0.6 to 1 m out of the grass, with one or two stones beside it. Drawn at every zoom.
   - A stump on six Blocks in ten, a Block-zoom prop: bark 0.7 to 0.9 m across and 0.3 to 0.5 m tall, its cut face and the rings at its heart.
-  - Tufts of tall grass, green's of [#182](https://github.com/artsaraiva/clearway/issues/182) now shared from `src/render/props.ts`, Block-zoom props: one every 4.5 to 7 m along each straight side of the Block, 3.1 m in from its edge, so that no pavement beside the grass stands empty (rule 3); and in clumps of two to four on the open grass, one to about every 400 m².
-  - Wildflowers, green's star of [#152](https://github.com/artsaraiva/clearway/issues/152) shared the same way: drifts of 16 through the grass, 3.5 to every 1,000 m² of Block, each mostly of one colour, round what stands and off the water. Drawn at every zoom.
+  - Tufts of tall grass, green's of [#182](https://github.com/artsaraiva/dioramania/issues/182) now shared from `src/render/props.ts`, Block-zoom props: one every 4.5 to 7 m along each straight side of the Block, 3.1 m in from its edge, so that no pavement beside the grass stands empty (rule 3); and in clumps of two to four on the open grass, one to about every 400 m².
+  - Wildflowers, green's star of [#152](https://github.com/artsaraiva/dioramania/issues/152) shared the same way: drifts of 16 through the grass, 3.5 to every 1,000 m² of Block, each mostly of one colour, round what stands and off the water. Drawn at every zoom.
   - Nothing moves and nothing is lit: an unzoned Tile's night is the kerbside's lamps alone.
 
 On the 26-Tile City, all unzoned (seed 3): 73 Blocks, and 1.58 M triangles of static scenery against `main`'s 1.25 M, in the same 104 meshes.
@@ -31,11 +31,11 @@ For the user to accept or drop with the images:
 
 ## Colours
 
-- **Unzoned Tiles built to the Finish ([#185](https://github.com/artsaraiva/clearway/issues/185))**: the grass `#c8e8a6`, as before, within 2% darker and 5% lighter where short and 11 to 19% darker in its clumps; the puddle's water `#b5d5dd` on mud `#b9a57f`; rocks in the pond's greys `#8f8a80`, `#a29d92` and `#7f7b73`; the stump's bark `#8a6446`, its cut face the props' pale timber `#d8b98b` and its rings `#c49a6c`; tufts in green's `#8fbf62`, `#a3c96b` and `#7fb35a` with heads `#d9c98a`; wildflowers white `#ffffff` and yellow `#f6d36a` leading, lilac `#c7b8f0` and pink `#ff9ab8`.
+- **Unzoned Tiles built to the Finish ([#185](https://github.com/artsaraiva/dioramania/issues/185))**: the grass `#c8e8a6`, as before, within 2% darker and 5% lighter where short and 11 to 19% darker in its clumps; the puddle's water `#b5d5dd` on mud `#b9a57f`; rocks in the pond's greys `#8f8a80`, `#a29d92` and `#7f7b73`; the stump's bark `#8a6446`, its cut face the props' pale timber `#d8b98b` and its rings `#c49a6c`; tufts in green's `#8fbf62`, `#a3c96b` and `#7fb35a` with heads `#d9c98a`; wildflowers white `#ffffff` and yellow `#f6d36a` leading, lilac `#c7b8f0` and pink `#ff9ab8`.
 
 ## Frame time
 
-### Built to the Finish ([#185](https://github.com/artsaraiva/clearway/issues/185))
+### Built to the Finish ([#185](https://github.com/artsaraiva/dioramania/issues/185))
 
 Every Tile of the 26-Tile City unzoned with 1,000 cars, against `origin/main` (`20f0dde`), medians of three interleaved rounds:
 

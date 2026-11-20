@@ -1,6 +1,6 @@
 # District 1: Seven Levels on a street grid
 
-Status: stopped at Levels 1 and 2 (2026-11-14, [#72](https://github.com/artsaraiva/clearway/issues/72)). The game becomes a city that grows by buying land, so Levels 3–7 ([#58](https://github.com/artsaraiva/clearway/issues/58)–[#62](https://github.com/artsaraiva/clearway/issues/62)) are closed as not planned; they reopen if the prototype in [#74](https://github.com/artsaraiva/clearway/issues/74) fails. The road graph is that prototype's map. Was: open (grilled 2026-11-14 in [#33](https://github.com/artsaraiva/clearway/issues/33), amended the same day after [#56](https://github.com/artsaraiva/clearway/issues/56) and [#7](https://github.com/artsaraiva/clearway/issues/7); replaces the ladder grilled 2026-11-12 in `.scratch/game/issues/06-junction-chain.md`)
+Status: stopped at Levels 1 and 2 (2026-11-14, [#72](https://github.com/artsaraiva/dioramania/issues/72)). The game becomes a city that grows by buying land, so Levels 3–7 ([#58](https://github.com/artsaraiva/dioramania/issues/58)–[#62](https://github.com/artsaraiva/dioramania/issues/62)) are closed as not planned; they reopen if the prototype in [#74](https://github.com/artsaraiva/dioramania/issues/74) fails. The road graph is that prototype's map. Was: open (grilled 2026-11-14 in [#33](https://github.com/artsaraiva/dioramania/issues/33), amended the same day after [#56](https://github.com/artsaraiva/dioramania/issues/56) and [#7](https://github.com/artsaraiva/dioramania/issues/7); replaces the ladder grilled 2026-11-12 in `.scratch/game/issues/06-junction-chain.md`)
 
 ## Goal
 
@@ -34,7 +34,7 @@ W8 -- J8 ------ J7 ------ J6 ====== J5 -- E5
 
 - Loops appear only as Blocks close: J3-J4-J5-J6 in Level 5, J2-J3-J6-J7 in Level 6, J1-J2-J7-J8 in Level 7.
 - 8 edge Gateways: W1, N2, N3, N4, E5, S6, S7, W8.
-- 4 T-junctions, 4 crossroads. No roundabout: with 7 m lanes, two-lane Arms 90° apart need a Ring radius of 33 m, which does not fit between rows 80 m apart ([#56](https://github.com/artsaraiva/clearway/issues/56)). Re-sizing the roundabout is [#67](https://github.com/artsaraiva/clearway/issues/67).
+- 4 T-junctions, 4 crossroads. No roundabout: with 7 m lanes, two-lane Arms 90° apart need a Ring radius of 33 m, which does not fit between rows 80 m apart ([#56](https://github.com/artsaraiva/dioramania/issues/56)). Re-sizing the roundabout is [#67](https://github.com/artsaraiva/dioramania/issues/67).
 
 ### Starting coordinates (metres, tune freely)
 
@@ -64,14 +64,14 @@ Columns sit 90 m apart, rows 80 m apart. The slab is about 355 × 210 m: x from 
 | R67, R78, E5, N3, N4, S6, S7, W8 | `[1, 1]` | 13.9 | |
 
 - Edge Gateway Roads start at the slab edge: W1 from (−175, 40), N2 from (−45, 105), N3 from (45, 105), N4 from (135, 105), E5 from (180, −40), S6 from (45, −105), S7 from (−45, −105), W8 from (−175, −40).
-- **Measured in [#56](https://github.com/artsaraiva/clearway/issues/56).** A Junction's footprint is 12 m with one lane each way and 19 m where a two-lane Road meets it. North-row Roads keep 52 m of lane (8 cars per lane), R18 49 m, R27 and R36 42 m, W1 21 m. A Road needs at least 10 m of lane.
+- **Measured in [#56](https://github.com/artsaraiva/dioramania/issues/56).** A Junction's footprint is 12 m with one lane each way and 19 m where a two-lane Road meets it. North-row Roads keep 52 m of lane (8 cars per lane), R18 49 m, R27 and R36 42 m, W1 21 m. A Road needs at least 10 m of lane.
 - **R45 keeps 42 m of lane**, 6 cars per lane, and E5 26 m (measured). J5's queue must reach J4 within the Pre-warm, so raise the Demand. R45 cannot be shorter without moving a Junction.
-- **A turning lane is slow.** The right turn from R18 onto R12's kerb lane is driven at 4.3 m/s, so in Level 1 the stem's window is 13–14. Measured in [#57](https://github.com/artsaraiva/clearway/issues/57): alone, one turning lane Wins up to 17 vehicles a minute and passes 23 saturated, two pass about 41, and one yielding lane passes 10 with nobody to yield to and jams from about 10.
+- **A turning lane is slow.** The right turn from R18 onto R12's kerb lane is driven at 4.3 m/s, so in Level 1 the stem's window is 13–14. Measured in [#57](https://github.com/artsaraiva/dioramania/issues/57): alone, one turning lane Wins up to 17 vehicles a minute and passes 23 saturated, two pass about 41, and one yielding lane passes 10 with nobody to yield to and jams from about 10.
 - **The cross-street speeds make the route shifts** of Levels 6 and 7 (see those Levels). Routing is lane length ÷ speed limit; the yield crawl is not in it, so the Priority rule never moves a route.
 
 ### Slab pieces
 
-Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam sits just outside the footprint of the next Junction, where the Road into the Fog ends, so each Level's Roads stay on its own pieces. Footprints differ (12 m and 19 m), so where two Roads into the Fog end at different depths the edge follows the shallower footprint: the other Road stops short of it and runs on as plate, and that stretch is kept for its Junction ([#57](https://github.com/artsaraiva/clearway/issues/57)). Starting numbers, pinned against the real footprints:
+Each Level adds strips of slab that tile to a clean rectangle by Level 7. A seam sits just outside the footprint of the next Junction, where the Road into the Fog ends, so each Level's Roads stay on its own pieces. Footprints differ (12 m and 19 m), so where two Roads into the Fog end at different depths the edge follows the shallower footprint: the other Road stops short of it and runs on as plate, and that stretch is kept for its Junction ([#57](https://github.com/artsaraiva/dioramania/issues/57)). Starting numbers, pinned against the real footprints:
 
 | Level | Pieces (x0, y0, x1, y1) |
 | --- | --- |
@@ -117,7 +117,7 @@ Refs are illustrative; pin them while authoring.
 
 ### Level 1
 
-The player's first Jam and first Change. The heavy stream enters at R18's fogged end (at J8), goes north and turns right onto R12; the main road should follow the stream, not the straight line. `initial` is `J1: { priority: { W1: 'main', R12: 'main' } }`, and the fix is one swap made of two Changes (W1 to `yield`, R18 to `main`), which moves the give-way paint in the world. It ships at 13 a minute up the stem: the window is 13–14, because of the slow turning lane. Keep W1 nearly empty: a busy yielding Arm cannot push through the heavy stream (ADR 0003). This is the priority-swap pattern measured in [#52](https://github.com/artsaraiva/clearway/issues/52).
+The player's first Jam and first Change. The heavy stream enters at R18's fogged end (at J8), goes north and turns right onto R12; the main road should follow the stream, not the straight line. `initial` is `J1: { priority: { W1: 'main', R12: 'main' } }`, and the fix is one swap made of two Changes (W1 to `yield`, R18 to `main`), which moves the give-way paint in the world. It ships at 13 a minute up the stem: the window is 13–14, because of the slow turning lane. Keep W1 nearly empty: a busy yielding Arm cannot push through the heavy stream (ADR 0003). This is the priority-swap pattern measured in [#52](https://github.com/artsaraiva/dioramania/issues/52).
 
 ### Level 2
 
@@ -125,7 +125,7 @@ A new heavy stream from N2 turns right onto the avenue and leaves at W1. Size it
 
 Two more things are authored here for later Levels:
 
-- **The stem stream** enters at R27's fogged end (at J7) and turns right onto R23, at a rate one turning lane carries and one yielding lane does not: 12 a minute, inside the measured window of 10–17 ([#57](https://github.com/artsaraiva/clearway/issues/57)). Its second right-turn lane, `R27.in1>R23.out1`, starts disabled. It does not jam here.
+- **The stem stream** enters at R27's fogged end (at J7) and turns right onto R23, at a rate one turning lane carries and one yielding lane does not: 12 a minute, inside the measured window of 10–17 ([#57](https://github.com/artsaraiva/dioramania/issues/57)). Its second right-turn lane, `R27.in1>R23.out1`, starts disabled. It does not jam here.
 - **Level 1's stream** turns right again at J2 and leaves down R27, which keeps J3's west Approach for the stem stream alone. It cannot leave at N2: its right turn at J1 puts it in R12's kerb lane, and only lane 1 turns left at J2 (hazard 3). Re-author it in Level 7.
 - **Level 1's light streams**: W1's now leaves at N2, and the one to W1 now enters at R23.
 
@@ -141,7 +141,7 @@ The Jam shows at J4, the cause is downstream at J5, a T-junction where the strea
 
 The two crossing streams are ones the player watched vanish into Fog in Levels 3–4: J3's `main` stream heading down R36, and Level 4's stream out of J5 heading west. Size both for Level 5 from the start, since continuity keeps their rates.
 
-The Signal failed its gate ([#7](https://github.com/artsaraiva/clearway/issues/7)), so the fix is a main-road swap. Rework the upstream rates so one stream is heavy and one moderate, and start the heavy one as `yield`. It is Level 1's lesson on a crossroads, with two streams the player already knows.
+The Signal failed its gate ([#7](https://github.com/artsaraiva/dioramania/issues/7)), so the fix is a main-road swap. Rework the upstream rates so one stream is heavy and one moderate, and start the heavy one as `yield`. It is Level 1's lesson on a crossroads, with two streams the player already knows.
 
 ### Level 6
 
@@ -176,19 +176,19 @@ The single-roundabout Level that shipped before this spec is retired, not re-tun
 
 ## Issues
 
-- [#56](https://github.com/artsaraiva/clearway/issues/56) Road graph and Level 1: Priority rule on a T-junction
-- [#57](https://github.com/artsaraiva/clearway/issues/57) Level 2: connector and the unused lane, blocked by #56
-- [#58](https://github.com/artsaraiva/clearway/issues/58) Level 3: fix upstream, blocked by #57
-- [#59](https://github.com/artsaraiva/clearway/issues/59) Level 4: Spillback, blocked by #58
-- [#60](https://github.com/artsaraiva/clearway/issues/60) Level 5: main-road swap, blocked by #59
-- [#61](https://github.com/artsaraiva/clearway/issues/61) Level 6: turn ban, blocked by #60
-- [#62](https://github.com/artsaraiva/clearway/issues/62) Level 7: finale, blocked by #61
+- [#56](https://github.com/artsaraiva/dioramania/issues/56) Road graph and Level 1: Priority rule on a T-junction
+- [#57](https://github.com/artsaraiva/dioramania/issues/57) Level 2: connector and the unused lane, blocked by #56
+- [#58](https://github.com/artsaraiva/dioramania/issues/58) Level 3: fix upstream, blocked by #57
+- [#59](https://github.com/artsaraiva/dioramania/issues/59) Level 4: Spillback, blocked by #58
+- [#60](https://github.com/artsaraiva/dioramania/issues/60) Level 5: main-road swap, blocked by #59
+- [#61](https://github.com/artsaraiva/dioramania/issues/61) Level 6: turn ban, blocked by #60
+- [#62](https://github.com/artsaraiva/dioramania/issues/62) Level 7: finale, blocked by #61
 
-The ladder's Level issues ([#8](https://github.com/artsaraiva/clearway/issues/8)–[#14](https://github.com/artsaraiva/clearway/issues/14)) were closed as superseded.
+The ladder's Level issues ([#8](https://github.com/artsaraiva/dioramania/issues/8)–[#14](https://github.com/artsaraiva/dioramania/issues/14)) were closed as superseded.
 
 ## Out of scope
 
 - Districts after 1, change counts, budgets, stars (map Fog).
-- UI for Reveal, level intro and teaching hints ([#15](https://github.com/artsaraiva/clearway/issues/15)).
-- A roundabout ([#67](https://github.com/artsaraiva/clearway/issues/67)) and a Signal ([#7](https://github.com/artsaraiva/clearway/issues/7), failed its gate).
-- Slanted Roads. Every Road stays axis-aligned so Blocks and slab pieces are rectangles, as the scaffolding tool ([#46](https://github.com/artsaraiva/clearway/issues/46)) will produce them.
+- UI for Reveal, level intro and teaching hints ([#15](https://github.com/artsaraiva/dioramania/issues/15)).
+- A roundabout ([#67](https://github.com/artsaraiva/dioramania/issues/67)) and a Signal ([#7](https://github.com/artsaraiva/dioramania/issues/7), failed its gate).
+- Slanted Roads. Every Road stays axis-aligned so Blocks and slab pieces are rectangles, as the scaffolding tool ([#46](https://github.com/artsaraiva/dioramania/issues/46)) will produce them.
