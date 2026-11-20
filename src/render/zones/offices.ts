@@ -878,7 +878,9 @@ function vent(kit: Kit, x: number, y: number, h: number) {
  * every floor and two panes to a bay in three tones paling toward the top, lit floor by floor at night (the
  * pattern's lit mask), round a round tower too; laid floor by floor in the kit's glass otherwise, as before. Its roof
  * wears square pavers and carries its plant in colours of its own, a yellow duct from Stage 2, railings and
- * satellite dishes, and a penthouse wears panels and high windows. With `more.plate`, a name plate lit at night
+ * satellite dishes, and a penthouse wears panels and high windows. Every ledge left in sight round what stands on it
+ * wears pavers too (#216): a penthouse's deck, a round tower's band and its crown round the dome, and a stepped
+ * tower's ledges round each tier and its cap. With `more.plate`, a name plate lit at night
  * crowns it on all four sides. With `more.entrance`, a revolving door opens on that face (of `FACES`) under a canopy
  * with a lit soffit, steps up to it from the plaza; the lobby's glow leaves a pool before each face, and the canopy
  * a brighter one.
@@ -982,6 +984,9 @@ function officeTower(
       kit.add(kit.cuboid(0.45, 1.3, rd - 0.9), trim, x + side * (rw / 2 - 0.22), y, at)
     }
   }
+  /** A ledge, `geo` placed unscaled at `(cx, cy)` from `at` in `look`, wearing pavers on its top as the roof does (#216). */
+  const paved = (geo: THREE.BufferGeometry, look: KitLook, at: number, k: number, cx = x, cy = y) =>
+    kit.cladded(geo, look, cx, cy, at, 0, { top: PATTERN.deck }, seed + k)
   /** A railing round a box `rw` by `rd` centred on `(cx, cy)` at `at`: posts about 3 m apart under a top rail and a mid rail. */
   const railing = (rw: number, rd: number, at: number, cx = x, cy = y) => rail(kit, TOWER_FINISH.rail, cx, cy, rw, rd, at)
   /** A satellite dish on a roof at `(dx, dy)`, `at` high, on a stub, turned to the south. */
@@ -999,7 +1004,7 @@ function officeTower(
     const [px, py] = [x - rw * 0.08, y + rd * 0.08]
     const walls = { front: PATTERN.wall, back: PATTERN.wall, sides: PATTERN.wall, storey: 3.4 }
     kit.cladded(kit.box(pw, 3.4, pd, 0.4, 0.12), trim, px, py, at, 0, walls, seed + 3)
-    kit.add(kit.box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, px, py, at + 3.4)
+    paved(kit.box(pw + 0.3, 0.4, pd + 0.3, 0.45, 0.08), DECK, at + 3.4, 5, px, py)
     kit.add(kit.box(rw * 0.18, 1.3, rd * 0.16, 0.2, 0.08), TOWER_FINISH.unit, x + rw * 0.28, y - rd * 0.27, at)
     kit.add(kit.box(rw * 0.12, 1.1, rd * 0.22, 0.2, 0.08), TOWER_FINISH.unit, x - rw * 0.3, y - rd * 0.24, at)
     if (pad) kit.helipad(px, py, at + 3.86, Math.min(pw, pd) / 2 - 0.8, OFFICE_HELIPAD)
@@ -1054,10 +1059,11 @@ function officeTower(
     }
   }
 
-  // A plinth, a lit lobby and a band over it.
+  // A plinth, a lit lobby and a band over it, paved where a round tower leaves its corners in sight.
   kit.add(kit.box(w + 1.6, 0.8, d + 1.6, 1.4, 0.16), trim, x, y, h)
   kit.add(kit.box(w + 0.6, 2.4, d + 0.6, 1.2, 0.08), { material: kit.glass, tint: kit.windows[0] }, x, y, h + 0.8)
-  kit.add(kit.box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, x, y, h + 3.2)
+  if (form === 'round') paved(kit.box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, h + 3.2, 6)
+  else kit.add(kit.box(w + 1.6, 0.4, d + 1.6, 1.4, 0.1), trim, x, y, h + 3.2)
   // Its glow on the plaza before each face, and the revolving door under a canopy on the face toward the Road.
   for (let k = 0; k < 4; k++) {
     const { ry, half, len } = boxFace(k, w, d)
@@ -1109,7 +1115,7 @@ function officeTower(
       for (let i = 0; i < n; i++)
         kit.add(kit.cuboid(0.2, body, 0.2), trim, x + Math.cos((i * TAU) / n) * r, y + Math.sin((i * TAU) / n) * r, base)
     }
-    kit.add(ROUND, trim, x, y, top, 0, r + 0.3, 1.4, r + 0.3)
+    paved(ROUND.clone().scale(r + 0.3, 1.4, r + 0.3), trim, top, 8)
     namePlates(2 * r + 0.6, 2 * r + 0.6, top + 0.22)
     if (stage === 1) {
       kit.add(ROUND, DECK, x, y, top + 0.2, 0, r - 0.2, 1, r - 0.2)
@@ -1131,7 +1137,7 @@ function officeTower(
       mullions(tw - 0.2, td - 0.2, at, n * STOREY)
       at += n * STOREY
       if (i === shares.length - 1) namePlates(tw, td, at - 1.3, 0.02)
-      kit.add(kit.box(tw + 0.4, 0.7, td + 0.4, 1.3, 0.12), trim, x, y, at)
+      paved(kit.box(tw + 0.4, 0.7, td + 0.4, 1.3, 0.12), trim, at, 12 + i)
       at += 0.7
       if (i < shares.length - 1) {
         railing(tw + 0.2, td + 0.2, at)
