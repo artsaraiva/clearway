@@ -7,7 +7,7 @@ import { inside } from '../field'
 import { BENCH, CREAM, SHAPES, spot, to, type Kit, type TreeKind } from '../kit'
 import { clearOf, GROW, overlay, scatter, site } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { FLOWER, GLOWS, pavilionLantern, tufts, WOOD } from '../props'
+import { drift, FLOWER, GLOWS, pavilionLantern, tufts, tuftSpots, WOOD } from '../props'
 import { ribbons } from '../ribbons'
 import {
   aside,
@@ -505,26 +505,15 @@ function meadowDetails(
   const lines: Vec[][] = runs(g, 2.7).map((run) => [run.a, { x: run.a.x + run.ux * run.len, y: run.a.y + run.uy * run.len }])
   if (stream) for (const side of [1, -1]) lines.push(aside(stream, side * (SHORE + 0.35)))
   for (const line of lines) {
-    const along = polyline(line)
-    const sow = mulberry32(spot(line[0].x, line[0].y) ^ 0x7f7)
-    const spots: Vec[] = []
-    for (let s = 1.5 + sow() * 2; s < along.length - 1; s += 4.5 + sow() * 2.5) {
-      const i = Math.max(
-        1,
-        along.cum.findIndex((c) => c >= s),
-      )
-      const k = (s - along.cum[i - 1]) / (along.cum[i] - along.cum[i - 1] || 1)
-      const q = { x: line[i - 1].x + (line[i].x - line[i - 1].x) * k, y: line[i - 1].y + (line[i].y - line[i - 1].y) * k }
-      if (!kit.onGround(q.x, q.y, 2.2) || !kit.unclaimed(q.x, q.y, 0.9, 0.9, 0, 0.3)) continue
-      if (
-        kerbsideTrees.some((t) => Math.hypot(t.x - q.x, t.y - q.y) < 2.6) ||
-        paths.some((path) => nearPath(path, q.x, q.y, PATH.wide / 2 + 0.6))
-      )
-        continue
-      if (taken.some((t) => Math.hypot(t.x - q.x, t.y - q.y) < 2.4)) continue
-      kit.stand(q.x, q.y, 0.8)
-      spots.push(q)
-    }
+    const spots = tuftSpots(
+      kit,
+      line,
+      (q) =>
+        kit.onGround(q.x, q.y, 2.2) &&
+        !kerbsideTrees.some((t) => Math.hypot(t.x - q.x, t.y - q.y) < 2.6) &&
+        !paths.some((path) => nearPath(path, q.x, q.y, PATH.wide / 2 + 0.6)) &&
+        !taken.some((t) => Math.hypot(t.x - q.x, t.y - q.y) < 2.4),
+    )
     if (!spots.length) continue
     kit.lot(lot++)
     kit.from(1, () => tufts(kit, spots, ground), spot(spots[0].x, spots[0].y))
@@ -554,20 +543,16 @@ function meadowDetails(
       stage,
       () => {
         const sow = mulberry32(spot(block.x0 + stage, block.y1))
-        for (let d = 0; d < n; d++) {
-          const c = { x: block.x0 + sow() * (block.x1 - block.x0), y: block.y0 + sow() * (block.y1 - block.y0) }
-          const [main, count] = [WILD.colours[Math.floor(sow() * WILD.colours.length)], WILD.flowers[stage - 1]]
-          let laid = 0
-          for (let f = 0; f < count; f++) {
-            const [a, r] = [sow() * TAU, Math.sqrt(sow()) * WILD.spread]
-            const [colour, lift, turn] = [sow() < 0.8 ? main : WILD.colours[0], 0.08 + sow() * 0.14, sow() * TAU]
-            const p = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r }
-            if (!kit.onGround(p.x, p.y, WILD.clear) || taken.some((t) => Math.hypot(t.x - p.x, t.y - p.y) < 2) || !off(p, 0.3)) continue
-            kit.add(FLOWER, colour, p.x, p.y, ground + lift, turn)
-            laid++
-          }
-          if (laid) kit.brick('tree', c.x, c.y, ground)
-        }
+        const flowers = { count: WILD.flowers[stage - 1], spread: WILD.spread, colours: WILD.colours }
+        for (let d = 0; d < n; d++)
+          drift(
+            kit,
+            sow,
+            block,
+            ground,
+            flowers,
+            (p) => kit.onGround(p.x, p.y, WILD.clear) && !taken.some((t) => Math.hypot(t.x - p.x, t.y - p.y) < 2) && off(p, 0.3),
+          )
       },
       spot(block.x0 + stage, block.y1),
     )

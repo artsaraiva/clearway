@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { mulberry32 } from '../sim/demand'
-import type { Vec } from '../sim/geometry'
+import { polyline, type Bounds, type Vec } from '../sim/geometry'
 import { KERB } from './blocks'
 import { SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
@@ -201,6 +201,8 @@ export function railing(kit: Kit, look: string, x: number, y: number, w: number,
   }
 }
 
+const TAU = Math.PI * 2
+
 /** Loose stones' greys (#180 a pond's rim, #185 an unzoned Tile's rocks). */
 export const ROCKS = ['#8f8a80', '#a29d92', '#7f7b73']
 
@@ -215,8 +217,60 @@ export const FLOWER = (() => {
   return new THREE.ShapeGeometry(star).rotateX(-Math.PI / 2)
 })()
 
+/** A point of the box `b`, anywhere in it, from two draws of `draw`. */
+export const pointIn = (b: Bounds, draw: () => number): Vec => ({ x: b.x0 + draw() * (b.x1 - b.x0), y: b.y0 + draw() * (b.y1 - b.y0) })
+
+/**
+ * A drift of wildflowers (#152 a meadow's, #185 an unzoned Tile's) somewhere in `box`, on the grass `h` up, as one
+ * brick, drawn from `draw`: `count` flowers within `spread` m of its middle, four in five of one of `colours` and the
+ * rest of the first, each only where `free` lets it lie.
+ */
+export function drift(
+  kit: Kit,
+  draw: () => number,
+  box: Bounds,
+  h: number,
+  { count, spread, colours }: { count: number; spread: number; colours: string[] },
+  free: (p: Vec) => boolean,
+) {
+  const c = pointIn(box, draw)
+  const main = colours[Math.floor(draw() * colours.length)]
+  let laid = 0
+  for (let f = 0; f < count; f++) {
+    const [a, r] = [draw() * TAU, Math.sqrt(draw()) * spread]
+    const [colour, lift, turn] = [draw() < 0.8 ? main : colours[0], 0.08 + draw() * 0.14, draw() * TAU]
+    const p = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r }
+    if (!free(p)) continue
+    kit.add(FLOWER, colour, p.x, p.y, h + lift, turn)
+    laid++
+  }
+  if (laid) kit.brick('tree', c.x, c.y, h)
+}
+
 /** Tall grass (#182): its blades and its seed heads. */
 const TUFTS = { blades: ['#8fbf62', '#a3c96b', '#7fb35a'], heads: '#d9c98a' }
+
+/**
+ * Where tufts of tall grass stand along the line `line` (#182), drawn from where it starts: one every 4.5 to 7 m, each
+ * where `free` lets it stand on ground no one has claimed, which it then claims.
+ */
+export function tuftSpots(kit: Kit, line: Vec[], free: (q: Vec) => boolean): Vec[] {
+  const along = polyline(line)
+  const sow = mulberry32(spot(line[0].x, line[0].y) ^ 0x7f7)
+  const spots: Vec[] = []
+  for (let s = 1.5 + sow() * 2; s < along.length - 1; s += 4.5 + sow() * 2.5) {
+    const i = Math.max(
+      1,
+      along.cum.findIndex((c) => c >= s),
+    )
+    const k = (s - along.cum[i - 1]) / (along.cum[i] - along.cum[i - 1] || 1)
+    const q = { x: line[i - 1].x + (line[i].x - line[i - 1].x) * k, y: line[i - 1].y + (line[i].y - line[i - 1].y) * k }
+    if (!kit.unclaimed(q.x, q.y, 0.9, 0.9, 0, 0.3) || !free(q)) continue
+    kit.stand(q.x, q.y, 0.8)
+    spots.push(q)
+  }
+  return spots
+}
 
 /**
  * Tufts of tall grass at `spots` (#182 a meadow's, #185 an unzoned Tile's), on the grass `h` up, as one brick of
@@ -227,7 +281,7 @@ export function tufts(kit: Kit, spots: Vec[], h: number) {
     for (const { x, y } of spots) {
       const draw = mulberry32(spot(x, y) ^ 0x7f7)
       for (let i = 0; i < 4; i++) {
-        const [a, r, tall] = [draw() * Math.PI * 2, draw() * 0.3, 0.6 + draw() * 0.5]
+        const [a, r, tall] = [draw() * TAU, draw() * 0.3, 0.6 + draw() * 0.5]
         const [bx, by] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
         kit.add(SHAPES.cone, TUFTS.blades[i % 3], bx, by, h, 0, 0.11, tall, 0.11)
         if (!i) kit.add(SHAPES.thin, TUFTS.heads, bx, by, h + tall * 0.7, 0, 0.05, 0.3, 0.05)

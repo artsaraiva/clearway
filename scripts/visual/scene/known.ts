@@ -13,10 +13,6 @@ interface Known {
   why: string
 }
 
-/** The Zones not yet built to the Finish (#173), with the ticket that builds each. */
-const UNFINISHED: Record<string, string> = {}
-/** The rules each unfinished Zone breaks today, which its ticket takes on. */
-const BROKEN: Record<string, string[]> = {}
 /** Left by #193: the bare pavement runs it did not break; #195 owns them. */
 const FOUND = '#195'
 
@@ -28,9 +24,6 @@ const KNOWN: Known[] = [
   // drums in flat coral and cream, and blank decks.
   { rule: 'blank-wall', what: /^tower /, owner: '#189', why: 'the coral tower is drums of flat colour' },
   { rule: 'blank-roof', what: /^tower /, owner: '#189', why: "the coral tower's decks are blank" },
-  ...Object.entries(BROKEN).flatMap(([zone, rules]) =>
-    rules.map((rule) => ({ rule, zone, owner: UNFINISHED[zone], why: `${zone} is not yet built to the Finish` })),
-  ),
   // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
   // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).
   {
