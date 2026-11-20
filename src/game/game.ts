@@ -6,11 +6,11 @@ import { ECONOMY, STAGES } from '../tuning'
 
 // A run of the game: the state beside the Sim. It holds the yen, the City, each zoned Tile's Stage, the Record and the
 // one step of Undo, pays for the trips the Sim completes, grows each zoned Tile on the trips its Junction serves, and
-// builds the Sim again whenever the City's roads change. A placed Tile changes them when it lands, at the end of its
-// Assembly, and the traffic drives on in the new Sim (ADR 0006); a Swap and an Undo of a Tile that landed still start
-// theirs again behind a Pre-warm. A Rezoning changes only what a Tile is built as, which the Sim does not read, so it
-// runs on. The Changes live in the Sim's configuration, which every new Sim carries over. A Stage lives here, beside
-// the yen, since the Sim is replaced (ADR 0005).
+// makes a new Sim whenever the City's roads change, which the traffic drives on in (ADR 0006). A Tile placed or swapped
+// in changes them when it lands, at the end of its Assembly, and an Undo of a Tile that landed at once. A Rezoning
+// changes only what a Tile is built as, which the Sim does not read, so it runs on. The Changes live in the Sim's
+// configuration, which every new Sim carries over. A Stage lives here, beside the yen, since the Sim is replaced
+// (ADR 0005).
 
 /** How far a zoned Tile has grown. */
 export type Stage = 1 | 2 | 3
@@ -27,16 +27,16 @@ export interface TileStage {
  * Whether a placement can be made and the yen it takes: the Price, less the loop rebate. A legal placement goes ahead
  * only when it is `affordable`.
  */
-export type Offer =
-  { legal: true; swap: boolean; price: number; affordable: boolean } | { legal: false; reason: Refusal | 'Tiles assembling' }
+export type Offer = { legal: true; swap: boolean; price: number; affordable: boolean } | { legal: false; reason: Refusal }
 
 /** What an Undo returns to: the City as it was before the last placement, Swap or Rezoning, and the yen it took. */
 interface Undo {
   tiles: Tile[]
   paid: number
   /**
-   * Every Change before a placement or a Swap, which the Rebuild that undoes it carries over. A Rezoning's Undo makes no
-   * Rebuild, and neither does the Undo of a Tile still in its Assembly: null for a Rezoning.
+   * Every Change before a placement or a Swap, as the City as a whole had them (`changes`), which the new Sim that
+   * undoes it once the Tile has landed carries over. A Rezoning's Undo changes no road, and neither does the Undo of a
+   * Tile still in its Assembly: null for a Rezoning.
    */
   changes: Change[] | null
   /** A Rezoning's: the rezoned Tile's Junction, and the Stage the Tile had, which undoing it puts back. None: the Tile had no Zone. */
@@ -46,8 +46,11 @@ interface Undo {
 const WINDOW_STEPS = Math.round(ECONOMY.incomeWindow / DT)
 const UNDO_STEPS = Math.round(ECONOMY.undoWindow / DT)
 
-/** Of the Changes `changes`, the ones a Rebuild after a drop on `cell` carries over: a Swap's Tile's go back to defaults. */
-const carried = (changes: Change[], cell: Cell, swap: boolean) => (swap ? changes.filter((c) => c.at !== junctionId(cell)) : changes)
+/** The Changes `changes` without those of the Junctions on `cells`, which start at their defaults. */
+const without = (changes: Change[], cells: Cell[]) => {
+  const ids = new Set(cells.map(junctionId))
+  return changes.filter((c) => !ids.has(c.at))
+}
 
 /** The seed of a new run. */
 export const newSeed = () => Math.floor(Math.random() * 2 ** 32)
@@ -64,8 +67,8 @@ export class Game {
    */
   record: number
   /**
-   * Called after every Rebuild, Rezoning, Change and Reset, the moments a save of the run must not miss. Yen, the Record
-   * and each Tile's progress move with every step, so a save keeps up with them on its own.
+   * Called after every placement, Swap, landing, Undo, Rezoning, Change and Reset, the moments a save of the run must not
+   * miss. Yen, the Record and each Tile's progress move with every step, so a save keeps up with them on its own.
    */
   onUnsaved?: () => void
   /** Called as a zoned Tile reaches another Stage: as it grows, or as `setStage` puts it there. */
@@ -116,7 +119,7 @@ export class Game {
     for (const { cell, stage, progress } of start.stages ?? [])
       if (this._city.tileAt(cell)?.zone) this.stages.set(junctionId(cell), { stage, progress })
     this.reach()
-    this._sim = this.rebuild(start.changes ?? [])
+    this._sim = this.simulate(start.changes ?? [])
   }
 
   get city() {
@@ -124,11 +127,22 @@ export class Game {
   }
 
   /**
-   * The simulation of the City's Tiles that have landed. Every Tile landing and every Swap replaces it, and so does the
-   * Undo of a Tile that landed or of a Swap.
+   * The simulation of the City's Tiles that have landed. Every Tile landing replaces it, a Swap's too, and so does the
+   * Undo of a placement or a Swap that landed.
    */
   get sim() {
     return this._sim
+  }
+
+  /**
+   * Every Junction's configuration as the City as a whole has it, as Changes: the Sim's, but for the Junctions of the
+   * Tiles in their Assembly, which land with their defaults. A swapped one's Changes in the Sim are its old Layout's.
+   */
+  get changes(): Change[] {
+    return without(
+      this._sim.configuration(),
+      this._city.assembling.map((t) => t.cell),
+    )
   }
 
   /**
@@ -190,55 +204,48 @@ export class Game {
 
   /**
    * What dropping `layout`, turned `rotation`, on `cell` would take: a placement on an empty cell, a Swap on a taken one.
-   * The Zone makes no difference. A placement may follow others still in their Assembly, and pays the Price of its
-   * place in the order. A Swap waits until no Tile is in its Assembly.
-   * ponytail: a Swap still halts the traffic and starts it again behind a Pre-warm, and a Tile landing meanwhile would
-   * carry that halted traffic on, so every Swap is refused while any Tile assembles: a player dropping Tiles in a row
-   * waits up to an Assembly (about 7 s) to swap. Give a Swap its own Assembly, as ADR 0006 has it, and the wait goes
-   * (#238).
+   * The Zone makes no difference. A drop may follow others still in their Assembly, and a placement pays the Price of
+   * its place in the order.
    */
   offer(layout: Layout, rotation: number, cell: Cell): Offer {
     const swap = this._city.tileAt(cell) !== undefined
     const verdict = swap ? this._city.swap(layout, rotation, cell) : this._city.drop(layout, rotation, cell)
     if (!verdict.legal) return verdict
-    if (swap && this._city.assembling.length) return { legal: false, reason: 'Tiles assembling' }
     const price = !swap && verdict.joins >= 2 ? this.price * (1 - ECONOMY.loopRebate) : this.price
     return { legal: true, swap, price, affordable: this.yen >= price }
   }
 
   /**
    * Place a Tile built as `zone` (none: unzoned), or make a Swap, which keeps the Tile's own Zone and Stage, and pay for
-   * it. A placed Tile starts its Assembly: the traffic runs as before until it lands (`land`). A Swap builds the Sim
-   * again at once, and its traffic starts again behind a Pre-warm. An illegal or unaffordable one changes nothing.
+   * it. Either starts the Tile's Assembly: the traffic runs as before, on the Tile before for a Swap, until it lands
+   * (`land`). An illegal or unaffordable one changes nothing.
    */
   place(layout: Layout, rotation: number, cell: Cell, zone?: Zone): Offer {
     const offer = this.offer(layout, rotation, cell)
     if (!offer.legal || !offer.affordable) return offer
-    const changes = this._sim.configuration()
-    this.remember(offer.price, changes)
-    this._city.place(layout, rotation, cell, zone, { assembling: !offer.swap })
+    this.remember(offer.price, this.changes)
+    this._city.place(layout, rotation, cell, zone, { assembling: true })
     this.yen -= offer.price
     this.reach()
-    // ponytail: only a placement keeps its traffic. ADR 0006 has a Swap and an Undo keep theirs too, which needs the
-    // vehicles on a Lane that is gone removed in view of the player (#238).
-    if (offer.swap) this.rebuild(carried(changes, cell, true))
-    else this.onUnsaved?.()
+    this.onUnsaved?.()
     return offer
   }
 
   /**
-   * Land the first Tile in its Assembly, as the screen says it has: the network grows by it, and the traffic drives on
-   * onto it (ADR 0006) with every Change in force. False, changing nothing, if no Tile is in its Assembly.
+   * Land the first Tile in its Assembly, as the screen says it has: the network grows by it, or a swapped Tile's Layout
+   * takes the place of the one before, and the traffic drives on (ADR 0006). Every Change stays in force but the
+   * swapped Tile's, which go back to their defaults. False, changing nothing, if no Tile is in its Assembly.
    */
   land(): boolean {
-    if (!this._city.land()) return false
-    this.rebuild(this._sim.configuration(), this._sim)
+    const tile = this._city.land()
+    if (!tile) return false
+    this.simulate(without(this._sim.configuration(), [tile.cell]), this._sim)
     return true
   }
 
   /**
    * Rezone the Tile on `cell`: build it as `zone`, which starts it again at Stage 1, or unzone it. It costs nothing and
-   * makes no Rebuild, so the Sim and its traffic run on, and it can be undone like a placement. False, changing nothing,
+   * changes no road, so the Sim and its traffic run on, and it can be undone like a placement. False, changing nothing,
    * if no Tile is on `cell`, the Tile is built as `zone` already, or it is in its Assembly.
    */
   rezone(cell: Cell, zone?: Zone): boolean {
@@ -254,10 +261,10 @@ export class Game {
   }
 
   /**
-   * The Sim that dropping `layout`, turned `rotation`, on `cell` would rebuild the City into, changing nothing in this
-   * run: its network and Demand are the ones the drop would make. It is built for reading them, without the Pre-warm
-   * or where Connections meet, and must not be stepped. `null` if the drop is refused. Whether it is affordable does
-   * not matter.
+   * A Sim of the whole City with `layout`, turned `rotation`, dropped on `cell`, every Tile in its Assembly landed,
+   * changing nothing in this run: its network and Demand are the ones the drop would make. It is built for reading
+   * them, without the Pre-warm or where Connections meet, and must not be stepped. `null` if the drop is refused.
+   * Whether it is affordable does not matter.
    * ponytail: it builds the whole network, about 2 ms for a City of 20 Tiles and 6 ms for 40 on an M4 Pro, once for
    * each cell the Tile in the hand moves onto. Build only the dropped Tile's Junction against the network as it stands
    * if larger Cities make the hand stutter.
@@ -267,7 +274,7 @@ export class Game {
     if (!offer.legal) return null
     const city = new City(this._city.tiles)
     city.place(layout, rotation, cell)
-    return new Sim(city, carried(this._sim.configuration(), cell, offer.swap), this.seed, { prewarm: false, conflicts: false })
+    return new Sim(city, without(this.changes, [cell]), this.seed, { prewarm: false, conflicts: false })
   }
 
   /**
@@ -275,22 +282,23 @@ export class Game {
    * a Tile in its Assembly is built on, and the Demand a drop now changes. It must not be stepped.
    */
   plan(): Sim {
-    return new Sim(new City(this._city.tiles), this._sim.configuration(), this.seed, { prewarm: false, conflicts: false })
+    return new Sim(new City(this._city.tiles), this.changes, this.seed, { prewarm: false, conflicts: false })
   }
 
   /**
    * Take back the last placement, Swap or Rezoning: the yen it took is returned, and the City is as it was before it.
-   * Undoing a placement that landed or a Swap rebuilds, with every Change as it was. Undoing a placement still in its
-   * Assembly takes the Tile off at once, and the traffic, which never reached it, runs on as it is. Undoing a Rezoning
-   * makes no Rebuild either, and puts back the Stage the Tile had. A Tile the Undo takes off takes its Stage with it.
-   * Yen earned and Stages grown since are kept. Refused once the window has passed.
+   * Undoing a placement or a Swap that landed makes a new Sim at once, with every Change as it was, and the traffic
+   * drives on in it (ADR 0006): the vehicles on a Tile taken off, or inside a swapped Tile's Junction, are removed.
+   * Undoing a placement or a Swap still in its Assembly takes it off at once, and the traffic, which never reached it,
+   * runs on as it is. Undoing a Rezoning changes no road either, and puts back the Stage the Tile had. A Tile the Undo
+   * takes off takes its Stage with it. Yen earned and Stages grown since are kept. Refused once the window has passed.
    */
   undo() {
     if (!this.undoable) return false
     const { tiles, paid, changes, rezoned } = this.last!
     this.last = undefined
     const assembling = this._city.assembling
-    this._city = new City(tiles, assembling)
+    this._city = new City(tiles, this._city)
     const landed = !assembling.some((t) => !tiles.includes(t))
     const placed = new Set(tiles.map((t) => junctionId(t.cell)))
     for (const id of [...this.stages.keys()]) if (!placed.has(id)) this.stages.delete(id)
@@ -299,7 +307,7 @@ export class Game {
     this.yen += paid
     // Undoing a Rezoning puts back a Stage, which with the Stages grown since can take Growth past the Record.
     this.reach()
-    if (changes && landed) this.rebuild(changes)
+    if (changes && landed) this.simulate(changes, this._sim)
     else this.onUnsaved?.()
     return true
   }
@@ -372,9 +380,9 @@ export class Game {
 
   /**
    * A new Sim of the City's Tiles that have landed, with `carried` as its configuration. The traffic of `traffic`, the
-   * Sim before, drives on in it; with none, no vehicle survives and it starts at its Pre-warm.
+   * Sim before, drives on in it; with none, as when a run opens or loads, it starts at its Pre-warm.
    */
-  private rebuild(carried: Change[], traffic?: Sim) {
+  private simulate(carried: Change[], traffic?: Sim) {
     this.paid = 0
     this._sim = new Sim(this._city.landed(), carried, this.seed, { prewarm: false, traffic })
     this.credited = new Uint32Array(this._sim.served.length)

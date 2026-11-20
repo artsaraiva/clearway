@@ -1,5 +1,4 @@
 import type { Game } from '../game/game'
-import type { View } from '../render/view'
 import { runWords, whenChanged, writeDigits, yen } from './readings'
 import './strip.css'
 
@@ -18,7 +17,7 @@ const PAUSE = `<svg width="11" height="13" viewBox="0 0 14 16" aria-hidden="true
  *
  * `Space` pauses, and back to the speed before; `1`, `2` and `3` pick 1×, 4× and 8×.
  */
-export function createStrip(root: HTMLElement, game: Game, view: View) {
+export function createStrip(root: HTMLElement, game: Game) {
   const strip = document.createElement('div')
   strip.className = 'paper strip'
   // The visual scripts pause the game by clicking `[data-scale="0"]` (scripts/visual/city.mjs).
@@ -100,11 +99,8 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
     /** Show the game as it stands. Call it every frame. */
     update() {
       show.speed(String(speed))
-      // The traffic readings wait for a Rebuild to show its cars.
-      if (!view.rebuilding) {
-        show.flow(`${Math.round(game.sim.flow * 100)}%`)
-        show.fill(`${Math.min(100, game.sim.flow * 100).toFixed(1)}%`)
-      }
+      show.flow(`${Math.round(game.sim.flow * 100)}%`)
+      show.fill(`${Math.min(100, game.sim.flow * 100).toFixed(1)}%`)
       show.growth(String(game.growth))
       show.record(`${runWords(game.free).record} ${game.record}`)
       // Dev only: the pace of growth, when it is sped up.

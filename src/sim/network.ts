@@ -5,7 +5,7 @@ import type { Vehicle } from './sim'
 type LaneKind = 'road' | 'ring' | 'connection'
 
 export interface Lane {
-  /** Stable across Rebuilds. */
+  /** Stable from one Sim of the City to the next. */
   id: string
   kind: LaneKind
   /** A Road lane belongs to its Road and a direction (`forward` is from→to); Ring and Connection lanes belong to their Junction. */

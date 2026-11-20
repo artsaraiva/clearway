@@ -27,7 +27,7 @@ interface Marker {
   el: HTMLButtonElement
   tail: SVGElement
   junction: Junction
-  /** Fading out: its Junction's Jam has cleared, or a Rebuild has begun. */
+  /** Fading out: its Junction's Jam has cleared. */
   gone: boolean
   /** How far it has risen clear of its Junction's halo, 0–1: all the way while the Junction is selected. */
   risen: number
@@ -50,9 +50,8 @@ interface Selection {
  * notes or the Junction's note), waits at the edge of the clear part of the screen and points its tail toward the
  * Junction. A click centres the camera on the Junction and selects it.
  *
- * The markers find the Jam from far out; the stuck cars' emotion stays the main signal in the world. None shows while
- * a Rebuild plays. While `busy`, as when a Layout is in the hand, they fade back and let clicks through, since every
- * click is a drop.
+ * The markers find the Jam from far out; the stuck cars' emotion stays the main signal in the world. While `busy`, as
+ * when a Layout is in the hand, they fade back and let clicks through, since every click is a drop.
  */
 export function createJamMarkers(
   root: HTMLElement,
@@ -92,7 +91,7 @@ export function createJamMarkers(
     el.setAttribute('aria-label', `Traffic is stuck at this ${name}. Go to it`)
     const marker: Marker = { el, tail: el.querySelector('.tail')!, junction, gone: false, risen: 0, move: '', rotate: '' }
     el.onclick = () => {
-      if (marker.gone || busy() || view.rebuilding) return
+      if (marker.gone || busy()) return
       view.camera.centreOn(marker.junction.at)
       tools.select(marker.junction)
     }
@@ -157,8 +156,7 @@ export function createJamMarkers(
   return {
     /** Show the Jams as they stand. Call it every frame, after the frame is drawn, so it reads this frame's camera. */
     update() {
-      // A Rebuild fades every marker out, and the new City's Jams show once its traffic does.
-      const jams = view.rebuilding ? [] : game.sim.jams
+      const jams = game.sim.jams
       const jammed = new Set(jams.map((j) => j.id))
       for (const [id, marker] of markers) if (!jammed.has(id)) fade(marker, true)
       for (const junction of jams) {

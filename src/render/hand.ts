@@ -66,7 +66,7 @@ export interface Held {
   lines: string[]
   /** Every empty cell where it could be dropped as it is turned. */
   open: Cell[]
-  /** The Sim the drop would rebuild the City into, when it is legal: the Gateway labels preview its Demand. */
+  /** A Sim of the City the drop would make, when it is legal: the Gateway labels preview its Demand. */
   after: Sim | null
 }
 

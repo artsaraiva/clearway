@@ -83,7 +83,7 @@ export interface BuiltBrick extends Brick {
 
 /** What one placement adds to the static scenery: its pieces of slab and the Blocks on them. */
 export interface Build {
-  /** One mesh per material. In a build for the Rebuild animation, each vertex carries its brick's index as attribute `brick`. */
+  /** One mesh per material. In a build for an animation, each vertex carries its brick's index as attribute `brick`. */
   meshes: THREE.Mesh[]
   bricks: BuiltBrick[]
   /** What moves on its own, each riding one of `bricks` (`./movers`). */
@@ -284,14 +284,14 @@ export function createScenery(
     },
 
     /**
-     * Build what the pieces a Rebuild adds bring, for its animation, a step at a time. It lays their part of the field
+     * Build what the pieces an Assembly adds bring, for its animation, a step at a time. It lays their part of the field
      * as it goes.
      */
     add(sim: Sim, pieces: Bounds[]): Building {
       return append(sim, pieces, true)
     },
 
-    /** Build the piece of a Tile that a Swap replaced, under the Sim the Swap rebuilt, as `replace` does. */
+    /** Build the piece of a Tile that a Swap replaced, under `sim`, a Sim of the City with the Swap, as `replace` does. */
     swap(sim: Sim, piece: Bounds): { old: THREE.Mesh[]; building: Building } {
       return replace(sim, piece, true)
     },
@@ -327,7 +327,7 @@ export function createScenery(
      * they stand, so it is right whatever was laid, swapped or taken off since.
      * ponytail: every seam's wires are strung again each time, two tubes a seam, which is nothing at a few dozen
      * Tiles and a few ms at several hundred. Keep each piece's seams in a mesh of its own and string only the ones a
-     * change touches if a big City's Rebuild hitches.
+     * change touches if a big City's Assembly hitches.
      */
     seams(except: Bounds[] = []): THREE.Mesh | null {
       const kit = createKit(mulberry32(0), materials)

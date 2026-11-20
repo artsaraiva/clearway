@@ -125,9 +125,8 @@ interface Showing {
   turn: number
   price: number
   free: boolean
-  /** Whether Undo's window is open, and whether it can be pressed now. */
+  /** Whether Undo's window is open. */
   undoable: boolean
-  busy: boolean
 }
 
 /**
@@ -230,7 +229,6 @@ export function createToolbar(root: HTMLElement, on: { pick: (zone: Zone | undef
       show.zone(now.zone?.id ?? 'none')
       show.price(now.free ? 'Free' : yen(now.price))
       undoButton.classList.toggle('gone', !now.undoable)
-      undoButton.disabled = now.busy
     },
   }
 }

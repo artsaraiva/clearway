@@ -6,7 +6,7 @@ import { Game, LAST_STAGE, newSeed, type Stage } from './game'
 // page opens on the title screen (#243, "Title screen"), which sums up the saved run of the kind last played from its
 // text alone, and the run is built as the player leaves the title. A save holds what it takes to build the City and
 // its Junctions again, with each Tile's Stage, the yen and the Record. Vehicles and the Undo window are not saved, so
-// loading is a Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run, which
+// a run that loads starts from the City and a Pre-warm. There is no migration: a save that will not load gives way to a new run, which
 // keeps the save's Record if that can be read and the save is of this version. Saves kept under the keys of the game's
 // old name are carried over to the new keys as they are.
 
@@ -48,7 +48,7 @@ interface Save {
    * next. An unzoned Tile's Zone and Stage are null, and its progress 0.
    */
   tiles: { cell: Cell; layout: Layout['id']; rotation: number; zone: Zone['id'] | null; stage: Stage | null; progress: number }[]
-  /** Every Junction's configuration, as a Rebuild carries it over. */
+  /** Every Junction's configuration, as a new Sim carries it over: a Tile in its Assembly lands with its defaults. */
   changes: Change[]
   yen: number
   /** The Record: the highest Growth reached. Until version 4 it was the most trips a minute carried while Holding. */
@@ -73,7 +73,7 @@ export function saveOf(game: Game, screen: Screen = FIRST_SCREEN): string {
       const grown = game.stageOf(cell)
       return { cell, layout: layout.id, rotation, zone: zone?.id ?? null, stage: grown?.stage ?? null, progress: grown?.progress ?? 0 }
     }),
-    changes: game.sim.configuration(),
+    changes: game.changes,
     yen: game.yen,
     record: game.record,
     stageInspector: screen.stageInspector,
@@ -219,7 +219,7 @@ export interface Title {
 /**
  * The run the page opens on, or the title screen, which waits for the player to pick one. A page opens on the title,
  * except when it loads again to open a run at once, which then is the saved run last played, or the Free run with
- * `?free`. From the moment it is built a run saves itself after every Rebuild, Change and Reset, every few seconds for
+ * `?free`. From the moment it is built a run saves itself after every change to the City, Change and Reset, every few seconds for
  * yen, the Record and each Tile's progress, and as the page is left. The title saves nothing. Dev only: `?seed=7`
  * skips the title and plays that run again, leaving the saves alone, as a Free run with `?free`.
  * ponytail: two tabs on one run each save their own City over the other's, and the last to write wins. Listen for the

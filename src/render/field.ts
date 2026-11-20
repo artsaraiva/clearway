@@ -26,7 +26,7 @@ export interface Field {
   /**
    * Lay down the samples of the pieces of slab `pieces`, for the network `net` built from `spec`: their Blocks keep
    * clear of the outline of the pieces together, so a seam with pieces laid at another time is road plate. Samples on
-   * an `earlier` piece keep their values, so nothing a Rebuild adds changes them.
+   * an `earlier` piece keep their values, so nothing an Assembly adds changes them.
    */
   lay(net: Network, spec: NetworkSpec, pieces: Bounds[], earlier: Bounds[]): void
   /** Take the samples of `pieces` off again, as an Undo does. Samples on a piece of `rest` keep their values. */

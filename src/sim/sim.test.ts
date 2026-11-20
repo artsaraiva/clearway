@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest'
 import { City, LAYOUTS, type Layout } from '../city/city'
 import { pointAt } from './geometry'
-import { DT, Sim } from './sim'
+import { DT, Sim, type Vehicle } from './sim'
 import type { Change, DemandSpec, NetworkSpec, RoadAttributes } from './spec'
+import { CELL } from './tiles'
 
 function run(sim: Sim, seconds: number, until = () => false) {
   for (let i = 0; i < seconds * 30 && !until(); i++) sim.step()
@@ -217,7 +218,7 @@ const ring = (): Fixture => ({
   solution: [{ at: 'J1', enable: ['*.in1>*.ring1', '*.ring1>*.ring1', '*.ring1>*.out1'], disable: ['*.in1>*.ring0', '*.ring0>*.out1'] }],
 })
 
-/** The same roundabout after a Rebuild: a crossroads now stands on Road R, with every way in from the roundabout closed. */
+/** The same roundabout in a City grown since: a crossroads now stands on Road R, with every way in from the roundabout closed. */
 function ringAndCrossroads(): Fixture {
   const fromR = ['R.in0', 'R.in1'].flatMap((lane) => ['N2.out0', 'E2.out0', 'S2.out0'].map((out) => `${lane}>${out}`))
   return {
@@ -236,7 +237,7 @@ function ringAndCrossroads(): Fixture {
       },
     },
     demand: {
-      // lighter than before the Rebuild, so the queues the closed crossroads held off the map can drain once it opens
+      // lighter than before the City grew, so the queues the closed crossroads held off the map can drain once it opens
       N: corridor(12, 'S', 'E2'),
       S: corridor(12, 'N', 'E2'),
       W: { rate: 4, to: { E2: 0.5, N: 0.25, S: 0.25 } },
@@ -260,7 +261,7 @@ it('gives a Sim Pre-warmed a few steps at a time the same result as one Pre-warm
   expect(state(spread)).toEqual(state(atOnce))
 })
 
-it('carries a cleared roundabout over a Rebuild, which jams until its own Changes', () => {
+it('carries a cleared roundabout’s Changes over to the Sim of a City grown since, which jams until its own Changes', () => {
   const first = solved(ring())
   expect(clears(first)).toBe(true)
   expect(jams(start(ringAndCrossroads(), first.configuration()))).toBe(true)
@@ -417,4 +418,36 @@ it('gives a vehicle bound for a Gateway the placement closed a Gateway it can re
       .flat()
       .map((a) => a.dest),
   ).not.toContain(closed)
+})
+
+// A T-junction on the Crossroads' cell has some of its Lane ids, with the north side gone. A Roundabout's Ring ends
+// every Road further out than the Crossroads did.
+it.each([
+  ['T-junction', 'tee', 2],
+  ['Roundabout', 'roundabout', 0],
+] as const)('keeps a vehicle driving outside the swapped Tile driving after a Swap for a %s', (_, id, rotation) => {
+  const city = cityOf(['straight', 0, -1, 0], ['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
+  const before = new Sim(city, [], 1)
+  const onCrossroads = (v: Vehicle) => 'junction' in v.lane.owner && v.lane.owner.junction === 'c0_0'
+  const away = ([, x, y]: number[]) => Math.max(Math.abs(x), Math.abs(y)) > (CELL / 2) * 100 // cm
+  // Until cars are crossing the Crossroads, queuing on the Roads up to it, and driving on the Straights.
+  const count = (where: (spot: number[], v: Vehicle) => boolean) => spots(before).filter((s, i) => where(s, before.vehicles[i])).length
+  run(before, 600, () => count((_, v) => onCrossroads(v)) >= 2 && count((s, v) => !away(s) && !onCrossroads(v)) >= 2 && count(away) >= 2)
+  const driving = spots(before).filter(away)
+  const crossing = new Set(before.vehicles.filter(onCrossroads).map((v) => v.id))
+  expect(driving.length).toBeGreaterThan(0)
+
+  expect(city.place(layout(id), rotation, { x: 0, y: 0 }).legal).toBe(true)
+  const changes = before.configuration().filter((c) => c.at !== 'c0_0')
+  const sim = new Sim(city, changes, 1, { traffic: before })
+  expect(sim.prewarmed).toBe(true)
+  // Every one outside the Tile is where it was.
+  const after = spots(sim)
+  for (const spot of driving) expect(after).toContainEqual(spot)
+  // The ones on the Crossroads are gone, and none is left standing off the road, where the new Junction is.
+  expect(sim.vehicles.filter((v) => crossing.has(v.id))).toEqual([])
+  for (const v of sim.vehicles) {
+    expect(v.s).toBeGreaterThanOrEqual(0)
+    expect(v.s).toBeLessThanOrEqual(v.lane.length)
+  }
 })

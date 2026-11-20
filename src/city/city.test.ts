@@ -107,6 +107,15 @@ it('refuses a Swap of a Tile in its Assembly until it has landed', () => {
   expect(city.swap(crossroads, 0, { x: 1, y: 0 }).legal).toBe(true)
 })
 
+it('refuses a Swap of a Tile in its own Swap’s Assembly until it has landed', () => {
+  const city = cityFrom(crossroads)
+  city.place(straight, 0, { x: 1, y: 0 })
+  expect(city.place(crossroads, 0, { x: 1, y: 0 }, undefined, { assembling: true }).legal).toBe(true)
+  expect(city.swap(straight, 0, { x: 1, y: 0 })).toEqual({ legal: false, reason: 'still assembling' })
+  city.land()
+  expect(city.swap(straight, 0, { x: 1, y: 0 }).legal).toBe(true)
+})
+
 it('refuses a Swap on an empty cell', () => {
   expect(cityFrom(straight).swap(straight, 0, { x: 1, y: 0 })).toEqual({ legal: false, reason: 'no Tile to swap' })
 })

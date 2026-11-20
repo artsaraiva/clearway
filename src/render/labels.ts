@@ -68,7 +68,7 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
   }
 
   /**
-   * Preview a drop that would rebuild the City into `after`: a Gateway it would close has its label struck through,
+   * Preview a drop that would make the City `after`: a Gateway it would close has its label struck through,
    * and one it would open shows the trips a minute it would send, `lift` m higher than it will stand, beside the Tile
    * in the hand. `null` takes the preview away.
    */

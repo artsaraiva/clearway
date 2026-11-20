@@ -5,7 +5,7 @@ import { canvasTexture, roundedBox } from './shapes'
 
 const RIM = 4 // m of grass showing around the road plate
 const TILE = 44 // the layers are laid as tiles about this size, whose rounded corners give the slab its seams
-const PLATE_TILE = 64 // the road plate is laid in tiles too, so that a Rebuild can drop it in brick by brick
+const PLATE_TILE = 64 // the road plate is laid in tiles too, so that an Assembly can drop it in brick by brick
 const ROAD = '#c3c7ce' // pale and near-neutral, so that cars, paint and Tool aids read against it
 const PLATE = 0.6 // m thick, its surface at height 0
 // Top of each layer (m, road surface = 0), thickness and colour: soil, sand, grass.

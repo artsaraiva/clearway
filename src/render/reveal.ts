@@ -30,18 +30,18 @@ const STARTS: Record<BrickKind, [at: number, spread: number]> = {
 const BLOCKS: [at: number, spread: number] = [2.6, 2] // when the Blocks start dropping, and how much later the farthest one does
 const POPS = new Set<BrickKind>(['lamp', 'tree', 'pole', 'wire', 'mover']) // these grow in; everything else drops
 // What a Rezoning leaves standing, since no Zone changes it: the slab, the pavement, the lamps and the utility poles. The rest of what
-// stands on its Blocks comes in again at once, its kinds starting in this share of a Rebuild's time, since no slab
+// stands on its Blocks comes in again at once, its kinds starting in this share of an Assembly's time, since no slab
 // lands first.
 const STANDING = new Set<BrickKind>(['soil', 'sand', 'grass', 'plate', 'block', 'lamp', 'pole', 'wire'])
 const REZONED_PACE = 0.4
 // A Stage-up changes its Tile's lots one at a time, in a random order, over `spread` s. On each lot what the new Stage
-// brings falls in as a Rebuild's bricks do (trees pop in), its ground first, its building `after` s later and its trees
+// brings falls in as an Assembly's bricks do (trees pop in), its ground first, its building `after` s later and its trees
 // `after` s after that, and what only the old Stage had stands until the first of them lands on it, then vanishes in
 // the dust, so a lot is never bare. `dust` puffs fly where a building lands.
 const STAGE_UP = { spread: 2.8, after: 0.15, dust: 4 }
 
-/** How a build comes in: a Rebuild's, a Rezoning's over the slab standing, or a Stage-up's lot by lot. */
-export type Arrival = 'rebuild' | 'rezone' | 'stage-up'
+/** How a build comes in: an Assembly's, a Rezoning's over the slab standing, or a Stage-up's lot by lot. */
+export type Arrival = 'assembly' | 'rezone' | 'stage-up'
 const CONFETTI = ['#db6982', '#009dcb', '#ffc52d', '#64cb9f', '#bc9ef2', '#ff9cbb'] // the cars' colours
 const ROW = 1024 // texels per row of the transforms texture, two per brick
 // A brick's state: waiting or on its way, down and settling (its dust thrown), or at rest for good.
@@ -132,7 +132,7 @@ const PUFF = { vx: 0, vy: 2.4, vz: 0, gravity: 0, from: 1.4, to: 5, lasts: 0.6, 
  * Stage-up's lot by lot over its Tile's buildings. The build's meshes are drawn through copies of their materials that
  * move each brick by its own transform, read from a texture, so a build costs no more draw calls than the finished
  * scenery. One build plays at a time, with `pool` puffs of dust and confetti.
- * ponytail: 140 puffs fly at once in a Rebuild's, and a landing past that throws no dust (the slab layers' dust lands
+ * ponytail: 140 puffs fly at once in an Assembly's, and a landing past that throws no dust (the slab layers' dust lands
  * inside the slab anyway); grow the pool, or draw puffs as points, if a large Reveal's dust looks thin. Every puff is a
  * sprite whose matrix three updates each frame, hidden or not, so an idle pool costs frame time too. And the whole
  * transforms texture goes to the GPU every frame, about 100 KB for a few thousand bricks; send only the rows that
@@ -197,7 +197,7 @@ export function createReveal(materials: Materials, pool = 140) {
   }
 
   let build: Build | null = null
-  let arrival: Arrival = 'rebuild'
+  let arrival: Arrival = 'assembly'
   let moments: Moments
   let delays: Float32Array = new Float32Array(0)
   let state = new Uint8Array(0)
@@ -334,7 +334,7 @@ export function createReveal(materials: Materials, pool = 140) {
      * Start assembling a build whose meshes are already in the scene, as `how` says it comes in. `on` hears of the
      * moments along the way. A build still assembling lands at once.
      */
-    play(next: Build, on: Moments, how: Arrival = 'rebuild') {
+    play(next: Build, on: Moments, how: Arrival = 'assembly') {
       if (build) finish(build, true)
       ;[build, arrival, moments, t, plated, landed] = [next, how, on, 0, false, 0]
       hide(next)

@@ -3,7 +3,7 @@ import type { Game } from '../game/game'
 import type { Run } from '../game/save'
 import type { Held, Rezoning } from '../render/hand'
 import { labelledDemand } from '../render/labels'
-import type { Relaid, View } from '../render/view'
+import type { View } from '../render/view'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
 import { createCityNotes } from './city-notes'
@@ -70,16 +70,10 @@ export function createUI(
 
   root.innerHTML = `<div class="corner" id="corner"></div>`
 
-  const strip = createStrip(root, game, view)
-
-  /** Play the Rebuild the game just made: a Swap's, or an Undo's of a Tile that had landed. */
-  const rebuilt = (relaid: Relaid) => {
-    tools.clear()
-    view.rebuild(game.sim, relaid)
-  }
+  const strip = createStrip(root, game)
 
   /**
-   * Open the first Tile in its Assembly to traffic, as the view says it has landed: the game grows its Sim, and the
+   * Open the first Tile in its Assembly to traffic, as the view says it has landed: the game makes its new Sim, and the
    * Tools find what they show again on its network.
    */
   const opened = () => {
@@ -89,40 +83,32 @@ export function createUI(
   }
 
   /**
-   * Drop a Layout on a cell: a placement built as the Zone picked, which starts its Assembly while others may still be
-   * in theirs, or a Swap on a placed Tile, which keeps its own Zone. Refused while the traffic is halted behind a Swap
-   * or an Undo.
+   * Drop a Layout on a cell: a placement built as the Zone picked, or a Swap on a placed Tile, which keeps its own Zone.
+   * Either starts its Assembly, while others may still be in theirs.
    */
   const place = (layout: Layout, turns: number, cell: Cell) => {
-    if (view.rebuilding) return false
     const offer = game.place(layout, turns, cell, zone)
     if (!offer.legal) return false
     if (!offer.affordable) {
       strip.refuse()
       return false
     }
-    if (offer.swap) rebuilt({ swapped: cellBounds(cell) })
-    else view.assemble(game.plan(), cellBounds(cell), opened)
+    view.assemble(game.plan(), cellBounds(cell), opened)
     return true
   }
 
-  /**
-   * Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused while the traffic is
-   * halted, or the Tile is in its Assembly.
-   */
+  /** Rezone the placed Tile on `cell` as `built`, or unzone it: no yen. Refused while the Tile is in its Assembly. */
   const rezone = (cell: Cell, built: Zone | undefined) => {
-    if (view.rebuilding || !game.rezone(cell, built)) return false
+    if (!game.rezone(cell, built)) return false
     view.rezone(game.sim, cellBounds(cell))
     return true
   }
 
   const undo = () => {
-    if (view.rebuilding) return
     const before = game.city.tiles
-    const assembling = game.city.assembling
     if (!game.undo()) return
-    // An Undo of a placement takes its Tile off, with no Rebuild if it was still in its Assembly; an Undo of a Swap
-    // puts the Tile before it back on its cell, and an Undo of a Rezoning its Zone, with no Rebuild.
+    // An Undo of a placement takes its Tile off; an Undo of a Swap puts the Tile before it back on its cell, and an Undo
+    // of a Rezoning its Zone. The traffic drives on, and the Tools find what they show again on its network.
     const after = game.city
     const gone = before.find((t) => !after.tileAt(t.cell))
     const changed = before.find((t) => {
@@ -130,10 +116,10 @@ export function createUI(
       return now && (now.layout !== t.layout || now.rotation !== t.rotation)
     })
     const rezoned = before.find((t) => after.tileAt(t.cell)?.zone !== t.zone)
-    if (gone && assembling.includes(gone)) view.takeOff(cellBounds(gone.cell))
-    else if (gone) rebuilt({ removed: cellBounds(gone.cell) })
-    else if (changed) rebuilt({ swapped: cellBounds(changed.cell) })
+    if (gone) view.undo(game.sim, { takenOff: cellBounds(gone.cell) })
+    else if (changed) view.undo(game.sim, { swapped: cellBounds(changed.cell) })
     else if (rezoned) view.rezone(game.sim, cellBounds(rezoned.cell))
+    tools.moveOnto(game.sim.net)
   }
 
   /**
@@ -143,7 +129,7 @@ export function createUI(
    * empty while a Zone is dragged.
    */
   const held = (): Held | null => {
-    if (!hand || view.rebuilding || dragging?.moved) return null
+    if (!hand || dragging?.moved) return null
     const { layout, cell } = hand
     const city = game.city
     const empty = new Map<string, Cell>()
@@ -178,7 +164,7 @@ export function createUI(
 
   /** What letting go of the Zone dragged would make of the placed Tile under it, if it is over one that has landed. */
   const rezoning = (): Rezoning | null => {
-    const tile = dragging?.moved && dragging.cell && !view.rebuilding ? game.city.tileAt(dragging.cell) : undefined
+    const tile = dragging?.moved && dragging.cell ? game.city.tileAt(dragging.cell) : undefined
     if (!dragging || !tile || game.city.assembling.includes(tile)) return null
     const becomes = nameOf(dragging.zone).toLowerCase()
     return tile.zone === dragging.zone
@@ -242,7 +228,7 @@ export function createUI(
   })
   // The selected Junction's note, laid in the left slot below.
   const junctionNote = document.createElement('section')
-  const tools = createTools(junctionNote, canvas, game, view, () => hand !== null || view.rebuilding)
+  const tools = createTools(junctionNote, canvas, game, view, () => hand !== null)
   const jams = createJamMarkers(
     root,
     canvas,
@@ -252,7 +238,7 @@ export function createUI(
     () => hand !== null,
     () => run.screen.cityNotes || tools.selected !== null,
   )
-  // A Tile that reaches a Stage shows it there and then, with no Rebuild.
+  // A Tile that reaches a Stage shows it there and then.
   game.onStage = (cell, from, to) => view.stageUp(cellBounds(cell), from, to)
   const growth = createGrowth(root, canvas, game, view, () => hand !== null || dragging !== null)
   window.addEventListener('pointermove', (e) => {
@@ -359,10 +345,9 @@ export function createUI(
 
   /**
    * A click on the board: a drop while a Layout is in the hand, and otherwise the Tools' (a Junction, an Arm's Priority
-   * rule, a car, or empty board). Nothing is picked during a Rebuild.
+   * rule, a car, or empty board).
    */
   function clickBoard(e: PointerEvent) {
-    if (view.rebuilding) return
     // While a Layout is in the hand, every click is a drop, and the Layout stays in the hand.
     if (hand) {
       const p = view.pick(e)
@@ -383,7 +368,7 @@ export function createUI(
   const leftSlot = document.createElement('div')
   leftSlot.className = 'left-slot'
   $('corner').after(leftSlot)
-  const cityNotes = createCityNotes($('corner'), leftSlot, game, view, run.screen)
+  const cityNotes = createCityNotes($('corner'), leftSlot, game, run.screen)
   // After City notes, so that while a Junction is selected its note hides them, and they come back as it closes.
   leftSlot.append(junctionNote)
 
@@ -407,9 +392,9 @@ export function createUI(
       // The hand is shown again only when what it shows changes. Yen can reach a drop's price, which a loop rebate makes
       // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
       // board with the hand empty, and the hand over the screen holds no cell.
-      const offer = hand?.cell && !view.rebuilding ? game.offer(hand.layout, rotation, hand.cell) : null
-      // What is under way: a Rebuild halting the traffic, and how many Tiles are in their Assembly.
-      const underway = `${view.rebuilding}:${game.city.assembling.length}`
+      const offer = hand?.cell ? game.offer(hand.layout, rotation, hand.cell) : null
+      // What is under way: how many Tiles are in their Assembly.
+      const underway = game.city.assembling.length
       const under = hand?.cell && game.city.tileAt(hand.cell)
       const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${underway}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
@@ -428,7 +413,6 @@ export function createUI(
         price: game.price,
         free: game.free,
         undoable: game.undoable,
-        busy: view.rebuilding,
       })
       strip.update()
       tools.update()

@@ -46,7 +46,7 @@ export interface ToolState {
   snap: Connection | null
 }
 
-export const NO_TOOLS: ToolState = { hovered: null, selected: null, under: null, from: null, aim: null, snap: null }
+const NO_TOOLS: ToolState = { hovered: null, selected: null, under: null, from: null, aim: null, snap: null }
 
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y)
 const along = (p: Vec, heading: number, d: number): Vec => ({ x: p.x + Math.cos(heading) * d, y: p.y + Math.sin(heading) * d })

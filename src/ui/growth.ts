@@ -21,7 +21,7 @@ const stars = (stage: number) => '★'.repeat(stage) + (stage < LAST_STAGE ? `<s
  * are in the status strip, `./strip`): a taped paper note on the placed Tile under the pointer with its Zone, its Stage
  * as stars, ten pips of progress toward the next and a handwritten line of the trips still to go, or why it is not
  * growing; and a paper badge that rises over a Tile as its Stage-up ends. The note hides while `busy`, as when a Layout
- * or a Zone is in the player's hand, and during a Rebuild.
+ * or a Zone is in the player's hand.
  */
 export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, busy: () => boolean) {
   // Over the board and its labels, under the screen's pills, like the Jam markers.
@@ -56,7 +56,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   canvas.addEventListener('pointerleave', () => (pointer = null))
   /** The placed Tile under the pointer, if any, while nothing is in the hand. */
   const hovered = (): Cell | null => {
-    if (!pointer || busy() || view.rebuilding) return null
+    if (!pointer || busy()) return null
     const p = view.pick(pointer)
     const cell = p && cellAt(p)
     return cell && game.city.tileAt(cell) ? cell : null
