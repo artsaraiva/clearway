@@ -59,9 +59,10 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
  * the Blocks' field and the lighting follow the City as it grows, and the camera goes wherever the player takes it.
  * `finishing` says whether the Zones built to the Finish wear their surface pattern and light pools (#174): both,
- * unless a sheet turns one off to show the Zone without it.
+ * unless a sheet turns one off to show the Zone without it. `showcase` is for a scene that is only looked at, as the
+ * title screen's: its clouds never fade as the camera comes close (`./sky`).
  */
-export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish) {
+export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish, showcase = false) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
@@ -83,7 +84,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
   let slab = slabNow()
   const rig = createCamera(canvas, slab) // the camera, and what moves it
   const day = createDay(canvas, slab)
-  const sky = createSky(slab)
+  const sky = createSky(slab, showcase)
   const under = createUnderShadow()
   under.fit(slab)
   let roads = createRoads(sim.net, sim.spec)
@@ -198,6 +199,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
   const raycaster = new THREE.Raycaster()
   const roadPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
   let inspected: Vehicle | null = null
+  /** Whether the browser asks for reduced motion: the clouds stop drifting and the cars stop shaking, and cars still drive. */
+  let calm = false
   let shown = sim // the Sim whose cars are drawn
   let next: Sim | null = null // the Sim a Rebuild is building toward, until its cars are shown
   let grow = 1 // the cars' size: they shrink out as a Rebuild starts and grow back in once it has landed
@@ -221,12 +224,28 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
   }
 
   return {
-    /** Stop the day at a time of day, 0–1. A dev aid: the player has no control over it. */
+    /** Stop the day at a time of day, 0–1. A dev aid, and the title screen's noon: the player has no control over it. */
     holdDay: day.hold,
+
+    /** Whether the world moves less, as the browser's reduced motion asks: the clouds stop drifting and the cars stop shaking. */
+    get calm() {
+      return calm
+    },
+    set calm(on: boolean) {
+      calm = on
+    },
+
+    /** Let go of the canvas and of everything drawn on it, for a view that is done with, as the title's when a run opens. */
+    dispose() {
+      window.removeEventListener('resize', fitCanvas)
+      labels.remove()
+      renderer.dispose()
+      renderer.forceContextLoss()
+    },
 
     /**
      * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
-     * `frameCity`, `toggleTilt` and `centreOn` fly it. `heading` is how far the world is turned on screen, in radians
+     * `frameCity`, `toggleTilt` and `centreOn` fly it, and `look` puts it on a view at once. `heading` is how far the world is turned on screen, in radians
      * clockwise (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether
      * the camera looks down from its steepest tilt, and `onScreen` where a point of the road plane is on the canvas.
      */
@@ -488,7 +507,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       materials.setGlow(glow)
       materials.setZoom(rig.camera.zoom)
       cars.setGlow(glow)
-      emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
+      emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow, !calm), dt)
       walkers.update(dt)
       // m to a CSS pixel: the captions over the hand and a rezoning keep their lines readable however far out.
       const perPixel = (rig.camera.top - rig.camera.bottom) / rig.camera.zoom / height
@@ -498,7 +517,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       roads.update()
       rig.update(real)
       under.update(dt)
-      sky.update(dt, rig.camera.zoom)
+      sky.update(dt, rig.camera.zoom, calm)
       renderer.render(scene, rig.camera)
       labels.update(width, height)
     },

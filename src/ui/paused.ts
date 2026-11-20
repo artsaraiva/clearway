@@ -29,19 +29,19 @@ const KEYS: [string, string][] = [
 /**
  * The Paused memo (#243, "Paused"): the menu sticker, top-left in `corner`, pauses the game and lays a paper memo over
  * the board, dimmed by a scrim of ink. The memo has the word Paused with a pause stamp, a red Resume button, New run,
- * the Free run switch, and one handwritten line summing up the City; a kraft card beside it lists the keys. Resume,
+ * the Free run switch, Title screen, and one handwritten line summing up the City; a kraft card beside it lists the keys. Resume,
  * `Esc` and a click on the scrim close it and give the strip back the speed it had. While it is open no other key
  * reaches the game.
  *
  * New run asks first, on a paper note laid over the memo; then the run starts again through `run`, of the same kind,
- * keeping the Record. The Free run switch moves to the other saved run. `opened` runs as the memo opens, for the screen
- * to let go of what the hand holds.
+ * keeping the Record. The Free run switch moves to the other saved run, and Title screen saves the run and goes back
+ * to the title. `opened` runs as the memo opens, for the screen to let go of what the hand holds.
  */
 export function createPaused(
   corner: HTMLElement,
   root: HTMLElement,
   game: Game,
-  run: Pick<Run, 'newRun' | 'switchRun'>,
+  run: Pick<Run, 'newRun' | 'switchRun' | 'title'>,
   strip: { speed: number },
   opened: () => void,
 ) {
@@ -72,6 +72,7 @@ export function createPaused(
             <button class="free-run" role="switch" aria-checked="${game.free}">
               <span>Free run <span class="handwritten">every tile costs ¥0</span></span><i class="box">${game.free ? TICK : ''}</i>
             </button>
+            <button class="title-screen">Title screen</button>
           </div>
           <p class="handwritten summary"></p>
         </div>
@@ -140,6 +141,7 @@ export function createPaused(
   el('.keep').onclick = () => asking(false)
   el('.start').onclick = run.newRun
   el('.free-run').onclick = run.switchRun
+  el('.title-screen').onclick = run.title
   // A click on the scrim, around the memo and the card, is a step back.
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog || e.target === pair) back()
