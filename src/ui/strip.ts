@@ -1,0 +1,119 @@
+import type { Game } from '../game/game'
+import type { View } from '../render/view'
+import { writeDigits } from './digits'
+import './strip.css'
+
+/** The speeds the strip offers, in sim seconds per real second: Pause, 1×, 4×, 8×. A run opens at 4×. */
+const SPEEDS = [0, 1, 4, 8]
+const FIRST_SPEED = 4
+
+const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
+
+const PAUSE = `<svg width="11" height="13" viewBox="0 0 14 16" aria-hidden="true">
+  <rect x="1" y="1" width="4" height="14" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1" fill="currentColor"/>
+</svg>`
+
+/** Writes `value` with `write` only when it differs from the last one written. */
+function changes(write: (value: string) => void) {
+  let shown: string | undefined
+  return (value: string) => {
+    if (value !== shown) write((shown = value))
+  }
+}
+
+/**
+ * The status strip (#243, "In play"): one paper strip along the bottom of the screen holding every reading. Pause, 1×,
+ * 4× and 8×, the one in use filled stamp red; Flow as a bar with its percentage; Growth with the Record; and yen,
+ * largest, at the right end with Income beside it. Below about 1100 px it drops its text labels before it wraps.
+ *
+ * `Space` pauses, and back to the speed before; `1`, `2` and `3` pick 1×, 4× and 8×.
+ */
+export function createStrip(root: HTMLElement, game: Game, view: View) {
+  const strip = document.createElement('div')
+  strip.className = 'paper strip'
+  // The visual scripts pause the game by clicking `[data-scale="0"]` (scripts/visual/city.mjs).
+  strip.innerHTML = `
+    <div class="speed" role="group" aria-label="Speed">${SPEEDS.map(
+      (s) =>
+        `<button class="button" data-scale="${s}" ${s ? '' : `aria-label="Pause" title="Pause (Space)"`}>${s ? `${s}×` : PAUSE}</button>`,
+    ).join('')}</div>
+    <span class="rule"></span>
+    <div class="reading" title="Flow">
+      <span class="label">Flow</span><span class="gauge"><i></i></span><b class="digits flow"></b>
+    </div>
+    <span class="rule"></span>
+    <div class="reading" title="Growth: every Tile's Stage, added up">
+      <span class="label">Growth</span><b class="digits growth"></b><span class="handwritten digits record"></span><b class="pace" hidden></b>
+    </div>
+    <div class="reading money">
+      <b class="digits yen"></b><span class="handwritten digits income"></span>
+    </div>`
+  root.append(strip)
+  const el = (s: string) => strip.querySelector<HTMLElement>(s)!
+  const [flow, fill, growth, record, pace, yenEl, income] = ['.flow', '.gauge i', '.growth', '.record', '.pace', '.yen', '.income'].map(el)
+  const buttons = [...strip.querySelectorAll<HTMLButtonElement>('[data-scale]')]
+
+  /** Sim seconds per real second: 0 while paused. */
+  let speed = FIRST_SPEED
+  /** The speed in use before the game was paused, which `Space` goes back to. */
+  let before = FIRST_SPEED
+  const setSpeed = (s: number) => {
+    if (s) before = s
+    speed = s
+  }
+  buttons.forEach((b) => (b.onclick = () => setSpeed(Number(b.dataset.scale))))
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key === ' ') {
+      // Not also a click on the button that has focus.
+      e.preventDefault()
+      setSpeed(speed ? 0 : before)
+    }
+    const picked = ['1', '2', '3'].indexOf(e.key)
+    if (picked >= 0) setSpeed(SPEEDS[picked + 1])
+  })
+
+  const show = {
+    speed: changes((v) => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scale === v)))),
+    flow: changes((v) => writeDigits(flow, v)),
+    fill: changes((v) => (fill.style.width = v)),
+    growth: changes((v) => writeDigits(growth, v)),
+    record: changes((v) => writeDigits(record, v)),
+    pace: changes((v) => {
+      pace.hidden = v === ''
+      pace.textContent = v
+    }),
+    yen: changes((v) => writeDigits(yenEl, v)),
+    income: changes((v) => writeDigits(income, v)),
+  }
+
+  return {
+    get speed() {
+      return speed
+    },
+
+    /** Flash yen in stamp red, as when the player cannot afford a drop. */
+    refuse() {
+      yenEl.classList.remove('refused')
+      void yenEl.offsetWidth // restarts the flash
+      yenEl.classList.add('refused')
+    },
+
+    /** Show the game as it stands. Call it every frame. */
+    update() {
+      show.speed(String(speed))
+      // The traffic readings wait for a Rebuild to show its cars.
+      if (!view.rebuilding) {
+        show.flow(`${Math.round(game.sim.flow * 100)}%`)
+        show.fill(`${Math.min(100, game.sim.flow * 100).toFixed(1)}%`)
+      }
+      show.growth(String(game.growth))
+      show.record(`${game.free ? 'free-run record' : 'record'} ${game.record}`)
+      // Dev only: the pace of growth, when it is sped up.
+      show.pace(game.pace === 1 ? '' : `pace ×${game.pace}`)
+      // Yen counts whole yen down, so it never shows the Price before the Tile is affordable.
+      show.yen(`¥${Math.floor(game.yen).toLocaleString('en')}`)
+      show.income(`+${yen(game.income)} a minute`)
+    },
+  }
+}

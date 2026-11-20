@@ -2,6 +2,8 @@
 
 Status: open. Grilled 2026-11-15 in [#15](https://github.com/artsaraiva/clearway/issues/15). Replaces the minimum screen of the tile sandbox (`.scratch/tile-sandbox/spec.md`, "The page").
 
+Partly superseded by [#243](https://github.com/artsaraiva/clearway/issues/243), the paper & stamp redesign: it replaces the UI's look and type (Look, "The UI" and "Type"), the Layout table, and "No menu screen" (Save). With the Layout go the places and extras of the Readings: yen has no fill toward the Price, and trips a minute and the Tiles at each Stage leave the always-on screen for City notes. Everything else here stands.
+
 ## Goal
 
 Give the tile sandbox its real screen: how the player places Tiles, uses the Tools, reads the money and the traffic, and comes back to a saved City. It also sets the look of the UI and a new direction for the world's colours.

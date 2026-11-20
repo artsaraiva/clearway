@@ -5,6 +5,8 @@ import { SEEDED } from './render/scenery'
 import { createView } from './render/view'
 import { DT } from './sim/sim'
 import { cellBounds } from './sim/tiles'
+// The paper & stamp kit: the theme's colours, type and pieces, which every part of the screen is built from.
+import './ui/kit.css'
 import { showNotice } from './ui/notice'
 import { createUI } from './ui/ui'
 

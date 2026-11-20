@@ -10,14 +10,8 @@ import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 import { createStageInspector } from './stage-inspector'
+import { createStrip } from './strip'
 import { createTools } from './tools'
-
-/**
- * The most of its length yen's fill takes while the next Tile is out of reach. The last step to full comes only when
- * the Tile is affordable, so a fill a pixel short of the Price never passes for full.
- */
-const SHORT_OF_PRICE = 0.97
-const REFUSAL = '#ff4a1f' // the hot red-orange reserved for Jams and refusals
 
 /** The picks of the bar's second row, in order: each Zone, then none, which the bar calls Roads only. */
 const ZONE_PICKS: (Zone | undefined)[] = [...ZONES, undefined]
@@ -40,9 +34,6 @@ function reading(write: (value: string) => void) {
   }
 }
 
-const PAUSE = `<svg width="14" height="16" viewBox="0 0 14 16" aria-hidden="true">
-  <rect x="1" y="1" width="4" height="14" rx="1.6" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1.6" fill="currentColor"/>
-</svg>`
 const UNDO = `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
   <path d="M4.5 3.5L1.8 6.2l2.7 2.7M2.2 6.2h6.3a3.6 3.6 0 0 1 0 7.2H6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`
@@ -137,10 +128,10 @@ const zonePicture = (zone: Zone | undefined) =>
     <circle cx="20" cy="20" r="18.5" fill="none" stroke="rgba(27,32,48,0.12)"/></svg>`
 
 /**
- * The screen (.scratch/ui-ux/spec.md, "Layout"): yen and Income top-left with Growth and the Record under them
- * (`./growth`), the Flow gauge with trips a minute top-centre, the clock top-right with the selected Junction's panel
- * under it, the bar of Layouts and Zones with the Price and Undo bottom-centre, the camera's buttons bottom-right with
- * the Stage Inspector's toggle (`./stage-inspector`), and the menu bottom-left, which leaves the run through `run`.
+ * The screen (#243, "In play"; .scratch/ui-ux/spec.md, "Layout", for what #243 has not yet rebuilt): the status strip
+ * along the bottom with the speeds and every reading (`./strip`), the bar of Layouts and Zones with the Price and Undo
+ * above it, the selected Junction's panel top-right, the camera's buttons above the strip on the right with the Stage
+ * Inspector's toggle (`./stage-inspector`), and the menu above it on the left, which leaves the run through `run`.
  * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
  * used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
  * Junction, which draws a Connection.
@@ -154,7 +145,6 @@ export function createUI(
 ) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 
-  let scale = 4
   /** Quarter turns counterclockwise of the next drop, shared by every Layout in the bar. */
   let rotation = 0
   /**
@@ -181,19 +171,6 @@ export function createUI(
   let shownRezoning = ''
 
   root.innerHTML = `
-    <div class="glass money">
-      <div class="yen" id="yen"><small>¥</small><span id="yen-amount"></span></div>
-      <div class="fill"><i id="yen-fill"></i></div>
-      <div class="income soft"><span id="income"></span><span id="to-price"></span></div>
-    </div>
-    <div class="glass flow" id="flow">
-      <div class="row"><span class="label">Flow</span><span class="pct" id="flow-pct"></span></div>
-      <div class="gauge"><i id="flow-fill"></i></div>
-      <div class="row soft"><span id="trips"></span></div>
-    </div>
-    <div class="glass speed">
-      <button data-scale="0" aria-label="Pause">${PAUSE}</button><button data-scale="1">1×</button><button data-scale="4">4×</button><button data-scale="8">8×</button>
-    </div>
     <div class="glass junction" id="junction" hidden></div>
     <div class="glass bar" id="tray">
       <div class="picks">
@@ -213,6 +190,8 @@ export function createUI(
           <span>Free run<small>Every tile costs ¥0</small></span><i class="switch"></i>
         </button>
         <dl class="keys">
+          <dt>Pause, and back</dt><dd><kbd>Space</kbd></dd>
+          <dt>1×, 4×, 8×</dt><dd><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dd>
           <dt>Turn the tile</dt><dd><kbd>R</kbd> or wheel</dd>
           <dt>Turn it back</dt><dd><kbd>Shift</kbd> <kbd>R</kbd></dd>
           <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
@@ -227,21 +206,11 @@ export function createUI(
     const el = $(id)
     return reading((value) => (el.textContent = value))
   }
-  const width = (id: string) => {
-    const el = $(id)
-    return reading((value) => (el.style.width = value))
-  }
   const show = {
-    yen: text('yen-amount'),
-    yenFill: width('yen-fill'),
-    income: text('income'),
-    toPrice: text('to-price'),
     price: text('price'),
-    flow: text('flow-pct'),
-    flowFill: width('flow-fill'),
-    trips: text('trips'),
     zoneName: text('zone-name'),
   }
+  const strip = createStrip(root, game, view)
 
   /** Play the Rebuild the game just made. */
   const rebuilt = (relaid: Relaid) => {
@@ -266,7 +235,7 @@ export function createUI(
     const offer = game.place(layout, turns, cell, zone)
     if (!offer.legal) return false
     if (!offer.affordable) {
-      $('yen').animate([{ color: REFUSAL, offset: 0 }], { duration: 600, easing: 'ease-out' })
+      strip.refuse()
       return false
     }
     rebuilt(offer.swap ? { swapped: cellBounds(cell) } : { placed: cellBounds(cell) })
@@ -399,7 +368,6 @@ export function createUI(
     sheet.hidden = !open
     $('menu-button').setAttribute('aria-expanded', String(open))
   }
-  root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => (b.onclick = () => (scale = Number(b.dataset.scale))))
   $('undo').onclick = undo
   $('menu-button').onclick = () => showMenu(sheet.hidden)
   // A new run takes the place of this one, so it asks first. The Free run switch moves between the two saved runs and
@@ -554,7 +522,7 @@ export function createUI(
   return {
     /** Sim seconds per real second: 0 while paused. */
     get scale() {
-      return scale
+      return strip.speed
     },
 
     place,
@@ -568,7 +536,6 @@ export function createUI(
 
     /** Show the game as it stands. Call it every frame. */
     update() {
-      const sim = game.sim
       // The hand is shown again only when what it shows changes. Yen can reach a drop's price, which a loop rebate makes
       // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
       // board with the hand empty, and the hand over the screen holds no cell.
@@ -584,8 +551,6 @@ export function createUI(
       shownRezoning = rezoningKey
       cameraButtons.update()
 
-      // Yen counts whole yen down, so it never shows the Price before the Tile is affordable. Its fill is full exactly
-      // when the next Tile is affordable, which in a Free run, at a Price of ¥0, is always.
       const affordable = game.yen >= game.price
       // The bar: the Layout in the hand stands out, grey while the Price is out of reach, and every picture shows its
       // Tile the way it will land on the screen.
@@ -597,22 +562,11 @@ export function createUI(
       zoneButtons.forEach((el, i) => el.classList.toggle('on', ZONE_PICKS[i] === zone))
       show.zoneName(nameOf(hovering === null ? zone : ZONE_PICKS[hovering]))
       turnPictures((((view.camera.heading * 180) / Math.PI - 90 * rotation) % 360).toFixed(1))
-      show.yen(Math.floor(game.yen).toLocaleString('en'))
-      show.yenFill(`${affordable ? 100 : ((100 * SHORT_OF_PRICE * game.yen) / game.price).toFixed(1)}%`)
-      show.income(`${yen(game.income)} a minute`)
-      show.toPrice(game.free ? 'Free run' : `of ${yen(game.price)}`)
       show.price(yen(game.price))
-      const trips = Math.round(game.tripsPerMinute)
-      show.trips(`${trips} ${trips === 1 ? 'trip' : 'trips'} a minute`)
       const undoButton = $('undo') as HTMLButtonElement
       undoButton.classList.toggle('gone', !game.undoable)
       undoButton.disabled = view.rebuilding
-      // The traffic readings wait for a Rebuild to show its cars.
-      if (!view.rebuilding) {
-        show.flow(`${Math.round(sim.flow * 100)}%`)
-        show.flowFill(`${Math.min(100, sim.flow * 100).toFixed(1)}%`)
-      }
-      root.querySelectorAll<HTMLButtonElement>('[data-scale]').forEach((b) => b.classList.toggle('on', Number(b.dataset.scale) === scale))
+      strip.update()
       tools.update()
       jams.update()
       growth.update()

@@ -1,0 +1,77 @@
+/* The status strip (./strip.ts): one paper strip along the bottom, with dashed rules between its groups. */
+:root {
+  /* Where what sits above the strip stands: the strip's top edge and a gap. */
+  --above-strip: 74px;
+}
+.strip {
+  left: 20px;
+  right: 20px;
+  bottom: 14px;
+  height: 46px;
+  padding: 0 18px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  white-space: nowrap;
+}
+.strip .speed {
+  display: flex;
+  gap: 4px;
+}
+.strip .reading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.strip b {
+  font-size: 18px;
+  font-weight: 900;
+}
+.strip .gauge {
+  width: 110px;
+  min-width: 48px;
+  flex-shrink: 1;
+  height: 10px;
+  background: var(--track);
+}
+.strip .gauge i {
+  display: block;
+  height: 100%;
+  background: var(--flow);
+  transition: width 0.2s;
+}
+.strip .record {
+  font-size: 14px;
+  color: var(--quiet);
+}
+/* Dev only: the pace of growth, when it is sped up. */
+.strip .pace {
+  font-size: 13px;
+  color: var(--stamp);
+}
+.strip .money {
+  margin-left: auto;
+  gap: 10px;
+}
+.strip .yen {
+  font-size: 24px;
+}
+.strip .yen.refused {
+  animation: refused 0.6s ease-out;
+}
+@keyframes refused {
+  from {
+    color: var(--stamp);
+  }
+}
+.strip .income {
+  font-size: 15px;
+  color: var(--money);
+}
+/* A narrow window drops the labels; each reading keeps its name on hover. */
+@media (max-width: 1100px) {
+  .strip .label {
+    display: none;
+  }
+}
