@@ -88,8 +88,15 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
   }
 
   return {
+    /**
+     * Sim seconds per real second: 0 while paused. Setting it is a press of that speed's button, so a speed other than
+     * 0 is the one `Space` goes back to.
+     */
     get speed() {
       return speed
+    },
+    set speed(s: number) {
+      setSpeed(s)
     },
 
     /** Flash yen in stamp red, as when the player cannot afford a drop. */

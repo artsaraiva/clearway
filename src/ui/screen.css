@@ -1,14 +1,6 @@
 /* The two places on the left of the screen (#243, "In play"), which more than one part fills. */
 
-/* Top-left: the menu sticker, then the City notes sticker. */
-.top-left {
-  left: 20px;
-  top: 20px;
-  display: flex;
-  gap: 12px;
-}
-
-/* Under them, one slot for a panel: City notes, or the selected Junction's note. It shows one panel at a time: a panel
+/* The top-left stickers are in `.corner` (./paused.css). Under them, one slot for a panel: City notes, or the selected Junction's note. It shows one panel at a time: a panel
    shown after another in the slot hides the ones before it, and they come back when it hides. */
 .left-slot {
   left: 20px;
