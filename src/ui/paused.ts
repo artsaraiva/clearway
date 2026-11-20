@@ -1,5 +1,7 @@
 import type { Game } from '../game/game'
 import type { Run } from '../game/save'
+import { newRunQuestion, whyNewRun } from './new-run'
+import { runWords } from './readings'
 import './paused.css'
 
 const MENU = `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
@@ -53,7 +55,6 @@ export function createPaused(
   sticker.innerHTML = MENU
   corner.prepend(sticker)
 
-  const kind = game.free ? 'Free run' : 'run'
   const dialog = document.createElement('dialog')
   dialog.className = 'paused'
   dialog.setAttribute('aria-labelledby', 'paused-title')
@@ -77,13 +78,7 @@ export function createPaused(
           <p class="handwritten summary"></p>
         </div>
         <div class="paper ask" role="alertdialog" aria-labelledby="ask-title" aria-describedby="ask-why" style="--tilt: 2.4deg" hidden>
-          <span class="tape yellow"></span>
-          <h2 id="ask-title">Start a new ${kind}?</h2>
-          <p class="handwritten" id="ask-why"></p>
-          <div class="answers">
-            <button class="button keep">Keep this City</button>
-            <button class="button primary start">Start a new ${kind}</button>
-          </div>
+          ${newRunQuestion('ask', game.free, game.record)}
         </div>
       </div>
       <div class="kraft keys" style="--tilt: 2.5deg">
@@ -102,10 +97,9 @@ export function createPaused(
     if (dialog.open) return
     before = strip.speed
     strip.speed = 0
-    const record = game.free ? 'free-run record' : 'record'
     const tiles = game.city.tiles.length
-    summary.textContent = `${tiles} ${tiles === 1 ? 'tile' : 'tiles'} · Growth ${game.growth} · ${record} ${game.record}`
-    why.textContent = `This City will be lost for good. Your ${record} of ${game.record} stays.`
+    summary.textContent = `${tiles} ${tiles === 1 ? 'tile' : 'tiles'} · Growth ${game.growth} · ${runWords(game.free).record} ${game.record}`
+    why.textContent = whyNewRun(game.free, game.record)
     opened()
     dialog.showModal()
   }

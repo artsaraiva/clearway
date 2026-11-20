@@ -16,7 +16,7 @@ const STRIPES = `repeating-linear-gradient(-45deg, ${HELD_BACK} 0 3px, ${STAGE_T
  * under the camera's, in `box`, and the `G` key turn it on and off. It is off in a new run, and `screen` keeps the
  * choice in the save. While it is on, the sticker takes a stamp-red ring, the ground of every zoned Tile takes its
  * Stage's tint and a Tile held back by a Jam is striped (`../render/inspector`), and a paper slip beside the sticker
- * says what each means. The stripes wait for a Rebuild to show its cars, as the Jam stamps do.
+ * says what each means. The stripes wait for a Rebuild to show its cars, as the Jam markers do.
  */
 export function createStageInspector(box: HTMLElement, game: Game, view: View, screen: Screen) {
   const holder = box.appendChild(document.createElement('div'))

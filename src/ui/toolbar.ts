@@ -1,5 +1,5 @@
 import { DIRECTIONS, LAYOUTS, ZONES, type Layout, type Zone } from '../city/city'
-import { writeDigits } from './digits'
+import { whenChanged, writeDigits, yen } from './readings'
 import './toolbar.css'
 
 /** The picks of the Zone palette, in order: each Zone, then none, which the screen calls Roads only. */
@@ -7,26 +7,17 @@ const ZONE_PICKS: (Zone | undefined)[] = [...ZONES, undefined]
 /** A Zone's name, or the screen's for none. */
 export const nameOf = (zone: Zone | undefined) => zone?.name ?? 'Roads only'
 
-const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
-
-/** Writes `value` with `write` only when it differs from the last one written. */
-function changes(write: (value: string) => void) {
-  let shown: string | undefined
-  return (value: string) => {
-    if (value !== shown) write((shown = value))
-  }
-}
-
 const UNDO = `<svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true">
   <path d="M4.5 3.5L1.8 6.2l2.7 2.7M2.2 6.2h6.3a3.6 3.6 0 0 1 0 7.2H6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`
 
 /** Each Layout card's fixed tilt, in degrees, in the order of `LAYOUTS`. */
 const TILTS = [-2, 1.5, -1, 2, -1.8]
-// A Layout card's picture: grass, the roads in asphalt and their dashed middle lines.
+// A Layout card's picture: grass, the roads in asphalt and their dashed middle lines in the kit's paper, as a style
+// since a presentation attribute takes no custom property.
 const GROUND = '#cfe7b5'
 const ROAD = '#5d5750'
-const LINE = '#f8f1e2'
+const LINE = 'style="stroke: var(--paper)"'
 /** The Curve's road at rotation 0, east to north, run on past both edges so that it still reaches them once turned. */
 const CURVE = 'M80 32H46A14 14 0 0 1 32 18V-16'
 
@@ -45,14 +36,14 @@ function picture(layout: Layout) {
   // A junction's lines stop short of its middle, and a roundabout's arms have none.
   const lines = curve ? CURVE : roundabout ? '' : out(arms.length > 2 ? 12 : 0)
   const ring = roundabout
-    ? `<circle cx="32" cy="32" r="16" fill="${ROAD}"/><circle cx="32" cy="32" r="8.5" fill="${GROUND}" stroke="${LINE}" stroke-width="1.5"/>`
+    ? `<circle cx="32" cy="32" r="16" fill="${ROAD}"/><circle cx="32" cy="32" r="8.5" fill="${GROUND}" ${LINE} stroke-width="1.5"/>`
     : ''
   return `<svg width="44" height="44" viewBox="0 0 64 64" aria-hidden="true">
     <clipPath id="card-${layout.id}"><rect width="64" height="64" rx="3"/></clipPath>
     <rect width="64" height="64" rx="3" fill="${GROUND}"/>
     <g clip-path="url(#card-${layout.id})"><g class="turn">
       <path d="${curve ? CURVE : out(0)}" fill="none" stroke="${ROAD}" stroke-width="18"/>${ring}
-      <path d="${lines}" fill="none" stroke="${LINE}" stroke-width="2" stroke-dasharray="5 5"/>
+      <path d="${lines}" fill="none" ${LINE} stroke-width="2" stroke-dasharray="5 5"/>
     </g></g>
   </svg>`
 }
@@ -143,9 +134,9 @@ interface Showing {
  * The toolbar (#243, "In play"): one kraft surface centred above the status strip with the five Layouts as cards, the
  * Zone button, the Price of the next Tile and Undo, which shows only while its window is open. The card of the Layout
  * in the hand lifts and takes a stamp-red ring. The Zone button shows the Zone picked and opens a paper palette above
- * it with the nine Zones and Roads only, which names the one under the pointer, or else the one picked, and rings the
- * one picked. A click on a Zone picks it with `pick` and closes the palette, as do `Esc` (through `closePalette`) and
- * a press anywhere else.
+ * it with the nine Zones and Roads only in two rows of five, each named by its label and on hover, the one picked
+ * ringed and named in its head. A click on a Zone picks it with `pick` and closes the palette, as do `Esc` (through
+ * `closePalette`) and a press anywhere else.
  *
  * The screen puts a Layout in the hand by its card, and drags a Zone from the palette onto a placed Tile, through
  * `cards` and `zones`.
@@ -167,7 +158,8 @@ export function createToolbar(root: HTMLElement, on: { pick: (zone: Zone | undef
         <span class="tape pink"></span>
         <div class="head"><span class="label">Built as</span><b class="named"></b></div>
         <div class="zones">${ZONE_PICKS.map(
-          (z) => `<button class="sticker" aria-label="${nameOf(z)}" aria-pressed="false">${zonePicture(z)}</button>`,
+          (z) =>
+            `<button class="pick" title="${nameOf(z)}" aria-pressed="false"><span class="sticker">${zonePicture(z)}</span><span class="name">${nameOf(z)}</span></button>`,
         ).join('')}</div>
       </div>
     </div>
@@ -181,25 +173,21 @@ export function createToolbar(root: HTMLElement, on: { pick: (zone: Zone | undef
 
   const cards = [...bar.querySelectorAll<HTMLElement>('[data-layout]')].map((card, i) => ({ el: card, layout: LAYOUTS[i] }))
   const pictures = [...bar.querySelectorAll<SVGGElement>('.turn')]
-  const zones = [...palette.querySelectorAll<HTMLButtonElement>('.sticker')].map((sticker, i) => ({ el: sticker, zone: ZONE_PICKS[i] }))
+  const zones = [...palette.querySelectorAll<HTMLButtonElement>('.pick')].map((pick, i) => ({ el: pick, zone: ZONE_PICKS[i] }))
 
-  /** The Zone picked, as last shown, and the pick in the palette the pointer is over. */
+  /** The Zone picked, as last shown. */
   let picked: Zone | undefined
-  let hovering: number | null = null
 
   const showPalette = (open: boolean) => {
     palette.hidden = !open
     zoneButton.setAttribute('aria-expanded', String(open))
-    if (!open) hovering = null
   }
   zoneButton.onclick = () => showPalette(palette.hidden)
-  zones.forEach(({ el, zone }, i) => {
+  zones.forEach(({ el, zone }) => {
     el.onclick = () => {
       on.pick(zone)
       showPalette(false)
     }
-    el.onpointerenter = () => (hovering = i)
-    el.onpointerleave = () => (hovering = null)
   })
   undoButton.onclick = on.undo
   window.addEventListener('pointerdown', (e) => {
@@ -208,15 +196,14 @@ export function createToolbar(root: HTMLElement, on: { pick: (zone: Zone | undef
   })
 
   const show = {
-    turn: changes((degrees) => pictures.forEach((g) => g.setAttribute('transform', `rotate(${degrees} 32 32)`))),
-    zone: changes((id) => {
+    turn: whenChanged((degrees) => pictures.forEach((g) => g.setAttribute('transform', `rotate(${degrees} 32 32)`))),
+    zone: whenChanged((id) => {
       el('.zone-button .picture').innerHTML = zonePicture(picked, 32)
-      el('.zone-button .name').textContent = nameOf(picked)
+      el('.zone-button .name').textContent = named.textContent = nameOf(picked)
       zoneButton.setAttribute('aria-label', `Built as ${nameOf(picked)}`)
       zones.forEach(({ el, zone }) => el.setAttribute('aria-pressed', String((zone?.id ?? 'none') === id)))
     }),
-    named: changes((name) => (named.textContent = name)),
-    price: changes((price) => writeDigits(priceEl, price)),
+    price: whenChanged((price) => writeDigits(priceEl, price)),
   }
 
   return {
@@ -241,7 +228,6 @@ export function createToolbar(root: HTMLElement, on: { pick: (zone: Zone | undef
       show.turn(now.turn.toFixed(1))
       picked = now.zone
       show.zone(now.zone?.id ?? 'none')
-      show.named(nameOf(hovering === null ? now.zone : ZONE_PICKS[hovering]))
       show.price(now.free ? 'Free' : yen(now.price))
       undoButton.classList.toggle('gone', !now.undoable)
       undoButton.disabled = now.busy

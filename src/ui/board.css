@@ -1,6 +1,6 @@
 /*
  * Everything drawn over the board (#243, "In play"), in the paper & stamp kit (./kit.css): the camera's stickers and the
- * Stage Inspector's legend on the right edge, the Jam stamps, the note over a hovered Tile, the Stage-up badge, the
+ * Stage Inspector's legend on the right edge, the Jam markers, the note over a hovered Tile, the Stage-up badge, the
  * one-line notice and the Gateway labels. Stamp red marks what is on and what is wrong; every state also differs by
  * shape or text. No text is smaller than 13 px.
  */
@@ -66,7 +66,7 @@
   color: var(--quiet);
 }
 
-/* --- Jam stamps: a red "!" stamped on a paper disc over each Junction with a Jam, its tail pointing down at it, or at
+/* --- Jam markers: a red "!" stamped on a paper disc over each Junction with a Jam, its tail pointing down at it, or at
        the edge of the screen pointing toward one off screen. They stamp down, fade out as the Jam clears, and fade
        back while a Layout is in the hand, when every click is a drop. --- */
 .jams {
@@ -153,7 +153,7 @@
   }
 }
 
-/* --- Stages over the board: a taped note on the placed Tile under the pointer, below where a Jam stamp floats, and a
+/* --- Stages over the board: a taped note on the placed Tile under the pointer, below where a Jam marker floats, and a
        badge that rises over a Tile as its Stage-up ends. --- */
 .growth-layer {
   position: fixed;

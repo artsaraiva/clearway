@@ -7,6 +7,7 @@ import { DT } from './sim/sim'
 import { cellBounds } from './sim/tiles'
 // The paper & stamp kit: the theme's colours, type and pieces, which every part of the screen is built from.
 import './ui/kit.css'
+import { everyFrame } from './ui/frames'
 import { showNotice } from './ui/notice'
 import { createTitle } from './ui/title'
 import { createUI } from './ui/ui'
@@ -50,9 +51,12 @@ function play(run: Run) {
       zoneOf: (cell) => game.city.tileAt(cell)?.zone,
       stageOf: (cell) => game.stageOf(cell)?.stage ?? 1,
     },
-    finish || deeper || furniture
-      ? { pattern: !finish || finish.includes('pattern'), pools: !finish || finish.includes('pools'), deeper, furniture }
-      : undefined,
+    {
+      finishing:
+        finish || deeper || furniture
+          ? { pattern: !finish || finish.includes('pattern'), pools: !finish || finish.includes('pools'), deeper, furniture }
+          : undefined,
+    },
   )
   // Dev only: `?t=0.75` stops the day at that time (0 morning, 0.25 noon, 0.5 dusk, 0.75 night).
   if (import.meta.env.DEV && params.has('t')) view.holdDay(Number(params.get('t')))
@@ -108,14 +112,7 @@ function play(run: Run) {
     })
   }
 
-  let last = performance.now()
-  requestAnimationFrame(function loop(now) {
-    // The first frame's timestamp can be earlier than the `last` taken at load, so never step back in time.
-    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
-    last = now
-    frame(dt)
-    requestAnimationFrame(loop)
-  })
+  everyFrame(frame)
 }
 
 // The page opens on the title screen, which builds the run the player picks and hands it here. A page loaded again to

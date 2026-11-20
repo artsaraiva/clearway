@@ -62,7 +62,12 @@ export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bound
  * unless a sheet turns one off to show the Zone without it. `showcase` is for a scene that is only looked at, as the
  * title screen's: its clouds never fade as the camera comes close (`./sky`).
  */
-export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, finishing?: Finish, showcase = false) {
+export function createView(
+  canvas: HTMLCanvasElement,
+  sim: Sim,
+  ground: Ground,
+  { finishing, showcase = false }: { finishing?: Finish; showcase?: boolean } = {},
+) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
@@ -507,7 +512,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       materials.setGlow(glow)
       materials.setZoom(rig.camera.zoom)
       cars.setGlow(glow)
-      emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow, !calm), dt)
+      emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow, calm), dt)
       walkers.update(dt)
       // m to a CSS pixel: the captions over the hand and a rezoning keep their lines readable however far out.
       const perPixel = (rig.camera.top - rig.camera.bottom) / rig.camera.zoom / height

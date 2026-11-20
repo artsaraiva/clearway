@@ -60,28 +60,29 @@
   rotate: 180deg;
 }
 
-/* The Zone palette: a taped paper note over the Zone button, a little above the toolbar. */
+/* The Zone palette: a taped paper note over the Zone button, a little above the toolbar, with its picks in two rows of
+   five, each a sticker over its name, which wraps to fit. */
 .palette {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 24px);
+  bottom: calc(100% + 20px);
   translate: -50% 0;
-  width: 264px;
-  padding: 16px 16px 14px;
-  box-sizing: border-box;
+  padding: 14px 14px 12px;
   white-space: normal;
 }
 .palette[hidden] {
   display: none;
 }
 .palette .tape {
-  left: 92px;
+  left: calc(50% - 35px);
   top: -10px;
   width: 70px;
 }
 .palette .head {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
 }
 .palette .head b {
   font-size: 15px;
@@ -90,23 +91,41 @@
 .palette .zones {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(5, 40px);
-  justify-content: space-between;
-  gap: 10px 0;
+  grid-template-columns: repeat(5, 76px);
+  gap: 10px 4px;
+}
+.palette .pick {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  cursor: grab;
+  touch-action: none;
 }
 .palette .sticker {
   width: 40px;
   height: 40px;
-  cursor: grab;
-  touch-action: none;
 }
-.palette .sticker:not([aria-pressed='true']):hover {
+.palette .pick[aria-pressed='true'] .sticker {
+  box-shadow:
+    0 0 0 3px var(--stamp),
+    0 2px 3px rgba(60, 40, 20, 0.25);
+}
+.palette .pick:not([aria-pressed='true']):hover .sticker {
   box-shadow:
     0 0 0 2px var(--rule),
     0 2px 3px rgba(60, 40, 20, 0.25);
 }
 .palette .sticker svg {
   display: block;
+}
+.palette .name {
+  font-size: 13px;
+  line-height: 1.15;
+  text-align: center;
+}
+.palette .pick[aria-pressed='true'] .name {
+  font-weight: 900;
 }
 /* A Zone dragged toward a placed Tile: its picture follows the pointer. */
 #ui .zone-ghost {

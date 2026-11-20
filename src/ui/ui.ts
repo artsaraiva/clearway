@@ -11,13 +11,13 @@ import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
 import { createPaused } from './paused'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
+import { yen } from './readings'
 import { createStageInspector } from './stage-inspector'
 import { createStrip } from './strip'
 import { createToolbar, nameOf, zonePicture } from './toolbar'
 import { createTools } from './tools'
 import './screen.css'
 
-const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
 const sameCell = (a: Cell, b: Cell) => a.x === b.x && a.y === b.y
 /** A change in trips a minute, to the tenth the Gateway labels read: "+4.7 trips/min". */
 const tripsChange = (change: number) => {
@@ -176,9 +176,9 @@ export function createUI(
       : { cell: tile.cell, state: 'legal', lines: ['Rezone', `to ${becomes}`] }
   }
 
-  // The toolbar. A press on a Layout's card puts it in the hand; Enter or Space on a focused card picks it, or puts it
-  // back. A click on a Zone in the palette picks what the Tiles laid next are built as; a drag onto a placed Tile
-  // rezones it, with the Zone's picture following the pointer.
+  // The toolbar. A press on a Layout's card puts it in the hand; Enter on a focused card picks it, or puts it back
+  // (Space pauses, ./strip). A click on a Zone in the palette picks what the Tiles laid next are built as; a drag onto
+  // a placed Tile rezones it, with the Zone's picture following the pointer.
   const toolbar = createToolbar(root, { pick: (built) => (zone = built), undo })
   for (const { el, layout } of toolbar.cards) {
     el.onpointerdown = (e) => {
@@ -233,7 +233,15 @@ export function createUI(
   // The selected Junction's note, laid in the left slot below.
   const junctionNote = document.createElement('section')
   const tools = createTools(junctionNote, canvas, game, view, () => hand !== null || view.rebuilding)
-  const jams = createJamMarkers(root, canvas, game, view, tools, () => hand !== null)
+  const jams = createJamMarkers(
+    root,
+    canvas,
+    game,
+    view,
+    tools,
+    () => hand !== null,
+    () => run.screen.cityNotes || tools.selected !== null,
+  )
   // A Tile that reaches a Stage shows it there and then, with no Rebuild.
   game.onStage = (cell, from, to) => view.stageUp(cellBounds(cell), from, to)
   const growth = createGrowth(root, canvas, game, view, () => hand !== null || dragging !== null)

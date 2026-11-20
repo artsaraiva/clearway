@@ -33,12 +33,23 @@ const LINES = [
   ['Klee One', 600, 50, 200],
   ['Klee One', 600, 44, 262],
 ] as const
-// The caption's ink, per state: the kit's ink, its quieter ink, and stamp red for a refusal. The Tile's own tint above
-// is the world's, which keeps its green, grey and red-orange.
-const INK = { legal: '#2b2622', unaffordable: '#6b5b4b', refused: '#cf3b2c', quiet: '#4f4337' }
+// The caption's ink, per state, by the kit's token: its ink, its quieter ink, and stamp red for a refusal; the lines
+// beneath take its quiet ink. The Tile's own tint above is the world's, which keeps its green, grey and red-orange.
+const INK = { legal: 'ink', unaffordable: 'quieter', refused: 'stamp', quiet: 'quiet' } as const
 // CSS px: the smallest any of its lines is drawn on screen. Zoomed out, the caption stops shrinking with the board there.
 const LEAST = 13
-const PAPER = { color: '#f8f1e2', shadow: 'rgba(60,40,20,0.3)', tape: 'rgba(160,212,200,0.86)' }
+const PAPER = { shadow: 'rgba(60,40,20,0.3)', tape: 'rgba(160,212,200,0.86)' }
+
+/** The kit's colours the caption is drawn in, by token, read from the page's custom properties the first time it is. */
+let kit: Record<(typeof INK)[keyof typeof INK] | 'paper', string> | undefined
+function kitColours() {
+  if (!kit) {
+    const style = getComputedStyle(document.documentElement)
+    const token = (name: string) => style.getPropertyValue(`--${name}`).trim()
+    kit = { ink: token('ink'), quieter: token('quieter'), stamp: token('stamp'), quiet: token('quiet'), paper: token('paper') }
+  }
+  return kit
+}
 
 /** The Tile in the player's hand, as the page wants it shown. */
 export interface Held {
@@ -70,10 +81,12 @@ export interface Rezoning {
 }
 
 /**
- * Up to three lines on a taped paper note that always faces the camera, drawn over everything: a large one in `ink`,
- * then smaller handwritten ones in quiet ink, or all in `ink` when `loud`, as a refusal's reason is.
+ * Up to three lines on a taped paper note that always faces the camera, drawn over everything: a large one in the ink
+ * of `state`, then smaller handwritten ones in quiet ink, or all in that ink when `loud`, as a refusal's reason is.
  */
-function caption(lines: string[], ink: string, loud = false) {
+function caption(lines: string[], state: keyof typeof COLORS, loud = false) {
+  const colours = kitColours()
+  const ink = colours[INK[state]]
   const sprite = new THREE.Sprite()
   const texture = canvasTexture(CAPTION.width, CAPTION.height, (g) => {
     g.textAlign = 'center'
@@ -96,7 +109,7 @@ function caption(lines: string[], ink: string, loud = false) {
     g.shadowColor = PAPER.shadow
     g.shadowBlur = 14
     g.shadowOffsetY = 5
-    g.fillStyle = PAPER.color
+    g.fillStyle = colours.paper
     g.beginPath()
     g.roundRect((CAPTION.width - w) / 2, top, w, bottom - top, 10)
     g.fill()
@@ -110,7 +123,7 @@ function caption(lines: string[], ink: string, loud = false) {
     g.restore()
     lines.forEach((text, i) => {
       g.font = fonts[i].font
-      g.fillStyle = i === 0 || loud ? ink : INK.quiet
+      g.fillStyle = i === 0 || loud ? ink : colours[INK.quiet]
       g.fillText(text, CAPTION.width / 2, LINES[i][3])
     })
   })
@@ -233,7 +246,7 @@ export function createHand() {
       const { x, y } = middle(cellBounds(cell))
       target.set(x, swap ? SWAP_LIFT : HOVER, -y)
       tile.position.copy(from ?? target)
-      text = caption(lines, INK[state], state === 'refused')
+      text = caption(lines, state, state === 'refused')
       text.position.y = 16
       tile.add(text)
       group.add(tile)
@@ -272,7 +285,7 @@ export function createRezoning() {
       if (!rezoning) return
       const legal = rezoning.state === 'legal'
       group.add(mark(rezoning.cell, legal ? COLORS.legal : COLORS.unaffordable, MARK.under))
-      text = caption(rezoning.lines, legal ? INK.legal : INK.unaffordable)
+      text = caption(rezoning.lines, legal ? 'legal' : 'unaffordable')
       const { x, y } = middle(cellBounds(rezoning.cell))
       text.position.set(x, SWAP_LIFT + 16, -y)
       group.add(text)

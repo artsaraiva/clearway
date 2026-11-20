@@ -15,7 +15,7 @@ One Layout placed in one cell of the grid, at one rotation, built as one Zone or
 _Avoid_: Piece, cell, plot, parcel, land
 
 **Layout**:
-What a Tile's Roads are and how they meet, which the player picks: Straight, Curve, T-junction, Crossroads or Roundabout. Every Layout is always in the bar and can be placed any number of times.
+What a Tile's Roads are and how they meet, which the player picks: Straight, Curve, T-junction, Crossroads or Roundabout. Every Layout is always in the toolbar and can be placed any number of times.
 _Avoid_: Tile type, shape, piece, card
 
 **Zone**:

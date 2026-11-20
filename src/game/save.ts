@@ -36,6 +36,9 @@ export interface Screen {
   cityNotes: boolean
 }
 
+/** What a new run, and a save that keeps nothing of the screen, opens on: the Stage Inspector off and City notes closed. */
+const FIRST_SCREEN: Readonly<Screen> = { stageInspector: false, cityNotes: false }
+
 /** What a save holds. */
 interface Save {
   version: number
@@ -62,7 +65,7 @@ const isInteger = (n: unknown): n is number => typeof n === 'number' && Number.i
 const isRecord = (n: unknown): n is number => isInteger(n) && n >= 0
 
 /** The save of `game`, with what `screen` keeps of the screen, as the text localStorage holds. */
-export function saveOf(game: Game, screen: Screen = { stageInspector: false, cityNotes: false }): string {
+export function saveOf(game: Game, screen: Screen = FIRST_SCREEN): string {
   const save: Save = {
     version: VERSION,
     seed: game.seed,
@@ -86,7 +89,7 @@ export function saveOf(game: Game, screen: Screen = { stageInspector: false, cit
  * The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
  */
 export function load(text: string | null, free: boolean): { game: Game; notice: string | null; screen: Screen } {
-  const screen = { stageInspector: false, cityNotes: false }
+  const screen = { ...FIRST_SCREEN }
   if (text === null) return { game: new Game(undefined, { free }), notice: null, screen }
   let data: unknown
   try {
@@ -226,28 +229,31 @@ export function openRun(params: URLSearchParams): Run | Title {
   if (import.meta.env.DEV && params.has('seed')) return seeded(Number(params.get('seed')), params)
   carryOver()
   const free = params.has('free') || read(KEY.playing) === 'free'
-  if (takeAtOnce()) return begin(params, free)
+  if (takeAtOnce()) return begin(params, { free })
   const { summary, notice, record } = summaryOf(read(free ? KEY.freeRun : KEY.run))
   return {
     free,
     summary,
     notice,
     leave(how) {
-      if (how === 'new') return begin(params, free, new Game(undefined, { free, record }))
-      // The title has said why the saved run of the kind last played will not load.
-      return begin(params, how === 'free' || free, undefined, how === 'play' || free)
+      if (how === 'new') return begin(params, { free, fresh: new Game(undefined, { free, record }) })
+      // Play opens the saved run the title summed up, and so does Free run when the Free run was last played. The title
+      // has said why that run will not load if `check` refused it; one that fails later, as its Sim is built, says so in
+      // play.
+      const summed = how === 'play' || free
+      return begin(params, { free: how === 'free' || free, told: summed && notice !== null })
     },
   }
 }
 
 /**
  * Build the run of the kind `free` says and keep it saved: `fresh` in place of the save, or the saved run. `told` says
- * the title has already given the notice of a save that would not load.
+ * the title has already given the notice of a save that would not load, which the run then does not give again.
  */
-function begin(params: URLSearchParams, free: boolean, fresh?: Game, told = false): Run {
+function begin(params: URLSearchParams, { free, fresh, told = false }: { free: boolean; fresh?: Game; told?: boolean }): Run {
   write(KEY.playing, free ? 'free' : 'normal')
   const key = free ? KEY.freeRun : KEY.run
-  const loaded = fresh ? { game: fresh, notice: null, screen: { stageInspector: false, cityNotes: false } } : load(read(key), free)
+  const loaded = fresh ? { game: fresh, notice: null, screen: { ...FIRST_SCREEN } } : load(read(key), free)
   const { game, screen } = loaded
   /** Whether the page is loading again on another run, which this one must not be saved over. */
   let leaving = false
@@ -316,15 +322,15 @@ function takeAtOnce() {
 }
 
 /**
- * Dev only: the run of `seed`, never saved. The menu leaves it for a new seed, or for the other kind of run on this one,
- * and its Title screen for the title of the saved runs.
+ * Dev only: the run of `seed`, never saved. The Paused memo leaves it for a new seed, or for the other kind of run on
+ * this one, and its Title screen for the title of the saved runs.
  */
 function seeded(seed: number, params: URLSearchParams): Run {
   const free = params.has('free')
   return {
     game: new Game(seed, { free }),
     notice: null,
-    screen: { stageInspector: false, cityNotes: false },
+    screen: { ...FIRST_SCREEN },
     newRun: () => go(params, (p) => p.set('seed', String(newSeed()))),
     switchRun: () => go(params, (p) => (free ? p.delete('free') : p.set('free', ''))),
     title: () => go(params, (p) => p.delete('seed')),

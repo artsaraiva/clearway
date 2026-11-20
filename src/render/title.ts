@@ -29,25 +29,25 @@ const NOON = 0.25
 export function createTitleScene(canvas: HTMLCanvasElement) {
   const tile = { cell: { x: 0, y: 0 }, layout: LAYOUTS.find((l) => l.id === 'crossroads')!, rotation: 0, zone: FIRST_ZONE }
   const city = new City([tile])
-  // Read the network and its Demand quickly, then build the Sim that drives on it, its Demand raised, and Pre-warm it.
-  const quick = new Sim(city, [], SEED.sim, { prewarm: false, conflicts: false })
-  const demand = gatewayDemand(city, quick.net, { ...GATEWAY_DEMAND, base: GATEWAY_DEMAND.base * SHOW })
-  const sim = new Sim({ network: quick.spec, demand }, [], SEED.sim)
-  const piece = cellBounds(tile.cell)
+  // Read the network from a Sim built only for it, which never drives, then build the Sim that drives on it with its
+  // Demand raised, and Pre-warm it.
+  const networkOnly = new Sim(city, [], SEED.sim, { prewarm: false, conflicts: false })
+  const demand = gatewayDemand(city, networkOnly.net, { ...GATEWAY_DEMAND, base: GATEWAY_DEMAND.base * SHOW })
+  const sim = new Sim({ network: networkOnly.spec, demand }, [], SEED.sim)
+  const bounds = cellBounds(tile.cell)
   const view = createView(
     canvas,
     sim,
     {
-      pieces: [piece],
+      pieces: [bounds],
       scenery: { theme: 'city', seed: SEED.scenery, landmarks: [], blocks: [], streets: {}, avenues: [], seeded: SEEDED },
       zoneOf: () => tile.zone,
       stageOf: () => 3,
     },
-    undefined,
-    true,
+    { showcase: true },
   )
   view.holdDay(NOON)
-  view.camera.look({ x: (piece.x0 + piece.x1) / 2, y: (piece.y0 + piece.y1) / 2 }, VIEW.zoom, VIEW.right, VIEW.down)
+  view.camera.look({ x: (bounds.x0 + bounds.x1) / 2, y: (bounds.y0 + bounds.y1) / 2 }, VIEW.zoom, VIEW.right, VIEW.down)
   let acc = 0
 
   return {

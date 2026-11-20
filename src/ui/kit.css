@@ -63,9 +63,8 @@
   --quieter: #6b5b4b;
   /* Money earned: Income. */
   --money: #2f6b45;
-  /* A bar's empty track, and the Flow bar's fill. */
+  /* A bar's empty track. */
   --track: #e6dcc6;
-  --flow: #2f8a56;
 
   --font: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif;
   --handwriting: 'Klee One', 'Zen Maru Gothic', cursive;
@@ -259,7 +258,7 @@ button:focus-visible {
   font-weight: 600;
 }
 
-/* A reading that changes, written with `writeDigits` (./digits.ts): each digit in a cell as wide as the widest, so the
+/* A reading that changes, written with `writeDigits` (./readings.ts): each digit in a cell as wide as the widest, so the
    reading does not jitter as it counts. Zen Maru Gothic's widest digit is 0.51 em at every weight; Klee One's digits
    are all 0.6 em. */
 .digits {

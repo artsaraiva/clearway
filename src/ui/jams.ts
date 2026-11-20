@@ -7,15 +7,16 @@ import { junctionId } from '../sim/tiles'
 import './board.css'
 
 // px: the radius of a marker's paper disc, how far past it its tail reaches, how far above its Junction the tail's tip
-// stops, and how far a marker at the edge keeps clear of the screen's pills.
+// stops, and how far a marker at the edge keeps clear of the screen's furniture (`PILLS`), which leaves room for its
+// tail.
 const MARKER = { r: 24, tail: 10, gap: 3, margin: 10 }
-// px a marker at the right edge keeps clear of the screen's edge, past the camera's stickers (./camera-buttons), which
-// stand 20 px in and are 54 px across, and room for its tail when it points their way: more than the pills ask there.
-const STICKERS = 84
+// px a marker at the left edge keeps clear of the screen's edge while a panel is open in the left slot (./screen.css),
+// which stands 20 px in and is 280 px across, and room for its tail when it points that way.
+const LEFT_SLOT = 310
 // s for a marker to rise clear of its Junction's halo as the Junction is selected: as long as the halo takes to lift.
 const RISE = 0.16
 
-/** A Jam's stamp: its tail, pointing at the Junction, under a paper disc stamped with a red "!" in a ring. */
+/** A Jam marker: its tail, pointing at the Junction, under a paper disc stamped with a red "!" in a ring. */
 const MARK = `
   <svg class="tail" width="76" height="76" viewBox="-38 -38 76 76" aria-hidden="true">
     <path d="M14 -8L${MARKER.r + MARKER.tail} 0L14 8z" fill="var(--stamp)" stroke="var(--paper)" stroke-width="2.5" stroke-linejoin="round"/>
@@ -45,8 +46,9 @@ interface Selection {
  * The Jam markers (.scratch/ui-ux/spec.md, "Reading the traffic"; #243, "In play"): a red "!" stamped on a 48 px paper
  * disc floats above each Junction with a Jam (`Sim.jams`), its tail pointing down at it. Over the selected Junction it
  * rises clear of the halo, so it hides none of the Tools. A marker whose Junction is off screen, or would sit under the
- * screen's pills or the camera's stickers, waits at the edge of the clear part of the screen and points its tail toward
- * the Junction. A click centres the camera on the Junction and selects it.
+ * screen's furniture (its stickers, the toolbar and the strip) or, while `panelOpen`, the panel in the left slot (City
+ * notes or the Junction's note), waits at the edge of the clear part of the screen and points its tail toward the
+ * Junction. A click centres the camera on the Junction and selects it.
  *
  * The markers find the Jam from far out; the stuck cars' emotion stays the main signal in the world. None shows while
  * a Rebuild plays. While `busy`, as when a Layout is in the hand, they fade back and let clicks through, since every
@@ -59,6 +61,7 @@ export function createJamMarkers(
   view: View,
   tools: Selection,
   busy: () => boolean,
+  panelOpen: () => boolean,
 ) {
   const layer = document.createElement('div')
   layer.className = 'jams'
@@ -116,8 +119,9 @@ export function createJamMarkers(
    */
   const place = (marker: Marker, dt: number) => {
     const { r, tail, gap, margin } = MARKER
-    // The part of the screen a marker's middle may take: clear of the pills and the stickers, with the whole disc inside.
-    const [x0, x1] = [PILLS.left + r + margin, width - Math.max(PILLS.right, STICKERS) - r - margin]
+    // The part of the screen a marker's middle may take: clear of the furniture and an open panel, with the whole disc
+    // inside.
+    const [x0, x1] = [(panelOpen() ? LEFT_SLOT : PILLS.left) + r + margin, width - PILLS.right - r - margin]
     const [y0, y1] = [PILLS.top + r + margin, height - PILLS.bottom - r - margin]
     const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2]
     const { at } = marker.junction

@@ -107,16 +107,16 @@ export function createSky(slab: Bounds, showcase = false) {
     },
 
     /**
-     * `dt` is the real seconds since the last frame, 0 while paused; `zoom` is the camera's. `still`, as reduced motion
+     * `dt` is the real seconds since the last frame, 0 while paused; `zoom` is the camera's. `calm`, as reduced motion
      * asks, holds the clouds where they are; the planes fly on.
      */
-    update(dt: number, zoom: number, still = false) {
+    update(dt: number, zoom: number, calm = false) {
       t += dt
       // Clouds fade out as the camera zooms in, so they never sit between the player and a Jam. Their shadows stay.
       vapour.opacity = showcase ? 1 : THREE.MathUtils.clamp(CLEAR_ZOOM - zoom, 0, 1)
       vapour.colorWrite = vapour.depthWrite = vapour.opacity > 0
       for (const cloud of clouds) {
-        if (!still) cloud.position.x += DRIFT * dt
+        if (!calm) cloud.position.x += DRIFT * dt
         if (cloud.position.x > cx + WRAP * halfWidth) cloud.position.x = cx - WRAP * halfWidth
         if (showcase) {
           const left = WRAP * halfWidth - Math.abs(cloud.position.x - cx)

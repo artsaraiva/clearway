@@ -1,25 +1,15 @@
 import type { Game } from '../game/game'
 import type { View } from '../render/view'
-import { writeDigits } from './digits'
+import { runWords, whenChanged, writeDigits, yen } from './readings'
 import './strip.css'
 
 /** The speeds the strip offers, in sim seconds per real second: Pause, 1×, 4×, 8×. A run opens at 4×. */
 const SPEEDS = [0, 1, 4, 8]
 const FIRST_SPEED = 4
 
-const yen = (n: number) => `¥${Math.round(n).toLocaleString('en')}`
-
 const PAUSE = `<svg width="11" height="13" viewBox="0 0 14 16" aria-hidden="true">
   <rect x="1" y="1" width="4" height="14" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="14" rx="1" fill="currentColor"/>
 </svg>`
-
-/** Writes `value` with `write` only when it differs from the last one written. */
-export function changes(write: (value: string) => void) {
-  let shown: string | undefined
-  return (value: string) => {
-    if (value !== shown) write((shown = value))
-  }
-}
 
 /**
  * The status strip (#243, "In play"): one paper strip along the bottom of the screen holding every reading. Pause, 1×,
@@ -65,7 +55,8 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
     if (e.key === ' ') {
-      // Not also a click on the button that has focus.
+      // In play Space pauses, and is not also a click on the button that has focus, as a click leaves it there. An open
+      // dialog, the Paused memo, keeps its keys from the game (./paused.ts), so there Space works its buttons.
       e.preventDefault()
       setSpeed(speed ? 0 : before)
     }
@@ -74,17 +65,17 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
   })
 
   const show = {
-    speed: changes((v) => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scale === v)))),
-    flow: changes((v) => writeDigits(flow, v)),
-    fill: changes((v) => (fill.style.width = v)),
-    growth: changes((v) => writeDigits(growth, v)),
-    record: changes((v) => writeDigits(record, v)),
-    pace: changes((v) => {
+    speed: whenChanged((v) => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scale === v)))),
+    flow: whenChanged((v) => writeDigits(flow, v)),
+    fill: whenChanged((v) => (fill.style.width = v)),
+    growth: whenChanged((v) => writeDigits(growth, v)),
+    record: whenChanged((v) => writeDigits(record, v)),
+    pace: whenChanged((v) => {
       pace.hidden = v === ''
       pace.textContent = v
     }),
-    yen: changes((v) => writeDigits(yenEl, v)),
-    income: changes((v) => writeDigits(income, v)),
+    yen: whenChanged((v) => writeDigits(yenEl, v)),
+    income: whenChanged((v) => writeDigits(income, v)),
   }
 
   return {
@@ -115,11 +106,11 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
         show.fill(`${Math.min(100, game.sim.flow * 100).toFixed(1)}%`)
       }
       show.growth(String(game.growth))
-      show.record(`${game.free ? 'free-run record' : 'record'} ${game.record}`)
+      show.record(`${runWords(game.free).record} ${game.record}`)
       // Dev only: the pace of growth, when it is sped up.
       show.pace(game.pace === 1 ? '' : `pace ×${game.pace}`)
       // Yen counts whole yen down, so it never shows the Price before the Tile is affordable.
-      show.yen(`¥${Math.floor(game.yen).toLocaleString('en')}`)
+      show.yen(yen(Math.floor(game.yen)))
       show.income(`+${yen(game.income)} a minute`)
     },
   }

@@ -4,23 +4,17 @@ import type { View } from '../render/view'
 import { middle, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { STAGES } from '../tuning'
+import { whenChanged } from './readings'
+import { nameOf } from './toolbar'
 import './board.css'
 
-/** px the note sits below its Tile's middle, clear of a Jam stamp, which floats above it. */
+/** px the note sits below its Tile's middle, clear of a Jam marker, which floats above it. */
 const BELOW = 26
 /** The pips of progress toward the next Stage. */
 const PIPS = 10
 
 /** A Stage as stars, those not reached yet outlined: ★★☆ for Stage 2. */
 const stars = (stage: number) => '★'.repeat(stage) + (stage < LAST_STAGE ? `<s>${'☆'.repeat(LAST_STAGE - stage)}</s>` : '')
-
-/** Writes `value` with `write` only when it differs from the last one written. */
-function changes(write: (value: string) => void) {
-  let shown: string | undefined
-  return (value: string) => {
-    if (value !== shown) write((shown = value))
-  }
-}
 
 /**
  * What the board shows of Stages (.scratch/ui-ux/spec.md, "Readings"; #243, "In play"; the City's Growth and the Record
@@ -30,7 +24,7 @@ function changes(write: (value: string) => void) {
  * or a Zone is in the player's hand, and during a Rebuild.
  */
 export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, busy: () => boolean) {
-  // Over the board and its labels, under the screen's pills, like the Jam stamps.
+  // Over the board and its labels, under the screen's pills, like the Jam markers.
   const layer = document.createElement('div')
   layer.className = 'growth-layer'
   root.before(layer)
@@ -43,17 +37,17 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   const pips = [...note.querySelectorAll('.pips i')]
 
   const show = {
-    at: changes((v) => (note.style.translate = v)),
-    hidden: changes((v) => (note.hidden = v === 'hidden')),
-    look: changes((v) => (note.className = v)),
-    zone: changes((v) => (noteZone.textContent = v)),
-    stars: changes((v) => (noteStars.innerHTML = v)),
+    at: whenChanged((v) => (note.style.translate = v)),
+    hidden: whenChanged((v) => (note.hidden = v === 'hidden')),
+    look: whenChanged((v) => (note.className = v)),
+    zone: whenChanged((v) => (noteZone.textContent = v)),
+    stars: whenChanged((v) => (noteStars.innerHTML = v)),
     /** Progress toward the next Stage, 0–1: its tenths fill pips, and what is left of one half inks the next. */
-    pips: changes((v) => {
+    pips: whenChanged((v) => {
       const tenths = Number(v) * PIPS
       pips.forEach((pip, i) => (pip.className = i < Math.floor(tenths) ? 'on' : i < tenths ? 'part' : ''))
     }),
-    line: changes((v) => (noteLine.textContent = v)),
+    line: whenChanged((v) => (noteLine.textContent = v)),
   }
 
   /** Where the pointer is over the board, or null off it. */
@@ -93,7 +87,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
         const full = grown?.stage === LAST_STAGE
         const jammed = game.heldBack(cell)
         show.look(['paper tile-note', !grown && 'unzoned', jammed && 'jammed', full && 'full'].filter(Boolean).join(' '))
-        show.zone(game.city.tileAt(cell)?.zone?.name ?? 'Roads only')
+        show.zone(nameOf(game.city.tileAt(cell)?.zone))
         if (!grown) {
           show.stars('')
           show.pips('0')

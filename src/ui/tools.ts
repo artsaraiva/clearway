@@ -82,7 +82,10 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     from = aim = snap = null
   }
 
-  /** The "In a Jam" stamp follows the selected Junction's Jam, as its marker does: none while a Rebuild plays. */
+  /**
+   * The "In a Jam" stamp follows the selected Junction's Jam, as its marker does: none while the cars are out of sight
+   * after a Swap or an Undo (`view.rebuilding`).
+   */
   const stamp = () => {
     const id = selected?.id
     const jammed = id !== undefined && !view.rebuilding && game.sim.jams.some((j) => j.id === id)

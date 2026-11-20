@@ -38,7 +38,7 @@
 .strip .gauge i {
   display: block;
   height: 100%;
-  background: var(--flow);
+  background: var(--ink);
   transition: width 0.2s;
 }
 .strip .record {
