@@ -251,8 +251,8 @@ export function createUI(
 
   /**
    * Whether a Tile is in its Assembly, or the traffic is halted behind one: no Tile is dropped or rezoned until then.
-   * ponytail: one Assembly at a time, and an Undo is still allowed during one, which lands the Tile at once and takes
-   * it off. ADR 0006 has several Tiles assemble at once and land in the order dropped: queue the drops in the game
+   * ponytail: one Assembly at a time. An Undo is still allowed during one, which lands the Tile at once and takes it
+   * off, and its window opens once the Tile has landed. ADR 0006 has several Tiles assemble at once and land in the order dropped: queue the drops in the game
    * when a placement takes effect at its landing (#233).
    */
   const assembling = () => view.rebuilding || view.assembling

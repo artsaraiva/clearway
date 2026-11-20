@@ -65,6 +65,11 @@ export class Game {
   onUnsaved?: () => void
   /** Called as a zoned Tile reaches another Stage: as it grows, or as `setStage` puts it there. */
   onStage?: (cell: Cell, from: Stage, to: Stage) => void
+  /**
+   * Whether a Tile is in its Assembly, which the screen says each frame. The Undo window waits for the Tile to land:
+   * a placement's traffic earns from the drop (ADR 0006), and the window would otherwise run out while the Tile lands.
+   */
+  assembling = false
   /** Dev only: a multiplier on the pace of growth. Each trip a Junction serves counts as this many. */
   pace = 1
   private _city: City
@@ -76,7 +81,7 @@ export class Game {
   private cursor = 0
   private trips = 0
   private last?: Undo
-  /** Steps of earning since the last placement, Swap or Rezoning. */
+  /** Steps of earning since the last placement, Swap or Rezoning, not counting those of an Assembly. */
   private sinceLast = 0
   /** Each zoned Tile's Stage, by its Junction's id. A zoned Tile with none is at Stage 1 with no progress. */
   private stages = new Map<string, TileStage>()
@@ -292,7 +297,7 @@ export class Game {
     // Below the floor, the difference is made up, so a jammed City can always afford a fix.
     const short = Math.max(0, this.incomeFloor - this.tripsPerMinute * ECONOMY.pay)
     this.yen += arrived * ECONOMY.pay + (short * DT) / 60
-    this.sinceLast++
+    if (!this.assembling) this.sinceLast++
   }
 
   /**
