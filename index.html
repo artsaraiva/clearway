@@ -4,36 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dioramania</title>
-    <!-- M PLUS Rounded 1c ships with the game (public/fonts, with its licence): its Latin letters, at the two weights
-         the caption of the Tile in the hand uses, which the renderer draws on the board. The screen's own two typefaces
-         are the paper & stamp kit's (src/ui/kit.css), preloaded below at the weights the status strip opens with.
-         ponytail: drop this face once the hand's caption takes the kit's type (#246). Only Latin subsets ship. Any other
-         script falls back to the system's fonts; Japanese stays in the speech bubbles, which the renderer draws in its
-         own. Add a font's Japanese subsets beside these, each with its unicode-range, if the screen ever sets Japanese. -->
-    <link rel="preload" href="/fonts/m-plus-rounded-1c-latin-700.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/m-plus-rounded-1c-latin-800.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- The screen's two typefaces are the paper & stamp kit's (src/ui/kit.css), preloaded at the weights the status strip
+         opens with; the caption of the Tile in the hand, which the renderer draws on the board, uses them too. Only their
+         Latin letters ship: any other script falls back to the system's fonts, and Japanese stays in the speech bubbles,
+         which the renderer draws in its own. -->
     <link rel="preload" href="/fonts/zen-maru-gothic-latin-700.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/zen-maru-gothic-latin-900.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/klee-one-latin-600.woff2" as="font" type="font/woff2" crossorigin />
     <style>
-      @font-face {
-        font-family: 'M PLUS Rounded 1c';
-        font-weight: 700;
-        font-display: block;
-        src: url('/fonts/m-plus-rounded-1c-latin-700.woff2') format('woff2');
-        unicode-range:
-          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-      }
-      @font-face {
-        font-family: 'M PLUS Rounded 1c';
-        font-weight: 800;
-        font-display: block;
-        src: url('/fonts/m-plus-rounded-1c-latin-800.woff2') format('woff2');
-        unicode-range:
-          U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-          U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-      }
       /* What is left of the screen before the paper & stamp kit (src/ui/kit.css, which holds the theme's colours, type and
          pieces): each part's styles go as its ticket of #243 rebuilds it in the kit. */
       :root {
@@ -46,11 +24,8 @@
         --glass-edge: rgba(255, 255, 255, 0.78);
         --shade: 0 8px 28px rgba(16, 24, 48, 0.16), 0 1px 3px rgba(16, 24, 48, 0.1);
         --edge: 18px;
-        /* The accents: the full Tile bar's fill, the selected button and a Stage's stars. */
-        --yen: #ffb000;
-        --yen-deep: #ff9500;
+        /* The accent of the selected button and the switch. */
         --accent: #ff3d8b;
-        --star: #f0a400;
       }
       html,
       body {
@@ -67,232 +42,9 @@
         cursor: grab;
         touch-action: none;
       }
-      .labels {
-        position: fixed;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-      }
-      .labels div {
-        position: absolute;
-        left: 0;
-        top: 0;
-        white-space: nowrap;
-        font-size: 13px;
-        letter-spacing: 0.02em;
-        color: var(--ink-soft);
-        text-shadow:
-          0 0 2px #fff,
-          0 0 3px #fff,
-          0 0 6px #fff,
-          0 0 10px rgba(255, 255, 255, 0.8);
-      }
-      /* While the Tile in the hand is over a legal cell: a Gateway its drop would close is struck through, and one it
-         would open shows its trips a minute in the green of a legal drop. */
-      .labels .closed {
-        text-decoration: line-through 2px;
-      }
-      .labels .opened {
-        color: #1f9d63;
-        font-weight: 800;
-      }
-
-      /* Jam markers: a hot red-orange disc with the anger mark over each Junction with a Jam, its tail pointing down at
-         it, or at the edge of the screen pointing toward one off screen. They pop in, fade out as the Jam clears, and
-         fade back while a Layout is in the hand, when every click is a drop. */
-      .jams {
-        position: fixed;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-      }
-      .jam {
-        position: absolute;
-        left: -16px;
-        top: -16px;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        pointer-events: auto;
-        will-change: transform;
-        transition: opacity 0.2s;
-      }
-      .jams.busy .jam,
-      .jam.gone {
-        pointer-events: none;
-      }
-      .jams.busy .jam {
-        opacity: 0.45;
-      }
-      .jam .pop {
-        position: absolute;
-        inset: 0;
-        filter: drop-shadow(0 2px 3px rgba(16, 24, 48, 0.35));
-        animation: jam-in 0.36s cubic-bezier(0.3, 1.6, 0.5, 1) both;
-      }
-      .jam.gone .pop {
-        animation: jam-out 0.25s ease-in both;
-      }
-      .jam svg {
-        position: absolute;
-        left: 0;
-        top: 0;
-      }
-      .jam .tail {
-        left: -12px;
-        top: -12px;
-      }
-      @keyframes jam-in {
-        from {
-          transform: scale(0.2);
-          opacity: 0;
-        }
-      }
-      @keyframes jam-out {
-        to {
-          transform: scale(0.5);
-          opacity: 0;
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .jam .pop,
-        .jam.gone .pop {
-          animation-duration: 1ms;
-        }
-      }
-
-      /* Stages: a bar over the placed Tile under the pointer, below where a Jam marker floats, with its Stage and its trips
-         toward the next; and a badge that rises over a Tile as its Stage-up ends. */
-      .growth-layer {
-        position: fixed;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-      }
-      /* As wide as its note, and no narrower than 132 px: the screen centres it under its Tile. */
-      .tile-bar {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: max-content;
-        min-width: 132px;
-        padding: 6px 9px 7px;
-        box-sizing: border-box;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.86);
-        box-shadow: 0 4px 14px rgba(16, 24, 48, 0.18);
-        font-size: 12px;
-        will-change: transform;
-      }
-      .tile-bar[hidden] {
-        display: none;
-      }
-      .tile-bar .head {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-      }
-      .tile-bar .stars {
-        color: var(--star);
-        letter-spacing: 1px;
-      }
-      .tile-bar .track {
-        height: 6px;
-        margin: 4px 0 3px;
-        border-radius: 3px;
-        background: var(--line);
-        overflow: hidden;
-      }
-      .tile-bar .track i {
-        display: block;
-        height: 100%;
-        border-radius: 3px;
-        background: linear-gradient(90deg, #2bd98a, var(--flow));
-      }
-      .tile-bar .note {
-        color: var(--ink-soft);
-        font-size: 11px;
-        white-space: nowrap;
-      }
-      .tile-bar.full .track i {
-        background: linear-gradient(90deg, var(--yen), var(--yen-deep));
-      }
-      .tile-bar.jammed .track i {
-        background: #9aa0ab;
-      }
-      .tile-bar.jammed .note {
-        color: #ff4a1f;
-        font-weight: 800;
-      }
-      .tile-bar.unzoned .track {
-        display: none;
-      }
-      .stage-badge {
-        position: absolute;
-        left: 0;
-        top: 0;
-        will-change: transform;
-      }
-      .stage-badge span {
-        position: absolute;
-        left: -60px;
-        width: 120px;
-        top: -40px;
-        display: grid;
-        justify-items: center;
-        gap: 1px;
-        font-size: 18px;
-        color: var(--star);
-        text-shadow:
-          0 0 3px #fff,
-          0 0 6px #fff,
-          0 1px 8px rgba(255, 255, 255, 0.9);
-        animation: badge-rise 1.8s ease-out both;
-      }
-      .stage-badge b {
-        font-size: 16px;
-        font-weight: 800;
-        color: var(--ink);
-      }
-      @keyframes badge-rise {
-        0% {
-          transform: translateY(10px) scale(0.4);
-          opacity: 0;
-        }
-        15% {
-          transform: translateY(0) scale(1.12);
-          opacity: 1;
-        }
-        25% {
-          transform: translateY(-4px) scale(1);
-        }
-        75% {
-          opacity: 1;
-        }
-        100% {
-          transform: translateY(-56px) scale(1);
-          opacity: 0;
-        }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .stage-badge span {
-          animation: badge-fade 1.8s ease-out both;
-        }
-        @keyframes badge-fade {
-          0%,
-          100% {
-            opacity: 0;
-          }
-          15%,
-          75% {
-            opacity: 1;
-          }
-        }
-      }
-
       /* --- The screen: the status strip along the bottom (src/ui/strip.css), the bar above it in the middle, the
-             camera's buttons above it on the right and the menu on the left, and the Junction's panel top-right. Nothing
-             covers the middle of the board. --- */
+             camera's stickers on the right edge (src/ui/board.css), the menu on the left, and the Junction's panel
+             top-right. Nothing covers the middle of the board. --- */
       #ui {
         position: fixed;
         inset: 0;
@@ -321,27 +73,6 @@
       .soft {
         font-size: 13px;
         color: var(--ink-soft);
-      }
-
-      /* A notice at the top, as when a saved City would not load: one line, gone after a while or a click. */
-      .notice {
-        top: var(--edge);
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 9px 18px;
-        border-radius: 999px;
-        white-space: nowrap;
-        cursor: pointer;
-        transition:
-          opacity 0.6s,
-          visibility 0s;
-      }
-      .notice.gone {
-        opacity: 0;
-        visibility: hidden;
-        transition:
-          opacity 0.6s,
-          visibility 0s 0.6s;
       }
 
       .layout:not(.on):hover,
@@ -506,49 +237,6 @@
       .menu {
         left: var(--edge);
         bottom: var(--above-strip);
-      }
-      .camera {
-        right: var(--edge);
-        bottom: var(--above-strip);
-        display: flex;
-        gap: 10px;
-      }
-      /* In a narrow window the camera's buttons stand in a column, clear of the bar. */
-      @media (max-width: 1000px) {
-        .camera {
-          flex-direction: column;
-        }
-      }
-      /* The Stage Inspector's legend, over the camera's buttons while it is on: each Stage's tint as it lies on the
-         ground, and the stripes of a Tile a Jam holds back. */
-      .stage-legend {
-        right: var(--edge);
-        bottom: calc(var(--above-strip) + 62px);
-        display: grid;
-        gap: 7px;
-        padding: 9px 14px 10px;
-        border-radius: 18px;
-        font-size: 13px;
-      }
-      .stage-legend .row {
-        display: flex;
-        gap: 14px;
-        white-space: nowrap;
-      }
-      .stage-legend span {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .stage-legend .row:first-child span {
-        color: var(--star);
-        letter-spacing: 1px;
-      }
-      .stage-legend i {
-        width: 18px;
-        height: 18px;
-        border-radius: 6px;
-        box-shadow: inset 0 0 0 1px var(--line);
       }
       .menu .sheet {
         position: absolute;

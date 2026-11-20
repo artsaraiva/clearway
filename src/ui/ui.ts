@@ -517,7 +517,7 @@ export function createUI(
   }
 
   const cameraButtons = createCameraButtons(root, view)
-  const stageInspector = createStageInspector(root, cameraButtons.box, game, view, run.screen)
+  const stageInspector = createStageInspector(cameraButtons.box, game, view, run.screen)
 
   return {
     /** Sim seconds per real second: 0 while paused. */

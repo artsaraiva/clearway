@@ -490,7 +490,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       cars.setGlow(glow)
       emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
       walkers.update(dt)
-      hand.update()
+      // m to a CSS pixel: the captions over the hand and a rezoning keep their lines readable however far out.
+      const perPixel = (rig.camera.top - rig.camera.bottom) / rig.camera.zoom / height
+      hand.update(perPixel)
+      rezoning.update(perPixel)
       tools.update()
       roads.update()
       rig.update(real)

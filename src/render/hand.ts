@@ -23,14 +23,22 @@ const LAYERS: [number, number, string][] = [
   [-0.6, 2.2, '#9ed67d'],
 ]
 const [RIM, PLATE, PAVEMENT, GRASS] = [4, '#c3c7ce', '#ece7db', '#9ed67d']
-// The caption over the Tile in the hand: its texture (px), which it fills to `fit` across at most, and per line its
-// weight, size (px) and baseline (px from the top). Drawn `scale` m across.
-const CAPTION = { width: 512, height: 320, fit: 480, scale: 60 }
+// The caption over the Tile in the hand, a taped paper note as the screen's are (src/ui/kit.css): its texture (px), which
+// its widest line fills to `fit` across at most, the note's margin around its lines (px), and the width it is drawn
+// across (m). Per line, its typeface, weight, size (px) and baseline (px from the top): the Price or a cross in the
+// UI's type, the lines beneath in its handwriting.
+const CAPTION = { width: 512, height: 352, fit: 440, pad: 28, scale: 60 }
 const LINES = [
-  [800, 92, 120],
-  [600, 54, 205],
-  [600, 46, 270],
+  ['Zen Maru Gothic', 900, 92, 120],
+  ['Klee One', 600, 50, 200],
+  ['Klee One', 600, 44, 262],
 ] as const
+// The caption's ink, per state: the kit's ink, its quieter ink, and stamp red for a refusal. The Tile's own tint above
+// is the world's, which keeps its green, grey and red-orange.
+const INK = { legal: '#2b2622', unaffordable: '#6b5b4b', refused: '#cf3b2c', quiet: '#4f4337' }
+// CSS px: the smallest any of its lines is drawn on screen. Zoomed out, the caption stops shrinking with the board there.
+const LEAST = 13
+const PAPER = { color: '#f8f1e2', shadow: 'rgba(60,40,20,0.3)', tape: 'rgba(160,212,200,0.86)' }
 
 /** The Tile in the player's hand, as the page wants it shown. */
 export interface Held {
@@ -61,30 +69,67 @@ export interface Rezoning {
   lines: string[]
 }
 
-/** Up to three lines of text that always face the camera, drawn over everything: a large one, then smaller ones. */
-function caption(lines: string[], color: string) {
+/**
+ * Up to three lines on a taped paper note that always faces the camera, drawn over everything: a large one in `ink`,
+ * then smaller handwritten ones in quiet ink, or all in `ink` when `loud`, as a refusal's reason is.
+ */
+function caption(lines: string[], ink: string, loud = false) {
+  const sprite = new THREE.Sprite()
   const texture = canvasTexture(CAPTION.width, CAPTION.height, (g) => {
     g.textAlign = 'center'
-    g.lineJoin = 'round'
-    g.lineWidth = 14
-    g.strokeStyle = 'rgba(255,255,255,0.95)'
-    g.fillStyle = color
-    lines.forEach((text, i) => {
-      const [weight, size, y] = LINES[i]
-      const font = (px: number) => `${weight} ${px}px "M PLUS Rounded 1c", -apple-system, "Helvetica Neue", sans-serif`
+    // Each line's font, set smaller to fit when it is long, such as a refusal's reason.
+    const fonts = lines.map((text, i) => {
+      const [face, weight, size] = LINES[i]
+      const font = (px: number) => `${weight} ${px}px "${face}", "Zen Maru Gothic", -apple-system, "Helvetica Neue", sans-serif`
       g.font = font(size)
-      // A long line, such as a refusal's reason, is set smaller to fit.
-      g.font = font(Math.floor(size * Math.min(1, CAPTION.fit / g.measureText(text).width)))
-      g.strokeText(text, CAPTION.width / 2, y)
-      g.fillText(text, CAPTION.width / 2, y)
+      const px = Math.floor(size * Math.min(1, CAPTION.fit / g.measureText(text).width))
+      g.font = font(px)
+      return { font: font(px), width: g.measureText(text).width, px }
+    })
+    sprite.userData.least = Math.min(...fonts.map((f) => f.px))
+    if (!lines.length) return
+    // The note: as wide as its widest line, from the top of the first line to the foot of the last.
+    const last = LINES[lines.length - 1]
+    const w = Math.max(...fonts.map((f) => f.width)) + 2 * CAPTION.pad
+    const [top, bottom] = [LINES[0][3] - 0.8 * fonts[0].px - CAPTION.pad, last[3] + 0.25 * fonts[lines.length - 1].px + CAPTION.pad]
+    g.save()
+    g.shadowColor = PAPER.shadow
+    g.shadowBlur = 14
+    g.shadowOffsetY = 5
+    g.fillStyle = PAPER.color
+    g.beginPath()
+    g.roundRect((CAPTION.width - w) / 2, top, w, bottom - top, 10)
+    g.fill()
+    g.restore()
+    // A strip of mint tape across its top edge, a little off level.
+    g.save()
+    g.translate(CAPTION.width / 2, top)
+    g.rotate(-0.05)
+    g.fillStyle = PAPER.tape
+    g.fillRect(-48, -15, 96, 30)
+    g.restore()
+    lines.forEach((text, i) => {
+      g.font = fonts[i].font
+      g.fillStyle = i === 0 || loud ? ink : INK.quiet
+      g.fillText(text, CAPTION.width / 2, LINES[i][3])
     })
   })
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false }))
-  sprite.scale.set(CAPTION.scale, (CAPTION.scale * CAPTION.height) / CAPTION.width, 1)
+  sprite.material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, toneMapped: false })
+  fit(sprite, 0)
   // Anchored a little above its middle, where the first two lines sit, so that a third line hangs below them.
   sprite.center.set(0.5, 1 - 128 / CAPTION.height)
   sprite.renderOrder = 20
   return sprite
+}
+
+/**
+ * Size a caption: `CAPTION.scale` m across, or wider when the camera is so far out, at `perPixel` m to a CSS pixel, that
+ * its smallest line would be drawn under `LEAST` px.
+ */
+function fit(sprite: THREE.Sprite, perPixel: number) {
+  const least = sprite.userData.least as number | undefined
+  const w = least ? Math.max(CAPTION.scale, (perPixel * LEAST * CAPTION.width) / least) : CAPTION.scale
+  if (w !== sprite.scale.x) sprite.scale.set(w, (w * CAPTION.height) / CAPTION.width, 1)
 }
 
 /** A cell tinted on the road plane, drawn over the slab. */
@@ -156,19 +201,20 @@ function empty(group: THREE.Group) {
 
 /**
  * The Tile in the hand while the player holds a Layout from the bar: a piece of unbuilt slab seated at the City's
- * level in the cell under the pointer, with the Price over it, tinted grey when the player cannot afford it and red,
- * with the reason, when the drop is refused. Over a placed Tile it floats above what stands there, since the drop is a
+ * level in the cell under the pointer, with the Price over it on a paper note, tinted grey when the player cannot
+ * afford it and red, with the reason stamped in red on the note, when the drop is refused. Over a placed Tile it floats above what stands there, since the drop is a
  * Swap. Every empty cell that would take it is tinted green.
  */
 export function createHand() {
   const group = new THREE.Group()
   let tile: THREE.Group | null = null
+  let text: THREE.Sprite | null = null
   const target = new THREE.Vector3()
   let last = performance.now()
 
   const clear = () => {
     empty(group)
-    tile = null
+    tile = text = null
   }
 
   return {
@@ -187,14 +233,18 @@ export function createHand() {
       const { x, y } = middle(cellBounds(cell))
       target.set(x, swap ? SWAP_LIFT : HOVER, -y)
       tile.position.copy(from ?? target)
-      const text = caption(lines, COLORS[state])
+      text = caption(lines, INK[state], state === 'refused')
       text.position.y = 16
       tile.add(text)
       group.add(tile)
     },
 
-    /** Glide toward the cell under the pointer. It runs on the real clock, since the player places Tiles while paused too. */
-    update() {
+    /**
+     * Glide toward the cell under the pointer, with the caption sized for the camera, at `perPixel` m to a CSS pixel. It
+     * runs on the real clock, since the player places Tiles while paused too.
+     */
+    update(perPixel: number) {
+      if (text) fit(text, perPixel)
       const now = performance.now()
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
@@ -205,24 +255,32 @@ export function createHand() {
 
 /**
  * A Zone dragged from the bar over a placed Tile: the Tile tinted on the road plane, and what letting go makes of it
- * said where a Swap's caption would be. Green when it rezones the Tile, and the grey of a drop the player cannot
- * afford when the Tile is built as that Zone already, so letting go changes nothing.
+ * said where a Swap's caption would be. Green, with the caption in ink, when it rezones the Tile, and the grey of a drop
+ * the player cannot afford, with the caption in quieter ink, when the Tile is built as that Zone already, so letting go
+ * changes nothing.
  */
 export function createRezoning() {
   const group = new THREE.Group()
+  let text: THREE.Sprite | null = null
   return {
     group,
 
     /** Show `rezoning`. `null` shows nothing. */
     show(rezoning: Rezoning | null) {
       empty(group)
+      text = null
       if (!rezoning) return
-      const color = rezoning.state === 'legal' ? COLORS.legal : COLORS.unaffordable
-      group.add(mark(rezoning.cell, color, MARK.under))
-      const text = caption(rezoning.lines, color)
+      const legal = rezoning.state === 'legal'
+      group.add(mark(rezoning.cell, legal ? COLORS.legal : COLORS.unaffordable, MARK.under))
+      text = caption(rezoning.lines, legal ? INK.legal : INK.unaffordable)
       const { x, y } = middle(cellBounds(rezoning.cell))
       text.position.set(x, SWAP_LIFT + 16, -y)
       group.add(text)
+    },
+
+    /** Size the caption for the camera, at `perPixel` m to a CSS pixel. */
+    update(perPixel: number) {
+      if (text) fit(text, perPixel)
     },
   }
 }
