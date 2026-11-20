@@ -22,10 +22,10 @@ const WHEEL = 0.95 // the zoom is multiplied by this for each 100 px the wheel t
 const FLIGHT = 0.7 // s for a move the player asks for, or that brings a new Tile into view
 const SLAB_DEPTH = 19 // m from the road plate down to the slab's underside, whose sides frame the City
 // The margins of the canvas the screen's pills cover (index.html), in CSS pixels, with a little room: the readings
-// along the top reach 123 px down, and the bar as far up.
+// along the top reach 123 px down, and the toolbar (src/ui/toolbar.css) 144 px up, 152 px with a card lifted.
 // ponytail: fixed numbers, so they go stale if the pills change size, and a Tile brought into view (or a Jam marker at
 // the edge) could then stop under one. Have the screen hand the camera its pills' rectangles if that starts to happen.
-export const PILLS = { top: 136, right: 24, bottom: 136, left: 24 }
+export const PILLS = { top: 136, right: 24, bottom: 160, left: 24 }
 const NO_MARGIN = { top: 0, right: 0, bottom: 0, left: 0 }
 
 /** Where the camera is. */

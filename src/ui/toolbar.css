@@ -1,0 +1,139 @@
+/* The toolbar (./toolbar.ts): one kraft surface centred above the status strip, with the Layouts' cards, the Zone
+   button and its palette, the Price and Undo. Nothing in it changes width as the game goes on, so a card never moves
+   out from under the pointer. */
+.toolbar {
+  left: 50%;
+  bottom: var(--above-strip);
+  translate: -50% 0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+.toolbar .layouts {
+  display: flex;
+  gap: 12px;
+}
+.toolbar .card {
+  cursor: grab;
+  touch-action: none;
+  transition: translate 0.12s;
+}
+.toolbar .card:not(.held):hover {
+  translate: 0 -3px;
+}
+/* The card in the hand while the Price is out of reach: its picture greys, as a Tile the player cannot afford. */
+.toolbar .card.short svg {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* The Zone button: the Zone picked, its name on two lines at most in a fixed width. */
+.zone-pick {
+  position: relative;
+}
+.zone-button {
+  height: 44px;
+  padding: 0 12px 0 6px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+.zone-button svg {
+  display: block;
+}
+.zone-button .name {
+  width: 112px;
+  font-size: 14px;
+  line-height: 1.1;
+  white-space: normal;
+}
+.zone-button .caret {
+  font-size: 13px;
+  color: var(--quieter);
+}
+.zone-button[aria-expanded='true'] .caret {
+  rotate: 180deg;
+}
+
+/* The Zone palette: a taped paper note over the Zone button, a little above the toolbar. */
+.palette {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 24px);
+  translate: -50% 0;
+  width: 264px;
+  padding: 16px 16px 14px;
+  box-sizing: border-box;
+  white-space: normal;
+}
+.palette[hidden] {
+  display: none;
+}
+.palette .tape {
+  left: 92px;
+  top: -10px;
+  width: 70px;
+}
+.palette .head {
+  display: grid;
+  gap: 2px;
+}
+.palette .head b {
+  font-size: 15px;
+  font-weight: 900;
+}
+.palette .zones {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(5, 40px);
+  justify-content: space-between;
+  gap: 10px 0;
+}
+.palette .sticker {
+  width: 40px;
+  height: 40px;
+  cursor: grab;
+  touch-action: none;
+}
+.palette .sticker:not([aria-pressed='true']):hover {
+  box-shadow:
+    0 0 0 2px var(--rule),
+    0 2px 3px rgba(60, 40, 20, 0.25);
+}
+.palette .sticker svg {
+  display: block;
+}
+/* A Zone dragged toward a placed Tile: its picture follows the pointer. */
+#ui .zone-ghost {
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(60, 40, 20, 0.3));
+}
+
+/* The Price: the label in the darker quiet text, which keeps 4.5:1 on kraft. */
+.toolbar .price {
+  display: grid;
+  line-height: 1.15;
+}
+.toolbar .price .label {
+  color: var(--quiet);
+}
+.toolbar .price b {
+  font-size: 18px;
+  font-weight: 900;
+}
+/* Out of its window Undo keeps its place, so the toolbar does not change width. */
+.toolbar .undo {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+.toolbar .undo.gone {
+  visibility: hidden;
+}
