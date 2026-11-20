@@ -159,7 +159,10 @@ export class City {
     return first
   }
 
-  /** The City as traffic drives it: the Tiles that have landed, without those in their Assembly. */
+  /**
+   * The Tiles that have landed, as a City of their own: the roads the traffic drives, without the Tiles in their
+   * Assembly.
+   */
   landed(): City {
     return new City(this.tiles.filter((t) => !this.landing.has(t)))
   }

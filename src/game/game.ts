@@ -271,7 +271,7 @@ export class Game {
   }
 
   /**
-   * The Sim of the City as dropped, every Tile in its Assembly landed, built for reading as a `preview`'s is: the network
+   * A Sim of the whole City, every Tile in its Assembly landed, built for reading as a `preview`'s is: the network
    * a Tile in its Assembly is built on, and the Demand a drop now changes. It must not be stepped.
    */
   plan(): Sim {

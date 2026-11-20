@@ -56,8 +56,8 @@ interface StageUp {
 export type Relaid = { swapped: Bounds } | { removed: Bounds }
 
 /**
- * A placed Tile's Assembly: its piece, the build assembling on a reveal of its own, the Sim of the City as dropped that
- * the build stands on, whether its road plate has landed and whether all of it has, and how it opens to traffic.
+ * A placed Tile's Assembly: its piece, the build assembling on a reveal of its own, the Sim of the whole City at its drop
+ * that the build stands on, whether its road plate has landed and whether all of it has, and how it opens to traffic.
  */
 interface Assembly {
   piece: Bounds
@@ -432,8 +432,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
     },
 
     /**
-     * Play a placed Tile's Assembly: its piece assembles next to the slab already there, built on `planned`, the Sim of
-     * the City as dropped (it has every Tile dropped before this one), while the traffic shown drives on as it was. The
+     * Play a placed Tile's Assembly: its piece assembles next to the slab already there, built on `planned`, a Sim of
+     * the whole City (it has every Tile dropped before this one), while the traffic shown drives on as it was. The
      * road paint grows as its plate lands. Several Tiles assemble at once, each on a reveal of its own, and each opens to
      * traffic once it and every Tile dropped before it have landed: then `open` gives the Sim to show, which drives on
      * from the one shown (ADR 0006).

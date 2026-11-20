@@ -340,7 +340,7 @@ export function createUI(
       swap,
       lines: [
         yen(offer.price),
-        // Against the City as dropped: the Tiles in their Assembly change Demand as they land, whatever this drop does.
+        // Against the whole City: the Tiles in their Assembly change Demand as they land, whatever this drop does.
         tripsChange(labelledDemand(after) - labelledDemand(game.city.assembling.length ? game.plan() : game.sim)),
         [nameOf(placed ? placed.zone : zone), ...notes].join(' · '),
       ],
