@@ -79,54 +79,44 @@ export function fountain(kit: Kit, x: number, y: number, stage = 2) {
 /** The ground a tower landmark at `(x, y)` keeps free of seeded lots: its podium, fountain and trees. */
 export const towerGround = (x: number, y: number): Bounds => ({ x0: x - 18, y0: y - 20, x1: x + 20, y1: y + 28 })
 
-/**
- * The tower landmark's shaft: each segment's foot and top (m above the podium), and its radius at each. Its two decks
- * stand on the third and the fourth, each a drum with a band of glass round it: where each's foot is, its radius and
- * its height.
- */
-const SEGMENTS = [
-  [0, 12, 6.4, 4.6],
-  [12, 24, 4.6, 3.4],
-  [24, 36, 3.4, 2.5],
-  [39.6, 51.2, 2.2, 1.28],
-  [53.2, 57.2, 1.2, 0.88],
-]
+/** A cone with its foot at y = 0, 1 m in radius there and 1 m tall, `top` m in radius at its top, for the kit to size. */
+const cone = (top: number) => new THREE.CylinderGeometry(top, 1, 1, 16).translate(0, 0.5, 0)
+/** A drum `r` m in radius and `tall` m tall, its foot at y = 0, as built: `kit.cladded` lays its top's pattern unscaled. */
+const drum = (r: number, tall: number) => new THREE.CylinderGeometry(r, r, tall, 16).translate(0, tall / 2, 0)
+
+/** The tower landmark's shaft, tier by tier: each's foot and top (m above the podium), and its radius at each. */
+const TIERS = [
+  { from: 0, to: 12, foot: 6.4, top: 4.6 },
+  { from: 12, to: 24, foot: 4.6, top: 3.4 },
+  { from: 24, to: 36, foot: 3.4, top: 2.5 },
+  { from: 39.6, to: 51.2, foot: 2.2, top: 1.28 },
+  { from: 53.2, to: 57.2, foot: 1.2, top: 0.88 },
+].map((tier) => ({ ...tier, geo: cone(tier.top / tier.foot) }))
+/** Its two decks, on the third tier and the fourth: a drum with a band of glass round it, each from its foot (m above the podium). */
 const DECKS = [
   { from: 36, r: 5.4, tall: 3.6, glass: { from: 36.6, r: 5.52, tall: 2 } },
   { from: 51.2, r: 2.88, tall: 2, glass: { from: 51.52, r: 2.96, tall: 1.2 } },
-]
-/** A segment's windows (#189): m a bay takes round its foot, and about how tall a storey is, whole storeys to a segment. */
-const WINDOWS = { bay: 3, storey: 3 }
-// Each segment as a cone with its foot at y = 0, 1 m in radius there and 1 m tall, for the kit to size; each deck's drum.
-const SHAFT = SEGMENTS.map(([, , foot, top]) => new THREE.CylinderGeometry(top / foot, 1, 1, 16).translate(0, 0.5, 0))
-const DRUMS = DECKS.map(({ r, tall }) => new THREE.CylinderGeometry(r, r, tall, 16).translate(0, tall / 2, 0))
+].map((deck) => ({ ...deck, geo: drum(deck.r, deck.tall) }))
+/** A tier's windows (#189): m a bay takes round its foot, and about how tall a storey is, whole storeys to a tier. */
+const TIER_WINDOWS = { bay: 3, storey: 3 }
 
 /**
  * The tower landmark on Block `block`, as one brick: stacked cylinders in coral and cream with two glazed decks and a
  * beacon, on a podium. A fountain stands north of it and sakura around it, wherever the Block's pavement reaches.
- * To the Finish (#189): where the kit builds patterned, every segment wears plaster and a framed window in every bay
- * of every storey round it, lit at night as the windows are, and each deck's roof wears pavers.
+ * To the Finish (#189): where the kit builds patterned, every tier wears plaster and a framed window in every bay of
+ * every storey round it, lit at night as the windows are, and each deck's roof wears pavers.
  */
 export function tower(kit: Kit, field: Field, block: Block, x: number, y: number) {
   const base = KERB + 1.4
-  const seed = spot(x, y)
+  const seed = spot(x, y) // which windows light, a draw for each tier and each deck
   kit.add(kit.box(20, 1.4, 20, 2.4, 0.32), '#e2d8c6', x, y, KERB)
-  SEGMENTS.forEach(([from, to, foot], i) => {
-    const storey = (to - from) / Math.max(1, Math.round((to - from) / WINDOWS.storey))
-    kit.wrapped(
-      SHAFT[i],
-      i % 2 ? CREAM : CORAL,
-      x,
-      y,
-      base + from,
-      foot,
-      to - from,
-      { kind: PATTERN.house, bay: WINDOWS.bay, storey },
-      seed + i,
-    )
+  TIERS.forEach(({ from, to, foot, geo }, i) => {
+    const storey = (to - from) / Math.max(1, Math.round((to - from) / TIER_WINDOWS.storey))
+    const windows = { kind: PATTERN.house, bay: TIER_WINDOWS.bay, storey }
+    kit.wrapped(geo, i % 2 ? CREAM : CORAL, x, y, base + from, foot, to - from, windows, seed + i)
   })
-  DECKS.forEach(({ from, glass }, i) => {
-    kit.cladded(DRUMS[i], i % 2 ? CORAL : CREAM, x, y, base + from, 0, { top: PATTERN.deck }, seed + 8 + i)
+  DECKS.forEach(({ from, glass, geo }, i) => {
+    kit.cladded(geo, i % 2 ? CORAL : CREAM, x, y, base + from, 0, { top: PATTERN.deck }, seed + TIERS.length + i)
     kit.drum(kit.glass, x, y, base + glass.from, glass.r, glass.r, glass.tall)
   })
   kit.drum(CREAM, x, y, base + 57.2, 0.28, 0.28, 12.8)

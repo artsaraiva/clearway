@@ -297,6 +297,10 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere.
   The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped.
   A coral tower landmark stands on an offices or a high-density residential Tile where the seed puts one.
+  It is built to the Finish ([#189](https://github.com/artsaraiva/clearway/issues/189)) on either Zone alike: each of its five tiers of coral `#f08a6e` and cream `#fbf6ef` wears plaster and a framed window in every bay of every storey round it, a bay about 3 m at the tier's foot and narrowing as the tier tapers, a storey 3 m (the fourth tier's 2.9 m, the fifth's one of 4 m), lit at night window by window as a house's are; the roofs of its two decks wear pavers in the deck's own paint.
+  Its podium, its decks' glass, its mast and its beacon are as they were, and so is everything else on both Zones: all but the tower's tiers and decks hashes the same as before on every Stage over five seeds.
+  It costs no triangle and no draw call, and no frame time the bench could tell from its noise: on the 26-Tile City at Stage 3 with 1,000 cars, against `origin/main` (`8387fe1`) over five interleaved rounds on a machine with something else drawing, offices read 13.01 ms at noon and 11.44 at night at City zoom against 12.09 and 13.49, and 9.89 and 11.05 at Tile zoom against 11.10 and 10.41; high-density residential 12.88 and 13.33 at City zoom against 14.90 and 14.60, and 9.11 and 11.05 at Tile zoom against 10.41 and 10.63.
+  Rounds of one case read up to 5 ms apart, on both sides alike, and a first run of three rounds read the changes with the other signs.
 - **Stages** ([#138](https://github.com/artsaraiva/clearway/issues/138), [#141](https://github.com/artsaraiva/clearway/issues/141)): every Zone builds at its Tile's Stage.
   The look above is Stage 2; Stage 1 is a humbler version of it and Stage 3 goes beyond it.
   Every lot draws from its own random stream, so each Stage builds the same building, better, and never another kind.
@@ -526,6 +530,7 @@ The Finish, from the spec in [#173](https://github.com/artsaraiva/clearway/issue
 10. [#183](https://github.com/artsaraiva/clearway/issues/183) High-density residential built to the Finish. Blocked by #175.
 11. [#184](https://github.com/artsaraiva/clearway/issues/184) Farms built to the Finish. Blocked by #175.
 12. [#185](https://github.com/artsaraiva/clearway/issues/185) Unzoned Tiles built to the Finish. Blocked by #175.
+13. [#189](https://github.com/artsaraiva/clearway/issues/189) The coral tower landmark built to the Finish. Blocked by #177.
 
 ## Out of scope
 
