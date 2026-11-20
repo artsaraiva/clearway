@@ -38,7 +38,8 @@ export interface Look {
    * (the kit's `finish`). Shops since the prototype (#174), and offices since #177.
    */
   finish?: boolean
-  fill(ground: ZoneGround): void
+  /** Builds on the Block; where it paves over the kerbside, returns the m of pavement that shows at the edge (`Kerbside.unpaved`, #187). */
+  fill(ground: ZoneGround): number | void
 }
 
 /** Split a rectangle into lots no longer than `max` on either side, cutting the long side near its middle. */
