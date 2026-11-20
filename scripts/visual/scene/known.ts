@@ -93,5 +93,5 @@ export const CEILINGS: Record<string, { triangles: number; meshes: number }> = {
   parks: { triangles: 2.6e6, meshes: 160 }, // #180: 2.39 M at Stage 3 with coarse trees; its lanterns' bulbs and Block-zoom benches a mesh each
   green: { triangles: 2.2e6, meshes: 125 }, // #182: 1.90 M at Stage 3 with coarse trees; its lanterns' bulbs, a stream's water and Block-zoom props a mesh each
   farms: { triangles: 1.55e6, meshes: 160 }, // #184: about a tenth over the 1.39 M it builds at Stage 3 on seed 2, the heaviest; its lit greenhouses' bulbs and Block-zoom props a mesh each
-  unzoned: { triangles: 1.85e6, meshes: 108 }, // #185: about a tenth over the 1.67 M it builds on seed 2, the heaviest; a quarter of it tufts of tall grass, Block-zoom props
+  unzoned: { triangles: 1.85e6, meshes: 108 }, // #185: about a tenth over the 1.7 M it builds on seed 2, the heaviest; most of what it adds is tufts of tall grass, Block-zoom props
 }

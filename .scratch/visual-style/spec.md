@@ -292,7 +292,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   - Parks: a park with a pond, or on a small Block, one time in three, a plaza with a fountain, built to the Finish ([#180](https://github.com/artsaraiva/clearway/issues/180)): a mown lawn, gravel paths, an azalea border, the pond's rocks, reeds, island and bridge, a shrine, a tea house or a bandstand, stone lanterns, and swan boats, ducks, koi and by night fireflies; a plaza paved in rings, with a clock tower or a bandstand, a kiosk, beds and pigeons. See [zones/parks.md](zones/parks.md).
   - Green: a meadow with groves and flower beds, or allotments, built to the Finish ([#182](https://github.com/artsaraiva/clearway/issues/182)): mown glades, a worn path, a stream on a large Block, and a kite flown from a rise or a campsite; trodden earth, furrowed soil, a fence and a gate, and a gardener's glasshouse or an apiary. See [zones/green.md](zones/green.md).
   - Farms: fields of crop rows, paddies, greenhouses, orchards and cut fields on furrowed soil, and on some Blocks a farmstead, built to the Finish ([#184](https://github.com/artsaraiva/clearway/issues/184)). See [zones/farms.md](zones/farms.md).
-  - An unzoned Tile: grass with a few bushes.
+  - An unzoned Tile: rough grass in two tones with a few bushes, rocks, tufts of tall grass, drifts of wildflowers and, on some Blocks, a puddle and a stump, built to the Finish ([#185](https://github.com/artsaraiva/clearway/issues/185)). See [zones/unzoned.md](zones/unzoned.md).
 
   Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere.
   The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped.
