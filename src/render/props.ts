@@ -1,3 +1,6 @@
+import * as THREE from 'three'
+import { mulberry32 } from '../sim/demand'
+import type { Vec } from '../sim/geometry'
 import { KERB } from './blocks'
 import { SHAPES, spot, to, type Kit } from './kit'
 import { PATTERN } from './pattern'
@@ -196,4 +199,40 @@ export function railing(kit: Kit, look: string, x: number, y: number, w: number,
       }
     }
   }
+}
+
+/** Loose stones' greys (#180 a pond's rim, #185 an unzoned Tile's rocks). */
+export const ROCKS = ['#8f8a80', '#a29d92', '#7f7b73']
+
+/** A wildflower's head (#152): a five-petalled star 0.56 m across, lying flat. */
+export const FLOWER = (() => {
+  const star = new THREE.Shape()
+  for (let k = 0; k < 10; k++) {
+    const [r, a] = [k % 2 ? 0.12 : 0.28, (k * Math.PI) / 5]
+    if (k) star.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    else star.moveTo(r, 0)
+  }
+  return new THREE.ShapeGeometry(star).rotateX(-Math.PI / 2)
+})()
+
+/** Tall grass (#182): its blades and its seed heads. */
+const TUFTS = { blades: ['#8fbf62', '#a3c96b', '#7fb35a'], heads: '#d9c98a' }
+
+/**
+ * Tufts of tall grass at `spots` (#182 a meadow's, #185 an unzoned Tile's), on the grass `h` up, as one brick of
+ * Block-zoom props: blades, and a seed head to each, drawn from where it stands.
+ */
+export function tufts(kit: Kit, spots: Vec[], h: number) {
+  kit.blockZoomProps(() => {
+    for (const { x, y } of spots) {
+      const draw = mulberry32(spot(x, y) ^ 0x7f7)
+      for (let i = 0; i < 4; i++) {
+        const [a, r, tall] = [draw() * Math.PI * 2, draw() * 0.3, 0.6 + draw() * 0.5]
+        const [bx, by] = [x + Math.cos(a) * r, y + Math.sin(a) * r]
+        kit.add(SHAPES.cone, TUFTS.blades[i % 3], bx, by, h, 0, 0.11, tall, 0.11)
+        if (!i) kit.add(SHAPES.thin, TUFTS.heads, bx, by, h + tall * 0.7, 0, 0.05, 0.3, 0.05)
+      }
+    }
+    kit.brick('tree', spots[0].x, spots[0].y, h)
+  })
 }

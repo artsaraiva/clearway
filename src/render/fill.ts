@@ -152,7 +152,8 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     }
   }
 
-  if (look) look.fill({ kit, block, field, reserved, kerbsideTrees, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) })
-  else verge(kit, field, block, kerbsideTrees)
+  const ground = { kit, block, field, reserved, kerbsideTrees, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) }
+  if (look) look.fill(ground)
+  else verge(ground)
   dress(kerbsideTrees)
 }
