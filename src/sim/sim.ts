@@ -3,7 +3,7 @@ import { Demand, type VehicleType } from './demand'
 import { accel } from './driving'
 import { measure, measureJams, PREWARM, type Approaches } from './metric'
 import { applyChange, buildNetwork, type Arm, type Connection, type Junction, type Lane, type Network } from './network'
-import { replan, route } from './routing'
+import { lanesTo, replan, route } from './routing'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
 
@@ -32,7 +32,7 @@ export class Sim {
   /** The Junctions and Roads the network was built from. */
   readonly spec: NetworkSpec
   readonly net: Network
-  /** Trips per minute from each Gateway, fixed until the next Rebuild. */
+  /** Trips per minute from each Gateway, fixed for the Sim: worked out again whenever the City changes. */
   readonly rates: DemandSpec
   time = 0
   flow = 1
@@ -58,8 +58,16 @@ export class Sim {
    * until `prewarmed`, so it can be spread over frames. A Scenario in place of the City brings its own Demand. With
    * `conflicts: false` the network leaves out where Connections meet, which only driving needs: such a Sim is built
    * quickly, to read its network and Demand, and must not be stepped.
+   *
+   * With `traffic`, the Sim before, there is no Pre-warm: that Sim's traffic drives on in this one (ADR 0006, see
+   * `carry`), and that Sim must not be stepped again.
    */
-  constructor(source: City | Scenario, carried: Change[] = [], seed = 1, { prewarm = true, conflicts = true } = {}) {
+  constructor(
+    source: City | Scenario,
+    carried: Change[] = [],
+    seed = 1,
+    { prewarm = true, conflicts = true, traffic }: { prewarm?: boolean; conflicts?: boolean; traffic?: Sim } = {},
+  ) {
     this.spec = source instanceof City ? networkSpec(source) : source.network
     this.net = buildNetwork(this.spec, { conflicts })
     const arms = this.arms()
@@ -74,7 +82,7 @@ export class Sim {
       if (!this.net.gateways[id])
         throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${Object.keys(this.net.gateways).join(', ')})`)
     }
-    this.demand = new Demand(this.rates, seed)
+    this.demand = new Demand(this.rates, seed, traffic && { from: traffic.demand, time: traffic.time })
     this.approaches = this.net.junctions.map((junction) => ({
       junction,
       lanes: junction.arms.flatMap((a) => a.approach),
@@ -84,7 +92,54 @@ export class Sim {
     }))
     this.served = new Uint32Array(this.net.junctions.length)
     this.junctionIndex = new Map(this.net.junctions.map((j, i) => [j.id, i]))
-    if (prewarm) while (!this.prewarmed) this.step()
+    if (traffic) this.carry(traffic)
+    else if (prewarm) while (!this.prewarmed) this.step()
+  }
+
+  /**
+   * Take over from the Sim `before`, whose City this one's grew from (ADR 0006). The clock and Flow run on. A vehicle
+   * whose Lane still exists drives on from the same spot of the map, found again by its Lane's id, and one whose Lane
+   * is gone is removed. A vehicle bound for a Gateway that closed draws a new destination, evenly among the Gateways
+   * it can reach from where it is, and is removed if it can reach none. A Junction of both keeps its Jam reading.
+   * `completed` and `served` start again from nothing.
+   */
+  private carry(before: Sim) {
+    this.time = before.time
+    this.flow = before.flow
+    const readings = new Map(before.approaches.map((a) => [a.junction.id, a]))
+    for (const a of this.approaches) {
+      const read = readings.get(a.junction.id)
+      if (read) [a.flow, a.jammed, a.hold] = [read.flow, read.jammed, read.hold]
+    }
+    const lanes = new Map(this.net.lanes.map((l) => [l.id, l]))
+    const gateways = Object.keys(this.net.gateways)
+    const toward = new Map<string, Set<Lane>>()
+    const reaches = (lane: Lane, gateway: string) => {
+      if (!toward.has(gateway)) toward.set(gateway, lanesTo(this.net, gateway))
+      return toward.get(gateway)!.has(lane)
+    }
+    const gone = new Set<Vehicle>()
+    for (const old of before.net.lanes) {
+      const lane = lanes.get(old.id)
+      for (const v of old.vehicles) {
+        if (lane && !this.net.gateways[v.dest]) {
+          const reached = gateways.filter((g) => reaches(lane, g))
+          if (reached.length) v.dest = this.demand.draw(reached)
+        }
+        if (!lane || !this.net.gateways[v.dest]) {
+          gone.add(v)
+          continue
+        }
+        // A Road to a cell edge is shorter than one to the next Junction: the lane may start further back than it did.
+        const [from, to] = lane.line.pts
+        const [was] = old.line.pts
+        v.s += ((was.x - from.x) * (to.x - from.x) + (was.y - from.y) * (to.y - from.y)) / Math.hypot(to.x - from.x, to.y - from.y)
+        v.lane = lane
+        lane.vehicles.push(v)
+      }
+    }
+    this.vehicles = before.vehicles.filter((v) => !gone.has(v))
+    replan(this.net, this.vehicles)
   }
 
   /**

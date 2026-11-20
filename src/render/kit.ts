@@ -167,6 +167,9 @@ export const LEAVES = {
 const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1', '#ffe3ec'], scale: [1, 1, 1] }
 // Leaves fallen round a park's round tree (#180), as petals round a sakura: fewer, nearer, narrow, in greens and ochre.
 const LEAVES_FALLEN = { count: 12, reach: 4, most: 40, colours: ['#9cc95a', '#c3c65a', '#d3b05c'], scale: [0.55, 1, 0.4] }
+// A sakura's crown, for a tree of size 1 (#227): the height of its middle, and how far out its drifting petals leave
+// it, past its middle sphere (2.4) and all but the widest of its side spheres (2.6 to 3.1).
+const CROWN = { from: 4.2, out: 2.9 }
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
 const SPHERE = new THREE.SphereGeometry(1, 16, 12)
@@ -716,10 +719,10 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   /**
    * A plume of `kind` from `(x, y)`, `h` above the road, riding the next brick closed: a chimney's smoke or steam, or
    * (#180) a fountain's spray thrown up or petals drifting down from a sakura's crown, puffs that `./movers` lets fly
-   * through the working day.
+   * through the working day. A sakura's petals take its `crown`, how far out it reaches and how far they fall (#227).
    */
-  const plume = (kind: PlumeKind, x: number, y: number, h: number) => {
-    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, ...(kind !== 'smoke' && { kind }) })
+  const plume = (kind: PlumeKind, x: number, y: number, h: number, crown?: Plume['crown']) => {
+    plumes.push({ at: new THREE.Vector3(x, h, -y), brick: bricks.length, ...(kind !== 'smoke' && { kind }), ...(crown && { crown }) })
   }
   /** A pot plant `s` m tall at `(x, y)`, `h` above the road (#175): a pot from `draw`'s colours under a bush of leaves. */
   const pot = (x: number, y: number, h: number, s: number, draw: () => number) => {
@@ -1236,7 +1239,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
             pick(LEAVES[kind]),
             x + Math.cos(a) * out,
             y + Math.sin(a) * out,
-            h + s * (i ? range(3.6, 5.4) : 4.2),
+            h + s * (i ? range(3.6, 5.4) : CROWN.from),
             0,
             k,
             k * 0.9,
@@ -1256,7 +1259,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
             add(PETAL, fallen.colours[colour], px, py, h + 0.08, turn, ...(fallen.scale as [number, number, number]))
         }
       }
-      if (kind === 'sakura' && spot(x, y) % 2) plume('petals', x, y, h + 4.2 * s)
+      if (kind === 'sakura' && spot(x, y) % 2) plume('petals', x, y, h + CROWN.from * s, { out: CROWN.out * s, drop: CROWN.from * s })
       shadow(x, y, h, s * 6.8, s * 6.8, true)
       brick('tree', x, y, h)
     },

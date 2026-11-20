@@ -6,9 +6,10 @@ import { ECONOMY, STAGES } from '../tuning'
 
 // A run of the game: the state beside the Sim. It holds the yen, the City, each zoned Tile's Stage, the Record and the
 // one step of Undo, pays for the trips the Sim completes, grows each zoned Tile on the trips its Junction serves, and
-// rebuilds the Sim whenever the City's roads change (ADR 0002). A Rezoning changes only what a Tile is built as, which
-// the Sim does not read, so it runs on. The Changes live in the Sim's configuration, which every Rebuild carries over.
-// A Stage lives here, beside the yen, since a Rebuild throws the Sim away (ADR 0005).
+// builds the Sim again whenever the City's roads change. A placement's traffic drives on in the new Sim (ADR 0006); a
+// Swap and an Undo still start theirs again behind a Pre-warm. A Rezoning changes only what a Tile is built as, which
+// the Sim does not read, so it runs on. The Changes live in the Sim's configuration, which every new Sim carries over.
+// A Stage lives here, beside the yen, since the Sim is replaced (ADR 0005).
 
 /** How far a zoned Tile has grown. */
 export type Stage = 1 | 2 | 3
@@ -64,6 +65,11 @@ export class Game {
   onUnsaved?: () => void
   /** Called as a zoned Tile reaches another Stage: as it grows, or as `setStage` puts it there. */
   onStage?: (cell: Cell, from: Stage, to: Stage) => void
+  /**
+   * Whether a Tile is in its Assembly, which the screen says each frame. The Undo window waits for the Tile to land:
+   * a placement's traffic earns from the drop (ADR 0006), and the window would otherwise run out while the Tile lands.
+   */
+  assembling = false
   /** Dev only: a multiplier on the pace of growth. Each trip a Junction serves counts as this many. */
   pace = 1
   private _city: City
@@ -75,7 +81,7 @@ export class Game {
   private cursor = 0
   private trips = 0
   private last?: Undo
-  /** Steps of earning since the last placement, Swap or Rezoning. */
+  /** Steps of earning since the last placement, Swap or Rezoning, not counting those of an Assembly. */
   private sinceLast = 0
   /** Each zoned Tile's Stage, by its Junction's id. A zoned Tile with none is at Stage 1 with no progress. */
   private stages = new Map<string, TileStage>()
@@ -190,7 +196,8 @@ export class Game {
 
   /**
    * Place a Tile built as `zone` (none: unzoned), or make a Swap, which keeps the Tile's own Zone and Stage; pay for it
-   * and rebuild. An illegal or unaffordable one changes nothing.
+   * and build the Sim again. A placement's traffic drives on, with no Pre-warm; a Swap's starts again. An illegal or
+   * unaffordable one changes nothing.
    */
   place(layout: Layout, rotation: number, cell: Cell, zone?: Zone): Offer {
     const offer = this.offer(layout, rotation, cell)
@@ -200,7 +207,9 @@ export class Game {
     this._city.place(layout, rotation, cell, zone)
     this.yen -= offer.price
     this.reach()
-    this.rebuild(carried(changes, cell, offer.swap))
+    // ponytail: only a placement keeps its traffic. ADR 0006 has a Swap and an Undo keep theirs too, which needs the
+    // vehicles on a Lane that is gone removed in view of the player (#233).
+    this.rebuild(carried(changes, cell, offer.swap), offer.swap ? undefined : this._sim)
     return offer
   }
 
@@ -288,7 +297,7 @@ export class Game {
     // Below the floor, the difference is made up, so a jammed City can always afford a fix.
     const short = Math.max(0, this.incomeFloor - this.tripsPerMinute * ECONOMY.pay)
     this.yen += arrived * ECONOMY.pay + (short * DT) / 60
-    this.sinceLast++
+    if (!this.assembling) this.sinceLast++
   }
 
   /**
@@ -327,10 +336,13 @@ export class Game {
     this.sinceLast = 0
   }
 
-  /** A new Sim of the City, with `carried` as its configuration. No vehicle survives, and it starts at its Pre-warm. */
-  private rebuild(carried: Change[]) {
+  /**
+   * A new Sim of the City, with `carried` as its configuration. The traffic of `traffic`, the Sim before, drives on in
+   * it; with none, no vehicle survives and it starts at its Pre-warm.
+   */
+  private rebuild(carried: Change[], traffic?: Sim) {
     this.paid = 0
-    this._sim = new Sim(this._city, carried, this.seed, { prewarm: false })
+    this._sim = new Sim(this._city, carried, this.seed, { prewarm: false, traffic })
     this.credited = new Uint32Array(this._sim.served.length)
     this.onUnsaved?.()
     return this._sim

@@ -17,10 +17,6 @@ interface Known {
 const BLANK_ROOFS = '#216'
 
 const KNOWN: Known[] = [
-  // The seed's coral tower (`src/render/landmarks.ts`), on whichever Zone's Tile it stands, until #189 finishes it:
-  // drums in flat coral and cream, and blank decks.
-  { rule: 'blank-wall', what: /^tower /, owner: '#189', why: 'the coral tower is drums of flat colour' },
-  { rule: 'blank-roof', what: /^tower /, owner: '#189', why: "the coral tower's decks are blank" },
   // Rule 2 on the finished Zones (#198): a round office tower's band, and the crown or the top tier round a dome or a
   // pyramid, blank where those leave them; a penthouse's deck inside its railing, under 70 m² in sight; an apartment's
   // stair-house at Stage 3, blank on top.

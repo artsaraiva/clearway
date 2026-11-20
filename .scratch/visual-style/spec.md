@@ -8,6 +8,11 @@ The Kerbside, on every Tile: after its walk, a run of pavement still bare as the
 The walk keeps off more than stands, so such runs came between pieces of ground nothing stood on: a claim at the kerb whose piece stands only from a later Stage, a crossing's pads, a crown, a sculpture plaza's ground, a court's claim or a scooter's way by the kerb (19 runs of 12 to 16 m over five seeds of shops, offices and medium density).
 The bollards keep off the ground a Zone claimed as the walk's pieces do ([#218](https://github.com/artsaraiva/clearway/issues/218)), so in front of a claim near the kerb they stand at its ends; each bollard keeps off a crossing's pads and what stands tall.
 
+## Amended by [#227](https://github.com/artsaraiva/clearway/issues/227) (2026-11-20)
+
+Drifting petals are retuned to show at Block zoom: they leave the crown's side, not its middle, in a deeper rose, larger and flat, and stay opaque until they land.
+Details under Fallen petals, below.
+
 ## Amended by [#225](https://github.com/artsaraiva/clearway/issues/225) (2026-11-19)
 
 Petals drift down from one sakura in two on every Zone, as [#151](https://github.com/artsaraiva/clearway/issues/151) asked, not only in parks as [#180](https://github.com/artsaraiva/clearway/issues/180) left them.
@@ -208,7 +213,7 @@ That rule is why the park's deck is wood rather than shrine vermilion, why the c
 | Lawns | the park's and islands' `#b0df88`, houses' gardens, courts and roof gardens `#a9db7f`, the grass of a Tile with roads only `#c8e8a6` |
 | Utility poles ([#148](https://github.com/artsaraiva/clearway/issues/148)) | poles and crossbars `#6f7986`, transformer drums `#c4ccd4`, wires `#2a3142` |
 | Fallen sakura petals | `#ffd1df` `#ffbbd1` `#ffe3ec` |
-| Drifting sakura petals ([#225](https://github.com/artsaraiva/clearway/issues/225)) | `#ffc4d6` |
+| Drifting sakura petals ([#225](https://github.com/artsaraiva/clearway/issues/225), [#227](https://github.com/artsaraiva/clearway/issues/227)) | `#e04a94` |
 | Wood | trunks `#a1714c`, water tanks `#cea680` with lids `#b68b63`, the park's deck `#bb5d0d` |
 | Bike lanes | `#57c6b5` |
 | Water | `#63d1f4` |
@@ -303,6 +308,10 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   Where a Block lies seeds its choices and nothing more, so a Zone builds alike anywhere.
   The odd lot is left as a tree, and lots that would overhang a rounded corner are dropped.
   A coral tower landmark stands on an offices or a high-density residential Tile where the seed puts one.
+  It is built to the Finish ([#189](https://github.com/artsaraiva/clearway/issues/189)) on either Zone alike: each of its five tiers of coral `#f08a6e` and cream `#fbf6ef` wears plaster and a framed window in every bay of every storey round it, a bay about 3 m at the tier's foot and narrowing as the tier tapers, a storey 3 m (the fourth tier's 2.9 m, the fifth's one of 4 m), lit at night window by window as a house's are; the roofs of its two decks wear pavers in the deck's own paint.
+  Its podium, its decks' glass, its mast and its beacon are as they were, and so is everything else on both Zones: all but the tower's tiers and decks hashes the same as before on every Stage over five seeds.
+  It costs no triangle and no draw call, and no frame time the bench could tell from its noise: on the 26-Tile City at Stage 3 with 1,000 cars, against `origin/main` (`8387fe1`) over five interleaved rounds on a machine with something else drawing, offices read 13.01 ms at noon and 11.44 at night at City zoom against 12.09 and 13.49, and 9.89 and 11.05 at Tile zoom against 11.10 and 10.41; high-density residential 12.88 and 13.33 at City zoom against 14.90 and 14.60, and 9.11 and 11.05 at Tile zoom against 10.41 and 10.63.
+  Rounds of one case read up to 5 ms apart, on both sides alike, and a first run of three rounds read the changes with the other signs.
 - **Stages** ([#138](https://github.com/artsaraiva/clearway/issues/138), [#141](https://github.com/artsaraiva/clearway/issues/141)): every Zone builds at its Tile's Stage.
   The look above is Stage 2; Stage 1 is a humbler version of it and Stage 3 goes beyond it.
   Every lot draws from its own random stream, so each Stage builds the same building, better, and never another kind.
@@ -331,6 +340,10 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
 - **Fallen petals** lie round every sakura, as many to the square metre whatever its size, out to seven times its size, on the Block only and, on a raised lawn, well in from its edge.
   They are drawn from where the tree stands, so no Block's fill changes.
   From one sakura in two, chosen by where it stands, petals drift down from its crown through the working day ([#225](https://github.com/artsaraiva/clearway/issues/225)), a plume riding the tree's brick, so no build gains a mesh for them.
+  Each petal ([#227](https://github.com/artsaraiva/clearway/issues/227)) leaves the crown's side, 2.9 times the tree's size out from its trunk and up to 0.7 of its size above or below the crown's middle, clear of the crown's middle sphere and all but the widest of its side ones, so that it does not start hidden inside the crown.
+  It is a puff 0.52 m across squashed to 0.4 of that tall, a deeper rose (`#e04a94`) than the crown and the fallen petals, so that it shows over both, over lawn and over pavement; its hue stands 40° clear of the Jam red-orange.
+  It drifts on outward and downwind and takes 6 s to reach the ground whatever the tree's size, so a small tree's petals float down slowly; it stays opaque most of the way, fading as the fifth power of its age, and is gone as it lands.
+  A tree sheds one every 1.2 s, and a crown reaching more than a metre out more often, by the root of its reach: about five in the air round a small sakura and ten round a park's largest, 1,180 on the 26-Tile City all parks at Stage 3.
   On the 26-Tile City at Stage 3, 155 sakura drift on parks, 55 on green, 48 on low-density, 21 on shops, 16 on medium-density and 11 on high-density.
 - Each Zone's own details and finish are in its file (Seeded, above).
 - **The Kerbside round every Tile** ([#175](https://github.com/artsaraiva/clearway/issues/175) round a finished Tile, `src/render/kerbside.ts`; on every Tile whatever its Zone, unzoned too, since [#176](https://github.com/artsaraiva/clearway/issues/176)), each drawn from where it lies.
@@ -340,6 +353,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   Its planters, bollards and benches keep off the ground the Zone claimed as well, read from the kit's claims rather than a list of the Zone's own ([#218](https://github.com/artsaraiva/clearway/issues/218)): 1.1 m off what each piece stands on, and off the bays and door steps.
   A shop claims the pavement before its front out to the kerb.
   It keeps off the utility poles too: a rail, a grate or a planter never stands at a pole's foot.
+  Where a Block's fill paves over the pavement, as a plaza's paving does from 0.4 m in, it tells the Kerbside how much pavement shows at the edge, and a tactile pad or a drain grate that would not lie wholly on that is left off: a plaza has neither ([#187](https://github.com/artsaraiva/clearway/issues/187)). The rails still open at its crossings, and nothing else moves.
   Rails, mirrors, planters, bollards and benches are Block-zoom props (Rendering recipe, above).
   The user chose this on 2026-11-18 from a sheet of shops with the whole City in frame, the furniture hidden and shown: it changes the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), which drew them at every distance.
   Round each Block:
@@ -532,6 +546,7 @@ The Finish, from the spec in [#173](https://github.com/artsaraiva/clearway/issue
 10. [#183](https://github.com/artsaraiva/clearway/issues/183) High-density residential built to the Finish. Blocked by #175.
 11. [#184](https://github.com/artsaraiva/clearway/issues/184) Farms built to the Finish. Blocked by #175.
 12. [#185](https://github.com/artsaraiva/clearway/issues/185) Unzoned Tiles built to the Finish. Blocked by #175.
+13. [#189](https://github.com/artsaraiva/clearway/issues/189) The coral tower landmark built to the Finish. Blocked by #177.
 
 ## Out of scope
 

@@ -167,6 +167,16 @@ it('does not count the Pre-warm against the Undo window', () => {
   expect(earn(game, 0).undoable).toBe(true)
 })
 
+it('opens the Undo window once the placed Tile has landed', () => {
+  const game = earn(gameOf(1000, ['straight', 0, 0, 0]), 0)
+  place(game, ['straight', 0, 1, 0])
+  game.assembling = true
+  expect(earn(game, 10).undoable).toBe(true)
+  game.assembling = false
+  expect(earn(game, 9).undoable).toBe(true)
+  expect(earn(game, 1).undoable).toBe(false)
+})
+
 it('undoes only the last placement', () => {
   const game = gameOf(1000, ['straight', 0, 0, 0])
   place(game, ['straight', 0, 1, 0])
