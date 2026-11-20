@@ -322,18 +322,18 @@ export function createScenery(
     },
 
     /**
-     * The wires across the seams between the pieces laid, but for `except`'s, as one mesh: one span from each line's last
-     * pole to the next Tile's, on each Road two pieces share. Null if there are none. Built from the poles as they
-     * stand, so it is right whatever was laid, swapped or taken off since.
+     * The wires across the seams between the pieces laid, but for those in `except`, as one mesh: one span from each
+     * line's last pole to the next Tile's, on each Road two pieces share. Null if there are none. Built from the poles as
+     * they stand, so it is right whatever was laid, swapped or taken off since.
      * ponytail: every seam's wires are strung again each time, two tubes a seam, which is nothing at a few dozen
      * Tiles and a few ms at several hundred. Keep each piece's seams in a mesh of its own and string only the ones a
      * change touches if a big City's Rebuild hitches.
      */
-    seams(except?: Bounds | null): THREE.Mesh | null {
+    seams(except: Bounds[] = []): THREE.Mesh | null {
       const kit = createKit(mulberry32(0), materials)
       const byRoad = new Map<string, LineEnd[]>()
       for (const { piece, ends } of laid) {
-        if (except && sameBounds(piece, except)) continue
+        if (except.some((e) => sameBounds(piece, e))) continue
         for (const end of ends) byRoad.set(end.road, [...(byRoad.get(end.road) ?? []), end])
       }
       for (const [a, b] of byRoad.values()) if (b) stringWires(kit, a.post, b.post)

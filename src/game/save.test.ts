@@ -57,8 +57,8 @@ const STAGED = [
 ]
 
 /**
- * A run on the ten Tiles, some grown, the last just placed and then one rezoned, with Changes at three Junctions, yen
- * and a Record from an earlier run, above this one's Growth.
+ * A run on the ten Tiles, some grown, the last just placed and landed and then one rezoned, with Changes at three
+ * Junctions, yen and a Record from an earlier run, above this one's Growth.
  */
 function played(free: boolean) {
   const [[id, rotation, x, y, z], ...rest] = TEN
@@ -67,6 +67,7 @@ function played(free: boolean) {
   const game = new Game(7, { city, yen: 10_000, free, stages: [...GROWN] })
   const [last, turns, lx, ly, lz] = TEN.at(-1)!
   expect(game.place(layout(last), turns, { x: lx, y: ly }, zone(lz))).toMatchObject({ legal: true, affordable: true })
+  expect(game.land()).toBe(true)
   expect(game.rezone({ x: 1, y: 0 }, zone('farms'))).toBe(true)
   game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
   for (const at of ['c3_0', 'c5_0']) game.apply({ at, disable: open(game, at).slice(0, 2) })
@@ -96,6 +97,19 @@ it('loads a save back as the same run, each Tile with its Zone and Stage, with n
     expect(back.price).toBe(game.price)
     expect(back.undoable).toBe(false)
   }
+})
+
+it('loads a run saved during an Assembly with the Tile landed and open to traffic', () => {
+  const game = played(false)
+  game.yen = 10_000
+  expect(game.place(layout('straight'), 0, { x: 7, y: 0 })).toMatchObject({ legal: true, affordable: true })
+  expect(game.city.assembling).toHaveLength(1)
+  const { game: back } = load(saveOf(game), false)
+  expect(back.city.tiles).toEqual(game.city.tiles)
+  expect(back.city.assembling).toEqual([])
+  const changes = back.sim.configuration()
+  expect(changes.map((c) => c.at)).toContain('c7_0')
+  expect(changes.filter((c) => c.at !== 'c7_0')).toEqual(game.sim.configuration())
 })
 
 it('starts a new run when a save will not load, which keeps the Record of a save of this version', () => {

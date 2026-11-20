@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
-import type { NetworkSpec } from '../sim/spec'
+import type { NetworkSpec, Priority } from '../sim/spec'
 import { dashes, mid, ribbons } from './ribbons'
 
 const PAINT_Y = 0.04
@@ -16,10 +16,10 @@ const GIVE_WAY = { pitch: 1.75, base: 0.72, length: 2.4, setback: 0.5 }
 const paint = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide })
 
 /** A row of give-way triangles across each Approach lane of every yielding Arm, pointing at the driver who must give way. */
-function giveWayTriangles(arms: Arm[], laneWidth: (road: string) => number): THREE.BufferGeometry {
+function giveWayTriangles(arms: Arm[], rules: Priority[], laneWidth: (road: string) => number): THREE.BufferGeometry {
   const pos: number[] = []
-  for (const arm of arms) {
-    if (arm.priority !== 'yield') continue
+  for (const [i, arm] of arms.entries()) {
+    if (rules[i] !== 'yield') continue
     const w = laneWidth(arm.road)
     const n = Math.max(1, Math.round(w / GIVE_WAY.pitch))
     const half = ((w / n) * GIVE_WAY.base) / 2
@@ -104,16 +104,32 @@ export function createRoads(net: Network, spec: NetworkSpec) {
   group.add(giveWay)
   for (const mesh of group.children) mesh.receiveShadow = true
   let painted = ''
+  /** The network the give-way paint follows, and each Arm's Arm there: its own where that network has none. */
+  let followed = net
+  let ruling = arms
 
   return {
     group,
-    /** Re-read each Arm's Priority from the sim, and repaint when a Change has moved one. */
-    update() {
-      const now = arms.map((arm) => arm.priority[0]).join('')
+    /**
+     * Re-read each Arm's Priority from `live`, the network the traffic drives, and repaint when a Change has moved one.
+     * The paint may stand on a network grown by Tiles still in their Assembly, whose Arms `live` lacks: they keep their own.
+     */
+    update(live: Network = net) {
+      if (live !== followed) {
+        followed = live
+        const key = (arm: Arm) => `${arm.junction} ${arm.road}`
+        const there = new Map(live.junctions.flatMap((j) => j.arms.map((arm) => [key(arm), arm])))
+        ruling = arms.map((arm) => there.get(key(arm)) ?? arm)
+      }
+      const now = ruling.map((arm) => arm.priority[0]).join('')
       if (now === painted) return
       painted = now
       giveWay.geometry.dispose()
-      giveWay.geometry = giveWayTriangles(arms, laneWidth)
+      giveWay.geometry = giveWayTriangles(
+        arms,
+        ruling.map((arm) => arm.priority),
+        laneWidth,
+      )
     },
   }
 }

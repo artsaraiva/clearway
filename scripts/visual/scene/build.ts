@@ -145,6 +145,7 @@ function placeCity({ city, zone, stage }: Ask): Game {
       z,
     )
     if (!offer.legal) throw new Error(`refused ${id} at ${x},${y}`)
+    game.land() // as the screen does once the Tile has assembled
   }
   for (const t of game.city.tiles) game.setStage(t.cell, stage)
   return game

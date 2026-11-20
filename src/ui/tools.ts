@@ -3,7 +3,7 @@ import type { ScreenPoint } from '../render/camera'
 import { connection, type Target } from '../render/tools'
 import type { View } from '../render/view'
 import type { Vec } from '../sim/geometry'
-import type { Arm, Connection, Junction, Lane } from '../sim/network'
+import type { Arm, Connection, Junction, Lane, Network } from '../sim/network'
 import { junctionId } from '../sim/tiles'
 import type { Gesture } from './press'
 
@@ -177,6 +177,22 @@ export function createTools(panel: HTMLElement, canvas: HTMLCanvasElement, game:
     /** The selected Junction. */
     get selected() {
       return selected
+    },
+
+    /**
+     * Find what the Tools show again on `net`, the network a Tile landing grew from the one before: the Junction
+     * selected and the lane end picked, by id, so a Change goes on being made while Tiles land. What the pointer is over
+     * is found again as it moves.
+     */
+    moveOnto(net: Network) {
+      const again = (j: Junction | null) => (j && net.junctions.find((k) => k.id === j.id)) ?? null
+      hovered = again(hovered)
+      selected = again(selected)
+      from = (selected && from && net.lanes.find((l) => l.id === from!.id)) ?? null
+      under = snap = null
+      if (!from) aim = null
+      panel.hidden = !selected
+      show()
     },
 
     /** `Esc`: let go of the Connection being drawn, then of the selection and the route. */
