@@ -66,7 +66,6 @@ function play(run: Run) {
   let acc = 0
   /** One frame: `dt` real seconds of the game, drawn. */
   const frame = (dt: number) => {
-    game.assembling = view.assembling
     if (!game.sim.prewarmed) {
       const end = performance.now() + PREWARM_BUDGET
       while (!game.sim.prewarmed && performance.now() < end) game.step()

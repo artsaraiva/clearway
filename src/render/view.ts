@@ -52,8 +52,22 @@ interface StageUp {
   built?: Build
 }
 
-/** What a Rebuild did to the slab: the cell of the Tile it placed, of the Tile it swapped (or swapped back), or of the Tile an Undo took off. */
-export type Relaid = { placed: Bounds } | { swapped: Bounds } | { removed: Bounds }
+/** What a Rebuild did to the slab: the cell of the Tile it swapped (or swapped back), or of the Tile an Undo took off. */
+export type Relaid = { swapped: Bounds } | { removed: Bounds }
+
+/**
+ * A placed Tile's Assembly: its piece, the build assembling on a reveal of its own, the Sim of the whole City at its drop
+ * that the build stands on, whether its road plate has landed and whether all of it has, and how it opens to traffic.
+ */
+interface Assembly {
+  piece: Bounds
+  build: Build
+  reveal: ReturnType<typeof createReveal>
+  planned: Sim
+  plated: boolean
+  built: boolean
+  open: () => Sim
+}
 
 /**
  * Draws a Sim's City as a slab in open sky, and each Rebuild as its piece of slab assembling. The slab has no bounds:
@@ -152,8 +166,21 @@ export function createView(
     if (waiting[0]?.begun && sameBounds(waiting[0].piece, piece)) playStageUp(waiting.shift()!, true)
     for (let i = waiting.length - 1; i >= 0; i--) if (sameBounds(waiting[i].piece, piece)) waiting.splice(i, 1)
   }
-  /** The piece a Rebuild is assembling, whose seams wait for it to land. */
-  let assembling: Bounds | null = null
+  /** The piece a Swap's Rebuild is assembling, whose seams wait for it to land. */
+  let swapping: Bounds | null = null
+  /** The Tiles in their Assembly, in the order dropped: the first opens to traffic next. */
+  const assemblies: Assembly[] = []
+  /**
+   * The reveals the Assemblies play on, one each, with as many puffs as a Rebuild's. One whose build has landed plays the
+   * next, and one leaves the scene while nothing of it moves, as a Stage-up's does.
+   */
+  const assemblers: ReturnType<typeof createReveal>[] = []
+  const assembler = () => {
+    let free = assemblers.find((r) => !r.playing)
+    if (!free) assemblers.push((free = createReveal(materials)))
+    if (!free.group.parent) scene.add(free.group)
+    return free
+  }
   /** The wires across the seams between Tiles, strung again whenever a Tile lands or is taken off. */
   let seams = scenery.seams()
   const restring = () => {
@@ -161,7 +188,8 @@ export function createView(
       scene.remove(seams)
       seams.geometry.dispose()
     }
-    seams = scenery.seams(assembling)
+    const unlanded = assemblies.filter((a) => !a.built).map((a) => a.piece)
+    seams = scenery.seams(swapping ? [swapping, ...unlanded] : unlanded)
     if (seams) scene.add(seams)
   }
   const hand = createHand()
@@ -209,6 +237,57 @@ export function createView(
   let shown = sim // the Sim whose cars are drawn
   let next: Sim | null = null // the Sim a Rebuild is building toward, until its cars are shown
   let grow = 1 // the cars' size: they shrink out as a Rebuild starts and grow back in once it has landed
+  let painted = sim // the Sim whose network the road paint shows
+
+  /** Paint the roads of `by`'s network in place of the paint before. */
+  const repaint = (by: Sim) => {
+    if (by === painted) return
+    painted = by
+    scene.remove(roads.group)
+    roads.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return
+      o.geometry.dispose()
+      ;(o.material as THREE.Material).dispose()
+    })
+    roads = createRoads(by.net, by.spec)
+    scene.add(roads.group)
+  }
+  /**
+   * Paint the roads as far as plate has landed: the network the last Tile dropped whose plate has landed stands on,
+   * which has every Tile dropped before it, or else the traffic's.
+   */
+  const paintAssemblies = () => repaint([...assemblies].reverse().find((a) => a.plated)?.planned ?? shown)
+  /** Take the piece of a Tile off the slab, its walkers and its scenery with it. */
+  const takeUp = (piece: Bounds) => {
+    pieces.splice(pieces.findIndex((p) => sameBounds(p, piece)), 1) // prettier-ignore
+    walkers.remove([piece])
+    drop(scenery.remove(piece))
+  }
+  /** Fit the camera, the light and the shadow under the slab to the slab as it stands, if it has grown or shrunk. */
+  const refit = () => {
+    const now = slabNow()
+    if (sameBounds(now, slab)) return
+    slab = now
+    rig.setCity(now)
+    day.fit(now)
+    under.fit(now, true)
+  }
+  /**
+   * Open to traffic, in the order dropped, each Tile in its Assembly that has landed and every Tile dropped before it
+   * has: the Sim its `open` gives drives on from the one shown.
+   */
+  const openLanded = () => {
+    while (assemblies[0]?.built) {
+      const landed = assemblies.shift()!
+      const opened = landed.open()
+      // The network the Tile's piece stands on is the one it opens: its paint stands, following the new traffic.
+      if (painted === landed.planned) painted = opened
+      shown = opened
+      cars.reset(shown.net, true)
+      labels.show(shown.net, shown.rates, field, pieces)
+    }
+    paintAssemblies()
+  }
 
   /** Sim coordinates under the pointer, on the road plane. */
   const pick = (e: ScreenPoint): Vec | null => {
@@ -311,12 +390,9 @@ export function createView(
       return next !== null || grow < 1
     },
 
-    /**
-     * Whether a Tile is in its Assembly: a placed one, whose traffic drives on meanwhile, or a swapped one. No other
-     * Tile can be dropped until it has landed, and it assembles even while the world is paused.
-     */
+    /** Whether a placed Tile is in its Assembly, which plays even while the world is paused. */
     get assembling() {
-      return reveal.playing
+      return assemblies.length > 0
     },
 
     /** Show the Tile in the player's hand, and what its drop does to the Gateways. `null` empties the hand. */
@@ -380,19 +456,80 @@ export function createView(
     },
 
     /**
-     * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
-     * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
-     * at once. A placed Tile's Sim carries the traffic on (ADR 0006), so its cars are shown from the start and drive
-     * while the Tile assembles. Otherwise the cars shrink out and grow in once the Tile has landed: they wait for the
-     * Sim's Pre-warm, which the caller runs meanwhile.
-     * ponytail: the piece is built in one go when the Rebuild starts, a hitch of 9 to 31 ms for one cell on an M4 Pro,
-     * from industrial to parks. Spread the build over frames (`scenery.add` is a generator) if the hitch shows on slower
+     * Play a placed Tile's Assembly: its piece assembles next to the slab already there, built on `planned`, a Sim of
+     * the whole City (it has every Tile dropped before this one), while the traffic shown drives on as it was. The
+     * road paint grows as its plate lands. Several Tiles assemble at once, each on a reveal of its own, and each opens to
+     * traffic once it and every Tile dropped before it have landed: then `open` gives the Sim to show, which drives on
+     * from the one shown (ADR 0006).
+     * ponytail: the piece is built in one go at the drop, a hitch of 9 to 31 ms for one cell on an M4 Pro, from
+     * industrial to parks. Spread the build over frames (`scenery.add` is a generator) if the hitch shows on slower
      * machines.
+     */
+    assemble(planned: Sim, piece: Bounds, open: () => Sim) {
+      // A Stage-up begun is built at once, since the new piece lays the field again, and plays once no Tile assembles.
+      buildAtOnce()
+      pieces.push(piece)
+      const build = finish(scenery.add(planned, [piece]))
+      scene.add(...build.meshes)
+      const assembly: Assembly = { piece, build, reveal: assembler(), planned, plated: false, built: false, open }
+      assemblies.push(assembly)
+      // Its seams wait for its poles to land.
+      restring()
+      refit()
+      // The camera stays where it is, unless the Tile is off screen: then it moves just far enough to show it.
+      rig.bringIn(piece)
+      // Neither moment counts once an Undo has taken the Tile off.
+      const ours = () => assemblies.includes(assembly)
+      assembly.reveal.play(build, {
+        plate() {
+          if (!ours()) return
+          assembly.plated = true
+          paintAssemblies()
+        },
+        done() {
+          if (!ours()) return
+          assembly.built = true
+          walkers.add(planned.net, field, build.pieces)
+          sky.fit(slab)
+          restring()
+          openLanded()
+        },
+      })
+      movers.add(build, assembly.reveal)
+    },
+
+    /**
+     * Take off the Tile on `piece`, the last one dropped, while it is still in its Assembly: its piece is gone at once,
+     * the paint with it, and the traffic, which never reached it, drives on as it was.
+     */
+    takeOff(piece: Bounds) {
+      const [gone] = assemblies.splice(
+        assemblies.findIndex((a) => sameBounds(a.piece, piece)),
+        1,
+      )
+      gone.reveal.settle()
+      // As in `assemble`: taking the piece off lays the field again.
+      buildAtOnce()
+      takeUp(piece)
+      restring()
+      refit()
+      sky.fit(slab)
+      paintAssemblies()
+      labels.show(shown.net, shown.rates, field, pieces)
+    },
+
+    /**
+     * Play a Rebuild, a Swap's or an Undo's of a Tile that had landed: `rebuilt` is the Sim it made and `relaid` what it
+     * did to the slab. A swapped Tile assembles in the place of the Tile before it, and one an Undo takes off is gone at
+     * once. The cars shrink out and grow in once the Tile has landed: they wait for the Sim's Pre-warm, which the caller
+     * runs meanwhile. No Tile is in its Assembly meanwhile: the game waits for them to land.
+     * ponytail: a swapped piece is built in one go when the Rebuild starts, a hitch of 9 to 31 ms for one cell on an M4
+     * Pro, from industrial to parks. Spread the build over frames (`scenery.swap`'s building is a generator) if the
+     * hitch shows on slower machines.
      */
     rebuild(rebuilt: Sim, relaid: Relaid) {
       // A Rezoning still playing lands at once, since its piece may be the one rebuilt, and so does a Stage-up of that
       // piece. Another Stage-up begun is built at once, since this Rebuild lays the field again, and plays once it ends.
-      // A Tile still assembling lands at once too: an Undo may take it off.
       reveal.settle()
       regrow.settle()
       if ('swapped' in relaid) settleStageUps(relaid.swapped)
@@ -401,59 +538,32 @@ export function createView(
       let build: Build | null = null
       /** The Tile a Swap replaced, which stands until the new road plate lands on it. */
       let old: THREE.Mesh[] = []
-      if ('removed' in relaid) {
-        pieces.splice(pieces.findIndex((p) => sameBounds(p, relaid.removed)), 1) // prettier-ignore
-        walkers.remove([relaid.removed])
-        drop(scenery.remove(relaid.removed))
-      } else if ('swapped' in relaid) {
+      if ('removed' in relaid) takeUp(relaid.removed)
+      else {
         walkers.remove([relaid.swapped])
         const swap = scenery.swap(rebuilt, relaid.swapped)
         ;[old, build] = [swap.old, finish(swap.building)]
-      } else {
-        pieces.push(relaid.placed)
-        build = finish(scenery.add(rebuilt, [relaid.placed]))
+        scene.add(...build.meshes)
       }
-      if (build) scene.add(...build.meshes)
-      // The seams of the piece assembling wait for its poles to land.
-      assembling = 'placed' in relaid ? relaid.placed : 'swapped' in relaid ? relaid.swapped : null
+      // The seams of the piece swapped wait for its poles to land.
+      swapping = 'swapped' in relaid ? relaid.swapped : null
       restring()
-      const paint = createRoads(rebuilt.net, rebuilt.spec)
-      const grown = slabNow()
-      if (!sameBounds(grown, slab)) {
-        slab = grown
-        rig.setCity(grown)
-        day.fit(grown)
-        under.fit(grown, true)
-      }
-      // The camera stays where it is, unless the Tile laid is off screen: then it moves just far enough to show it.
-      if ('placed' in relaid) rig.bringIn(relaid.placed)
-      if ('swapped' in relaid) rig.bringIn(relaid.swapped)
-      // ponytail: the Sim of a placed Tile is shown from the drop, so cars drive onto the Tile while it still assembles,
-      // over ground with no road painted yet. ADR 0006 has the change take effect when the Tile has landed: hold the
-      // Sim back until `moments.done` once the game makes it then (#233).
-      if ('placed' in relaid) {
-        shown = rebuilt
-        cars.reset(shown.net, true)
-      } else [next, inspected] = [rebuilt, null]
+      refit()
+      // The camera stays where it is, unless the Tile swapped is off screen: then it moves just far enough to show it.
+      if (swapping) rig.bringIn(swapping)
+      ;[next, inspected] = [rebuilt, null]
       tools.show(NO_TOOLS)
       labels.show(rebuilt.net, rebuilt.rates, field, pieces)
       const moments = {
         plate() {
           drop(old)
-          scene.remove(roads.group)
-          roads.group.traverse((o) => {
-            if (!(o instanceof THREE.Mesh)) return
-            o.geometry.dispose()
-            ;(o.material as THREE.Material).dispose()
-          })
-          roads = paint
-          scene.add(roads.group)
+          repaint(rebuilt)
         },
         done() {
           if (build) walkers.add(rebuilt.net, field, build.pieces)
-          sky.fit(grown)
-          if (build && assembling && sameBounds(assembling, build.pieces[0])) {
-            assembling = null
+          sky.fit(slab)
+          if (build && swapping && sameBounds(swapping, build.pieces[0])) {
+            swapping = null
             restring()
           }
         },
@@ -473,11 +583,15 @@ export function createView(
      */
     render(dt: number, real = dt) {
       reveal.update(dt)
+      for (const r of assemblers) {
+        r.update(dt)
+        if (!r.busy && r.group.parent) scene.remove(r.group)
+      }
       regrow.update(real)
       // The next Stage-up whose piece nothing plays on is built a few ms at a time, then plays. None begins while a
       // Rebuild plays or a Tile assembles, or while as many play as may.
       const end = performance.now() + STAGE_UPS.budget
-      while (waiting.length && !next && !reveal.playing) {
+      while (waiting.length && !next && !reveal.playing && !assemblies.length) {
         const at = waiting.findIndex((j) => j.begun || !busy(j.piece))
         if (at < 0) break
         const job = waiting[at]
@@ -519,7 +633,9 @@ export function createView(
       hand.update(perPixel)
       rezoning.update(perPixel)
       tools.update()
-      roads.update()
+      // The give-way paint shows the traffic's Priorities, whatever network the paint stands on: a Rebuild's new one
+      // once its plate has landed.
+      roads.update((painted === next ? painted : shown).net)
       rig.update(real)
       under.update(dt)
       sky.update(dt, rig.camera.zoom, calm)

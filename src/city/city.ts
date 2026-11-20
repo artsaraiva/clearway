@@ -71,7 +71,7 @@ export interface Gateway {
   direction: Direction
 }
 
-export type Refusal = 'cell taken' | 'no Tile to swap' | 'edge mismatch' | 'no road joins' | 'fewer than two Gateways'
+export type Refusal = 'cell taken' | 'no Tile to swap' | 'still assembling' | 'edge mismatch' | 'no road joins' | 'fewer than two Gateways'
 
 /** Whether a drop or a Swap is legal. `joins` is how many placed Tiles it joins by road. */
 export type Verdict = { legal: true; joins: number } | { legal: false; reason: Refusal }
@@ -85,13 +85,17 @@ const opposite = (d: Direction) => ((d + 2) % 4) as Direction
 export const hasRoad = (tile: Pick<Tile, 'layout' | 'rotation'>, d: Direction) => tile.layout.roads[(((d - tile.rotation) % 4) + 4) % 4]
 
 export class City {
-  /** The Tiles placed, in order. A Swap keeps the Tile's position in the order. */
+  /** The Tiles placed, in order, those in their Assembly too. A Swap keeps the Tile's position in the order. */
   readonly tiles: Tile[]
   private readonly at = new Map<string, Tile>()
+  /** The Tiles of `tiles` in their Assembly. */
+  private readonly landing: Set<Tile>
 
-  constructor(tiles: Tile[]) {
+  /** A City of `tiles`, of which those in `assembling` are in their Assembly. */
+  constructor(tiles: Tile[], assembling: Tile[] = []) {
     this.tiles = [...tiles]
     for (const tile of this.tiles) this.at.set(key(tile.cell), tile)
+    this.landing = new Set(assembling.filter((t) => this.tiles.includes(t)))
   }
 
   /** A new City: one Tile, its Layout and rotation drawn from `seed`, built as the first Zone. */
@@ -117,29 +121,59 @@ export class City {
     return this.fits({ cell, layout, rotation })
   }
 
-  /** Whether `layout`, turned `rotation`, may replace the Tile on `cell`. */
+  /** Whether `layout`, turned `rotation`, may replace the Tile on `cell`. Not until a Tile in its Assembly has landed. */
   swap(layout: Layout, rotation: number, cell: Cell): Verdict {
-    if (!this.at.has(key(cell))) return { legal: false, reason: 'no Tile to swap' }
+    const old = this.at.get(key(cell))
+    if (!old) return { legal: false, reason: 'no Tile to swap' }
+    if (this.landing.has(old)) return { legal: false, reason: 'still assembling' }
     return this.fits({ cell, layout, rotation })
   }
 
   /**
    * Drop a Tile built as `zone` (none: unzoned) on an empty cell, or swap the Layout of the Tile on a taken one, which
-   * keeps its own Zone. A refused placement changes nothing.
+   * keeps its own Zone. A Tile dropped on an empty cell starts its Assembly if `assembling` says so, and otherwise has
+   * landed at once. A refused placement changes nothing.
    */
-  place(layout: Layout, rotation: number, cell: Cell, zone?: Zone): Verdict {
+  place(layout: Layout, rotation: number, cell: Cell, zone?: Zone, { assembling = false } = {}): Verdict {
     const old = this.at.get(key(cell))
     const tile: Tile = { cell: { ...cell }, layout, rotation, zone: old ? old.zone : zone }
-    const verdict = this.fits(tile)
+    const verdict = old ? this.swap(layout, rotation, cell) : this.fits(tile)
     if (!verdict.legal) return verdict
     this.put(tile, old)
+    if (assembling && !old) this.landing.add(tile)
     return verdict
   }
 
-  /** Build the Tile on `cell` as `zone`, or unzone it. A Zone never makes a Tile illegal. False if no Tile is on `cell`. */
+  /**
+   * The Tiles in their Assembly, in the order they were dropped: placed, so the rules count them, but not yet open to
+   * traffic.
+   */
+  get assembling(): Tile[] {
+    return this.tiles.filter((t) => this.landing.has(t))
+  }
+
+  /** Land the first Tile in its Assembly, which opens it to traffic. None if no Tile is in its Assembly. */
+  land(): Tile | undefined {
+    const [first] = this.assembling
+    if (first) this.landing.delete(first)
+    return first
+  }
+
+  /**
+   * The Tiles that have landed, as a City of their own: the roads the traffic drives, without the Tiles in their
+   * Assembly.
+   */
+  landed(): City {
+    return new City(this.tiles.filter((t) => !this.landing.has(t)))
+  }
+
+  /**
+   * Build the Tile on `cell` as `zone`, or unzone it. A Zone never makes a Tile illegal. False if no Tile is on `cell`,
+   * or the Tile is in its Assembly.
+   */
   rezone(cell: Cell, zone?: Zone): boolean {
     const old = this.at.get(key(cell))
-    if (!old) return false
+    if (!old || this.landing.has(old)) return false
     this.put({ ...old, zone }, old)
     return true
   }

@@ -72,39 +72,46 @@ export function createUI(
 
   const strip = createStrip(root, game, view)
 
-  /** Play the Rebuild the game just made. */
+  /** Play the Rebuild the game just made: a Swap's, or an Undo's of a Tile that had landed. */
   const rebuilt = (relaid: Relaid) => {
     tools.clear()
     view.rebuild(game.sim, relaid)
   }
 
   /**
-   * Whether a Tile is in its Assembly, or the traffic is halted behind one: no Tile is dropped or rezoned until then.
-   * ponytail: one Assembly at a time. An Undo is still allowed during one, which lands the Tile at once and takes it
-   * off, and its window opens once the Tile has landed. ADR 0006 has several Tiles assemble at once and land in the order dropped: queue the drops in the game
-   * when a placement takes effect at its landing (#233).
+   * Open the first Tile in its Assembly to traffic, as the view says it has landed: the game grows its Sim, and the
+   * Tools find what they show again on its network.
    */
-  const assembling = () => view.rebuilding || view.assembling
+  const opened = () => {
+    game.land()
+    tools.moveOnto(game.sim.net)
+    return game.sim
+  }
 
   /**
-   * Drop a Layout on a cell: a placement built as the Zone picked, or a Swap on a placed Tile, which keeps its own.
-   * Refused until the Tile dropped before has landed.
+   * Drop a Layout on a cell: a placement built as the Zone picked, which starts its Assembly while others may still be
+   * in theirs, or a Swap on a placed Tile, which keeps its own Zone. Refused while the traffic is halted behind a Swap
+   * or an Undo.
    */
   const place = (layout: Layout, turns: number, cell: Cell) => {
-    if (assembling()) return false
+    if (view.rebuilding) return false
     const offer = game.place(layout, turns, cell, zone)
     if (!offer.legal) return false
     if (!offer.affordable) {
       strip.refuse()
       return false
     }
-    rebuilt(offer.swap ? { swapped: cellBounds(cell) } : { placed: cellBounds(cell) })
+    if (offer.swap) rebuilt({ swapped: cellBounds(cell) })
+    else view.assemble(game.plan(), cellBounds(cell), opened)
     return true
   }
 
-  /** Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused during an Assembly. */
+  /**
+   * Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused while the traffic is
+   * halted, or the Tile is in its Assembly.
+   */
   const rezone = (cell: Cell, built: Zone | undefined) => {
-    if (assembling() || !game.rezone(cell, built)) return false
+    if (view.rebuilding || !game.rezone(cell, built)) return false
     view.rezone(game.sim, cellBounds(cell))
     return true
   }
@@ -112,9 +119,10 @@ export function createUI(
   const undo = () => {
     if (view.rebuilding) return
     const before = game.city.tiles
+    const assembling = game.city.assembling
     if (!game.undo()) return
-    // An Undo of a placement takes its Tile off; an Undo of a Swap puts the Tile before it back on its cell, and an
-    // Undo of a Rezoning its Zone, with no Rebuild.
+    // An Undo of a placement takes its Tile off, with no Rebuild if it was still in its Assembly; an Undo of a Swap
+    // puts the Tile before it back on its cell, and an Undo of a Rezoning its Zone, with no Rebuild.
     const after = game.city
     const gone = before.find((t) => !after.tileAt(t.cell))
     const changed = before.find((t) => {
@@ -122,7 +130,8 @@ export function createUI(
       return now && (now.layout !== t.layout || now.rotation !== t.rotation)
     })
     const rezoned = before.find((t) => after.tileAt(t.cell)?.zone !== t.zone)
-    if (gone) rebuilt({ removed: cellBounds(gone.cell) })
+    if (gone && assembling.includes(gone)) view.takeOff(cellBounds(gone.cell))
+    else if (gone) rebuilt({ removed: cellBounds(gone.cell) })
     else if (changed) rebuilt({ swapped: cellBounds(changed.cell) })
     else if (rezoned) view.rezone(game.sim, cellBounds(rezoned.cell))
   }
@@ -134,7 +143,7 @@ export function createUI(
    * empty while a Zone is dragged.
    */
   const held = (): Held | null => {
-    if (!hand || assembling() || dragging?.moved) return null
+    if (!hand || view.rebuilding || dragging?.moved) return null
     const { layout, cell } = hand
     const city = game.city
     const empty = new Map<string, Cell>()
@@ -160,16 +169,17 @@ export function createUI(
       swap,
       lines: [
         yen(offer.price),
-        tripsChange(labelledDemand(after) - labelledDemand(game.sim)),
+        // Against the whole City: the Tiles in their Assembly change Demand as they land, whatever this drop does.
+        tripsChange(labelledDemand(after) - labelledDemand(game.city.assembling.length ? game.plan() : game.sim)),
         [nameOf(placed ? placed.zone : zone), ...notes].join(' · '),
       ],
     }
   }
 
-  /** What letting go of the Zone dragged would make of the placed Tile under it, if it is over one. */
+  /** What letting go of the Zone dragged would make of the placed Tile under it, if it is over one that has landed. */
   const rezoning = (): Rezoning | null => {
-    const tile = dragging?.moved && dragging.cell && !assembling() ? game.city.tileAt(dragging.cell) : undefined
-    if (!dragging || !tile) return null
+    const tile = dragging?.moved && dragging.cell && !view.rebuilding ? game.city.tileAt(dragging.cell) : undefined
+    if (!dragging || !tile || game.city.assembling.includes(tile)) return null
     const becomes = nameOf(dragging.zone).toLowerCase()
     return tile.zone === dragging.zone
       ? { cell: tile.cell, state: 'unchanged', lines: ['No change', `already ${becomes}`] }
@@ -397,14 +407,15 @@ export function createUI(
       // The hand is shown again only when what it shows changes. Yen can reach a drop's price, which a loop rebate makes
       // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
       // board with the hand empty, and the hand over the screen holds no cell.
-      const offer = hand?.cell && !assembling() ? game.offer(hand.layout, rotation, hand.cell) : null
+      const offer = hand?.cell && !view.rebuilding ? game.offer(hand.layout, rotation, hand.cell) : null
+      // What is under way: a Rebuild halting the traffic, and how many Tiles are in their Assembly.
+      const underway = `${view.rebuilding}:${game.city.assembling.length}`
       const under = hand?.cell && game.city.tileAt(hand.cell)
-      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${assembling()}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
+      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${underway}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
       const target = dragging?.moved && dragging.cell ? game.city.tileAt(dragging.cell) : undefined
-      const rezoningKey =
-        dragging && target ? `${dragging.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${assembling()}` : ''
+      const rezoningKey = dragging && target ? `${dragging.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${underway}` : ''
       if (rezoningKey !== shownRezoning) view.showRezoning(rezoning())
       shownRezoning = rezoningKey
       cameraButtons.update()

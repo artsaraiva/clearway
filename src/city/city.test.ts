@@ -92,6 +92,21 @@ it('refuses a Swap that leaves fewer than two Gateways', () => {
   expect(city.swap(curve, 3, { x: 0, y: 1 })).toEqual({ legal: false, reason: 'fewer than two Gateways' })
 })
 
+it('allows a drop on the open end of a Tile in its Assembly', () => {
+  const city = cityFrom(straight)
+  expect(city.place(straight, 0, { x: 1, y: 0 }, undefined, { assembling: true }).legal).toBe(true)
+  expect(city.assembling.map((t) => t.cell)).toEqual([{ x: 1, y: 0 }])
+  expect(city.drop(straight, 0, { x: 2, y: 0 })).toEqual({ legal: true, joins: 1 })
+})
+
+it('refuses a Swap of a Tile in its Assembly until it has landed', () => {
+  const city = cityFrom(crossroads)
+  city.place(straight, 0, { x: 1, y: 0 }, undefined, { assembling: true })
+  expect(city.swap(crossroads, 0, { x: 1, y: 0 })).toEqual({ legal: false, reason: 'still assembling' })
+  city.land()
+  expect(city.swap(crossroads, 0, { x: 1, y: 0 }).legal).toBe(true)
+})
+
 it('refuses a Swap on an empty cell', () => {
   expect(cityFrom(straight).swap(straight, 0, { x: 1, y: 0 })).toEqual({ legal: false, reason: 'no Tile to swap' })
 })

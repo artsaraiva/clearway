@@ -14,6 +14,11 @@ function gameOf(yen: number, ...tiles: Placing[]) {
   return new Game(1, { city, yen })
 }
 const place = (game: Game, [id, rotation, x, y]: Placing) => game.place(layout(id), rotation, { x, y })
+/** Land every Tile in its Assembly, as the screen does once each has assembled. */
+function land(game: Game) {
+  while (game.land());
+  return game
+}
 /** Finish the Pre-warm, then run `seconds` of earning. */
 function earn(game: Game, seconds: number) {
   while (!game.sim.prewarmed) game.step()
@@ -56,6 +61,19 @@ it('raises the Price with every Tile placed, rounded to ¥50', () => {
   expect(game.yen).toBe(10_000 - 350 - 450 - 600 - 750)
 })
 
+it('charges each Tile dropped during another’s Assembly the Price of its place in the order', () => {
+  const game = gameOf(10_000, ['straight', 0, 0, 0])
+  for (const [x, price] of [
+    [1, 350],
+    [2, 450],
+    [3, 600],
+  ])
+    expect(place(game, ['straight', 0, x, 0])).toMatchObject({ legal: true, price })
+  expect(game.city.assembling).toHaveLength(3)
+  expect(game.yen).toBe(10_000 - 350 - 450 - 600)
+  expect(game.price).toBe(750)
+})
+
 it('charges the same Price for every Layout', () => {
   const game = gameOf(350, ['crossroads', 0, 0, 0])
   for (const l of LAYOUTS) expect(game.offer(l, 2, { x: 1, y: 0 })).toMatchObject({ legal: true, price: 350 })
@@ -89,6 +107,7 @@ it('charges nothing for a Tile, a Swap or an Undo in a Free run', () => {
   const game = new Game(1, { city, free: true })
   expect(game.yen).toBe(0)
   for (let x = 1; x <= 3; x++) expect(place(game, ['straight', 0, x, 0])).toMatchObject({ legal: true, price: 0, affordable: true })
+  land(game)
   expect(place(game, ['crossroads', 0, 3, 0])).toMatchObject({ legal: true, swap: true, price: 0, affordable: true })
   expect(game.undo()).toBe(true)
   expect(game.city.tiles).toHaveLength(4)
@@ -114,7 +133,7 @@ it('pays the Income floor when no trip arrives', () => {
   // Every Connection of the Crossroads closed: after the Rebuild no Gateway reaches another, so nothing is sent.
   game.apply({ at: 'c0_0', disable: open(game, 'c0_0') })
   expect(place(game, ['straight', 0, 1, 0])).toMatchObject({ legal: true, affordable: true })
-  earn(game, 60)
+  earn(land(game), 60)
   expect(game.sim.completed).toBe(0)
   expect(game.price).toBe(450)
   expect(game.income).toBeCloseTo(450 / 25)
@@ -127,6 +146,7 @@ it('undoes a placement for a full refund, with the City and every Change as they
   const game = gameOf(1000, ...OPEN_RING)
   const [tiles, changes] = [[...game.city.tiles], game.sim.configuration()]
   place(game, ['crossroads', 0, 0, 1])
+  land(game)
   game.apply({ at: 'c0_0', priority: { h0_0: 'main' } })
   earn(game, 9)
   const earned = game.yen - (1000 - 450)
@@ -150,10 +170,23 @@ it('undoes a Swap, with the swapped Tile and its Changes back', () => {
   expect(game.sim.configuration()).toEqual(changes)
 })
 
+it('undoes a Tile still in its Assembly for a full refund, keeping the Changes made meanwhile', () => {
+  const game = earn(gameOf(1000, ...OPEN_RING), 5)
+  const yen = game.yen
+  place(game, ['crossroads', 0, 0, 1])
+  // A Change made while the Tile assembles is kept: it is on the traffic, which the Tile never reached.
+  game.apply({ at: 'c0_0', priority: { h0_0: 'main' } })
+  const changes = game.sim.configuration()
+  expect(game.undo()).toBe(true)
+  expect(game.yen).toBe(yen)
+  expect(game.city.tiles).toHaveLength(3)
+  expect(game.sim.configuration()).toEqual(changes)
+})
+
 it('refuses an Undo after 10 sim-seconds of earning', () => {
   const game = gameOf(1000, ['straight', 0, 0, 0])
   place(game, ['straight', 0, 1, 0])
-  earn(game, 10)
+  earn(land(game), 10)
   const yen = game.yen
   expect(game.undoable).toBe(false)
   expect(game.undo()).toBe(false)
@@ -170,9 +203,8 @@ it('does not count the Pre-warm against the Undo window', () => {
 it('opens the Undo window once the placed Tile has landed', () => {
   const game = earn(gameOf(1000, ['straight', 0, 0, 0]), 0)
   place(game, ['straight', 0, 1, 0])
-  game.assembling = true
   expect(earn(game, 10).undoable).toBe(true)
-  game.assembling = false
+  land(game)
   expect(earn(game, 9).undoable).toBe(true)
   expect(earn(game, 1).undoable).toBe(false)
 })
