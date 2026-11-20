@@ -290,9 +290,9 @@
         }
       }
 
-      /* --- The screen: the status strip along the bottom (src/ui/strip.css), the bar above it in the middle, the
-             camera's buttons above it on the right and the menu on the left, and the Junction's panel top-right. Nothing
-             covers the middle of the board. --- */
+      /* --- The screen: the status strip along the bottom (src/ui/strip.css), the toolbar above it in the middle
+             (src/ui/toolbar.css), the camera's buttons above it on the right and the menu on the left, and the Junction's
+             panel top-right. Nothing covers the middle of the board. --- */
       #ui {
         position: fixed;
         inset: 0;
@@ -344,8 +344,6 @@
           visibility 0s 0.6s;
       }
 
-      .layout:not(.on):hover,
-      .zone:not(.on):hover,
       .menu .item:hover {
         background: var(--hover);
       }
@@ -380,120 +378,6 @@
       }
       .junction .reset:hover {
         background: var(--hover);
-      }
-
-      .bar {
-        left: 50%;
-        bottom: var(--above-strip);
-        transform: translateX(-50%);
-        display: flex;
-        align-items: stretch;
-        gap: 6px;
-        padding: 8px;
-        border-radius: 26px;
-      }
-      /* The bar's two rows: the Layouts, then the Zones, as wide as the Layouts, under a divider that names the one picked
-         or under the pointer. The name sits in the divider, so a long one never widens the bar. */
-      .picks {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .layouts,
-      .zone-picks {
-        display: flex;
-        gap: 4px;
-      }
-      .zones {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .zone-name {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        color: var(--ink-soft);
-        white-space: nowrap;
-      }
-      .zone-name::before,
-      .zone-name::after {
-        content: '';
-        flex: 1;
-        border-top: 1px solid var(--line);
-      }
-      .zone {
-        display: grid;
-        place-items: center;
-        width: 40px;
-        height: 40px;
-        border-radius: 14px;
-        cursor: grab;
-        touch-action: none;
-      }
-      .zone svg {
-        display: block;
-        filter: drop-shadow(0 1px 1px rgba(16, 24, 48, 0.12));
-      }
-      /* A Zone dragged toward a placed Tile: its picture follows the pointer. */
-      #ui .zone-ghost {
-        left: 0;
-        top: 0;
-        pointer-events: none;
-        filter: drop-shadow(0 4px 8px rgba(16, 24, 48, 0.25));
-      }
-      .layout {
-        width: 84px;
-        padding: 6px 0 5px;
-        border-radius: 18px;
-        text-align: center;
-        font-size: 13px;
-        white-space: nowrap;
-        cursor: grab;
-        touch-action: none;
-      }
-      .layout svg {
-        display: block;
-        margin: 0 auto 3px;
-        filter: drop-shadow(0 1px 1px rgba(16, 24, 48, 0.12));
-      }
-      /* The Layout in the hand while the Price is out of reach: the grey of a Tile the player cannot afford. */
-      #ui .layout.short {
-        background: #7b818c;
-        box-shadow: 0 3px 10px rgba(123, 129, 140, 0.4);
-      }
-      .bar .side {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 6px;
-        min-width: 112px;
-        padding: 0 10px 0 14px;
-        border-left: 1px solid var(--line);
-      }
-      .bar .price span {
-        display: block;
-      }
-      .bar .price b {
-        font-size: 22px;
-        font-weight: 800;
-      }
-      .undo {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        align-self: flex-start;
-        height: 30px;
-        padding: 0 12px 0 10px;
-        border-radius: 999px;
-        background: var(--press);
-        font-size: 13px;
-        font-weight: 800;
-      }
-      /* Out of its window Undo keeps its place, so the Price beside it does not move. */
-      .undo.gone {
-        visibility: hidden;
       }
 
       .round {
