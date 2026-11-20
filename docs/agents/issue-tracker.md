@@ -21,7 +21,7 @@ Use the `gh` CLI with `-R artsaraiva/clearway`. The repo belongs to the personal
 
 ## Project
 
-Every issue sits on the [Clearway project](https://github.com/users/artsaraiva/projects/2): project `2`, owner `artsaraiva`. `gh project` commands need the `project` scope on the `artsaraiva` token; when one reports it missing, ask the user to add it.
+Every issue sits on the [project board](https://github.com/users/artsaraiva/projects/2): project `2`, owner `artsaraiva`. `gh project` commands need the `project` scope on the `artsaraiva` token; when one reports it missing, ask the user to add it.
 
 Its fields are single-select:
 

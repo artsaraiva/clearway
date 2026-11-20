@@ -1,4 +1,4 @@
-// The 26-Tile seed-3 City in headless Chrome, built and staged through the game's `clearway` dev hook (src/main.ts).
+// The 26-Tile seed-3 City in headless Chrome, built and staged through the game's `dioramania` dev hook (src/main.ts).
 import { chromium } from 'playwright-core'
 
 /** After the Crossroads a `?free&seed=3` run starts on at (0, 0): Layout, quarter turns, x, y, in drop order. */
@@ -34,7 +34,7 @@ export async function launch() {
 }
 
 /**
- * Open a seed-3 Free run with the game's own frame loop held, so only `clearway.frame` moves time. `query` adds dev
+ * Open a seed-3 Free run with the game's own frame loop held, so only `dioramania.frame` moves time. `query` adds dev
  * parameters to the page's URL, such as `finish=none`.
  */
 export async function open(context, base, query = '') {
@@ -43,10 +43,12 @@ export async function open(context, base, query = '') {
   page.on('console', (m) => m.type() === 'error' && !m.location().url.endsWith('/favicon.ico') && console.error('console', m.text()))
   await page.addInitScript(() => {
     window.requestAnimationFrame = () => 0
+    // A ref from before the rename (docs/adr/0007-the-game-is-called-dioramania.md) puts the dev hook on `clearway`.
+    Object.defineProperty(window, 'clearway', { configurable: true, set: (hook) => (window.dioramania = hook) })
   })
   await page.goto(`${base}/?free&seed=3${query ? `&${query.replace(/^[?&]/, '')}` : ''}`)
-  await page.waitForFunction(() => window.clearway)
-  await page.evaluate(() => window.clearway.frame(0.016))
+  await page.waitForFunction(() => window.dioramania)
+  await page.evaluate(() => window.dioramania.frame(0.016))
   return page
 }
 
@@ -57,7 +59,7 @@ export const UNZONED = 'unzoned'
 export async function buildCity(page, zone) {
   await page.evaluate(
     ({ zone, city }) => {
-      const c = window.clearway
+      const c = window.dioramania
       const settle = () => {
         for (let i = 0; i < 20000 && !c.sim.prewarmed; i++) c.game.step()
         for (let i = 0; i < 2000 && (c.view.rebuilding || c.view.assembling); i++) c.frame(0.1)
@@ -80,7 +82,7 @@ export async function buildCity(page, zone) {
 /** Put every Tile at `stage` and play every Stage-up out. */
 export async function stageAll(page, stage) {
   await page.evaluate((stage) => {
-    const c = window.clearway
+    const c = window.dioramania
     for (const t of c.game.city.tiles) c.stage(t.cell.x, t.cell.y, stage)
     for (let i = 0; i < 20000 && c.view.stagingUp; i++) c.frame(0.1)
     for (let i = 0; i < 40; i++) c.frame(0.1) // confetti settles
@@ -89,7 +91,7 @@ export async function stageAll(page, stage) {
 
 /** In the page: turn the camera `quarters` quarter-turns about the middle of the canvas, keeping its tilt and zoom. */
 export function turnCamera(quarters) {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.camera.rotate((-document.querySelector('#scene').getBoundingClientRect().height / 4) * quarters, 0)
   c.frame(0.1)
 }
@@ -99,7 +101,7 @@ export function turnCamera(quarters) {
  * The three zooms every sheet shows are this one, City zoom, and `lookAt`'s Tile zoom and Block zoom.
  */
 export function frameAll() {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.camera.frameCity()
   for (let i = 0; i < 12; i++) c.frame(0.1)
   const corners = c.game.city.tiles.flatMap((t) =>
@@ -117,7 +119,7 @@ export function frameAll() {
  * road plane run across the canvas's width (`METRES`).
  */
 export function lookAt({ x, y, metres }) {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.camera.frameCity()
   for (let i = 0; i < 12; i++) c.frame(0.1)
   c.view.camera.centreOn({ x, y })

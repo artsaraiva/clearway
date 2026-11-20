@@ -71,15 +71,15 @@ const frame = (dt: number) => {
   ui.update()
 }
 
-// Dev hook for scripted screenshots and frame timing: `clearway.place('curve', 1, 1, 0)`, `clearway.game.yen += 5000`,
-// and `clearway.frame(0.016)` where the browser is not drawing frames itself. `clearway.pick('offices')` picks the Zone
-// the Tiles placed next are built as, and `clearway.rezone(1, 0, null)` unzones a placed Tile. `clearway.stage(1, 0, 3)`
-// puts a zoned Tile at a Stage, playing its Stage-up as if it had grown there, and `clearway.pace(10)` makes each trip
+// Dev hook for scripted screenshots and frame timing: `dioramania.place('curve', 1, 1, 0)`, `dioramania.game.yen += 5000`,
+// and `dioramania.frame(0.016)` where the browser is not drawing frames itself. `dioramania.pick('offices')` picks the Zone
+// the Tiles placed next are built as, and `dioramania.rezone(1, 0, null)` unzones a placed Tile. `dioramania.stage(1, 0, 3)`
+// puts a zoned Tile at a Stage, playing its Stage-up as if it had grown there, and `dioramania.pace(10)` makes each trip
 // a Junction serves count ten times toward its Tile's next Stage.
 if (import.meta.env.DEV) {
   const zone = (id: Zone['id'] | null) => (id === null ? undefined : ZONES.find((z) => z.id === id)!)
   Object.assign(window, {
-    clearway: {
+    dioramania: {
       game,
       get sim() {
         return game.sim

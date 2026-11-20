@@ -36,7 +36,7 @@ mkdirSync(join(out, 'shots'), { recursive: true })
 
 /** In the page: two stuck cars on each of the Junction `at`'s Approach lanes, and a Jam on every Junction. */
 function forceJams(at) {
-  const c = window.clearway
+  const c = window.dioramania
   // A Road lane whose end lies inside the Junction's 22 m radius feeds it.
   const lanes = c.sim.net.lanes.filter((l) => {
     const end = l.line.pts[l.line.pts.length - 1]
@@ -51,7 +51,7 @@ function forceJams(at) {
 
 /** In the page: hold the day at `day`, and let the stuck cars stand 12 s more, their anger and steam building. */
 function standAt(day) {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.holdDay(day)
   for (let i = 0; i < 240; i++) c.view.render(0.05, 0.05)
   for (let i = 0; i < 3; i++) c.frame(0.016)
@@ -69,21 +69,21 @@ async function shoot(context, server, zone, shot) {
     await page.evaluate(turnCamera, 2)
     await page.evaluate(lookAt, JUNCTION)
     await page.evaluate(forceJams, JUNCTION)
-    const [x, y] = await page.evaluate((at) => window.clearway.view.camera.onScreen(at), JUNCTION)
+    const [x, y] = await page.evaluate((at) => window.dioramania.view.camera.onScreen(at), JUNCTION)
     await page.mouse.click(x, y) // a real click selects: synthetic pointer events break on pointer capture
     await page.mouse.move(4, 4) // off the board's middle, so no hovered Junction lifts a halo of its own
     for (const [time, day] of Object.entries(TIMES)) {
       await page.evaluate(standAt, day)
       await page.waitForTimeout(450) // the halo and the markers lift on the real clock
       await page.evaluate(() => {
-        for (let i = 0; i < 3; i++) window.clearway.frame(0.016)
+        for (let i = 0; i < 3; i++) window.dioramania.frame(0.016)
       })
       await page.screenshot({ path: join(out, shot(time)), clip: CLIP })
     }
     const [markers, jams, cars] = await page.evaluate(() => [
       document.querySelectorAll('.jams .jam:not(.gone)').length,
-      window.clearway.sim.jams.length,
-      window.clearway.sim.vehicles.length,
+      window.dioramania.sim.jams.length,
+      window.dioramania.sim.vehicles.length,
     ])
     console.log(`${server.label}: ${markers} Jam markers for ${jams} Jams, ${cars} stuck cars`)
   } finally {

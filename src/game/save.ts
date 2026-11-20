@@ -6,12 +6,15 @@ import { Game, LAST_STAGE, newSeed, type Stage } from './game'
 // no menu screen, so the page opens straight into the run last played. A save holds what it takes to build the City
 // and its Junctions again, with each Tile's Stage, the yen and the Record. Vehicles and the Undo window are not saved,
 // so loading is a Rebuild with a Pre-warm. There is no migration: a save that will not load gives way to a new run,
-// which keeps the save's Record if that can be read and the save is of this version.
+// which keeps the save's Record if that can be read and the save is of this version. Saves kept under the keys of the
+// game's old name are carried over to the new keys as they are.
 
 /** Raise it whenever a save written before would load wrong: when its shape changes, or what its ids name. */
 const VERSION = 4
 /** Where each kind of run is saved, and which of the two the page opens on. */
-const KEY = { run: 'clearway.run', freeRun: 'clearway.free-run', playing: 'clearway.playing' }
+const KEY = { run: 'dioramania.run', freeRun: 'dioramania.free-run', playing: 'dioramania.playing' }
+/** The same, from before the game was renamed Dioramania (docs/adr/0007-the-game-is-called-dioramania.md). */
+const OLD_KEY: typeof KEY = { run: 'clearway.run', freeRun: 'clearway.free-run', playing: 'clearway.playing' }
 /** Seconds between saves for yen, the Record and each Tile's progress, which move with every step. */
 const EVERY = 5
 const NOTICE = {
@@ -145,6 +148,7 @@ export interface Run {
  */
 export function openRun(params: URLSearchParams): Run {
   if (import.meta.env.DEV && params.has('seed')) return seeded(Number(params.get('seed')), params)
+  carryOver()
   const free = params.has('free') || read(KEY.playing) === 'free'
   write(KEY.playing, free ? 'free' : 'normal')
   const key = free ? KEY.freeRun : KEY.run
@@ -177,6 +181,14 @@ export function openRun(params: URLSearchParams): Run {
       write(KEY.playing, free ? 'normal' : 'free')
       go(params, (p) => p.delete('free'))
     },
+  }
+}
+
+/** Keep under each new key what its old key holds while the new one is empty: the saves, and the kind of run last played. */
+function carryOver() {
+  for (const kind of Object.keys(KEY) as (keyof typeof KEY)[]) {
+    const old = read(OLD_KEY[kind])
+    if (old !== null && read(KEY[kind]) === null) write(KEY[kind], old)
   }
 }
 

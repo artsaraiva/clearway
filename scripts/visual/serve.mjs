@@ -19,7 +19,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => closeAll().
  * ones. Run `npm ci` in a `git worktree` of that ref and serve it from there if that ever matters.
  */
 export async function serve(ref) {
-  const tmp = mkdtempSync(join(tmpdir(), 'clearway-visual-'))
+  const tmp = mkdtempSync(join(tmpdir(), 'dioramania-visual-'))
   let root = ROOT
   let label = 'working tree'
   if (ref) {
