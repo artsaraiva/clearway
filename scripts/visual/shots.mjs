@@ -76,7 +76,7 @@ mkdirSync(join(out, 'shots'), { recursive: true })
 
 /** In the page: hold the day at `day` and let the world run `run` s. */
 function setTime({ day, run }) {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.holdDay(day)
   // The game is paused, so `frame` would pass dt 0. Its cars stand still meanwhile, and would look stuck in a Jam: none
   // is drawn while the world runs, which forgets how long each has stood.

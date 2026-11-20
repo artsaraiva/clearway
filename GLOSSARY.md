@@ -1,4 +1,4 @@
-# Clearway
+# Dioramania
 
 A browser diorama city builder. The player lays road tiles and chooses what is built on them, and each tile grows as traffic serves it. Traffic earns the money, growth causes traffic jams, and the player clears them by changing how junctions work or by building around them. One context: the game and its simulation share this vocabulary.
 

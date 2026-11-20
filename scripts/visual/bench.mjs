@@ -38,7 +38,7 @@ const TILE_ZOOM = { ...DEFAULT_POINTS.tile[0], metres: METRES.tile }
  * frame with 1,000 cars, a third of them stuck.
  */
 async function measure(day) {
-  const c = window.clearway
+  const c = window.dioramania
   c.view.holdDay(day)
   for (let i = 0; i < 2; i++) c.frame(0.1)
   // The view hands out no renderer. Catch it as three passes it to the scene, from the module the game imports three

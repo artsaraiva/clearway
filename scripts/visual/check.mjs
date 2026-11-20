@@ -43,7 +43,7 @@ const { values, positionals } = parseArgs({
  */
 function refTree(ref) {
   const sha = execFileSync('git', ['rev-parse', '--short', `${ref}^{commit}`], { cwd: ROOT, encoding: 'utf8' }).trim()
-  const root = mkdtempSync(join(tmpdir(), 'clearway-scene-'))
+  const root = mkdtempSync(join(tmpdir(), 'dioramania-scene-'))
   execFileSync('tar', ['-x', '-C', root], { input: execFileSync('git', ['archive', sha, 'src'], { cwd: ROOT, maxBuffer: 1 << 30 }) })
   cpSync(join(ROOT, 'scripts/visual/scene'), join(root, 'scripts/visual/scene'), { recursive: true })
   symlinkSync(join(ROOT, 'node_modules'), join(root, 'node_modules'))
