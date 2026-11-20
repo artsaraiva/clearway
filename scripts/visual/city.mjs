@@ -60,7 +60,7 @@ export async function buildCity(page, zone) {
       const c = window.clearway
       const settle = () => {
         for (let i = 0; i < 20000 && !c.sim.prewarmed; i++) c.game.step()
-        for (let i = 0; i < 2000 && c.view.rebuilding; i++) c.frame(0.1)
+        for (let i = 0; i < 2000 && (c.view.rebuilding || c.view.assembling); i++) c.frame(0.1)
       }
       c.pick(zone)
       c.rezone(0, 0, zone)

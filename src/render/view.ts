@@ -280,10 +280,19 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
 
     /**
      * Whether a Rebuild is under way: from `rebuild` until the new Sim's cars have grown in. Its traffic is not shown
-     * yet, so the Sim should not run past its Pre-warm, and the build plays even while the world is paused.
+     * yet, so the Sim should not run past its Pre-warm, and the build plays even while the world is paused. A placement
+     * is none: its traffic drives on (see `assembling`).
      */
     get rebuilding() {
       return next !== null || grow < 1
+    },
+
+    /**
+     * Whether a Tile is in its Assembly: a placed one, whose traffic drives on meanwhile, or a swapped one. No other
+     * Tile can be dropped until it has landed, and it assembles even while the world is paused.
+     */
+    get assembling() {
+      return reveal.playing
     },
 
     /** Show the Tile in the player's hand, and what its drop does to the Gateways. `null` empties the hand. */
@@ -349,7 +358,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
     /**
      * Play a Rebuild: `rebuilt` is the Sim it made and `relaid` what it did to the slab. A Tile placed assembles next
      * to the slab already there, a swapped one in the place of the Tile before it, and one an Undo takes off is gone
-     * at once. Then the cars grow in. They wait for the Sim's Pre-warm, which the caller runs meanwhile.
+     * at once. A placed Tile's Sim carries the traffic on (ADR 0006), so its cars are shown from the start and drive
+     * while the Tile assembles. Otherwise the cars shrink out and grow in once the Tile has landed: they wait for the
+     * Sim's Pre-warm, which the caller runs meanwhile.
      * ponytail: the piece is built in one go when the Rebuild starts, a hitch of 9 to 31 ms for one cell on an M4 Pro,
      * from industrial to parks. Spread the build over frames (`scenery.add` is a generator) if the hitch shows on slower
      * machines.
@@ -357,6 +368,8 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
     rebuild(rebuilt: Sim, relaid: Relaid) {
       // A Rezoning still playing lands at once, since its piece may be the one rebuilt, and so does a Stage-up of that
       // piece. Another Stage-up begun is built at once, since this Rebuild lays the field again, and plays once it ends.
+      // A Tile still assembling lands at once too: an Undo may take it off.
+      reveal.settle()
       regrow.settle()
       if ('swapped' in relaid) settleStageUps(relaid.swapped)
       if ('removed' in relaid) settleStageUps(relaid.removed)
@@ -391,7 +404,13 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       // The camera stays where it is, unless the Tile laid is off screen: then it moves just far enough to show it.
       if ('placed' in relaid) rig.bringIn(relaid.placed)
       if ('swapped' in relaid) rig.bringIn(relaid.swapped)
-      ;[next, inspected] = [rebuilt, null]
+      // ponytail: the Sim of a placed Tile is shown from the drop, so cars drive onto the Tile while it still assembles,
+      // over ground with no road painted yet. ADR 0006 has the change take effect when the Tile has landed: hold the
+      // Sim back until `moments.done` once the game makes it then (#233).
+      if ('placed' in relaid) {
+        shown = rebuilt
+        cars.reset(shown.net, true)
+      } else [next, inspected] = [rebuilt, null]
       tools.show(NO_TOOLS)
       labels.show(rebuilt.net, rebuilt.rates, field, pieces)
       const moments = {
@@ -432,9 +451,9 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       reveal.update(dt)
       regrow.update(real)
       // The next Stage-up whose piece nothing plays on is built a few ms at a time, then plays. None begins while a
-      // Rebuild plays, or while as many play as may.
+      // Rebuild plays or a Tile assembles, or while as many play as may.
       const end = performance.now() + STAGE_UPS.budget
-      while (waiting.length && !next) {
+      while (waiting.length && !next && !reveal.playing) {
         const at = waiting.findIndex((j) => j.begun || !busy(j.piece))
         if (at < 0) break
         const job = waiting[at]

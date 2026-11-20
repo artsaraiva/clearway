@@ -250,11 +250,19 @@ export function createUI(
   }
 
   /**
+   * Whether a Tile is in its Assembly, or the traffic is halted behind one: no Tile is dropped or rezoned until then.
+   * ponytail: one Assembly at a time, and an Undo is still allowed during one, which lands the Tile at once and takes
+   * it off. ADR 0006 has several Tiles assemble at once and land in the order dropped: queue the drops in the game
+   * when a placement takes effect at its landing (#233).
+   */
+  const assembling = () => view.rebuilding || view.assembling
+
+  /**
    * Drop a Layout on a cell: a placement built as the Zone picked, or a Swap on a placed Tile, which keeps its own.
-   * Refused while a Rebuild plays.
+   * Refused until the Tile dropped before has landed.
    */
   const place = (layout: Layout, turns: number, cell: Cell) => {
-    if (view.rebuilding) return false
+    if (assembling()) return false
     const offer = game.place(layout, turns, cell, zone)
     if (!offer.legal) return false
     if (!offer.affordable) {
@@ -265,9 +273,9 @@ export function createUI(
     return true
   }
 
-  /** Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused while a Rebuild plays. */
+  /** Rezone the placed Tile on `cell` as `built`, or unzone it: no yen, and no Rebuild. Refused during an Assembly. */
   const rezone = (cell: Cell, built: Zone | undefined) => {
-    if (view.rebuilding || !game.rezone(cell, built)) return false
+    if (assembling() || !game.rezone(cell, built)) return false
     view.rezone(game.sim, cellBounds(cell))
     return true
   }
@@ -297,7 +305,7 @@ export function createUI(
    * empty while a Zone is dragged.
    */
   const held = (): Held | null => {
-    if (!hand || view.rebuilding || dragging?.moved) return null
+    if (!hand || assembling() || dragging?.moved) return null
     const { layout, cell } = hand
     const city = game.city
     const empty = new Map<string, Cell>()
@@ -331,7 +339,7 @@ export function createUI(
 
   /** What letting go of the Zone dragged would make of the placed Tile under it, if it is over one. */
   const rezoning = (): Rezoning | null => {
-    const tile = dragging?.moved && dragging.cell && !view.rebuilding ? game.city.tileAt(dragging.cell) : undefined
+    const tile = dragging?.moved && dragging.cell && !assembling() ? game.city.tileAt(dragging.cell) : undefined
     if (!dragging || !tile) return null
     const becomes = nameOf(dragging.zone).toLowerCase()
     return tile.zone === dragging.zone
@@ -564,14 +572,14 @@ export function createUI(
       // The hand is shown again only when what it shows changes. Yen can reach a drop's price, which a loop rebate makes
       // lower than the Price, with nothing else changing. A Change cannot: it takes a click on the screen, or on the
       // board with the hand empty, and the hand over the screen holds no cell.
-      const offer = hand?.cell && !view.rebuilding ? game.offer(hand.layout, rotation, hand.cell) : null
+      const offer = hand?.cell && !assembling() ? game.offer(hand.layout, rotation, hand.cell) : null
       const under = hand?.cell && game.city.tileAt(hand.cell)
-      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${view.rebuilding}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
+      const key = hand ? `${hand.layout.id}:${rotation}:${hand.cell?.x},${hand.cell?.y}:${offer?.legal && offer.affordable}:${game.city.tiles.length}:${assembling()}:${zone?.id}:${under && under.zone?.id}:${dragging?.moved}` : '' // prettier-ignore
       if (key !== shown) view.hold(held())
       shown = key
       const target = dragging?.moved && dragging.cell ? game.city.tileAt(dragging.cell) : undefined
       const rezoningKey =
-        dragging && target ? `${dragging.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${view.rebuilding}` : ''
+        dragging && target ? `${dragging.zone?.id}:${target.cell.x},${target.cell.y}:${target.zone?.id}:${assembling()}` : ''
       if (rezoningKey !== shownRezoning) view.showRezoning(rezoning())
       shownRezoning = rezoningKey
       cameraButtons.update()

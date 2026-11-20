@@ -8,8 +8,8 @@ import { cellBounds } from './sim/tiles'
 import { showNotice } from './ui/notice'
 import { createUI } from './ui/ui'
 
-// ms of each frame spent on a Rebuild's Pre-warm while its piece of slab assembles: small enough to leave a 120 Hz frame
-// room to draw.
+// ms of each frame spent on the Pre-warm of a Swap or an Undo while its piece of slab assembles: small enough to leave
+// a 120 Hz frame room to draw. A placement has none: its traffic drives on (ADR 0006).
 // ponytail: that covers a Pre-warm of about 1.5 s on the main thread within the 7 s build at 60 frames a second; a
 // longer one keeps the cars off a finished slab until it is done. Move the Pre-warm to a worker with the sim (the
 // road-network spec's gate) if a City's Pre-warm gets that slow.
@@ -65,8 +65,8 @@ const frame = (dt: number) => {
       acc -= DT
     }
   }
-  // A Rebuild plays on even while the world is paused, and so does the camera.
-  view.render(view.rebuilding || ui.scale ? dt : 0, dt)
+  // A Rebuild plays on even while the world is paused, and so do a Tile assembling and the camera.
+  view.render(view.rebuilding || view.assembling || ui.scale ? dt : 0, dt)
   ui.update()
 }
 

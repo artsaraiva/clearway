@@ -271,10 +271,10 @@ export function createCars(net: Network) {
 
   let entries = new Set<Lane>()
   let stuck = new Map<number, number>() // real seconds each car has been stuck, by id
-  /** Follow the cars of a network, as after a Rebuild: none has been stuck yet. */
-  const reset = (on: Network) => {
+  /** Follow the cars of a network. Unless they are the cars `carried` over from the one before, none has been stuck yet. */
+  const reset = (on: Network, carried = false) => {
     entries = new Set(Object.values(on.gateways).flatMap((arm) => arm.approach))
-    stuck = new Map()
+    if (!carried) stuck = new Map()
   }
   reset(net)
   let t = 0
