@@ -6,7 +6,7 @@ The alternative was a Road that bends, with Straight and Curve Tiles holding onl
 
 ## Consequences
 
-- The City maps to the network one to one: a Tile is a Junction, a shared road edge is a Road. Junction and Road ids come from cells, so Changes carry over a Rebuild (ADR 0002).
+- The City maps to the network one to one: a Tile is a Junction, a shared road edge is a Road. Junction and Road ids come from cells, so Changes, and the vehicles on their Lanes, carry over every change to the City (ADR 0006).
 - Both Tools work on a Straight and a Curve. Their Connections let a car change lane there, which Roads do not allow.
 - A two-Arm Junction has a Priority rule that rarely matters, and a vehicle still slows to turn through a Curve. The prototype saw late Curves jam themselves; tuning has to watch for it.
 - A long straight street is a chain of Junctions, not one Road. Routing and the per-car sim do more work per metre than on one long Road.
