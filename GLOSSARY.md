@@ -7,7 +7,7 @@ A browser diorama city builder. The player lays road tiles and chooses what is b
 ### Play
 
 **City**:
-Every Tile the player has placed, joined into one road network. It grows on a square grid with no bounds and cannot be finished or lost.
+Every Tile the player has placed, those in their Assembly too, joined into one road network. It grows on a square grid with no bounds and cannot be finished or lost.
 _Avoid_: District, map, world, town, level
 
 **Tile**:
@@ -35,7 +35,7 @@ Taking back the last placement, Swap or Rezoning for a full refund, allowed only
 _Avoid_: Remove, sell, Reset
 
 **Assembly**:
-The stretch from a Tile's drop, placed or swapped in, until it has landed and traffic can enter it. Until then the City's traffic runs as it did before the drop. Tiles land in the order they were dropped. A Tile in its Assembly takes a neighbour on its open end, and refuses a Swap and a Rezoning.
+The stretch from a Tile's drop, placed or swapped in, until it has landed and traffic can enter it. The Tile is part of the City meanwhile, but the City's traffic runs as it did before the drop. Tiles land in the order they were dropped. A Tile in its Assembly takes a neighbour on its open end, and refuses a Swap and a Rezoning.
 _Avoid_: Build, Rebuild, construction, Reveal
 
 **Pre-warm**:
@@ -109,7 +109,7 @@ A straight stretch of Lanes in both directions between the Junctions of two neig
 _Avoid_: Segment, edge, link, street
 
 **Gateway**:
-An open road end of the City: where a Road reaches an edge of its Tile with no Tile beyond. Vehicles enter and leave only through Gateways. Placing a Tile there closes the Gateway.
+An open road end of the City: where a Road reaches an edge of its Tile with no Tile beyond. Vehicles enter and leave only through Gateways. A Tile placed there closes the Gateway as it lands.
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
@@ -150,7 +150,7 @@ _Avoid_: Backup, gridlock
 ### Traffic
 
 **Demand**:
-How many vehicles want to travel between which Gateways, per minute. Each Gateway sends its own trips, split between the other Gateways a car can drive to. Demand changes only when the City does: as an Assembly ends, or a Tile is taken off.
+How many vehicles want to travel between which Gateways, per minute. Each Gateway sends its own trips, split between the other Gateways a car can drive to. Demand changes only as an Assembly ends or a Tile is taken off, not at a drop.
 _Avoid_: Traffic load, spawn rate, volume
 
 **Flow**:
