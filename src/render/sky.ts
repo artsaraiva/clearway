@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FACET } from './prototype-look'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Bounds } from '../sim/geometry'
 import { roundedBox, tint } from './shapes'
@@ -88,7 +89,8 @@ export function createSky(slab: Bounds) {
     // East and south of the slab's centre, in m. It starts past the end of a line, so the first frame gives it one.
     return { model: new THREE.Group().add(body, prop), prop, height, east: 0, south: Infinity, heading: 0, turn: 0 }
   })
-  group.add(...clouds, ...planes.map((p) => p.model))
+  // PROTOTYPE (`./prototype-look`): no planes in the faceted look's sky; they wait for a Tile of their own.
+  group.add(...clouds, ...(FACET ? [] : planes.map((p) => p.model)))
   let t = 0
 
   return {

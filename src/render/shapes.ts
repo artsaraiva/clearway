@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Vec } from '../sim/geometry'
+import { FACET } from './prototype-look'
 
 /**
  * Box `w` × `h` × `d` with rounded corners (radius `r`) and a bevelled top and bottom (`b`), standing on y = 0.
@@ -23,8 +24,8 @@ export function roundedBox(w: number, h: number, d: number, r: number, b: number
     bevelEnabled: b > 0,
     bevelThickness: b,
     bevelSize: b,
-    bevelSegments: 2,
-    curveSegments: 4,
+    bevelSegments: FACET ? 1 : 2,
+    curveSegments: FACET ? 1 : 4,
   })
   return g.rotateX(-Math.PI / 2).translate(0, b, 0)
 }

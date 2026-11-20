@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { blob, FACET, notePlace, standAt, windowBoxes } from './prototype-look'
 import type { Stage } from '../game/game'
 import { mulberry32 } from '../sim/demand'
 import type { Bounds, Polyline } from '../sim/geometry'
@@ -169,12 +170,12 @@ const PETALS = { count: 28, reach: 7, most: 120, colours: ['#ffd1df', '#ffbbd1',
 const LEAVES_FALLEN = { count: 12, reach: 4, most: 40, colours: ['#9cc95a', '#c3c65a', '#d3b05c'], scale: [0.55, 1, 0.4] }
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
-const SPHERE = new THREE.SphereGeometry(1, 16, 12)
-const COARSE_SPHERE = new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
-const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
+const SPHERE = FACET ? blob(1, 1, 0.14) : new THREE.SphereGeometry(1, 16, 12)
+const COARSE_SPHERE = FACET ? blob(2, 1, 0.18) : new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
+const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, FACET ? 7 : 16).translate(0, 0.5, 0)
 const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
 const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial, and a carp pole's
-const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
+const CONE = new THREE.ConeGeometry(1, 1, FACET ? 6 : 12).translate(0, 0.5, 0)
 const CONE8 = new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0) // a parasol (#175), laid by the hundred
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
@@ -431,6 +432,8 @@ const BLOCK_ZOOM = { from: 2.2, to: 3.2 }
  * as the camera leaves Tile zoom, and hide them beyond it.
  */
 export function createMaterials(finish: Finish = { pattern: true, pools: true }) {
+  // PROTOTYPE (`./prototype-look`): flat colour in place of the surface pattern.
+  if (FACET) finish = { ...finish, pattern: false }
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
   const patterns = finish.pattern ? createPatterns() : null
   if (patterns) solid.onBeforeCompile = patterns.patch
@@ -502,6 +505,30 @@ if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vGlow;')
   }
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
+  // PROTOTYPE (`./prototype-look`): each window and lamp lights when the dusk reaches its own `wake`, at full strength.
+  const [wakeWindows, wakeLamps] = [{ value: 0 }, { value: 0 }]
+  const waking = (material: THREE.Material, level: { value: number }) => {
+    const was = material.onBeforeCompile
+    material.onBeforeCompile = (shader, renderer) => {
+      was.call(material, shader, renderer)
+      shader.uniforms.wakeLevel = level
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nattribute float wake;\nvarying float vWake;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvWake = wake;')
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vWake;\nuniform float wakeLevel;')
+        .replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= smoothstep(vWake - 0.012, vWake + 0.012, wakeLevel);',
+        )
+    }
+  }
+  if (FACET) {
+    waking(glass, wakeWindows)
+    waking(bulb, wakeLamps)
+  }
+  // PROTOTYPE (`./prototype-look`): every face flat.
+  if (FACET) for (const flat of [solid, blockZoom, glass, bulb, water]) flat.flatShading = true
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
   const decal = (map: THREE.Texture, opacity: number) =>
@@ -556,6 +583,12 @@ if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.
     setGlow({ windows, lamps }: Glow) {
       glass.emissiveIntensity = windows
       bulb.emissiveIntensity = lamps
+      if (FACET) {
+        wakeWindows.value = THREE.MathUtils.smoothstep(windows, 0.08, 1.3)
+        wakeLamps.value = THREE.MathUtils.smoothstep(lamps, 0.2, 3.6)
+        glass.emissiveIntensity = windows > 0.03 ? 1.05 : 0
+        bulb.emissiveIntensity = lamps > 0.05 ? 2.8 : 0
+      }
       patterns?.setGlow(windows)
     },
     /**
@@ -623,8 +656,10 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
    * The way through a door `w` wide in a wall at `(x, y)` facing `ry`, from `out` m out from it, as a claim (#191): 1.2 m
    * deep, and as wide as the door less 0.2 m either side, where its frame stands and pot plants may flank it.
    */
-  const doorway = (x: number, y: number, ry: number, w: number, out = 0) =>
+  const doorway = (x: number, y: number, ry: number, w: number, out = 0) => {
+    notePlace('door', ...to(x, y, ry, 0, out + 0.6), ry) // PROTOTYPE (`./prototype-look`): somewhere a walker can go
     claim('door', ...to(x, y, ry, 0, out + 0.6), Math.max(0.6, w - 0.4), 1.2, ry)
+  }
   // Whether what is built from here on wears surface pattern and leaves pools of light (`finish`), and whether it is a
   // Block-zoom prop, painted on `blockZoom` (`blockZoomProps`).
   let [patterned, pooled, inBlockZoomProps] = [false, false, false]
@@ -649,11 +684,29 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   }
   const [m, q, up] = [new THREE.Matrix4(), new THREE.Quaternion(), new THREE.Vector3(0, 1, 0)]
   /** Give every vertex of a geometry of the glass or the bulb the glow `glow`. */
-  const glowing = (geo: THREE.BufferGeometry, glow: number) =>
-    geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
+  const glowing = (geo: THREE.BufferGeometry, glow: number) => {
+    // PROTOTYPE (`./prototype-look`): when in the dusk it lights, 0 to 1, by where it stands, so lights come on one by one.
+    if (FACET) {
+      const p = geo.attributes.position
+      const k =
+        Math.sin(Math.round(p.getX(0) * 20) * 12.9898 + Math.round(p.getY(0) * 20) * 78.233 + Math.round(p.getZ(0) * 20) * 37.719) *
+        43758.5453
+      geo.setAttribute('wake', new THREE.BufferAttribute(new Float32Array(p.count).fill(0.06 + 0.88 * (k - Math.floor(k))), 1))
+    }
+    return geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
+  }
+  /** PROTOTYPE (`./prototype-look`): `colour` a little lighter or darker, by where `geo` stands, so that no two parts are quite one tone. */
+  const toned = (geo: THREE.BufferGeometry, colour: string) => {
+    const p = geo.attributes.position
+    const k =
+      Math.sin(Math.round(p.getX(0) * 10) * 12.9898 + Math.round(p.getY(0) * 10) * 78.233 + Math.round(p.getZ(0) * 10) * 37.719) *
+      43758.5453
+    return new THREE.Color(colour).offsetHSL(0, 0, (k - Math.floor(k) - 0.5) * 0.045)
+  }
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
+    if (typeof look === 'string')
+      parts.push({ geometry: tint(geo, FACET ? toned(geo, look) : look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       const lit = look.material === glass || look.material === bulb
@@ -680,7 +733,38 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     cladding: Cladding,
     seed: number,
   ) => {
-    if (!patterned) return add(geo, look, x, y, h, ry)
+    if (!patterned) {
+      add(geo, look, x, y, h, ry)
+      // PROTOTYPE (`./prototype-look`): its windows as boxes, where no surface pattern draws them. Which light is drawn
+      // from `seed`, so the kit's own stream is as it was.
+      if (!FACET) return
+      const draw = mulberry32(seed ^ 0x51a7e)
+      const pane = windows[Math.floor(draw() * windows.length)]
+      m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(1, 1, 1))
+      const placed = m.clone()
+      const paint = typeof look === 'string' ? `#${new THREE.Color(look).offsetHSL(0, 0.05, -0.16).getHexString()}` : PLANT
+      for (const { box, part, paint: own, face } of windowBoxes(geo, cladding, h < 1, draw)) {
+        const lookOf: Look =
+          part === 'glass'
+            ? { material: glass, tint: draw() < 0.55 ? pane : unlit }
+            : part === 'sill'
+              ? LEDGE
+              : part === 'door'
+                ? DOOR
+                : part === 'paint'
+                  ? own!
+                  : paint
+        push(box.applyMatrix4(placed), lookOf)
+        if (part === 'door' && face) {
+          // Somewhere a walker can go: the step before it, its front the way the door opens.
+          box.computeBoundingBox()
+          const mid = box.boundingBox!.getCenter(new THREE.Vector3())
+          const way = new THREE.Vector3(face[0], 0, face[1]).transformDirection(placed)
+          notePlace('door', mid.x + way.x * 0.9, -mid.z - way.z * 0.9, Math.atan2(-way.x, -way.z))
+        }
+      }
+      return
+    }
     const g = clad(geo.index ? geo.toNonIndexed() : geo.clone(), cladding, mulberry32(seed)())
     push(g.applyMatrix4(m.compose(new THREE.Vector3(x, h, -y), q.setFromAxisAngle(up, ry), new THREE.Vector3(1, 1, 1))), look)
   }
@@ -941,6 +1025,8 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
    * boxes: its body, cabin and glass, a taxi's roof lamp lit at night, its tyres, and its lamps as they are by day.
    */
   const parked = (model: ParkedModel, x: number, y: number, h: number, ry: number, paint: string) => {
+    // PROTOTYPE (`./prototype-look`): most are left out, for a car of the traffic to park there.
+    if (standAt('home', x, y, ry)) return brick('building', x, y, h)
     const { body, cabin, glass, wheels, lamps } = model
     const [head, , tail, , roof] = lampBoxes(lamps)
     const bodywork: [ParkedModel['body'], Look][] = [
@@ -1325,6 +1411,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * flat bed with low gates, oversized as the cars are. Its bed carries two crates at Stage 2 and is full at Stage 3.
      */
     keiTruck(x: number, y: number, h: number, ry: number, stage = 2) {
+      if (standAt('shop', x, y, ry)) return brick('building', x, y, h) // PROTOTYPE (`./prototype-look`): a delivery's place
       const [paint, crates] = [TRUCK.paint, stage === 3 ? 6 : 2]
       keiChassis(x, y, h, ry, 4, [-1.3, 1.25])
       local(box(1.85, 1.36, 1.25, 0.22, 0.08), paint, x, y, ry, 0, 1.4, h + 0.62)
@@ -1408,6 +1495,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
      * slats on iron ends, 2 m long, oversized a little as the props are.
      */
     bench(x: number, y: number, h: number, ry: number) {
+      if (h < 1) notePlace('bench', x, y, ry) // PROTOTYPE (`./prototype-look`): somewhere a walker can sit
       local(cuboid(2, 0.08, 0.56), BENCH.wood, x, y, ry, 0, 0.02, h + 0.44)
       for (const lift of [0.62, 0.84]) local(cuboid(2, 0.14, 0.05), BENCH.wood, x, y, ry, 0, -0.28, h + lift)
       for (const lx of [-0.86, 0.86]) {

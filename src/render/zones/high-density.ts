@@ -5,8 +5,10 @@ import { KERB } from '../blocks'
 import { planter, type Footprint } from '../kerbside'
 import { AERIAL, boxFace, CREAM, FACES, FRONTAGE, FUTONS, GARDEN, type Kit, LEAVES, PLANT, PLAY, SHAPES, spot, TANK, to } from '../kit'
 import { PATTERN } from '../pattern'
+import { FACET, STACKED } from '../prototype-look'
 import { bedTree, bench, BLOOMS, GLOWS, railing, SETTS, STONE, waiting, WOOD } from '../props'
 import { fit, lotsOf, overlap, PLANTER, stands, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { facetTower } from './prototype-facet-tower'
 import { beside, clearOfScenes, placeScenes, sceneOrder, type Scene, unlike } from './scenes'
 
 // High-density residential: lots at most 30 m on a side, 3.4 m in from the Block's bounding box, each with one tower
@@ -208,7 +210,9 @@ function towers(g: ZoneGround) {
     const high = (from: readonly number[], stage: number) => stage > 1 && floors >= from[stage - 2]
     kit.staged((stage) => {
       const rooftop = { pad: high(HIGH.pad, stage), beacon: high(HIGH.beacon, stage) }
-      residentialTower(kit, x, y, KERB, w, d, TOWER_FLOORS(floors, stage), stage, { ...t, ...rooftop })
+      // PROTOTYPE (`../prototype-look`): the faceted tower in its place.
+      const tower = STACKED ? facetTower : residentialTower
+      tower(kit, x, y, KERB, w, d, TOWER_FLOORS(floors, stage), stage, { ...t, ...rooftop })
     }, t.seed)
     towerGround(g, t, taken, paving)
   }
@@ -583,7 +587,8 @@ function residentialTower(
   /** Walls `bw` by `bd` from `at`, `n` storeys: plaster and a framed window in every bay, an odd count of bays along the long faces, where the kit builds patterned. */
   const walls = (bw: number, bd: number, at: number, n: number, k: number, terrace = false) => {
     const geo = kit.box(bw, n * STOREY, bd, 0.9, 0.2)
-    if (!kit.patterned) return kit.add(geo, colour, x, y, at)
+    // PROTOTYPE (`../prototype-look`): the faceted look clads too, for the box windows the kit builds it.
+    if (!kit.patterned && !FACET) return kit.add(geo, colour, x, y, at)
     const len = long ? bw : bd
     const bay = len / (2 * Math.round((len / 3 - 1) / 2) + 1)
     const flats = { front: PATTERN.house, back: PATTERN.house, sides: PATTERN.house, bay, storey: STOREY }
@@ -687,7 +692,7 @@ function residentialTower(
   for (const [nx, ny] of FACES) {
     const balconied = (nx === 0) === long
     const ry = Math.atan2(-nx, ny)
-    if (!kit.patterned) {
+    if (!kit.patterned && !FACET) {
       // As it was: a window a bay on every floor, but where the balconies are.
       const n = Math.floor(((nx === 0 ? w : d) - 2) / 3)
       for (let i = 0; i < n; i++) {

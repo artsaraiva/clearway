@@ -1,4 +1,8 @@
 import * as THREE from 'three'
+import { FACET } from './prototype-look'
+import { createPost } from './prototype-post'
+import { PARKING } from '../sim/prototype-signals'
+import { createSignals } from './prototype-signals'
 import type { Cell, Zone } from '../city/city'
 import type { Stage } from '../game/game'
 import { extent, sameBounds, type Bounds, type Vec } from '../sim/geometry'
@@ -87,9 +91,14 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
   const under = createUnderShadow()
   under.fit(slab)
   let roads = createRoads(sim.net, sim.spec)
+  // PROTOTYPE (`./prototype-signals`): the traffic lights, where the sim runs them.
+  let signals = createSignals(sim.net, sim.spec)
+  let clock = 0
   const cars = createCars(sim.net)
   const walkers = createWalkers()
-  walkers.add(sim.net, field, pieces)
+  // PROTOTYPE (`./prototype-walkers`): the Zone a piece of slab is built as, for who its people are.
+  const zoneOfPiece = (b: Bounds) => ground.zoneOf({ x: Math.round((b.x0 + b.x1) / 200), y: Math.round((b.y0 + b.y1) / 200) })?.id
+  walkers.add(sim.net, field, pieces, sim.spec, zoneOfPiece)
   const emotion = createJamEmotion()
   const tools = createTools()
   const route = createRouteInspector()
@@ -166,6 +175,7 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
     movers.group,
     under.mesh,
     roads.group,
+    signals.group,
     ...cars.meshes,
     walkers.group,
     sky.group,
@@ -191,7 +201,10 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
     ;[width, height] = [canvas.clientWidth, canvas.clientHeight]
     renderer.setSize(width, height, false)
     rig.resize(width, height)
+    post?.setSize(width, height)
   }
+  // PROTOTYPE (`./prototype-look`): the faceted look draws through its blend.
+  const post = FACET ? createPost(renderer, scene, rig.camera, canvas) : null
   window.addEventListener('resize', fitCanvas)
   fitCanvas()
 
@@ -223,6 +236,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
   return {
     /** Stop the day at a time of day, 0–1. A dev aid: the player has no control over it. */
     holdDay: day.hold,
+    /** PROTOTYPE (`./prototype-walkers`): the walkers, for a page to follow one of them. */
+    walkers,
+    /** The time of day shown, 0–1. */
+    get dayTime() {
+      return day.time
+    },
 
     /**
      * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
@@ -405,9 +424,12 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
           })
           roads = paint
           scene.add(roads.group)
+          scene.remove(signals.group)
+          signals = createSignals(rebuilt.net, rebuilt.spec)
+          scene.add(signals.group)
         },
         done() {
-          if (build) walkers.add(rebuilt.net, field, build.pieces)
+          if (build) walkers.add(rebuilt.net, field, build.pieces, rebuilt.spec, zoneOfPiece)
           sky.fit(grown)
           if (build && assembling && sameBounds(assembling, build.pieces[0])) {
             assembling = null
@@ -469,15 +491,19 @@ export function createView(canvas: HTMLCanvasElement, sim: Sim, ground: Ground, 
       materials.setGlow(glow)
       materials.setZoom(rig.camera.zoom)
       cars.setGlow(glow)
-      emotion.update(cars.update(grow > 0 ? shown.vehicles : [], dt, grow), dt)
-      walkers.update(dt)
+      // PROTOTYPE (`../sim/prototype-signals`): the parked cars are drawn with the rest.
+      const parkedCars = FACET ? PARKING.parked.map((p) => p.car) : []
+      emotion.update(cars.update(grow > 0 ? [...shown.vehicles, ...parkedCars] : [], dt, grow), dt)
+      walkers.update(dt, day.time)
       hand.update()
       tools.update()
       roads.update()
+      signals.update((clock += real))
       rig.update(real)
       under.update(dt)
       sky.update(dt, rig.camera.zoom)
-      renderer.render(scene, rig.camera)
+      if (post) post.render(Math.min(1, glow.lamps / 4))
+      else renderer.render(scene, rig.camera)
       labels.update(width, height)
     },
   }

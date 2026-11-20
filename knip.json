@@ -1,5 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["index.html", "scripts/*.ts", "scripts/visual/*.mjs", "scripts/visual/scene/check.ts"],
+  "entry": [
+    "index.html",
+    "scripts/*.ts",
+    "scripts/visual/*.mjs",
+    "scripts/visual/scene/check.ts",
+    "src/prototype-artifact.ts",
+    "scripts/prototype-artifact.vite.mjs"
+  ],
   "project": ["src/**/*.ts", "scripts/**/*.{ts,mjs}"]
 }

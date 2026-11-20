@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { PARKING } from '../sim/prototype-signals'
+import { FACET } from './prototype-look'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Vehicle } from '../sim/sim'
@@ -252,7 +254,7 @@ export function carCentre(v: Vehicle): Vec {
  * have been stuck for a few real seconds.
  */
 export function createCars(net: Network) {
-  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: FACET })
   paint.onBeforeCompile = takesPaint
   // Unlit: the lights glow by their own colour, scaled by the time of day.
   const lit = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })
@@ -302,13 +304,31 @@ export function createCars(net: Network) {
       const drawn = Math.min(vehicles.length, CAP)
       for (let i = 0; i < drawn; i++) {
         const v = vehicles[i]
-        const { heading } = pointAt(v.lane.line, v.s)
+        let { heading } = pointAt(v.lane.line, v.s)
         const before = stuck.get(v.id) ?? 0
-        const wait = v.v < STUCK_BELOW ? before + dt : Math.max(0, before - COOL * dt)
+        // PROTOTYPE (`../sim/prototype-signals`): waiting at a red light is not being stuck, and a queue that a
+        // light has just let go is in no hurry to be angry.
+        const light = v.path[0]?.conn?.arm.signal ?? v.lane.conn?.arm.signal
+        const wait =
+          v.bay && !v.bay.out
+            ? 0
+            : light === 'stop'
+              ? Math.max(0, before - 0.5 * dt)
+              : v.v < STUCK_BELOW
+                ? before + dt * (light ? 0.3 : 1)
+                : Math.max(0, before - COOL * dt)
         next.set(v.id, wait)
         const anger = Math.min(1, Math.max(0, (wait - ANGRY_AFTER) / ANGRY_RAMP))
         const grown = entries.has(v.lane) ? v.s / GROW : v.lane.toGateway ? (v.lane.length - v.s) / GROW : 1
         const c = carCentre(v)
+        // PROTOTYPE (`../sim/prototype-signals`): a car eases off its lane onto the spot it parks on, and back.
+        if (v.bay) {
+          const k = Math.min(1, Math.max(0, (PARKING.now - v.bay.since) / 1.8))
+          const on = (v.bay.out ? 1 - k : k) ** 2 * (3 - 2 * (v.bay.out ? 1 - k : k))
+          const turn = Math.atan2(Math.sin(v.bay.heading - heading), Math.cos(v.bay.heading - heading))
+          ;[c.x, c.y, heading] = [c.x + (v.bay.x - c.x) * on, c.y + (v.bay.y - c.y) * on, heading + turn * on]
+          if (v.bay.out && k >= 1) v.bay = undefined
+        }
         // An angry car hops and rocks.
         at.set(c.x, anger && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * anger, -c.y)
         q.setFromEuler(e.set(anger && Math.sin(t * 34 + v.id) * 0.07 * anger, heading, 0))

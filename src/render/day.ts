@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FACET } from './prototype-look'
 import type { Bounds } from '../sim/geometry'
 import { centre } from './slab'
 
@@ -96,7 +97,8 @@ export function createDay(canvas: HTMLCanvasElement, slab: Bounds) {
     const texels = reach / MIN_REACH
     light.shadow.bias = -SHADOW.bias / (2 * distance)
     light.shadow.normalBias = SHADOW.normalBias * texels
-    light.shadow.radius = Math.max(1, SHADOW.radius / texels)
+    // PROTOTYPE (`./prototype-look`): hard-edged shadows.
+    light.shadow.radius = FACET ? 1 : Math.max(1, SHADOW.radius / texels)
   }
   fit(slab)
 

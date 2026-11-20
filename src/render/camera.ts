@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { CLOSE } from './prototype-look'
 import type { Bounds, Vec } from '../sim/geometry'
 import { CELL } from '../sim/tiles'
 import { centre } from './slab'
@@ -11,7 +12,7 @@ export interface ScreenPoint {
 
 // Zoom 1 is the start's scale: a City of one Tile and the cells around it, three cells across, fill the frustum's height.
 const SPAN = 1.5 * CELL // m: the frustum's half-height at zoom 1
-const ZOOM_IN = 8 // the closest zoom
+const ZOOM_IN = CLOSE ? 22 : 8 // the closest zoom (PROTOTYPE, `./prototype-look`: closer, to see the walkers)
 const ZOOM_OUT = 0.6 // the farthest zoom, as a share of the zoom that frames the whole City
 // The angle above the horizon the camera looks down from, clamped to about 24°–72°. The start view looks from the
 // south-east at about 41°.

@@ -1,3 +1,4 @@
+import { parking, signal, SIGNALS, type Spot } from './prototype-signals'
 import { City } from '../city/city'
 import { Demand, type VehicleType } from './demand'
 import { accel } from './driving'
@@ -24,6 +25,12 @@ export interface Vehicle {
   dest: string
   /** Held at the end of its lane this step. */
   waiting: boolean
+  // PROTOTYPE (`./prototype-signals`): the spot it means to take; the lane it last weighed taking one on; whether it
+  // has parked on this Trip; and, parked or just away, where it stands or stood, for the screen to ease it there.
+  park?: Spot
+  asked?: Lane
+  parked?: boolean
+  bay?: { x: number; y: number; heading: number; since: number; out: boolean }
 }
 
 export const DT = 1 / 30
@@ -140,6 +147,11 @@ export class Sim {
   }
 
   step() {
+    // PROTOTYPE (`./prototype-signals`): traffic lights, and cars that park.
+    if (SIGNALS.on) {
+      signal(this.net, this.time)
+      parking(this)
+    }
     this.vehicles.push(...this.demand.spawn(this.net, this.time))
     for (const v of this.vehicles) v.acc = accel(v)
     for (const v of this.vehicles) {

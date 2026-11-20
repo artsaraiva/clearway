@@ -1,3 +1,4 @@
+import type { Signal } from './prototype-signals'
 import type { Change, JunctionSpec, NetworkSpec, Priority } from './spec'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
 import type { Vehicle } from './sim'
@@ -67,6 +68,8 @@ export interface Arm {
   ringOut: Lane[]
   /** Candidate Connections at this Arm. */
   connections: Connection[]
+  /** PROTOTYPE (`./prototype-signals`): what its traffic light says, where its Junction has lights. */
+  signal?: 'go' | 'stop'
 }
 
 export interface Junction {
@@ -75,6 +78,8 @@ export interface Junction {
   at: Vec
   /** Counterclockwise: the direction of circulation on a roundabout, and each Arm's neighbour to its right. */
   arms: Arm[]
+  /** PROTOTYPE (`./prototype-signals`): its traffic lights, where it has them. */
+  signal?: Signal
 }
 
 export interface Network {

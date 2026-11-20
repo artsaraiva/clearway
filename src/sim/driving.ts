@@ -65,6 +65,11 @@ export function accel(v: Vehicle): number {
       lv = 0
     }
   }
+  // PROTOTYPE (`./prototype-signals`): it draws up beside the spot it means to take.
+  if (v.park?.lane === v.lane && v.park.s - v.s < gap) {
+    gap = Math.max(0.05, v.park.s - v.s)
+    lv = 0
+  }
   let a = t.accel * (1 - (v.v / v0) ** 4)
   if (gap < Infinity) {
     const sStar = t.minGap + Math.max(0, v.v * t.headway + (v.v * (v.v - lv)) / (2 * Math.sqrt(t.accel * t.decel)))
@@ -82,6 +87,7 @@ export function accel(v: Vehicle): number {
  */
 export function yieldSpeed(v: Vehicle): number {
   const next = v.lane.conn ? undefined : v.path[0]?.conn // on a Connection it is already past its line
+  if (next?.arm.signal) return Infinity // PROTOTYPE (`./prototype-signals`): a light says who goes, not the give-way line
   const yields = next?.arm.priority === 'yield' && next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main')
   return yields ? Math.sqrt(YIELD_CRAWL ** 2 + 2 * YIELD_SLOWING * Math.max(0, v.lane.length - v.s)) : Infinity
 }
@@ -95,6 +101,7 @@ function mustStop(v: Vehicle): boolean {
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
+  if (c.arm.signal === 'stop') return true // PROTOTYPE (`./prototype-signals`): a red light
   return conflicting(v, c, dist) || !hasRoom(c, v)
 }
 
@@ -112,6 +119,8 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   const held = v.v < HELD
   if (held && !goesFirst(v, c)) return true
   for (const { other: o, s, otherS } of c.conflicts) {
+    // PROTOTYPE (`./prototype-signals`): what waits at a red light on another Arm is not coming; what is already in the Junction still is.
+    const red = o.arm !== c.arm && o.arm.signal === 'stop'
     const tMe = eta(dist + s, v.v, v.type.accel, c.lane.speedLimit)
     if (o.arm === c.arm) {
       if (rank(o) >= rank(c)) continue
@@ -125,7 +134,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
       if (!held) {
         if (!givesWay(c, o)) continue
         const first = o.from.vehicles[0]
-        if (first && standing(first, o) && goesFirst(first, o)) return true
+        if (!red && first && standing(first, o) && goesFirst(first, o)) return true
       }
     }
     const near = (u: Vehicle, d: number) => {
@@ -134,6 +143,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
       return tO > tMe - GAP_BEFORE && tO < tMe + GAP_AFTER
     }
     for (const u of o.lane.vehicles) if (u.s < otherS && near(u, otherS - u.s)) return true
+    if (red) continue
     for (const u of o.from.vehicles) if (u.path[0] === o.lane && near(u, o.from.length - u.s + otherS)) return true
     for (const f of o.from.feeders) {
       for (const u of f.vehicles) {
@@ -174,7 +184,7 @@ function goesFirst(u: Vehicle, c: Connection): boolean {
   return !c.conflicts.some(({ other: o }) => {
     const w = o.from.vehicles[0]
     const ahead = outranks(o, c) || (!outranks(c, o) && w?.id < u.id)
-    return o.arm !== c.arm && w && ahead && standing(w, o) && goesFirst(w, o)
+    return o.arm !== c.arm && o.arm.signal !== 'stop' && w && ahead && standing(w, o) && goesFirst(w, o)
   })
 }
 
