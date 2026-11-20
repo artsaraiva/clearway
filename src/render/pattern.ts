@@ -694,7 +694,10 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
     // clumps where it grows long, ragged at their edges, which wrap at the repeat's edges.
     (g) => {
       const draw = stream(71)
-      const clumps = Array.from({ length: 11 }, () => [draw(), draw(), 0.06 + draw() * 0.09])
+      // Nine clumps, each three rounds run together, so that none is a disc.
+      const clumps = Array.from({ length: 9 }, () => [draw(), draw()]).flatMap(([cx, cy]) =>
+        Array.from({ length: 3 }, () => [cx + (draw() - 0.5) * 0.14, cy + (draw() - 0.5) * 0.14, 0.04 + draw() * 0.06]),
+      )
       const wrap = (a: number) => Math.abs(a - Math.round(a))
       for (let y = 0; y < S; y += 2)
         for (let x = 0; x < S; x += 2) {

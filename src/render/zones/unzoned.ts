@@ -26,7 +26,7 @@ const WILD = {
   rocks: 600,
   stump: { share: 0.6, bark: '#8a6446', rings: '#c49a6c' },
   tufts: { along: [4.5, 7], clump: 400 },
-  flowers: { drifts: 2.4, count: 14, spread: 2.4, colours: ['#ffffff', '#f6d36a', '#ffffff', '#c7b8f0', '#f6d36a', '#ff9ab8'] },
+  flowers: { drifts: 3.5, count: 16, spread: 2.4, colours: ['#ffffff', '#f6d36a', '#ffffff', '#c7b8f0', '#f6d36a', '#ff9ab8'] },
 }
 
 /**
@@ -74,16 +74,16 @@ export function verge(g: ZoneGround) {
   // A puddle on some Blocks, well in from the edge: a few rounds of water run together, each on a rim of mud.
   {
     const draw = stream(0x9dd1)
-    const at = draw() < WILD.puddle.share ? place(draw, 2, 5) : null
+    const at = draw() < WILD.puddle.share ? place(draw, 2.6, 5.6) : null
     if (at) {
-      const rounds = [{ x: at.x, y: at.y, rx: 0.9 + draw() * 0.5, ry: 0.6 + draw() * 0.4, turn: draw() * TAU }]
+      const rounds = [{ x: at.x, y: at.y, rx: 1.2 + draw() * 0.6, ry: 0.8 + draw() * 0.5, turn: draw() * TAU }]
       for (let k = 0; k < 2; k++) {
-        const [a, out, r] = [draw() * TAU, 0.55 + draw() * 0.4, 0.4 + draw() * 0.35]
+        const [a, out, r] = [draw() * TAU, 0.8 + draw() * 0.5, 0.55 + draw() * 0.4]
         rounds.push({ x: at.x + Math.cos(a) * out, y: at.y + Math.sin(a) * out, rx: r, ry: r * (0.7 + draw() * 0.3), turn: draw() * TAU })
       }
       for (const p of rounds) kit.add(SHAPES.centred, WILD.puddle.mud, p.x, p.y, ground + 0.012, p.turn, p.rx + 0.16, 0.02, p.ry + 0.16)
       for (const p of rounds) kit.add(SHAPES.centred, WILD.puddle.water, p.x, p.y, ground + 0.03, p.turn, p.rx, 0.02, p.ry)
-      kit.stand(at.x, at.y, 3.6)
+      kit.stand(at.x, at.y, 4.8)
       kit.brick('ground', at.x, at.y, ground)
     }
   }
@@ -92,16 +92,16 @@ export function verge(g: ZoneGround) {
   {
     const draw = stream(0x70c4)
     for (let n = Math.max(1, Math.round(area(block.loop) / WILD.rocks)); n > 0; n--) {
-      const at = place(draw, 1.3)
+      const at = place(draw, 1.6)
       if (!at) continue
       const rock = (x: number, y: number, w: number, d: number, tall: number) =>
         kit.add(SHAPES.bush, ROCKS[Math.floor(draw() * ROCKS.length)], x, y, ground + tall * 0.25, draw() * TAU, w / 2, tall, d / 2)
-      rock(at.x, at.y, 1 + draw() * 0.6, 0.8 + draw() * 0.4, 0.4 + draw() * 0.22)
+      rock(at.x, at.y, 1.3 + draw() * 0.7, 1 + draw() * 0.5, 0.5 + draw() * 0.3)
       for (let k = draw() < 0.5 ? 1 : 2; k > 0; k--) {
-        const [a, out] = [draw() * TAU, 0.75 + draw() * 0.3]
-        rock(at.x + Math.cos(a) * out, at.y + Math.sin(a) * out, 0.45 + draw() * 0.25, 0.4 + draw() * 0.2, 0.2 + draw() * 0.12)
+        const [a, out] = [draw() * TAU, 0.95 + draw() * 0.35]
+        rock(at.x + Math.cos(a) * out, at.y + Math.sin(a) * out, 0.55 + draw() * 0.3, 0.45 + draw() * 0.25, 0.24 + draw() * 0.14)
       }
-      kit.stand(at.x, at.y, 2.4)
+      kit.stand(at.x, at.y, 3)
       kit.brick('tree', at.x, at.y, ground)
     }
   }
