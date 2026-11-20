@@ -14,7 +14,7 @@ const PAUSE = `<svg width="11" height="13" viewBox="0 0 14 16" aria-hidden="true
 </svg>`
 
 /** Writes `value` with `write` only when it differs from the last one written. */
-function changes(write: (value: string) => void) {
+export function changes(write: (value: string) => void) {
   let shown: string | undefined
   return (value: string) => {
     if (value !== shown) write((shown = value))
