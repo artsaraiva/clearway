@@ -12,21 +12,8 @@
     <link rel="preload" href="/fonts/zen-maru-gothic-latin-900.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/klee-one-latin-600.woff2" as="font" type="font/woff2" crossorigin />
     <style>
-      /* What is left of the screen before the paper & stamp kit (src/ui/kit.css, which holds the theme's colours, type and
-         pieces): each part's styles go as its ticket of #243 rebuilds it in the kit. */
-      :root {
-        --ink-soft: #545c6e;
-        --line: rgba(27, 32, 48, 0.1);
-        --press: rgba(27, 32, 48, 0.08);
-        --hover: rgba(255, 255, 255, 0.55);
-        /* Neutral frosted glass with no tint of its own, so it takes on the sky behind it. */
-        --glass: rgba(255, 255, 255, 0.58);
-        --glass-edge: rgba(255, 255, 255, 0.78);
-        --shade: 0 8px 28px rgba(16, 24, 48, 0.16), 0 1px 3px rgba(16, 24, 48, 0.1);
-        --edge: 18px;
-        /* The accent of the selected button and the switch. */
-        --accent: #ff3d8b;
-      }
+      /* The page: the board fills it and the screen lies over it. The screen's colours, type and pieces are the paper &
+         stamp kit's (src/ui/kit.css), and each part's styles sit beside its module in src/ui. */
       html,
       body {
         margin: 0;
@@ -43,9 +30,9 @@
         touch-action: none;
       }
       /* --- The screen: the status strip along the bottom (src/ui/strip.css), the toolbar above it in the middle
-             (src/ui/toolbar.css), the camera's stickers on the right edge (src/ui/board.css), the menu sticker
-             top-left (src/ui/paused.css), and the Junction's panel top-right. Nothing covers the middle of the
-             board. --- */
+             (src/ui/toolbar.css), the camera's stickers on the right edge (src/ui/board.css), and top-left the menu
+             and City notes stickers (src/ui/paused.css) over the slot for City notes or the Junction's note
+             (src/ui/screen.css). Nothing covers the middle of the board. --- */
       #ui {
         position: fixed;
         inset: 0;
@@ -58,62 +45,6 @@
       }
       #ui [hidden] {
         display: none;
-      }
-      .glass {
-        background: var(--glass);
-        -webkit-backdrop-filter: blur(18px);
-        backdrop-filter: blur(18px);
-        border: 1px solid var(--glass-edge);
-        box-shadow: var(--shade);
-      }
-      #ui .on {
-        background: var(--accent);
-        color: #fff;
-        box-shadow: 0 3px 10px rgba(255, 61, 139, 0.4);
-      }
-      .soft {
-        font-size: 13px;
-        color: var(--ink-soft);
-      }
-
-      /* The selected Junction's panel top-right: its name, Reset and a hint. Its Tools are in the world. */
-      .junction {
-        top: var(--edge);
-        right: var(--edge);
-        width: 236px;
-        padding: 10px 12px 12px 16px;
-        border-radius: 22px;
-        display: grid;
-        gap: 6px;
-      }
-      .junction .row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-      }
-      .junction .name {
-        font-size: 15px;
-        font-weight: 800;
-      }
-      .junction .reset {
-        height: 30px;
-        padding: 0 12px;
-        border-radius: 999px;
-        background: var(--press);
-        font-size: 13px;
-        font-weight: 800;
-      }
-      .junction .reset:hover {
-        background: var(--hover);
-      }
-
-      .round {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
       }
     </style>
   </head>

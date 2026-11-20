@@ -28,10 +28,10 @@ const tripsChange = (change: number) => {
 /**
  * The screen (#243, "In play"; .scratch/ui-ux/spec.md, "Layout", for what #243 has not yet rebuilt): the status strip
  * along the bottom with the speeds and every reading (`./strip`), the toolbar above it with the Layouts, the Zone, the
- * Price and Undo (`./toolbar`), the selected Junction's panel top-right, the camera's stickers on the right edge with
- * the Stage Inspector's toggle (`./stage-inspector`), and top-left the menu sticker, which pauses the game
- * under the Paused memo and leaves the run through `run` (`./paused`), then the City notes sticker, which opens City
- * notes in the left slot under them (`./city-notes`).
+ * Price and Undo (`./toolbar`), the camera's stickers on the right edge with the Stage Inspector's toggle
+ * (`./stage-inspector`), and top-left the menu sticker, which pauses the game under the Paused memo and leaves the run
+ * through `run` (`./paused`), then the City notes sticker, which opens City notes in the left slot under them
+ * (`./city-notes`). The selected Junction's note takes City notes' place in that slot while it is open (`./tools`).
  * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
  * used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
  * Junction, which draws a Connection.
@@ -68,9 +68,7 @@ export function createUI(
   /** What the Rezoning last showed. */
   let shownRezoning = ''
 
-  root.innerHTML = `
-    <div class="glass junction" id="junction" hidden></div>
-    <div class="corner" id="corner"></div>`
+  root.innerHTML = `<div class="corner" id="corner"></div>`
 
   const strip = createStrip(root, game, view)
 
@@ -232,7 +230,9 @@ export function createUI(
   window.addEventListener('pointerdown', (e) => {
     if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null || dragging !== null }
   })
-  const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
+  // The selected Junction's note, laid in the left slot below.
+  const junctionNote = document.createElement('section')
+  const tools = createTools(junctionNote, canvas, game, view, () => hand !== null || view.rebuilding)
   const jams = createJamMarkers(root, canvas, game, view, tools, () => hand !== null)
   // A Tile that reaches a Stage shows it there and then, with no Rebuild.
   game.onStage = (cell, from, to) => view.stageUp(cellBounds(cell), from, to)
@@ -366,6 +366,8 @@ export function createUI(
   leftSlot.className = 'left-slot'
   $('corner').after(leftSlot)
   const cityNotes = createCityNotes($('corner'), leftSlot, game, view, run.screen)
+  // After City notes, so that while a Junction is selected its note hides them, and they come back as it closes.
+  leftSlot.append(junctionNote)
 
   return {
     /** Sim seconds per real second: 0 while paused. */
