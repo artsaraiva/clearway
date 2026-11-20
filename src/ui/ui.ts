@@ -8,6 +8,7 @@ import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
 import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
+import { createPaused } from './paused'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 import { createStageInspector } from './stage-inspector'
 import { createStrip } from './strip'
@@ -36,9 +37,6 @@ function reading(write: (value: string) => void) {
 
 const UNDO = `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
   <path d="M4.5 3.5L1.8 6.2l2.7 2.7M2.2 6.2h6.3a3.6 3.6 0 0 1 0 7.2H6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`
-const MENU = `<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
-  <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
 </svg>`
 
 /**
@@ -131,7 +129,8 @@ const zonePicture = (zone: Zone | undefined) =>
  * The screen (#243, "In play"; .scratch/ui-ux/spec.md, "Layout", for what #243 has not yet rebuilt): the status strip
  * along the bottom with the speeds and every reading (`./strip`), the bar of Layouts and Zones with the Price and Undo
  * above it, the selected Junction's panel top-right, the camera's buttons above the strip on the right with the Stage
- * Inspector's toggle (`./stage-inspector`), and the menu above it on the left, which leaves the run through `run`.
+ * Inspector's toggle (`./stage-inspector`), and top-left the menu sticker, which pauses the game under the Paused memo
+ * and leaves the run through `run` (`./paused`).
  * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
  * used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
  * Junction, which draws a Connection.
@@ -182,25 +181,7 @@ export function createUI(
         <button class="undo gone" id="undo">${UNDO}Undo</button>
       </div>
     </div>
-    <div class="menu" id="menu">
-      <button class="glass round" id="menu-button" aria-label="Menu" aria-expanded="false">${MENU}</button>
-      <div class="glass sheet" id="menu-sheet" hidden>
-        <button class="item" id="new-run">New run</button>
-        <button class="item" id="free-run" role="switch" aria-checked="${game.free}">
-          <span>Free run<small>Every tile costs ¥0</small></span><i class="switch"></i>
-        </button>
-        <dl class="keys">
-          <dt>Pause, and back</dt><dd><kbd>Space</kbd></dd>
-          <dt>1×, 4×, 8×</dt><dd><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dd>
-          <dt>Turn the tile</dt><dd><kbd>R</kbd> or wheel</dd>
-          <dt>Turn it back</dt><dd><kbd>Shift</kbd> <kbd>R</kbd></dd>
-          <dt>Put it back</dt><dd><kbd>Esc</kbd> or right click</dd>
-          <dt>Deselect</dt><dd><kbd>Esc</kbd></dd>
-          <dt>Frame the whole City</dt><dd><kbd>F</kbd></dd>
-          <dt>Stage Inspector</dt><dd><kbd>G</kbd></dd>
-        </dl>
-      </div>
-    </div>`
+    <div class="corner" id="corner"></div>`
 
   const text = (id: string) => {
     const el = $(id)
@@ -363,19 +344,7 @@ export function createUI(
     ghost.hidden = true
   }
 
-  const sheet = $('menu-sheet')
-  const showMenu = (open: boolean) => {
-    sheet.hidden = !open
-    $('menu-button').setAttribute('aria-expanded', String(open))
-  }
   $('undo').onclick = undo
-  $('menu-button').onclick = () => showMenu(sheet.hidden)
-  // A new run takes the place of this one, so it asks first. The Free run switch moves between the two saved runs and
-  // loses nothing.
-  $('new-run').onclick = () => {
-    if (confirm(`Start a new ${game.free ? 'Free run' : 'run'}? This City will be lost.`)) run.newRun()
-  }
-  $('free-run').onclick = run.switchRun
   $('tray').onwheel = (e) => {
     if (hand) return
     e.preventDefault()
@@ -392,7 +361,6 @@ export function createUI(
    */
   let right = { x: 0, y: 0, held: false }
   window.addEventListener('pointerdown', (e) => {
-    if (!sheet.hidden && !(e.target instanceof Node && $('menu').contains(e.target))) showMenu(false)
     if (e.button === 2) right = { x: e.clientX, y: e.clientY, held: hand !== null || dragging !== null }
   })
   const tools = createTools($('junction'), canvas, game, view, () => hand !== null || view.rebuilding)
@@ -456,7 +424,6 @@ export function createUI(
     if (e.key === 'r' || e.key === 'R') turn(e.shiftKey ? -1 : 1)
     // Esc lets go of a Zone dragged, or puts back the Tile in the hand, before it lets go of what is selected.
     if (e.key === 'Escape') {
-      showMenu(false)
       if (dragging) dropZone()
       else if (hand) hand = null
       else tools.back()
@@ -517,6 +484,11 @@ export function createUI(
   }
 
   const cameraButtons = createCameraButtons(root, view)
+  // The Paused memo lets go of what the hand holds as it opens.
+  createPaused($('corner'), root, game, run, strip, () => {
+    hand = null
+    dropZone()
+  })
   const stageInspector = createStageInspector(root, cameraButtons.box, game, view, run.screen)
 
   return {
