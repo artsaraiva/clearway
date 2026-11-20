@@ -6,7 +6,7 @@ import { inside, type Field } from '../field'
 import { type Kit, SHAPES, spot, to } from '../kit'
 import { clearOf, DECK, fountain, GRASS, GROW, overlay, PLAZA, site, STONE } from '../landmarks'
 import { PATTERN } from '../pattern'
-import { BLOOMS, bench, GLOWS, pavilionLantern, shrine, STONE as STONES, stoneLantern, WOOD } from '../props'
+import { BLOOMS, bench, GLOWS, pavilionLantern, ROCKS, shrine, STONE as STONES, stoneLantern, WOOD } from '../props'
 import { ribbons } from '../ribbons'
 import {
   alongRun,
@@ -65,7 +65,6 @@ const INNER = PARK.border.in + PARK.border.thick / 2 + 0.5
  * island's stepping stones and the wooden bridge to it (wood, never vermilion).
  */
 const POND = {
-  rocks: ['#8f8a80', '#a29d92', '#7f7b73'],
   reeds: ['#7f9a4e', '#8fa65a'],
   tips: '#b39a62',
   pad: '#5f9f52',
@@ -491,7 +490,7 @@ function rocks(kit: Kit, p: Pond) {
     const a = ((i + draw() * 0.6) / count) * TAU
     const [x, y] = [p.x + Math.cos(a) * (p.rx + 0.1), p.y + Math.sin(a) * (p.ry + 0.1)]
     const [w, d, tall] = [0.6 + draw() * 0.4, 0.5 + draw() * 0.35, 0.22 + draw() * 0.08]
-    const colour = POND.rocks[Math.floor(draw() * POND.rocks.length)]
+    const colour = ROCKS[Math.floor(draw() * ROCKS.length)]
     if (!kit.unclaimed(x, y, w, d, 0) || ends.some((e) => Math.hypot(e.x - x, e.y - y) < 1.8)) continue // the deck's foot
     kit.add(SHAPES.bush, colour, x, y, p.h + 0.1, draw() * TAU, w, tall, d)
   }

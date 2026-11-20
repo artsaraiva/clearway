@@ -89,6 +89,11 @@ export const PATTERN = {
   meadow: 30,
   /** Worked soil (#182): furrows 0.4 m apart running east–west, in m on the map over `REPEAT.paving`. */
   soil: 31,
+  /**
+   * An unzoned Tile's rough grass (#185): unmown, in two tones, paler where it is short and deeper in the ragged
+   * clumps where it grows long, in m on the map over `REPEAT.rough`.
+   */
+  rough: 32,
 } as const
 export type Pattern = (typeof PATTERN)[keyof typeof PATTERN]
 const DOOR = 4 // the layer of `back`'s middle bay
@@ -98,10 +103,17 @@ const DOORWAY = PATTERN.homeFront - 1 // the layer of `homeFront`'s middle bay o
 const HOME = { footing: 0.075, eaves: 0.07, foot: 0.76, shadow: 0.3 }
 
 /**
- * m of the map or a roof that one repeat of the paving's, the roof's, a lawn's or a meadow's pattern covers: a lawn's
- * two stripes, a meadow's glades.
+ * m of the map or a roof that one repeat of the paving's, the roof's, a lawn's, a meadow's or rough grass's pattern
+ * covers: a lawn's two stripes, a meadow's glades, rough grass's clumps.
  */
-const REPEAT = { paving: 2.4, roof: 2, lawn: 4, meadow: 16 }
+const REPEAT = { paving: 2.4, roof: 2, lawn: 4, meadow: 16, rough: 16 }
+/** m of the map one repeat of a ground's pattern covers, for those that are not the paving's. */
+const GROUND_REPEAT: Partial<Record<Pattern, number>> = {
+  [PATTERN.lawn]: REPEAT.lawn,
+  [PATTERN.meadow]: REPEAT.meadow,
+  [PATTERN.radial]: 1,
+  [PATTERN.rough]: REPEAT.rough,
+}
 /** Radial paving (#180): m from one ring of stones to the next, and about how long each stone is round its ring. */
 const RADIAL = { ring: 0.6, stone: 0.75 }
 /**
@@ -274,7 +286,7 @@ export function pave(
 ): THREE.BufferGeometry {
   const pos = geo.attributes.position
   const nor = geo.attributes.normal
-  const per = kind === PATTERN.lawn ? REPEAT.lawn : kind === PATTERN.meadow ? REPEAT.meadow : kind === PATTERN.radial ? 1 : REPEAT.paving
+  const per = GROUND_REPEAT[kind] ?? REPEAT.paving
   return wear(geo, (uv, worn) => {
     for (let i = 0; i < pos.count; i++) {
       if (nor.getY(i) < 0.9) continue
@@ -676,6 +688,22 @@ function drawLayers(): ((g: CanvasRenderingContext2D) => void)[] {
         for (let x = 0; x < S; x += 4) {
           const k = (y % t) / t // up its furrow
           fill(g, [Math.round((k < 0.3 ? 100 : k < 0.75 ? 126 : 138) + draw() * 8), 0, 0], x, y, 4, 2)
+        }
+    },
+    // Rough grass (#185) over 16 m: each 25 cm a shade of its own, paler where the grass is short and deeper in the
+    // clumps where it grows long, ragged at their edges, which wrap at the repeat's edges.
+    (g) => {
+      const draw = stream(71)
+      // Nine clumps, each three rounds run together, so that none is a disc.
+      const clumps = Array.from({ length: 9 }, () => [draw(), draw()]).flatMap(([cx, cy]) =>
+        Array.from({ length: 3 }, () => [cx + (draw() - 0.5) * 0.14, cy + (draw() - 0.5) * 0.14, 0.04 + draw() * 0.06]),
+      )
+      const wrap = (a: number) => Math.abs(a - Math.round(a))
+      for (let y = 0; y < S; y += 2)
+        for (let x = 0; x < S; x += 2) {
+          const [u, v, ragged] = [(x + 1) / S, (y + 1) / S, (draw() - 0.5) * 0.03]
+          const long = clumps.some(([cx, cy, r]) => Math.hypot(wrap(u - cx), wrap(v - cy)) < r + ragged)
+          fill(g, [Math.round(long ? 104 + draw() * 10 : 126 + draw() * 8), 0, 0], x, y, 2, 2)
         }
     },
   ]

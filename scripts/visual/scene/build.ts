@@ -241,7 +241,7 @@ export function buildReport(ask: Ask): Report {
         blocks.push({
           tile,
           zone: zone?.id,
-          finished: !!(zone && LOOKS[zone.id].finish),
+          finished: zone ? !!LOOKS[zone.id].finish : true, // an unzoned Tile's Blocks are built to the Finish too (#185)
           stage: game.stageOf({ x: cell[0], y: cell[1] })?.stage ?? 1,
           loop: outline.loop.map(({ x, y }) => ({ x, y })),
           area: blockArea(outline.loop),
