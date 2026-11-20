@@ -2,6 +2,12 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/clearway/issues/16))
 
+## Amended by [#195](https://github.com/artsaraiva/clearway/issues/195) (2026-11-20)
+
+The Kerbside, on every Tile: after its walk, a run of pavement still bare as the scene check reads it takes a pair of bollards at its free point nearest its middle, at the walk's depth or else by the kerb. Bare means: where the kerb faces a Road, with nothing standing on the ground within 3.6 m and no bay at the kerb, for more than 11 of the check's points, about 11 m.
+The walk keeps off more than stands, so such runs came between pieces of ground nothing stood on: a claim at the kerb whose piece stands only from a later Stage, a crossing's pads, a crown, a sculpture plaza's ground, a court's claim or a scooter's way by the kerb (19 runs of 12 to 16 m over five seeds of shops, offices and medium density).
+The bollards keep off the ground a Zone claimed as the walk's pieces do ([#218](https://github.com/artsaraiva/clearway/issues/218)), so in front of a claim near the kerb they stand at its ends; each bollard keeps off a crossing's pads and what stands tall.
+
 ## Amended by [#225](https://github.com/artsaraiva/clearway/issues/225) (2026-11-19)
 
 Petals drift down from one sakura in two on every Zone, as [#151](https://github.com/artsaraiva/clearway/issues/151) asked, not only in parks as [#180](https://github.com/artsaraiva/clearway/issues/180) left them.
@@ -343,7 +349,8 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
     a convex mirror on a pole facing the Junction at one corner in three, where no lamp, pole or building crowds it;
     tree pits round the street trees;
     drain grates on the kerb line of the straight runs, one every 9 m;
-    and wherever 10 m of pavement runs bare of the Zone's lots, lamps, trees and the corners' furniture, a planter, a pair of bollards or a bench, in turn.
+    and wherever 10 m of pavement runs bare of the Zone's lots, lamps, trees and the corners' furniture, a planter, a pair of bollards or a bench, in turn;
+    then, wherever the kerb faces a Road and still runs bare as the scene check reads it, a pair of bollards at the run's free point nearest its middle ([#195](https://github.com/artsaraiva/clearway/issues/195)). Bare here means nothing standing on the ground within 3.6 m and no bay at the kerb, for more than 11 of the check's points.
   - On the road plate, along the middle of each Road lane and 12 m clear of its ends, where the zebras and give-way paint lie: a manhole or a patch of newer tarmac every 26 m or so, within 6% of the plate's lightness.
     Each Tile lays only the marks wholly on its own cell, so that a Road between two Tiles is marked along both halves alike and none spills onto the next Tile.
     No new paint.

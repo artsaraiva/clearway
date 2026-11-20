@@ -110,9 +110,9 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
    * road plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike lane's too).
    */
   const dress = (kerbsideTrees: Vec[] = []) => {
-    const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
+    const stands = kit.dressed ? standing(block, field, kit.since(from)) : null
     for (const t of kerbsideTrees) kit.tree(t.x, t.y, KERB, KERBSIDE_TREES.size, 'round')
-    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands })
+    if (stands) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands })
   }
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
