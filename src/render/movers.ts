@@ -79,6 +79,11 @@ export interface Plume {
   brick: number
   /** Its kind, smoke unless given: steam (#175), a fountain's spray or petals drifting down from a sakura (#180). */
   kind?: Exclude<PlumeKind, 'smoke'>
+  /**
+   * A sakura's petals (#227): how far out from `at`, its crown's middle, the crown reaches, and how far below `at`
+   * the ground lies (m). Each petal leaves the crown's side and lands as it fades.
+   */
+  crown?: { out: number; drop: number }
 }
 
 /** The kinds of plume (`PLUMES`): a chimney's smoke, steam, a fountain's spray and a sakura's drifting petals. */
@@ -224,6 +229,8 @@ export const moverModel = (kind: MoverKind) => KINDS[kind].model()
 const WINGS = { rest: 1.25, fan: 0.22, night: 1.45, open: 0.35, sweep: 0.8 }
 /** m of its loop either side of the stop where a mover is away (#177) over which it shrinks out of sight, or grows back. */
 const AWAY = 3
+/** The share of its speed a puff has lost by the end of its life: smoke and steam slow as they rise, a petal as it lands. */
+const SLOWS = 0.3
 // Smoke (#150): how the wind carries a puff (m/s, Three's x and z), how opaque it starts, and its colour.
 const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
 // Each kind of plume's puffs: a chimney's smoke (#150), and steam (#175) from a noodle shop's vent or a food stall's pot,
@@ -231,7 +238,10 @@ const SMOKE = { wind: [WIND.x, -WIND.y], opacity: 0.92, colour: '#f4f1ea' }
 // (m/s), its share of the wind and of its own drift, its radius as it leaves and as it fades (m), and its share of the
 // smoke's opacity.
 // A fountain's spray (#180) is thrown up and falls back (`fall`, m/s²) into its basin, and petals drift down from a
-// sakura, in their own colour.
+// sakura, in their own colour. A petal (#227) leaves its crown's side, up to `side` of the crown's reach above or below
+// its middle, and drifts on outward; it falls at the speed that lands it as it fades, whatever `rise` says, so a small
+// tree's float down slowly, and stays opaque most of the way: `holds` is the power of its age its fading follows, where
+// the others fade from the start. It is `flat`, that share of its width tall.
 const PLUMES: Record<
   PlumeKind,
   {
@@ -245,12 +255,28 @@ const PLUMES: Record<
     fade: number
     fall?: number
     colour?: string
+    side?: number
+    holds?: number
+    flat?: number
   }
 > = {
   smoke: { every: 0.6, lasts: 5.5, rise: 1.6, wind: 1, drift: 1, from: 0.7, to: 2.5, fade: 1 },
   steam: { every: 0.5, lasts: 2.2, rise: 1.3, wind: 0.35, drift: 0.4, from: 0.3, to: 1.15, fade: 0.7 },
   spray: { every: 0.07, lasts: 1.7, rise: 4.2, wind: 0.12, drift: 2.4, from: 0.14, to: 0.32, fade: 0.8, fall: 6, colour: '#f3f8f8' },
-  petals: { every: 1.6, lasts: 6, rise: -0.8, wind: 0.5, drift: 0.6, from: 0.1, to: 0.1, fade: 1, colour: '#ffc4d6' },
+  petals: {
+    every: 1.2,
+    lasts: 6,
+    rise: -0.8,
+    wind: 0.5,
+    drift: 0.6,
+    from: 0.26,
+    to: 0.26,
+    fade: 1,
+    colour: '#e04a94',
+    side: 0.25,
+    holds: 5,
+    flat: 0.4,
+  },
 }
 // Fireflies (#180): their body by day, their light, and how brightly they glow for the lamps' glow; the lamps' glow at
 // which they are all out, and how much each pulses as it drifts.
@@ -266,8 +292,8 @@ const FLAGS: Record<FlagKind, { model: () => THREE.BufferGeometry; reach: number
 // How fast every flying thing's waves run (rad/s), and the share of the day it takes to raise or lower one, at the
 // start and the end of the working day.
 const FLUTTER = { rate: 7, raise: 0.02 }
-// ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth: past it the newest builds'
-// chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
+// ponytail: the most puffs drawn at once over the whole City, about 450 chimneys' worth, or 400 big sakura's petals
+// (#227: a City all parks has 1,180 in the air): past it the newest builds' chimneys smoke unseen. Grow the mesh with the puffs, as `remesh` does the movers', if a City ever smokes more.
 const PUFFS = 4096
 // Beacons (#155): s between flashes, the share of that the flash holds before it fades, how fast it fades, how dimly it
 // glows between flashes, and how bright a flash is for the lamps' glow; the colours, white or amber.
@@ -894,7 +920,10 @@ export interface Poses {
   pose(of: Build, i: number): { scale: number; lift: number } | null
 }
 
-/** A puff of smoke in the air: where it left its chimney, when (s run), its own drift, and its kind of plume (#175). */
+/**
+ * A puff of smoke in the air: where it left its chimney, when (s run), its own drift, and its kind of plume (#175). A
+ * petal (#227) carries its own speed (m/s), the one that lands it as it fades.
+ */
 interface Puff {
   x: number
   y: number
@@ -903,6 +932,7 @@ interface Puff {
   dx: number
   dz: number
   kind: keyof typeof PLUMES
+  rise?: number
 }
 
 /** The movers, plumes, flags, beacons and swaying things of one build, the reveal it may be playing on, and its plumes' puffs. */
@@ -1039,7 +1069,7 @@ export function createMovers() {
   }
   const smoke = new THREE.InstancedMesh(ball, haze, PUFFS)
   smoke.name = 'smoke'
-  // Each puff its plume's colour (#180): white for smoke, steam and spray, pink for petals.
+  // Each puff its plume's colour (#180): white for smoke, steam and spray, rose for petals.
   for (let i = 0; i < PUFFS; i++) smoke.setColorAt(i, white)
   const tints = new Map(Object.values(PLUMES).flatMap((p) => (p.colour ? [[p.colour, new THREE.Color(p.colour)] as const] : [])))
   smoke.count = 0
@@ -1478,27 +1508,40 @@ export function createMovers() {
         for (const p of e.plumes) {
           if (!working || !stands(e, p.plume.brick)) continue
           const kind = p.plume.kind ?? 'smoke'
-          const { every, drift } = PLUMES[kind]
-          for (p.next -= dt; p.next <= 0; p.next += every) {
+          const { every, drift, lasts, side = 0 } = PLUMES[kind]
+          const crown = p.plume.crown
+          // A crown reaching more than a metre out sheds more often, by the root of its reach, so that a big tree's
+          // petals are not lost round it.
+          const beat = crown ? every / Math.max(1, Math.sqrt(crown.out)) : every
+          for (p.next -= dt; p.next <= 0; p.next += beat) {
             const { x, y, z } = p.plume.at
             const [a, r] = [p.draw() * Math.PI * 2, (0.25 + 0.25 * p.draw()) * drift]
-            e.puffs.push({ x, y, z, born: t + p.next, dx: Math.cos(a) * r, dz: Math.sin(a) * r, kind })
+            const [dx, dz] = [Math.cos(a) * r, Math.sin(a) * r]
+            if (crown) {
+              // A petal leaves the crown's side the way it drifts, and its slowing fall lands it as it fades.
+              const { out } = crown
+              const up = (p.draw() * 2 - 1) * side * out
+              const rise = -(crown.drop + up) / (lasts * (1 - SLOWS))
+              e.puffs.push({ x: x + Math.cos(a) * out, y: y + up, z: z + Math.sin(a) * out, born: t + p.next, dx, dz, kind, rise })
+            } else e.puffs.push({ x, y, z, born: t + p.next, dx, dz, kind })
           }
         }
         e.puffs = e.puffs.filter((f) => t - f.born < PLUMES[f.kind].lasts)
         for (const f of e.puffs) {
           if (n >= PUFFS) break
           const age = Math.max(0, t - f.born)
-          const { lasts, rise, from, to, wind, fade, fall, colour } = PLUMES[f.kind]
+          const { lasts, from, to, wind, fade, fall, colour, holds, flat = 1 } = PLUMES[f.kind]
+          const rise = f.rise ?? PLUMES[f.kind].rise
           const k = age / lasts
           const [wx, wz] = SMOKE.wind
-          // Spray (#180) is thrown up and falls back; smoke and steam slow as they rise.
-          const y = fall ? f.y + rise * age - 0.5 * fall * age * age : f.y + rise * age * (1 - 0.3 * k)
+          // Spray (#180) is thrown up and falls back; smoke and steam slow as they rise, and a petal as it lands.
+          const y = fall ? f.y + rise * age - 0.5 * fall * age * age : f.y + rise * age * (1 - SLOWS * k)
           at.set(f.x + (wx * wind + f.dx) * age, y, f.z + (wz * wind + f.dz) * age)
-          m.compose(at, q, scale.setScalar(from + (to - from) * Math.sqrt(k)))
+          const r = from + (to - from) * Math.sqrt(k)
+          m.compose(at, q, scale.set(r, r * flat, r))
           smoke.setMatrixAt(n, m)
           smoke.setColorAt(n, colour ? tints.get(colour)! : white)
-          fades.setX(n, Math.min(1, age / 0.4) * (1 - k) ** 1.8 * fade)
+          fades.setX(n, Math.min(1, age / 0.4) * (holds ? 1 - k ** holds : (1 - k) ** 1.8) * fade)
           n++
         }
       }
