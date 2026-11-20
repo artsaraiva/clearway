@@ -1,0 +1,88 @@
+/* The selected Junction's note (./tools.ts; #243, "Junction selected"): a paper note in the left slot (./screen.css),
+   after City notes, so it takes their place while it shows. */
+.junction-note {
+  /* The world's Tool blue (src/render/tools.ts): the legend draws the marks as the Tools draw them on the Junction. */
+  --tools: #1f7aff;
+  position: relative;
+  width: 280px;
+  padding: 22px 22px 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.junction-note .tape {
+  left: 96px;
+  top: -10px;
+  width: 86px;
+}
+/* As tall with the stamp as without, so the note does not jump as a Jam comes and goes. */
+.junction-note header {
+  min-height: 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.junction-note .in-jam {
+  --tilt: -3deg;
+  padding: 1px 9px 2px;
+  border-width: 2.5px;
+  border-radius: 4px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.junction-note .title {
+  display: grid;
+  gap: 2px;
+}
+.junction-note h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.junction-note .kind {
+  font-size: 15px;
+  color: var(--quiet);
+}
+.junction-note .hint {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.junction-note .legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--quiet);
+}
+.junction-note .legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.junction-note .legend .marks {
+  width: 44px;
+  display: flex;
+  gap: 4px;
+  color: var(--tools);
+  filter: drop-shadow(0 0 0.6px rgba(43, 38, 34, 0.45));
+}
+.junction-note .actions {
+  display: flex;
+  gap: 10px;
+}
+.junction-note .actions .button {
+  flex: 1;
+  height: 44px;
+  border-width: 2px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.junction-note .actions .done {
+  flex: 1.3;
+}
