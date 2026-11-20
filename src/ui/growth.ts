@@ -20,21 +20,12 @@ function changes(write: (value: string) => void) {
 }
 
 /**
- * What the screen shows of Stages (.scratch/ui-ux/spec.md, "Readings"): the City's Growth under the yen, with how many
- * Tiles are at each Stage and the Record beneath; a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
+ * What the board shows of Stages (.scratch/ui-ux/spec.md, "Readings"; the City's Growth and the Record are in the
+ * status strip, `./strip`): a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
  * or why it is not growing; and a badge that rises over a Tile as its Stage-up ends. The bar hides while `busy`, as
  * when a Layout or a Zone is in the player's hand, and during a Rebuild.
  */
 export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, busy: () => boolean) {
-  const pill = document.createElement('div')
-  pill.className = 'glass growth'
-  pill.innerHTML = `
-    <div class="row"><span class="label">Growth</span><b class="total"></b><span class="soft stages"></span></div>
-    <div class="soft record"></div>
-    <div class="soft pace" hidden></div>`
-  root.append(pill)
-  const [total, stages, record, pace] = ['.total', '.stages', '.record', '.pace'].map((s) => pill.querySelector<HTMLElement>(s)!)
-
   // Over the board and its labels, under the screen's pills, like the Jam markers.
   const layer = document.createElement('div')
   layer.className = 'growth-layer'
@@ -46,13 +37,6 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   const [barStage, barStars, barFill, barNote] = ['.stage', '.stars', '.track i', '.note'].map((s) => bar.querySelector<HTMLElement>(s)!)
 
   const show = {
-    total: changes((v) => (total.textContent = v)),
-    stages: changes((v) => (stages.innerHTML = v)),
-    record: changes((v) => (record.textContent = v)),
-    pace: changes((v) => {
-      pace.hidden = v === ''
-      pace.textContent = v
-    }),
     at: changes((v) => (bar.style.transform = v)),
     hidden: changes((v) => (bar.hidden = v === 'hidden')),
     look: changes((v) => (bar.className = v)),
@@ -88,18 +72,8 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   }
 
   return {
-    /** Show Growth as it stands. Call it every frame, after the frame is drawn. */
+    /** Show the Stages over the board as they stand. Call it every frame, after the frame is drawn. */
     update() {
-      const counts = [0, 0, 0]
-      for (const t of game.city.tiles) {
-        const grown = game.stageOf(t.cell)
-        if (grown) counts[grown.stage - 1]++
-      }
-      show.total(String(game.growth))
-      show.stages(counts.map((n, i) => `<i>${'★'.repeat(i + 1)}</i> ${n}`).join(' · '))
-      show.record(`${game.free ? 'Free-run Record' : 'Record'} ${game.record}`)
-      show.pace(game.pace === 1 ? '' : `Pace ×${game.pace}`)
-
       const cell = hovered()
       show.hidden(cell ? '' : 'hidden')
       if (cell) {
