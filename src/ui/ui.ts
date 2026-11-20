@@ -6,12 +6,14 @@ import { labelledDemand } from '../render/labels'
 import type { Relaid, View } from '../render/view'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { createCameraButtons } from './camera-buttons'
+import { createCityNotes } from './city-notes'
 import { createGrowth } from './growth'
 import { createJamMarkers } from './jams'
 import { CLICK_SLOP, watchPresses, type Gesture } from './press'
 import { createStageInspector } from './stage-inspector'
 import { createStrip } from './strip'
 import { createTools } from './tools'
+import './screen.css'
 
 /** The picks of the bar's second row, in order: each Zone, then none, which the bar calls Roads only. */
 const ZONE_PICKS: (Zone | undefined)[] = [...ZONES, undefined]
@@ -131,7 +133,8 @@ const zonePicture = (zone: Zone | undefined) =>
  * The screen (#243, "In play"; .scratch/ui-ux/spec.md, "Layout", for what #243 has not yet rebuilt): the status strip
  * along the bottom with the speeds and every reading (`./strip`), the bar of Layouts and Zones with the Price and Undo
  * above it, the selected Junction's panel top-right, the camera's buttons above the strip on the right with the Stage
- * Inspector's toggle (`./stage-inspector`), and the menu above it on the left, which leaves the run through `run`.
+ * Inspector's toggle (`./stage-inspector`), the menu above it on the left, which leaves the run through `run`, and the
+ * City notes sticker top-left, which opens City notes in the left slot under it (`./city-notes`).
  * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
  * used in the world (`./tools`). Drags on the board move the camera, except a drag from a lane end of the selected
  * Junction, which draws a Connection.
@@ -518,6 +521,13 @@ export function createUI(
 
   const cameraButtons = createCameraButtons(root, view)
   const stageInspector = createStageInspector(root, cameraButtons.box, game, view, run.screen)
+  // Top-left, first on the screen: the stickers, and under them the slot that holds one panel at a time.
+  const topLeft = document.createElement('div')
+  topLeft.className = 'top-left'
+  const leftSlot = document.createElement('div')
+  leftSlot.className = 'left-slot'
+  root.prepend(topLeft, leftSlot)
+  const cityNotes = createCityNotes(topLeft, leftSlot, game, view, run.screen)
 
   return {
     /** Sim seconds per real second: 0 while paused. */
@@ -571,6 +581,7 @@ export function createUI(
       jams.update()
       growth.update()
       stageInspector.update()
+      cityNotes.update()
     },
   }
 }

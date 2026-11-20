@@ -26,6 +26,8 @@ const NOTICE = {
 export interface Screen {
   /** Whether the Stage Inspector is on. */
   stageInspector: boolean
+  /** Whether City notes is open. */
+  cityNotes: boolean
 }
 
 /** What a save holds. */
@@ -44,6 +46,8 @@ interface Save {
   record: number
   /** Missing from a save written before the Stage Inspector, which then opens off: no reason to raise the version. */
   stageInspector?: boolean
+  /** Missing from a save written before City notes, which then opens closed: no reason to raise the version either. */
+  cityNotes?: boolean
 }
 
 const isAmount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
@@ -52,7 +56,7 @@ const isInteger = (n: unknown): n is number => typeof n === 'number' && Number.i
 const isRecord = (n: unknown): n is number => isInteger(n) && n >= 0
 
 /** The save of `game`, with what `screen` keeps of the screen, as the text localStorage holds. */
-export function saveOf(game: Game, screen: Screen = { stageInspector: false }): string {
+export function saveOf(game: Game, screen: Screen = { stageInspector: false, cityNotes: false }): string {
   const save: Save = {
     version: VERSION,
     seed: game.seed,
@@ -64,6 +68,7 @@ export function saveOf(game: Game, screen: Screen = { stageInspector: false }): 
     yen: game.yen,
     record: game.record,
     stageInspector: screen.stageInspector,
+    cityNotes: screen.cityNotes,
   }
   return JSON.stringify(save)
 }
@@ -75,13 +80,14 @@ export function saveOf(game: Game, screen: Screen = { stageInspector: false }): 
  * The Sim starts at its Pre-warm: `step` until `sim.prewarmed`.
  */
 export function load(text: string | null, free: boolean): { game: Game; notice: string | null; screen: Screen } {
-  const screen = { stageInspector: false }
+  const screen = { stageInspector: false, cityNotes: false }
   if (text === null) return { game: new Game(undefined, { free }), notice: null, screen }
   let data: unknown
   try {
     data = JSON.parse(text)
     const game = restore(data as Save, free)
-    return { game, notice: null, screen: { stageInspector: (data as Save).stageInspector === true } }
+    const { stageInspector, cityNotes } = data as Save
+    return { game, notice: null, screen: { stageInspector: stageInspector === true, cityNotes: cityNotes === true } }
   } catch {
     const { version, record } = (data ?? {}) as Partial<Save>
     const older = isInteger(version) && version < VERSION
@@ -198,7 +204,7 @@ function seeded(seed: number, params: URLSearchParams): Run {
   return {
     game: new Game(seed, { free }),
     notice: null,
-    screen: { stageInspector: false },
+    screen: { stageInspector: false, cityNotes: false },
     newRun: () => go(params, (p) => p.set('seed', String(newSeed()))),
     switchRun: () => go(params, (p) => (free ? p.delete('free') : p.set('free', ''))),
   }
