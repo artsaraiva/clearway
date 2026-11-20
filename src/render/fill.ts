@@ -111,9 +111,9 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
    * `unpaved` is the m of pavement that shows at its edge where the fill paved over the rest (#187).
    */
   const dress = (kerbsideTrees: Vec[] = [], unpaved?: number) => {
-    const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
+    const stands = kit.dressed ? standing(block, field, kit.since(from)) : null
     for (const t of kerbsideTrees) kit.tree(t.x, t.y, KERB, KERBSIDE_TREES.size, 'round')
-    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands, unpaved })
+    if (stands) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands, unpaved })
   }
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))

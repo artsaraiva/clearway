@@ -13,19 +13,8 @@ interface Known {
   why: string
 }
 
-/** Left by #193: the bare pavement runs it did not break; #195 owns them. */
-const FOUND = '#195'
-
-const KNOWN: Known[] = [
-  // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
-  // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).
-  {
-    rule: 'empty-pavement',
-    most: 16,
-    owner: FOUND,
-    why: "the kerbside leaves 12 to 16 m bare by a truck court's way in, a corner's rail or a roundabout's flare",
-  },
-]
+/** None today: #195 broke the last bare pavement runs and #216 paved the last blank roofs. */
+const KNOWN: Known[] = []
 
 /** The known failure that accounts for `f`, if any. */
 export const knownOf = (f: Failure) =>
