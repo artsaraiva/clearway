@@ -233,15 +233,21 @@ export interface Kerbside {
   poles: Vec[]
   /** What its Zone built (`standing`). */
   stands: Stands
+  /**
+   * m of pavement that shows at its edge, where what fills it paves over the rest (a plaza, #187): a tactile pad or a
+   * drain grate is laid only where it lies wholly on that. Every other Block's pavement shows as far as they reach.
+   */
+  unpaved?: number
 }
 
 /**
  * The street furniture round Block `block` (#175, on every Tile since #176), each piece a brick: see the module's head.
  * It keeps clear of what `kerbside` says stands there, and of the ground its Zone claimed (`kit.unclaimed`, #218). The
- * kerbstone line is `kerbLine`'s.
+ * kerbstone line is `kerbLine`'s. Where paving covers the pavement past `kerbside.unpaved`, the pads and grates it would
+ * cover are left off, and the rest stands as if they lay there (#187).
  */
 export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network, spec: NetworkSpec, kerbside: Kerbside) {
-  const { lamps, trees, poles, stands } = kerbside
+  const { lamps, trees, poles, stands, unpaved = Infinity } = kerbside
   const { loop } = block
   const { inward, along, length } = walk(loop)
   const laneWidth = (road: string) => spec.roads[road]?.laneWidth ?? spec.roadDefaults.laneWidth
@@ -267,13 +273,14 @@ export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network
         const [ox, oy] = [lx * out, ly * out] // out of the road, onto the pavement
         const pad = { x: ex + ox * (KERBSTONE.to + TACTILE.deep / 2 + 0.05), y: ey + oy * (KERBSTONE.to + TACTILE.deep / 2 + 0.05) }
         if (!inside(loop, pad.x, pad.y) || field.sample(pad.x, pad.y) < KERBSTONE.to) continue
+        pads.push(pad) // the crossing's place, which the rails and the furniture keep off, pad or no pad
+        if (unpaved < KERBSTONE.to + 0.05 + TACTILE.deep) continue // the pad's inner edge
         const ry = Math.atan2(fy, fx)
         slab(kit, TACTILE.colour, pad.x, pad.y, ZEBRA.length, TACTILE.deep, ry, 0.012, 0.03)
         const reach = TACTILE.deep / 2 + TACTILE.guide / 2
         const [gx, gy] = [pad.x + ox * reach, pad.y + oy * reach]
         if (field.sample(gx, gy) > 0.5) slab(kit, TACTILE.colour, gx, gy, TACTILE.wide, TACTILE.guide, ry, 0.012, 0.03)
         kit.brick('ground', pad.x, pad.y, KERB)
-        pads.push(pad)
       }
     }
   }
@@ -360,6 +367,7 @@ export function dressKerbside(kit: Kit, block: Block, field: Field, net: Network
     grated += step
     const g = at(i, (KERBSTONE.from + KERBSTONE.to) / 2)
     if (
+      unpaved >= KERBSTONE.to &&
       straight &&
       grated > GRATE.every &&
       !corners.some((q) => near(p, q, RAIL.reach)) &&

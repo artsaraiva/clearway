@@ -108,17 +108,18 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
    * Last, whatever fills the Block: its street trees `kerbsideTrees` planted, and its kerbside dressed round what
    * stands on it from `from` on, the street trees and the ground its Zone claimed (#218), as its street lights and
    * road plate are (`./scenery`; #175, round every Block since #176, a park's, a plaza's and a bike lane's too).
+   * `unpaved` is the m of pavement that shows at its edge where the fill paved over the rest (#187).
    */
-  const dress = (kerbsideTrees: Vec[] = []) => {
+  const dress = (kerbsideTrees: Vec[] = [], unpaved?: number) => {
     const stands = kit.dressed ? standing(block, field, kit.since(from)) : () => false
     for (const t of kerbsideTrees) kit.tree(t.x, t.y, KERB, KERBSIDE_TREES.size, 'round')
-    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands })
+    if (kit.dressed) dressKerbside(kit, block, field, net, spec, { lamps, trees: kerbsideTrees, poles, stands, unpaved })
   }
   for (const landmark of scenery.landmarks) if (at(landmark.at)) tower(kit, field, block, ...landmark.at)
   const authored = scenery.blocks.find((s) => at(s.at))
   if (authored) {
-    if (authored.type === 'park') park(kit, field, block, { x: authored.at[0], y: authored.at[1] })
-    else plaza(kit, field, block)
+    if (authored.type === 'plaza') return dress([], plaza(kit, field, block))
+    park(kit, field, block, { x: authored.at[0], y: authored.at[1] })
     return dress()
   }
   if (Math.min(block.x1 - block.x0, block.y1 - block.y0) < NARROW) {
@@ -153,7 +154,6 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
   }
 
   const ground = { kit, block, field, reserved, kerbsideTrees, lamps, poles, tileDraw: tileDraw(scenery.seed, cellAt(middle(block))) }
-  if (look) look.fill(ground)
-  else verge(ground)
-  dress(kerbsideTrees)
+  const unpaved = look ? look.fill(ground) : verge(ground)
+  dress(kerbsideTrees, unpaved ?? undefined)
 }

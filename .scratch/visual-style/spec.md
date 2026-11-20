@@ -334,6 +334,7 @@ Default view looks from the south-east at about 41° tilt with the whole slab in
   Its planters, bollards and benches keep off the ground the Zone claimed as well, read from the kit's claims rather than a list of the Zone's own ([#218](https://github.com/artsaraiva/clearway/issues/218)): 1.1 m off what each piece stands on, and off the bays and door steps.
   A shop claims the pavement before its front out to the kerb.
   It keeps off the utility poles too: a rail, a grate or a planter never stands at a pole's foot.
+  Where a Block's fill paves over the pavement, as a plaza's paving does from 0.4 m in, it tells the Kerbside how much pavement shows at the edge, and a tactile pad or a drain grate that would not lie wholly on that is left off: a plaza has neither ([#187](https://github.com/artsaraiva/clearway/issues/187)). The rails still open at its crossings, and nothing else moves.
   Rails, mirrors, planters, bollards and benches are Block-zoom props (Rendering recipe, above).
   The user chose this on 2026-11-18 from a sheet of shops with the whole City in frame, the furniture hidden and shown: it changes the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), which drew them at every distance.
   Round each Block:

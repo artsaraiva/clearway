@@ -27,7 +27,8 @@ import {
 import { clearOfKerbside, facesRoad, placeScenes, sceneOrder, type Scene } from './scenes'
 
 // Parks: a park with a pond, or on a Block under 1,600 m² by its bounding box, one time in three, a plaza with a fountain.
-const PARKS = { small: 1600, plaza: 0.35 }
+// A plaza's paving starts `edge` m in from the Block's edge.
+const PARKS = { small: 1600, plaza: 0.35, edge: 0.4 }
 
 /** Parks' look (`./index`), built to the Finish since #180. */
 export const look: Look = { landmarks: false, finish: true, fill: parks }
@@ -37,8 +38,8 @@ function parks(g: ZoneGround) {
   const { kit, field, block, kerbsideTrees } = g
   const small = (block.x1 - block.x0) * (block.y1 - block.y0) < PARKS.small
   const fountain = small && kit.chance(PARKS.plaza) ? site(field, block, 12, 12, middle(block), kerbsideTrees, 1) : null
-  if (fountain) plaza(kit, field, block, fountain, kerbsideTrees, g)
-  else park(kit, field, block, undefined, kerbsideTrees, g)
+  if (fountain) return plaza(kit, field, block, fountain, kerbsideTrees, g)
+  park(kit, field, block, undefined, kerbsideTrees, g)
 }
 
 const TAU = Math.PI * 2
@@ -103,14 +104,15 @@ const SECOND = 2500
  * stand clear of the street trees `kerbsideTrees`. The fountain grows with the Stage (`fountain`), and so do the trees,
  * which at Stage 3 stand in round stone planters. Built to the Finish (#180, a Zone's Block `g`), the paving is laid in
  * rings round the fountain, which throws up spray, and the plaza takes a scene, beds, benches, a kiosk, lanterns,
- * planters along its Roads and pigeons (`plazaFinish`).
+ * planters along its Roads and pigeons (`plazaFinish`). Returns the m of pavement that shows at the edge of its paving,
+ * for the kerbside (#187).
  */
-export function plaza(kit: Kit, field: Field, block: Block, centre?: Vec, kerbsideTrees: Vec[] = [], g?: ZoneGround) {
+export function plaza(kit: Kit, field: Field, block: Block, centre?: Vec, kerbsideTrees: Vec[] = [], g?: ZoneGround): number {
   const finish = !!g && kit.finished
-  overlay(kit, field, block, 0.4, 0.08, PLAZA, finish ? PATTERN.radial : undefined, centre)
+  overlay(kit, field, block, PARKS.edge, 0.08, PLAZA, finish ? PATTERN.radial : undefined, centre)
   const mid = middle(block)
   kit.brick('ground', mid.x, mid.y, KERB)
-  if (!centre) return
+  if (!centre) return PARKS.edge
   kit.staged((stage) => {
     if (finish) kit.plume('spray', centre.x, centre.y, KERB + [1.25, 3, 4.35][stage - 1])
     fountain(kit, centre.x, centre.y, stage)
@@ -132,6 +134,7 @@ export function plaza(kit: Kit, field: Field, block: Block, centre?: Vec, kerbsi
     })
   }
   if (finish) plazaFinish(g, centre)
+  return PARKS.edge
 }
 
 /**
