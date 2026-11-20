@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import { City, LAYOUTS, type Layout } from '../city/city'
+import { pointAt } from './geometry'
 import { DT, Sim } from './sim'
 import type { Change, DemandSpec, NetworkSpec, RoadAttributes } from './spec'
 
@@ -361,4 +362,59 @@ it('keeps a Change made before a placement in force after it', () => {
   expect(city.place(layout('straight'), 1, { x: 0, y: -1 }).legal).toBe(true)
   expect(headsNorth(new Sim(city, [], 1))).toBe(true)
   expect(headsNorth(new Sim(city, before.configuration(), 1))).toBe(false)
+})
+
+/**
+ * A Crossroads and a Straight with their traffic running, then a Straight placed on the Crossroads' south Gateway:
+ * `before` is the Sim of the City before the placement, and `after()` the Sim of the grown City its traffic drives on in.
+ */
+function placement() {
+  const city = cityOf(['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
+  const closed = 'v0_-1'
+  // Until a vehicle bound for the Gateway the placement closes is on the map.
+  const before = new Sim(city, [], 1)
+  run(before, 300, () => before.vehicles.some((v) => v.dest === closed))
+  const after = () => {
+    expect(city.place(layout('straight'), 1, { x: 0, y: -1 }).legal).toBe(true)
+    return new Sim(city, before.configuration(), 1, { traffic: before })
+  }
+  return { before, after, closed }
+}
+/** Where each vehicle is on the map, to the centimetre. */
+const spots = (sim: Sim) =>
+  sim.vehicles.map((v) => {
+    const p = pointAt(v.lane.line, v.s)
+    return [v.id, Math.round(p.x * 100) + 0, Math.round(p.y * 100) + 0]
+  })
+
+it('keeps a vehicle driving before a placement driving after it', () => {
+  const { before, after } = placement()
+  const driving = spots(before)
+  expect(driving.length).toBeGreaterThan(0)
+  const sim = after()
+  // Every one is where it was, and the grown City needs no Pre-warm.
+  expect(spots(sim)).toEqual(driving)
+  expect(sim.prewarmed).toBe(true)
+  // And every one drives on to a Gateway and leaves.
+  run(sim, 120)
+  const left = new Set(sim.vehicles.map((v) => v.id))
+  expect(driving.filter(([id]) => left.has(id))).toEqual([])
+})
+
+it('gives a vehicle bound for a Gateway the placement closed a Gateway it can reach', () => {
+  const { before, after, closed } = placement()
+  expect(before.vehicles.some((v) => v.dest === closed)).toBe(true)
+  const sim = after()
+  expect(sim.vehicles.length).toBe(before.vehicles.length)
+  for (const v of sim.vehicles) {
+    expect(Object.keys(sim.net.gateways)).toContain(v.dest)
+    expect(sim.route(v.lane, v.dest)).not.toBeNull()
+  }
+  // Nor does an arrival wait off-screen at the closed Gateway, or for it.
+  expect(Object.keys(sim.queues)).not.toContain(closed)
+  expect(
+    Object.values(sim.queues)
+      .flat()
+      .map((a) => a.dest),
+  ).not.toContain(closed)
 })

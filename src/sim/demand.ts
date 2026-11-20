@@ -27,23 +27,40 @@ export interface Arrival {
 const SPAWN_GAP = 3
 const QUEUE_COST = 0.5 // s of trip time per vehicle already on an Approach lane
 
-/** Arrivals at each Gateway and their spawn onto the map. Owns the Sim's random stream. */
+/**
+ * Arrivals at each Gateway and their spawn onto the map. Owns the Sim's random stream. With `carried`, it takes over
+ * from the Demand of the Sim before at that Sim's `time` (ADR 0006): the random stream and the vehicle ids run on, and
+ * so does each Gateway still sending, with the arrivals waiting at it. One of those bound for a Gateway its own no
+ * longer sends to draws another. The arrivals waiting at a Gateway that sends nothing now, as one that closed, are
+ * dropped. The Demand before must not be used again.
+ */
 export class Demand {
   /** Off-screen spawn queues per Gateway. */
   readonly queues: Record<string, Arrival[]> = {}
   private nextArrival: Record<string, number> = {}
   private rng: () => number
-  private nextId = 1
+  private nextId: number
 
   constructor(
     private readonly demand: DemandSpec,
     seed: number,
+    carried?: { from: Demand; time: number },
   ) {
-    this.rng = mulberry32(seed)
-    for (const gateway of Object.keys(demand)) {
-      this.queues[gateway] = []
-      this.nextArrival[gateway] = this.interArrival(gateway)
+    this.rng = carried?.from.rng ?? mulberry32(seed)
+    this.nextId = carried?.from.nextId ?? 1
+    for (const [gateway, { to }] of Object.entries(demand)) {
+      this.queues[gateway] = carried?.from.queues[gateway] ?? []
+      for (const arrival of this.queues[gateway]) if (!(arrival.dest in to)) arrival.dest = pick(Object.entries(to), this.rng)
+      this.nextArrival[gateway] = carried?.from.nextArrival[gateway] ?? (carried?.time ?? 0) + this.interArrival(gateway)
     }
+  }
+
+  /** One of the Gateways `among`, each as likely as the next. */
+  draw(among: string[]): string {
+    return pick(
+      among.map((gateway) => [gateway, 1]),
+      this.rng,
+    )
   }
 
   /** Queue every arrival due by `time`, then move queue heads onto free Approach lanes. Returns the vehicles that entered the map. */
