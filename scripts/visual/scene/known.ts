@@ -20,10 +20,6 @@ const FOUND = '#195'
 const BLANK_ROOFS = '#216'
 
 const KNOWN: Known[] = [
-  // The seed's coral tower (`src/render/landmarks.ts`), on whichever Zone's Tile it stands, until #189 finishes it:
-  // drums in flat coral and cream, and blank decks.
-  { rule: 'blank-wall', what: /^tower /, owner: '#189', why: 'the coral tower is drums of flat colour' },
-  { rule: 'blank-roof', what: /^tower /, owner: '#189', why: "the coral tower's decks are blank" },
   // The kerbside (#176) still leaves 12 to 16 m bare in a few places on the finished Zones: 18 runs over five seeds,
   // between a truck court's way in and a corner's rail, or by a roundabout's flare (199 before #193's kerbside work).
   {
