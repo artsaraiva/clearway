@@ -1924,12 +1924,22 @@ function apartment(
     kit.add(CONE, TANK.lid, tx, ty, h + height + 2.8, 0, 1.2, 0.8, 1.2)
   }
   if (stage === 3) {
-    // A stair-house, roofed as the block is (#216): sheets in the deck's sage inside its white rim.
-    const [pw, pd] = [(first.x1 - first.x0) * 0.3, (first.y1 - first.y0) * 0.5]
-    const sx = first.x0 + (first.x1 - first.x0) * 0.68
-    kit.add(kit.box(pw, 2.6, pd, 0.3, 0.1), COURTYARD.cap, sx, ty, h + height + 0.6)
-    const sheets = kit.patterned ? APARTMENT_FINISH.deck : COURTYARD.cap
-    kit.cladded(kit.box(pw - 0.4, 0.1, pd - 0.4, 0.1, 0.04), sheets, sx, ty, h + height + 3.2, 0, { top: PATTERN.sheets }, seed + 30)
+    // A plant room, roofed as the building's own roof is where the kit builds patterned (#216): sheets in the deck's
+    // sage inside its white rim.
+    const [pw, pd, tall] = [(first.x1 - first.x0) * 0.3, (first.y1 - first.y0) * 0.5, 2.6]
+    const [sx, foot] = [first.x0 + (first.x1 - first.x0) * 0.68, h + height + 0.6]
+    kit.add(kit.box(pw, tall, pd, 0.3, 0.1), COURTYARD.cap, sx, ty, foot)
+    if (kit.patterned)
+      kit.cladded(
+        kit.box(pw - 0.4, 0.1, pd - 0.4, 0.1, 0.04),
+        APARTMENT_FINISH.deck,
+        sx,
+        ty,
+        foot + tall,
+        0,
+        { top: PATTERN.sheets },
+        seed + 30,
+      )
   }
   const { x0, y0, x1, y1 } = wingBounds(wings)
   kit.brick('building', (x0 + x1) / 2, (y0 + y1) / 2, h)

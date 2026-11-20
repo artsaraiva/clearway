@@ -42,6 +42,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     A penthouse's walls wear panels and high windows, which light.
     A round tower's dome and a stepped tower's cap wear pavers, converging to the top.
     A round tower of Stage 1 has two vents and a dish on its deck.
+    Every ledge left in sight round what stands on it wears pavers too, in the tower's trim or the deck's grey ([#216](https://github.com/artsaraiva/clearway/issues/216)): a penthouse's deck, a round tower's band over the lobby and its crown round the dome (its roof at Stage 1), and each ledge of a stepped tower round the tier or the cap on it.
   - A name plate crowns the tall towers from Stage 2, and at Stage 3 every tower of 12 floors or more: a board 0.95 m tall and up to 9 m long on each face, on a framed tower's parapet, across a finned tower's fins, on a stepped tower's top tier or tangent to a round tower's ring, in a company's colour with three to five marks for lettering, lit at night as a shop's signboard is;
     but, high on a tower's crown, it leaves no pool on the ground (a departure from rule 7, below).
   - Its lobby: a revolving door, a drum of the lobby's glass 1.9 m across under a dark cap, on the face toward the Road, the face whose plaza lies nearest the Block's edge, on a landing with a step up from the plaza, under a canopy 4.6 m wide reaching 2.6 m out on two posts, its soffit and its edge lit.
