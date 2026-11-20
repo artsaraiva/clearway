@@ -31,10 +31,11 @@ function changes(write: (value: string) => void) {
 export function createStrip(root: HTMLElement, game: Game, view: View) {
   const strip = document.createElement('div')
   strip.className = 'paper strip'
+  // The visual scripts pause the game by clicking `[data-scale="0"]` (scripts/visual/city.mjs).
   strip.innerHTML = `
     <div class="speed" role="group" aria-label="Speed">${SPEEDS.map(
       (s) =>
-        `<button class="button" data-speed="${s}" ${s ? '' : `aria-label="Pause" title="Pause (Space)"`}>${s ? `${s}×` : PAUSE}</button>`,
+        `<button class="button" data-scale="${s}" ${s ? '' : `aria-label="Pause" title="Pause (Space)"`}>${s ? `${s}×` : PAUSE}</button>`,
     ).join('')}</div>
     <span class="rule"></span>
     <div class="reading" title="Flow">
@@ -50,7 +51,7 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
   root.append(strip)
   const el = (s: string) => strip.querySelector<HTMLElement>(s)!
   const [flow, fill, growth, record, pace, yenEl, income] = ['.flow', '.gauge i', '.growth', '.record', '.pace', '.yen', '.income'].map(el)
-  const buttons = [...strip.querySelectorAll<HTMLButtonElement>('[data-speed]')]
+  const buttons = [...strip.querySelectorAll<HTMLButtonElement>('[data-scale]')]
 
   /** Sim seconds per real second: 0 while paused. */
   let speed = FIRST_SPEED
@@ -60,7 +61,7 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
     if (s) before = s
     speed = s
   }
-  buttons.forEach((b) => (b.onclick = () => setSpeed(Number(b.dataset.speed))))
+  buttons.forEach((b) => (b.onclick = () => setSpeed(Number(b.dataset.scale))))
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
     if (e.key === ' ') {
@@ -73,7 +74,7 @@ export function createStrip(root: HTMLElement, game: Game, view: View) {
   })
 
   const show = {
-    speed: changes((v) => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.speed === v)))),
+    speed: changes((v) => buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scale === v)))),
     flow: changes((v) => writeDigits(flow, v)),
     fill: changes((v) => (fill.style.width = v)),
     growth: changes((v) => writeDigits(growth, v)),
