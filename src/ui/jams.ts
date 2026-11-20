@@ -4,39 +4,23 @@ import { reach } from '../render/tools'
 import type { View } from '../render/view'
 import type { Junction } from '../sim/network'
 import { junctionId } from '../sim/tiles'
+import './board.css'
 
-// px: the radius of a marker's disc, how far past it its tail reaches, how far above its Junction the tail's tip
-// stops, and how far a marker at the edge keeps clear of the pills.
-const MARKER = { r: 16, tail: 10, gap: 3, margin: 10 }
+// px: the radius of a marker's paper disc, how far past it its tail reaches, how far above its Junction the tail's tip
+// stops, and how far a marker at the edge keeps clear of the screen's pills.
+const MARKER = { r: 24, tail: 10, gap: 3, margin: 10 }
+// px a marker at the right edge keeps clear of the screen's edge, past the camera's stickers (./camera-buttons), which
+// stand 20 px in and are 54 px across, and room for its tail when it points their way: more than the pills ask there.
+const STICKERS = 84
 // s for a marker to rise clear of its Junction's halo as the Junction is selected: as long as the halo takes to lift.
 const RISE = 0.16
-const JAM = '#ff4a1f' // the hot red-orange reserved for Jams and refusals
 
-/**
- * The anger mark the stuck cars carry (src/render/emotion.ts), drawn in white on the disc: four arcs back to back,
- * each round toward the middle.
- */
-const ANGER = [
-  [1, 1],
-  [-1, 1],
-  [1, -1],
-  [-1, -1],
-]
-  .map(([dx, dy]) => {
-    const [cx, cy, r] = [16 + dx * 8, 16 + dy * 8, 5.8]
-    const a = Math.atan2(-dy, -dx)
-    const at = (b: number) => `${(cx + r * Math.cos(b)).toFixed(2)} ${(cy + r * Math.sin(b)).toFixed(2)}`
-    return `M${at(a - 0.85)}A${r} ${r} 0 0 1 ${at(a + 0.85)}`
-  })
-  .join('')
+/** A Jam's stamp: its tail, pointing at the Junction, under a paper disc stamped with a red "!" in a ring. */
 const MARK = `
-  <svg class="tail" width="56" height="56" viewBox="-28 -28 56 56" aria-hidden="true">
-    <path d="M8 -7.5L${MARKER.r + MARKER.tail} 0L8 7.5z" fill="${JAM}" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>
+  <svg class="tail" width="76" height="76" viewBox="-38 -38 76 76" aria-hidden="true">
+    <path d="M14 -8L${MARKER.r + MARKER.tail} 0L14 8z" fill="var(--stamp)" stroke="var(--paper)" stroke-width="2.5" stroke-linejoin="round"/>
   </svg>
-  <svg class="disc" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
-    <circle cx="16" cy="16" r="14.75" fill="${JAM}" stroke="#fff" stroke-width="2.5"/>
-    <path d="${ANGER}" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
-  </svg>`
+  <span class="paper disc"><span class="stamp" aria-hidden="true">!</span></span>`
 
 interface Marker {
   el: HTMLButtonElement
@@ -58,11 +42,11 @@ interface Selection {
 }
 
 /**
- * The Jam markers (.scratch/ui-ux/spec.md, "Reading the traffic"): a small hot red-orange disc carrying the anger mark
- * floats above each Junction with a Jam (`Sim.jams`), its tail pointing down at it. Over the selected Junction it rises
- * clear of the halo, so it hides none of the Tools. A marker whose Junction is off screen, or would sit under the
- * screen's pills, waits at the edge of the clear part of the screen and points its tail toward the Junction. A click
- * centres the camera on the Junction and selects it.
+ * The Jam markers (.scratch/ui-ux/spec.md, "Reading the traffic"; #243, "In play"): a red "!" stamped on a 48 px paper
+ * disc floats above each Junction with a Jam (`Sim.jams`), its tail pointing down at it. Over the selected Junction it
+ * rises clear of the halo, so it hides none of the Tools. A marker whose Junction is off screen, or would sit under the
+ * screen's pills or the camera's stickers, waits at the edge of the clear part of the screen and points its tail toward
+ * the Junction. A click centres the camera on the Junction and selects it.
  *
  * The markers find the Jam from far out; the stuck cars' emotion stays the main signal in the world. None shows while
  * a Rebuild plays. While `busy`, as when a Layout is in the hand, they fade back and let clicks through, since every
@@ -132,8 +116,8 @@ export function createJamMarkers(
    */
   const place = (marker: Marker, dt: number) => {
     const { r, tail, gap, margin } = MARKER
-    // The part of the screen a marker's middle may take: clear of the pills, with the whole disc inside it.
-    const [x0, x1] = [PILLS.left + r + margin, width - PILLS.right - r - margin]
+    // The part of the screen a marker's middle may take: clear of the pills and the stickers, with the whole disc inside.
+    const [x0, x1] = [PILLS.left + r + margin, width - Math.max(PILLS.right, STICKERS) - r - margin]
     const [y0, y1] = [PILLS.top + r + margin, height - PILLS.bottom - r - margin]
     const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2]
     const { at } = marker.junction

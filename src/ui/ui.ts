@@ -28,8 +28,8 @@ const tripsChange = (change: number) => {
 /**
  * The screen (#243, "In play"; .scratch/ui-ux/spec.md, "Layout", for what #243 has not yet rebuilt): the status strip
  * along the bottom with the speeds and every reading (`./strip`), the toolbar above it with the Layouts, the Zone, the
- * Price and Undo (`./toolbar`), the selected Junction's panel top-right, the camera's buttons above the strip on the
- * right with the Stage Inspector's toggle (`./stage-inspector`), and top-left the menu sticker, which pauses the game
+ * Price and Undo (`./toolbar`), the selected Junction's panel top-right, the camera's stickers on the right edge with
+ * the Stage Inspector's toggle (`./stage-inspector`), and top-left the menu sticker, which pauses the game
  * under the Paused memo and leaves the run through `run` (`./paused`), then the City notes sticker, which opens City
  * notes in the left slot under them (`./city-notes`).
  * While a Layout is in the hand, every click on the board drops it. Otherwise the Tools and the route Inspector are
@@ -360,7 +360,7 @@ export function createUI(
     hand = null
     dropZone()
   })
-  const stageInspector = createStageInspector(root, cameraButtons.box, game, view, run.screen)
+  const stageInspector = createStageInspector(cameraButtons.box, game, view, run.screen)
   // Under the top-left stickers, the slot that holds one panel at a time.
   const leftSlot = document.createElement('div')
   leftSlot.className = 'left-slot'
