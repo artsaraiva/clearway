@@ -141,9 +141,13 @@ function houses(g: ZoneGround) {
     // in the clear ground nearest it.
     const plot = kit.finished ? plotOf(kit, home, lawn) : null
     // Where the garden is finished, it is laid out before the trees and the hedge, which opens where what it holds
-    // stands at its edge.
-    const layout = plot && gardenOf(lawn, plot)
-    const held = layout ? layout.held : []
+    // stands at its edge: each piece it holds claims its ground from the Stage it stands at, and is kept for the hedge.
+    const held: Patch[] = []
+    const hold = (p: Patch, from: number) => {
+      plot?.stand(p, from)
+      held.push(p)
+    }
+    const layout = plot && gardenOf(lawn, plot, hold)
     const { pad, pole } = home
     const free = (px: number, py: number) => {
       if (home.car < 4 && px > pad.x0 - 1.2 && px < pad.x1 + 1.2 && py > pad.y0 - 1.2 && py < pad.y1 + 1.2) return false
@@ -160,11 +164,7 @@ function houses(g: ZoneGround) {
       if (!plot) return free(c.x, c.y) ? c : null
       const [cu, cv] = plot.local(c.x, c.y)
       const near = plot.clear(c.x, c.y, 0.6, 0.6, 0.45) ? c : ((s) => s && plot.at(s.u, s.v))(spotIn(plot, 0.6, 0.6, 0.45, cu, cv))
-      if (near) {
-        const p = plot.around(near.x, near.y, 0.7)
-        plot.stand(p, k + 2)
-        held.push(p)
-      }
+      if (near) hold(plot.around(near.x, near.y, 0.7), [2, 3][k]) // from the Stage each tree comes at, as below
       return near
     })
     kit.from(
@@ -380,12 +380,12 @@ interface Patch {
 }
 
 /**
- * m: how far edges in a lawn's frame that meet flush, as the front wall's and the border's do, or two pieces' on
- * `spotIn`'s grid, may cross once claimed on the map and read back (#217); and how far apart two lengths may be and be
- * as long. Float noise: flush edges count as apart, as the frame's strict tests meant them, and two lengths as long tie,
- * where the frame once settled both by its own noise.
+ * m: the float noise in a lawn's frame, as ground claimed on the map and read back picks up (#217). Edges that cross by
+ * no more meet flush, as the front wall's and the border's do, or two pieces' on `spotIn`'s grid, and count as apart,
+ * as the frame's strict tests meant them; lengths no further apart are as long, and tie. The frame once settled both
+ * by its own noise.
  */
-const FLUSH = 1e-6
+const NOISE = 1e-6
 
 /**
  * A house's lawn in the frame of its front (#179): the lawn's half-width along its front and half-depth, and the house's
@@ -412,7 +412,10 @@ interface Plot {
   clear: (px: number, py: number, w: number, d: number, pad: number, edge?: number) => boolean
   /** Claim the ground `p` for a piece standing from Stage `from` (`kit.stand`). */
   stand: (p: Patch, from?: number) => void
-  /** The ground standing pieces claimed on the Block so far (`kit.claimed`), each as the box it spans in the frame. */
+  /**
+   * The ground standing pieces claimed on the Block so far (`kit.claimed`), each as the box it spans in the frame: the
+   * claim itself, as every claim on a low-density Block stands square to its lawn, a quarter-turn from this one or none.
+   */
   claimed: () => Patch[]
   /**
    * The gaps in the hedge round the lawn (the kit's `hedge`), from Stage 3: the whole front, where the low wall runs;
@@ -494,7 +497,7 @@ function plotOf(kit: Kit, home: Home, lawn: Lawn): Plot {
       const [u, v] = local(px, py)
       const inside = u - w / 2 >= -hu + edge && u + w / 2 <= hu - edge && v - d / 2 >= -hv + edge && v + d / 2 <= hv - edge
       // Grown `pad` m each side, and apart from each claim or meeting it flush.
-      return inside && kit.unclaimed(px, py, w + 2 * pad, d + 2 * pad, ry, -FLUSH)
+      return inside && kit.unclaimed(px, py, w + 2 * pad, d + 2 * pad, ry, -NOISE)
     },
     stand,
     claimed: () =>
@@ -561,28 +564,23 @@ interface Run {
  * front, open at the gate before the door and across the drive; from Stage 2 a flower border inside the wall along the
  * longest stretch the step, the pots and the rest leave clear; a vegetable patch where a yard has room; a steel shed in
  * a back corner on some; a tall pole flying carp on some, as far downwind on the lawn as there is room, so that they fly
- * out over its edge; and a cat walking the top of the wall's longest run on some. And the ground each piece but the
- * wall and the cat stands on (`held`), which the hedge opens for.
+ * out over its edge; and a cat walking the top of the wall's longest run on some. Each piece but the wall and the cat
+ * is held (`hold`) from Stage 2 as it is laid.
  */
-function gardenOf(lawn: Lawn, plot: Plot) {
+function gardenOf(lawn: Lawn, plot: Plot, hold: (p: Patch, from: number) => void) {
   const { ry, hu, hv, house } = plot
   const draw = mulberry32(spot(lawn.x, lawn.y) ^ 0x6a8d)
-  const [shedRoll, carpRoll, catRoll, side, tie] = [draw(), draw(), draw(), draw(), draw()]
+  const [shedRoll, carpRoll, catRoll, side, tieRoll] = [draw(), draw(), draw(), draw(), draw()]
   const door = (house.u0 + house.u1) / 2
   const runs = wallRuns(hu, door, plot.drive)
-  const held: Patch[] = []
-  const hold = (p: Patch) => {
-    plot.stand(p, 2)
-    held.push(p)
-  }
   const [v0, v1] = [hv - 0.3 - LOW_FINISH.border.deep, hv - 0.3]
   const claimed = plot.claimed()
   const stretches = runs.flatMap((r) => {
     let parts = [{ u0: r.u0 + 0.2, u1: r.u1 - 0.2 }]
     for (const t of claimed)
-      if (t.v0 < v1 - FLUSH && v0 + FLUSH < t.v1)
+      if (t.v0 < v1 - NOISE && v0 + NOISE < t.v1)
         parts = parts.flatMap((p) =>
-          p.u1 <= t.u0 + FLUSH || t.u1 <= p.u0 + FLUSH
+          p.u1 <= t.u0 + NOISE || t.u1 <= p.u0 + NOISE
             ? [p]
             : [
                 { u0: p.u0, u1: t.u0 },
@@ -593,10 +591,10 @@ function gardenOf(lawn: Lawn, plot: Plot) {
   })
   // The longest stretch; of two as long, as either side of the gate before a house in the middle of its lawn, one drawn.
   const longest = Math.max(...stretches.map((p) => p.u1 - p.u0))
-  const ties = stretches.filter((p) => p.u1 - p.u0 >= longest - FLUSH)
-  const stretch = ties[Math.floor(tie * ties.length)]
+  const ties = stretches.filter((p) => p.u1 - p.u0 >= longest - NOISE)
+  const stretch = ties[Math.floor(tieRoll * ties.length)]
   const border = stretch ? { ...stretch, v0, v1 } : null
-  if (border) hold(border)
+  if (border) hold(border, 2)
   // A shed and a patch stand against the lawn's edge, where the hedge opens for them.
   // A shed faces the front, or in a side yard too narrow for that, faces the house across it.
   const corner = [(side < 0.5 ? -1 : 1) * hu, -hv] as const
@@ -606,16 +604,16 @@ function gardenOf(lawn: Lawn, plot: Plot) {
   const shed = found && { ...found, ry: square ? ry : ry + (found.u > 0 ? 1 : -1) * (Math.PI / 2) }
   if (shed) {
     const [hw, hd] = square ? [0.8, 0.7] : [0.7, 0.8]
-    hold({ u0: shed.u - hw, u1: shed.u + hw, v0: shed.v - hd, v1: shed.v + hd })
+    hold({ u0: shed.u - hw, u1: shed.u + hw, v0: shed.v - hd, v1: shed.v + hd }, 2)
   }
   const patch = spotIn(plot, 2, 1, 0.15, 0, -hv, 0.12)
-  if (patch) hold({ u0: patch.u - 1.15, u1: patch.u + 1.15, v0: patch.v - 0.65, v1: patch.v + 0.65 })
+  if (patch) hold({ u0: patch.u - 1.15, u1: patch.u + 1.15, v0: patch.v - 0.65, v1: patch.v + 0.65 }, 2)
   const [wu, wv] = [Math.cos(ry) * 0.84 + Math.sin(ry) * 0.54, -Math.sin(ry) * 0.84 + Math.cos(ry) * 0.54] // downwind, in the frame
   const pole = carpRoll < LOW_FINISH.carp ? spotIn(plot, 0.3, 0.3, 0.35, wu * hu, wv * hv) : null
-  if (pole) hold({ u0: pole.u - 0.4, u1: pole.u + 0.4, v0: pole.v - 0.4, v1: pole.v + 0.4 })
+  if (pole) hold({ u0: pole.u - 0.4, u1: pole.u + 0.4, v0: pole.v - 0.4, v1: pole.v + 0.4 }, 2)
   const run = [...runs].sort((a, b) => b.u1 - b.u0 - (a.u1 - a.u0))[0]
   const cat = catRoll < LOW_FINISH.cats && run && run.u1 - run.u0 >= 3 ? run : null
-  return { door, runs, border, patch, shed, pole, cat, catRoll, side, held }
+  return { door, runs, border, patch, shed, pole, cat, catRoll, side }
 }
 
 /**
