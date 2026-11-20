@@ -32,7 +32,8 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.junction-note .title {
+/* The name and its kind. Not `.title`, the title screen's root, whose fixed position would pin them over the tape. */
+.junction-note .heading {
   display: grid;
   gap: 2px;
 }
