@@ -1,6 +1,6 @@
 # Tile sandbox
 
-Status: open. Prototyped in [#82](https://github.com/artsaraiva/clearway/issues/82) (verdict 2026-11-15: go), rules grilled in [#83](https://github.com/artsaraiva/clearway/issues/83). Replaces the land game (`.scratch/land-game/spec.md`).
+Status: open. Prototyped in [#82](https://github.com/artsaraiva/dioramania/issues/82) (verdict 2026-11-15: go), rules grilled in [#83](https://github.com/artsaraiva/dioramania/issues/83). Replaces the land game (`.scratch/land-game/spec.md`).
 
 ## Goal
 
@@ -21,7 +21,7 @@ Vocabulary in root `GLOSSARY.md`. Routing follows ADR 0001, the Rebuild ADR 0002
 ### Goal
 
 - A pure sandbox. The City cannot be finished or lost.
-- The measure of doing well is Growth, the sum of the Stages (ADR 0005). Until [#140](https://github.com/artsaraiva/clearway/issues/140) it was trips arriving per minute, carried while Holding: Flow at or above 80% for 60 sim-seconds. Holding is retired.
+- The measure of doing well is Growth, the sum of the Stages (ADR 0005). Until [#140](https://github.com/artsaraiva/dioramania/issues/140) it was trips arriving per minute, carried while Holding: Flow at or above 80% for 60 sim-seconds. Holding is retired.
 - **Record:** the highest Growth reached in any run. It rises the moment Growth does and stays when Growth falls, as on an Undo or a Rezoning. A new run carries it over, and a Free run's is kept apart. The page shows it beside Growth.
 
 ### The board
@@ -56,12 +56,12 @@ A new run starts with one Tile already placed and the price of the first Tile in
 
 ### Stages
 
-A zoned Tile grows through Stages 1, 2 and 3 as its Junction serves trips ([#138](https://github.com/artsaraiva/clearway/issues/138), ADR 0005). An unzoned Tile has no Stage.
+A zoned Tile grows through Stages 1, 2 and 3 as its Junction serves trips ([#138](https://github.com/artsaraiva/dioramania/issues/138), ADR 0005). An unzoned Tile has no Stage.
 
-- A Junction serves a trip each time one leaves a Road for the Junction's own lanes while it has no Jam. While the game is earning, never during a Pre-warm, those trips are its Tile's progress: 150 take it to Stage 2 and 450 more to Stage 3 (`STAGES` in `src/tuning.ts`). It stands in until [#95](https://github.com/artsaraiva/clearway/issues/95) gives Tiles trips of their own, so a Tile that no route passes through never grows.
+- A Junction serves a trip each time one leaves a Road for the Junction's own lanes while it has no Jam. While the game is earning, never during a Pre-warm, those trips are its Tile's progress: 150 take it to Stage 2 and 450 more to Stage 3 (`STAGES` in `src/tuning.ts`). It stands in until [#95](https://github.com/artsaraiva/dioramania/issues/95) gives Tiles trips of their own, so a Tile that no route passes through never grows.
 - Only up: a Jam stops growth and takes nothing away.
 - A Swap keeps the Stage and progress, and a Rezoning starts the Tile again at Stage 1. Undo takes a placed Tile's Stage with it, and undoing a Rezoning puts the old Stage back.
-- A Tile reaches a Stage in the middle of play, with no Rebuild. Growth, the sum of the Stages, shows under the yen with the Record ([#140](https://github.com/artsaraiva/clearway/issues/140)).
+- A Tile reaches a Stage in the middle of play, with no Rebuild. Growth, the sum of the Stages, shows under the yen with the Record ([#140](https://github.com/artsaraiva/dioramania/issues/140)).
 
 ### Undo
 
@@ -90,7 +90,7 @@ Placing, Swap and Undo each rebuild the simulation (ADR 0002): a new network fro
 
 ### Numbers
 
-Tuned in [#89](https://github.com/artsaraiva/clearway/issues/89) against the Bars below, with `npm run tune`. They live in `src/tuning.ts`.
+Tuned in [#89](https://github.com/artsaraiva/dioramania/issues/89) against the Bars below, with `npm run tune`. They live in `src/tuning.ts`.
 
 | Number | Value | Start, before tuning |
 | --- | --- | --- |
@@ -126,7 +126,7 @@ Beside the Sim, not inside it: the run's seed, yen, the City, each zoned Tile's 
 
 ### The page
 
-`/` opens the sandbox. The minimum screen, until [#15](https://github.com/artsaraiva/clearway/issues/15) designs the real one:
+`/` opens the sandbox. The minimum screen, until [#15](https://github.com/artsaraiva/dioramania/issues/15) designs the real one:
 
 - The bar of five Layouts. Drag, rotate with `R` or the wheel, cancel with `Esc`, as in the prototype: a green ghost with the price when legal, grey when too expensive, red with the reason when not.
 - Dropping on a placed Tile is a Swap.
@@ -136,11 +136,11 @@ Beside the Sim, not inside it: the run's seed, yen, the City, each zoned Tile's 
 - Pause, 1×, 4× and 8×. Both Tools on every Junction, and the route Inspector.
 - The slab, lighting and distance field follow the City's extent, since the board has no bounds.
 
-Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/clearway/issues/15)'s question.
+Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/dioramania/issues/15)'s question.
 
 ## Bars
 
-`npm run tune` (`scripts/tune.ts`) grows scripted Cities headless and reports them against these. Results for the numbers above are in [#89](https://github.com/artsaraiva/clearway/issues/89), read against Holding. Since [#140](https://github.com/artsaraiva/clearway/issues/140) a City is clear when no Junction is jammed.
+`npm run tune` (`scripts/tune.ts`) grows scripted Cities headless and reports them against these. Results for the numbers above are in [#89](https://github.com/artsaraiva/dioramania/issues/89), read against Holding. Since [#140](https://github.com/artsaraiva/dioramania/issues/140) a City is clear when no Junction is jammed.
 
 | Bar | Target |
 | --- | --- |
@@ -162,21 +162,21 @@ Assert outcomes only: jammed, cleared, legal, refused, a price, yen.
 
 ## Issues
 
-- [#85](https://github.com/artsaraiva/clearway/issues/85) The City and its placement rules
-- [#86](https://github.com/artsaraiva/clearway/issues/86) The Sim built from a City, blocked by #85
-- [#87](https://github.com/artsaraiva/clearway/issues/87) Yen, Swap and Undo, blocked by #86
-- [#88](https://github.com/artsaraiva/clearway/issues/88) The game page, blocked by #87
-- [#89](https://github.com/artsaraiva/clearway/issues/89) Tune Demand and prices to the bars, blocked by #87
+- [#85](https://github.com/artsaraiva/dioramania/issues/85) The City and its placement rules
+- [#86](https://github.com/artsaraiva/dioramania/issues/86) The Sim built from a City, blocked by #85
+- [#87](https://github.com/artsaraiva/dioramania/issues/87) Yen, Swap and Undo, blocked by #86
+- [#88](https://github.com/artsaraiva/dioramania/issues/88) The game page, blocked by #87
+- [#89](https://github.com/artsaraiva/dioramania/issues/89) Tune Demand and prices to the bars, blocked by #87
 
 ## Not in this spec
 
-- Contracts at Gateways: [#90](https://github.com/artsaraiva/clearway/issues/90).
-- Landmarks out on the board: [#91](https://github.com/artsaraiva/clearway/issues/91).
-- Gateways with character (rush hours, pulses, lorries): [#92](https://github.com/artsaraiva/clearway/issues/92).
-- One-lane Layouts: [#93](https://github.com/artsaraiva/clearway/issues/93).
-- A second town: [#94](https://github.com/artsaraiva/clearway/issues/94).
-- Blocks that drive Demand: [#95](https://github.com/artsaraiva/clearway/issues/95).
-- A free-money mode: [#96](https://github.com/artsaraiva/clearway/issues/96).
-- Milestones and sim scale for a large City: [#48](https://github.com/artsaraiva/clearway/issues/48). Unlocking Layouts and Tools: [#55](https://github.com/artsaraiva/clearway/issues/55).
-- The real screens and save: [#15](https://github.com/artsaraiva/clearway/issues/15).
+- Contracts at Gateways: [#90](https://github.com/artsaraiva/dioramania/issues/90).
+- Landmarks out on the board: [#91](https://github.com/artsaraiva/dioramania/issues/91).
+- Gateways with character (rush hours, pulses, lorries): [#92](https://github.com/artsaraiva/dioramania/issues/92).
+- One-lane Layouts: [#93](https://github.com/artsaraiva/dioramania/issues/93).
+- A second town: [#94](https://github.com/artsaraiva/dioramania/issues/94).
+- Blocks that drive Demand: [#95](https://github.com/artsaraiva/dioramania/issues/95).
+- A free-money mode: [#96](https://github.com/artsaraiva/dioramania/issues/96).
+- Milestones and sim scale for a large City: [#48](https://github.com/artsaraiva/dioramania/issues/48). Unlocking Layouts and Tools: [#55](https://github.com/artsaraiva/dioramania/issues/55).
+- The real screens and save: [#15](https://github.com/artsaraiva/dioramania/issues/15).
 - Hex cells, a random tile stack, free removal and per-Layout prices: ruled out in #83.

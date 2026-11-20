@@ -1,8 +1,8 @@
 # UI/UX
 
-Status: open. Grilled 2026-11-15 in [#15](https://github.com/artsaraiva/clearway/issues/15). Replaces the minimum screen of the tile sandbox (`.scratch/tile-sandbox/spec.md`, "The page").
+Status: open. Grilled 2026-11-15 in [#15](https://github.com/artsaraiva/dioramania/issues/15). Replaces the minimum screen of the tile sandbox (`.scratch/tile-sandbox/spec.md`, "The page").
 
-Partly superseded by [#243](https://github.com/artsaraiva/clearway/issues/243), the paper & stamp redesign: it replaces the UI's look and type (Look, "The UI" and "Type"), the Layout table, and "No menu screen" (Save). With the Layout go the places and extras of the Readings: yen has no fill toward the Price, and trips a minute and the Tiles at each Stage leave the always-on screen for City notes. Everything else here stands.
+Partly superseded by [#243](https://github.com/artsaraiva/dioramania/issues/243), the paper & stamp redesign: it replaces the UI's look and type (Look, "The UI" and "Type"), the Layout table, and "No menu screen" (Save). With the Layout go the places and extras of the Readings: yen has no fill toward the Price, and trips a minute and the Tiles at each Stage leave the always-on screen for City notes. Everything else here stands.
 
 ## Goal
 
@@ -20,7 +20,7 @@ Vocabulary in root `GLOSSARY.md`. The rules of the game are in `.scratch/tile-sa
 
 ## Platform
 
-Desktop only: mouse and keyboard. Touch is [#114](https://github.com/artsaraiva/clearway/issues/114).
+Desktop only: mouse and keyboard. Touch is [#114](https://github.com/artsaraiva/dioramania/issues/114).
 
 ## Look
 
@@ -31,9 +31,9 @@ The direction is cozy Japanese and oversaturated, for the world and the UI.
 - **Reserved colours:** blue for Tools and Inspectors, hot red-orange for Jams and refusals. Scenery and cars keep off both at full strength.
 - **The UI:** neutral frosted-glass pills and round buttons with dark text. Saturated colour appears only in accents: the yen fill, the Flow fill, the selected button and the hints.
 - **Type:** one rounded typeface with Japanese roots (Zen Maru Gothic or M PLUS Rounded 1c), shipped with the game, with fixed-width digits. The UI is in English. Japanese script stays in speech bubbles and decoration.
-- **How strong:** the user picks by eye from a mock that shows the world and the screen together at three strengths, at noon, dusk and night ([#104](https://github.com/artsaraiva/clearway/issues/104)). The pick sets the world's recolour ([#105](https://github.com/artsaraiva/clearway/issues/105)) and the screen.
+- **How strong:** the user picks by eye from a mock that shows the world and the screen together at three strengths, at noon, dusk and night ([#104](https://github.com/artsaraiva/dioramania/issues/104)). The pick sets the world's recolour ([#105](https://github.com/artsaraiva/dioramania/issues/105)) and the screen.
 
-Sound is out of this spec: [#115](https://github.com/artsaraiva/clearway/issues/115).
+Sound is out of this spec: [#115](https://github.com/artsaraiva/dioramania/issues/115).
 
 ## Layout
 
@@ -51,15 +51,15 @@ Money sits apart from traffic, and nothing covers the middle of the board.
 ## Readings
 
 - **Yen** is the largest reading. It carries a fill that grows toward the Price and is full when the next Tile is affordable. Income is a small line under it.
-- **Flow** is a gauge, with **trips a minute** beneath. Holding, and its bar on the gauge, are retired ([#140](https://github.com/artsaraiva/clearway/issues/140)).
-- **Growth** ([#138](https://github.com/artsaraiva/clearway/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each, and the **Record** beneath ("Free-run Record" in a Free run). Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's (below).
+- **Flow** is a gauge, with **trips a minute** beneath. Holding, and its bar on the gauge, are retired ([#140](https://github.com/artsaraiva/dioramania/issues/140)).
+- **Growth** ([#138](https://github.com/artsaraiva/dioramania/issues/138)) sits under the yen: the sum of the Stages, with how many Tiles are at each, and the **Record** beneath ("Free-run Record" in a Free run). Hovering a placed Tile shows a small bar below its middle, clear of a Jam marker: its Stage as stars and its trips toward the next, "held back by a Jam" while its Junction is jammed, and "fully grown" at Stage 3. A badge with the Stage's stars rises over a Tile as it reaches a Stage. Which Tiles a Jam holds back across the City is the Stage Inspector's (below).
 - No history charts.
 
 ## Placing
 
 - **Click-to-pick:** clicking a Layout picks it up and clicking a cell drops it. The Layout stays in the hand after the drop, until `Esc` or a right click without movement. A drag still places one Tile and lets go.
 - **The bar's pictures** turn with the camera: each is the top-down icon rotated by the camera's heading plus the Tile's rotation, so it shows the Tile as it will land on screen.
-- **Zones** ([#130](https://github.com/artsaraiva/clearway/issues/130), [#136](https://github.com/artsaraiva/clearway/issues/136)): the bar's second row offers the nine Zones, then Roads only, as small pictures that span the Layouts above them. The divider between the two rows names the Zone under the pointer, or the one picked, so a long name never widens the bar. A click picks the Zone of the Tiles laid next; it never goes in the hand, stays until changed and is not saved, and every run opens on low-density residential. The ghost's caption names the Zone, or over a placed Tile that Tile's own. Dragging a Zone onto a placed Tile rezones it, and the caption says what the Tile will become.
+- **Zones** ([#130](https://github.com/artsaraiva/dioramania/issues/130), [#136](https://github.com/artsaraiva/dioramania/issues/136)): the bar's second row offers the nine Zones, then Roads only, as small pictures that span the Layouts above them. The divider between the two rows names the Zone under the pointer, or the one picked, so a long name never widens the bar. A click picks the Zone of the Tiles laid next; it never goes in the hand, stays until changed and is not saved, and every run opens on low-density residential. The ghost's caption names the Zone, or over a placed Tile that Tile's own. Dragging a Zone onto a placed Tile rezones it, and the caption says what the Tile will become.
 - **Demand before a drop:** over a legal cell, a Gateway the Tile would close has its label struck through, a Gateway it would open shows its trips a minute, and the ghost's line gives the change in total Demand. There is no forecast of traffic.
 - While a Layout is in the hand, Junctions and cars cannot be clicked: every click is a drop.
 
@@ -71,7 +71,7 @@ There is no toolbar and no mode.
 - **A click selects the whole Junction.** Every Approach's lane ends show at once.
 - **Priority rule:** clicking an Arm's give-way paint, or the round marker at its line, flips it between main and yield.
 - **Connection:** drag from an incoming lane end to an outgoing one. A blue tube follows the pointer and snaps to a legal lane. Dragging onto an existing Connection removes it. Click, then click, still works.
-- **Reset** acts on the selected Junction. The city-wide button goes. Undo of a single Change is [#116](https://github.com/artsaraiva/clearway/issues/116).
+- **Reset** acts on the selected Junction. The city-wide button goes. Undo of a single Change is [#116](https://github.com/artsaraiva/dioramania/issues/116).
 - **Deselecting:** `Esc`, a click on empty board, or selecting something else. `Esc` drops a Tile in the hand first.
 
 ## Reading the traffic
@@ -92,7 +92,7 @@ An Inspector that shows which parts of the City carry the most trips.
 
 ### Stage Inspector
 
-An Inspector that shows how the whole City is growing ([#139](https://github.com/artsaraiva/clearway/issues/139)).
+An Inspector that shows how the whole City is growing ([#139](https://github.com/artsaraiva/dioramania/issues/139)).
 
 - The ground of every zoned Tile takes its Stage's tint, light for Stage 1 and strong for Stage 3: its kerbs, pavement, lawns and plazas, never its buildings. An unzoned Tile keeps its grass.
 - A zoned Tile short of Stage 3 whose Junction is in a Jam is striped grey across its tint: held back. The stripes lie on the Tile's ground, away from the Jam marker, which floats over the Junction. Like the markers, they wait for a Rebuild to show its cars.
@@ -147,24 +147,24 @@ Three one-line hints, each shown once when it becomes relevant and remembered in
 
 By playing, per `CLAUDE.md`. Issues that add geometry (the recolour, Jam markers, the Demand view) record the frame time with 1,000 cars.
 
-A loaded save joins the Economy test seam: the user agreed in [#111](https://github.com/artsaraiva/clearway/issues/111).
+A loaded save joins the Economy test seam: the user agreed in [#111](https://github.com/artsaraiva/dioramania/issues/111).
 
 ## Issues
 
-- [#104](https://github.com/artsaraiva/clearway/issues/104) Mock the screen at three strengths of saturation
-- [#105](https://github.com/artsaraiva/clearway/issues/105) Recolour the world, blocked by #104
-- [#106](https://github.com/artsaraiva/clearway/issues/106) The screen layout and the readings, blocked by #104
-- [#107](https://github.com/artsaraiva/clearway/issues/107) Select a Junction and use both Tools in the world, blocked by #106
-- [#108](https://github.com/artsaraiva/clearway/issues/108) Click-to-pick, pictures that turn with the camera, Demand before a drop, blocked by #106
-- [#109](https://github.com/artsaraiva/clearway/issues/109) A camera for a City with no bounds, blocked by #106
-- [#110](https://github.com/artsaraiva/clearway/issues/110) Jam markers, blocked by #107
-- [#111](https://github.com/artsaraiva/clearway/issues/111) Autosave and the menu, blocked by #106
-- [#112](https://github.com/artsaraiva/clearway/issues/112) Hints, keys, reduced motion and reading without colour, blocked by #107, #110 and #111
-- [#113](https://github.com/artsaraiva/clearway/issues/113) The Demand view, blocked by #107 and #110
+- [#104](https://github.com/artsaraiva/dioramania/issues/104) Mock the screen at three strengths of saturation
+- [#105](https://github.com/artsaraiva/dioramania/issues/105) Recolour the world, blocked by #104
+- [#106](https://github.com/artsaraiva/dioramania/issues/106) The screen layout and the readings, blocked by #104
+- [#107](https://github.com/artsaraiva/dioramania/issues/107) Select a Junction and use both Tools in the world, blocked by #106
+- [#108](https://github.com/artsaraiva/dioramania/issues/108) Click-to-pick, pictures that turn with the camera, Demand before a drop, blocked by #106
+- [#109](https://github.com/artsaraiva/dioramania/issues/109) A camera for a City with no bounds, blocked by #106
+- [#110](https://github.com/artsaraiva/dioramania/issues/110) Jam markers, blocked by #107
+- [#111](https://github.com/artsaraiva/dioramania/issues/111) Autosave and the menu, blocked by #106
+- [#112](https://github.com/artsaraiva/dioramania/issues/112) Hints, keys, reduced motion and reading without colour, blocked by #107, #110 and #111
+- [#113](https://github.com/artsaraiva/dioramania/issues/113) The Demand view, blocked by #107 and #110
 
 ## Not in this spec
 
-- Touch controls: [#114](https://github.com/artsaraiva/clearway/issues/114).
-- Sound: [#115](https://github.com/artsaraiva/clearway/issues/115).
-- Undo for Changes: [#116](https://github.com/artsaraiva/clearway/issues/116).
+- Touch controls: [#114](https://github.com/artsaraiva/dioramania/issues/114).
+- Sound: [#115](https://github.com/artsaraiva/dioramania/issues/115).
+- Undo for Changes: [#116](https://github.com/artsaraiva/dioramania/issues/116).
 - History on the gauges, per-Junction gauges, a heatmap and queue bars: backlog.

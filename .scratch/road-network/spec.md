@@ -8,7 +8,7 @@ Replace the roundabout-only generator (`RoundaboutSpec`, `buildNetwork`) with a 
 
 ## District file
 
-There is one hand-written TS file per District in `levels/`. `levels/district-01.ts` replaces `levels/roundabout-01.ts`. There's no editor and no procedural generation. Shape, as pinned in [#2](https://github.com/artsaraiva/clearway/issues/2) (types in `src/sim/district.ts`):
+There is one hand-written TS file per District in `levels/`. `levels/district-01.ts` replaces `levels/roundabout-01.ts`. There's no editor and no procedural generation. Shape, as pinned in [#2](https://github.com/artsaraiva/dioramania/issues/2) (types in `src/sim/district.ts`):
 
 ```ts
 export default {
@@ -66,8 +66,8 @@ Arm directions come from the Roads: each points from the Junction centre toward 
 A reference solution is a list of Changes in the player's vocabulary. The UI calls the same API, `sim.apply(change)`:
 
 - `{ at: 'J1', enable: [refs], disable: [refs] }`: connector
-- `{ at: 'J2', priority: { R1: 'yield' } }`: Priority rule per Arm, keyed by Road id (values reworked in [#6](https://github.com/artsaraiva/clearway/issues/6))
-- `{ at: 'J2', signal: true }`: Signal ([#7](https://github.com/artsaraiva/clearway/issues/7))
+- `{ at: 'J2', priority: { R1: 'yield' } }`: Priority rule per Arm, keyed by Road id (values reworked in [#6](https://github.com/artsaraiva/dioramania/issues/6))
+- `{ at: 'J2', signal: true }`: Signal ([#7](https://github.com/artsaraiva/dioramania/issues/7))
 
 ## Gateways and Demand
 
@@ -99,7 +99,7 @@ Per ADR 0002:
   3. apply Level k's `initial` to the newly Revealed Junctions
   4. apply Level k's Demand and seed
   5. Pre-warm 90 s
-- Reset returns the network to a snapshot taken at the Reveal. That's the authored initial for new Junctions and the carried-over state for earlier ones. This is assumed here; UI/UX ([#15](https://github.com/artsaraiva/clearway/issues/15)) may refine it.
+- Reset returns the network to a snapshot taken at the Reveal. That's the authored initial for new Junctions and the carried-over state for earlier ones. This is assumed here; UI/UX ([#15](https://github.com/artsaraiva/dioramania/issues/15)) may refine it.
 
 ## Spillback
 
@@ -123,11 +123,11 @@ Per CLAUDE.md, outcomes only:
 
 ## Issues
 
-- [#1](https://github.com/artsaraiva/clearway/issues/1) Split Sim and draw vehicle type at arrival
-- [#2](https://github.com/artsaraiva/clearway/issues/2) District file and road graph builder, blocked by #1
-- [#3](https://github.com/artsaraiva/clearway/issues/3) Priority junction, blocked by #2
-- [#4](https://github.com/artsaraiva/clearway/issues/4) Free-flow routing, blocked by #2
-- [#5](https://github.com/artsaraiva/clearway/issues/5) Reveal and Fog-edge Gateways, blocked by #3, #4
+- [#1](https://github.com/artsaraiva/dioramania/issues/1) Split Sim and draw vehicle type at arrival
+- [#2](https://github.com/artsaraiva/dioramania/issues/2) District file and road graph builder, blocked by #1
+- [#3](https://github.com/artsaraiva/dioramania/issues/3) Priority junction, blocked by #2
+- [#4](https://github.com/artsaraiva/dioramania/issues/4) Free-flow routing, blocked by #2
+- [#5](https://github.com/artsaraiva/dioramania/issues/5) Reveal and Fog-edge Gateways, blocked by #3, #4
 
 ## Out of scope
 

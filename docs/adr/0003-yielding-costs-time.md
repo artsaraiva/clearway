@@ -2,7 +2,7 @@
 
 A vehicle whose next Connection leaves a `yield` Arm and meets an enabled one from a `main` Arm slows to a crawl (0.5 m/s) at its line, whether or not anyone is coming. It slows gently (0.35 m/s²), so on a Road of a few hundred metres it drives under the limit the whole way: about 7 m/s at 72 m from the line. The crawl is part of the vehicle's free speed, so Flow counts a vehicle that keeps to it as moving freely. A vehicle that has to stand at the line still counts as stopped.
 
-Before this, a `yield` Arm facing an empty main road carried as much as a `main` one, and each main vehicle took away about one yielding vehicle. A T-junction then carried about the same total whichever Arm was main, so swapping the Priority rule moved the queue and left Flow where it was. No Demand made a priority-swap Level jam and Win on more than 4 of 10 seeds ([#45](https://github.com/artsaraiva/clearway/issues/45), [#52](https://github.com/artsaraiva/clearway/issues/52)).
+Before this, a `yield` Arm facing an empty main road carried as much as a `main` one, and each main vehicle took away about one yielding vehicle. A T-junction then carried about the same total whichever Arm was main, so swapping the Priority rule moved the queue and left Flow where it was. No Demand made a priority-swap Level jam and Win on more than 4 of 10 seeds ([#45](https://github.com/artsaraiva/dioramania/issues/45), [#52](https://github.com/artsaraiva/dioramania/issues/52)).
 
 Larger or smaller gap-acceptance times did not help, and no single rule in `conflicting` was holding yielding vehicles back. The Priority rule needed a cost of its own.
 

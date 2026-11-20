@@ -11,7 +11,7 @@ Give the player two Tools and one Inspector, enough for a seven-Level District. 
 | Tool | What the player changes | Junction types | Teaches in | Sim work |
 | --- | --- | --- | --- | --- |
 | Connector | Turns a Connection on or off | all | Level 2 | none, exists |
-| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 1 | rework ([#6](https://github.com/artsaraiva/clearway/issues/6)) |
+| Priority rule | Per Arm: `main` or `yield` | crossroads, T | Level 1 | rework ([#6](https://github.com/artsaraiva/dioramania/issues/6)) |
 
 ### Connector
 
@@ -44,7 +44,7 @@ Backlog: congestion heatmap, queue length per Arm, desire lines.
 
 ## District 1 outline
 
-Content is in `.scratch/district-01/spec.md` (grilled in [#33](https://github.com/artsaraiva/clearway/issues/33)). Level 1 is Priority rule only, Level 2 connector only, Level 5 Priority rule only, Level 6 connector only. The Tool each Level teaches:
+Content is in `.scratch/district-01/spec.md` (grilled in [#33](https://github.com/artsaraiva/dioramania/issues/33)). Level 1 is Priority rule only, Level 2 connector only, Level 5 Priority rule only, Level 6 connector only. The Tool each Level teaches:
 
 1. T-junction: Priority rule, swap the main road.
 2. Crossroads with an unused lane: connector.
@@ -60,14 +60,14 @@ Per CLAUDE.md, outcomes only. Each Tool issue carries a headless test: a Level j
 
 ## Issues
 
-- [#6](https://github.com/artsaraiva/clearway/issues/6) Priority rule, blocked by #3
-- [#7](https://github.com/artsaraiva/clearway/issues/7) Signal gate test: failed 2026-11-14, so there is no Signal in v1. The sweep is in the issue's comments.
+- [#6](https://github.com/artsaraiva/dioramania/issues/6) Priority rule, blocked by #3
+- [#7](https://github.com/artsaraiva/dioramania/issues/7) Signal gate test: failed 2026-11-14, so there is no Signal in v1. The sweep is in the issue's comments.
 - [03 Route inspector](issues/03-route-inspector.md), done 2026-11-09
 
 ## Backlog
 
 - Lane arrows.
-- A Signal. A Junction-wide one with each Arm green in turn failed its gate ([#7](https://github.com/artsaraiva/clearway/issues/7)); one where opposite Arms share a green, or with actuated timing, is untested.
+- A Signal. A Junction-wide one with each Arm green in turn failed its gate ([#7](https://github.com/artsaraiva/dioramania/issues/7)); one where opposite Arms share a green, or with actuated timing, is untested.
 - Add or remove a lane, junction type swap (crossroads, roundabout, turbo roundabout).
 - Heatmap, queue bars, desire lines.
 - Change counts, budgets, stars (01).

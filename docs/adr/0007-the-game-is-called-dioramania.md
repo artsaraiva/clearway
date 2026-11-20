@@ -1,6 +1,6 @@
 # The game is called Dioramania
 
-The game was called Clearway, a name for a traffic game: a clearway is a road where stopping is forbidden. Since [ADR 0005](0005-a-diorama-city-builder.md) the game is a diorama city builder, where traffic is the system that decides how well the City grows, and the name no longer said what the game is. With the paper & stamp redesign, which gives the game a title screen and puts its name on screen for the first time ([#243](https://github.com/artsaraiva/clearway/issues/243)), the user renamed it Dioramania.
+The game was called Clearway, a name for a traffic game: a clearway is a road where stopping is forbidden. Since [ADR 0005](0005-a-diorama-city-builder.md) the game is a diorama city builder, where traffic is the system that decides how well the City grows, and the name no longer said what the game is. With the paper & stamp redesign, which gives the game a title screen and puts its name on screen for the first time ([#243](https://github.com/artsaraiva/dioramania/issues/243)), the user renamed it Dioramania.
 
 The name is in the browser tab, on the title card, in the package, in the dev hook on the window and in every doc an agent reads. The saves move to keys of the new name, and a save kept under an old key is carried over to its new key the first time the page opens, so a City saved before the rename opens after it. The save's version does not change: what a save holds is the same, only where it is kept.
 

@@ -13,7 +13,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Details
 
-- **Medium-density details** ([#156](https://github.com/artsaraiva/clearway/issues/156), `src/render/zones/medium-density.ts`, `src/render/kit.ts`), each drawn from where it stands, so nothing else on its Block changes.
+- **Medium-density details** ([#156](https://github.com/artsaraiva/dioramania/issues/156), `src/render/zones/medium-density.ts`, `src/render/kit.ts`), each drawn from where it stands, so nothing else on its Block changes.
   What stands on the ground keeps clear of the buildings, the yards' trees, the street trees and the lamps at the Block's corners, and at least 0.6 m in from the Block's edge:
   - From Stage 2 an open walkway runs along one long face of each wing of an apartment block, the north or west one on half the blocks and the south or east one on the rest, or the other long face where that one's middle is against another wing: a slab 1.3 m deep at every floor above the ground, the length of the face, behind a parapet 1 m tall with a steel rail on top, and a door between each two windows.
     Stage 3's balconies take the other faces.
@@ -25,9 +25,9 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
     An apartment block has 2, 3 and 6 at Stages 1 to 3, hung on a wall between two windows or standing on a walkway or a balcony where there is one.
   - A covered bike rack 4.4 m long, with four bicycles at Stage 2 and seven at Stage 3, stands against a wall with a vending machine beside it from Stage 2 and a second at Stage 3: at the first terraced row's end with room on each Block, beyond its end wall from the front back, and from Stage 3 at the next; and against the first stretch of each apartment block's outside wall with room.
     A vending machine is 1.1 m wide and 2 m tall, a little large as the props are, its front a panel of the lamps' bulb that lights at dusk.
-  - Washing and futons hang and sway as the towers' do ([#155](https://github.com/artsaraiva/clearway/issues/155), Moving details, below): the futons are the towers' futons in their own covers, and the washing a kind of its own, `washing`, the shorter line above, swinging up to 0.24 rad either way.
+  - Washing and futons hang and sway as the towers' do ([#155](https://github.com/artsaraiva/dioramania/issues/155), Moving details, below): the futons are the towers' futons in their own covers, and the washing a kind of its own, `washing`, the shorter line above, swinging up to 0.24 rad either way.
     Its towel and hand towel take the paint each line is given and its shirt and mint towel keep their colours: a swaying thing's model may say which of its parts take its paint.
-- **Medium-density built to the Finish** ([#178](https://github.com/artsaraiva/clearway/issues/178), `townhouse` and `apartment` in `src/render/zones/medium-density.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
+- **Medium-density built to the Finish** ([#178](https://github.com/artsaraiva/dioramania/issues/178), `townhouse` and `apartment` in `src/render/zones/medium-density.ts`, `src/render/props.ts`, `src/render/pattern.ts`).
   Each Block's plan is drawn from a stream of its own, so the kit's draws, and with them every lot's house or building, its storeys, colours and windows, are as before but for what the plan sets; a lot a scene takes still draws as it did.
   Shown in the sheets of `npm run shots -- medium-density --times noon,night --run 30`, which the user approved on 2026-11-18:
   - Neighbours: a terraced house keeps the gable along the row it always had unless a house on a lot it touches stands as many storeys at Stage 1 under one, when it takes a hip, its ridge across the row, or a gable to the front, one that none of them has, drawn from the plan;
@@ -106,9 +106,9 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ## Colours
 
-- **Terraced houses ([#136](https://github.com/artsaraiva/clearway/issues/136))**: walls `#fff4e2` `#f6dfb4` `#f3d2c4` `#ead9c2` `#dcc6a6` `#d6e4d3` `#f9e7c8`, roofs `#4d6575` `#5b6b7a` `#3f5866` `#7a5a46` `#b85a4c` `#5aa69b` `#8b7dbf` `#a8765a`, doors `#8a5a3c`
+- **Terraced houses ([#136](https://github.com/artsaraiva/dioramania/issues/136))**: walls `#fff4e2` `#f6dfb4` `#f3d2c4` `#ead9c2` `#dcc6a6` `#d6e4d3` `#f9e7c8`, roofs `#4d6575` `#5b6b7a` `#3f5866` `#7a5a46` `#b85a4c` `#5aa69b` `#8b7dbf` `#a8765a`, doors `#8a5a3c`
 - **Apartment buildings round a court**: walls `#e0f2d4` `#cbebfc` `#e5dafb` `#fbe3a2` `#c0e9e0` `#fbd2dd` `#fdeed6`, caps `#fbfaf6`
-- **Medium-density built to the Finish ([#178](https://github.com/artsaraiva/clearway/issues/178))**: terraced houses in their own walls and tiles of [#136](https://github.com/artsaraiva/clearway/issues/136), the pattern's plaster a shade either way of the paint, a floor line 20% darker, window frames, sills and hoods `#fbf8f2`, the pattern's glass as the shops';
+- **Medium-density built to the Finish ([#178](https://github.com/artsaraiva/dioramania/issues/178))**: terraced houses in their own walls and tiles of [#136](https://github.com/artsaraiva/dioramania/issues/136), the pattern's plaster a shade either way of the paint, a floor line 20% darker, window frames, sills and hoods `#fbf8f2`, the pattern's glass as the shops';
   tile rows the roof's paint, ribs ±12% and row joints 28% darker, the ridge 22% darker, gable ends `#fbf8f2` in boards;
   aerials `#8e979f`;
   laundry decks' steel `#c4ccd4` and slats `#a7aeb6`;
@@ -119,7 +119,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   corner shops' signboards, end signs and awnings `#2fb39a` `#f0b43c` `#79c86a` `#e8925e` `#a58ad8`, coin laundries' `#5cc0d6` `#fbf8f2` `#79c86a`, lit at 0.33 from Stage 2, their marks as the shops', the laundries' glass the paler one lit at 1.35 with machines' doors `#4a525c`, the shops' frames `#4a525c` and sills `#fbf8f2`;
   alleys in setts `#ddd3c4`;
   gardens' soil `#8a7560` under greens `#6bc357` `#85cf61` `#5fbc51`, sheds `#d9dcd2` roofed `#8f9aa5`.
-  Apartment blocks in their walls of [#136](https://github.com/artsaraiva/clearway/issues/136), plaster as the houses';
+  Apartment blocks in their walls of [#136](https://github.com/artsaraiva/dioramania/issues/136), plaster as the houses';
   roofs of sheets `#9fb5a7` on the cap, its sides a band of the pattern's pale boards, behind a parapet in the cap's white `#fbfaf6`;
   mansards' tiles `#b85a4c` `#4d6575` `#7a5a46` `#5aa69b` `#a8765a`;
   condensers `#f2f3ef` with grilles `#8e979f`;
@@ -137,7 +137,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
   The delivery scooter: its body in white, a box `#f0c75e`, a rider in `#3a4252` and a jacket `#55705f` under a helmet `#fbf8f2`, tyres `#2f3440`.
   Pools: a corner shop's `#ffb870` at Stage 1 and `#ffc27a` once its sign lights, a bathhouse's the signs'; an entrance's and a stair foot's `#ffd49a` at 0.7 of a lamp's strength; a shrine's lanterns' the cream lanterns' `#ffd49a`.
   Checked in OKLCH: within 30° of hue of the Tool blue or the Jam red-orange, nothing goes over 56% of its chroma (the brick tile `#b85a4c` and the persimmon sign `#e8925e`, both of the palette before), and none first used here over 6% (the bags' pale blue `#dfe7ee`)
-- **Medium-density details ([#156](https://github.com/artsaraiva/clearway/issues/156))**: outside stairs and walkway rails steel `#6f7986`, their treads `#a7aeb6`;
+- **Medium-density details ([#156](https://github.com/artsaraiva/dioramania/issues/156))**: outside stairs and walkway rails steel `#6f7986`, their treads `#a7aeb6`;
   walkways and their parapets in the cap's white `#fbfaf6`, with doors `#8a5a3c`;
   AC units `#f2f3ef` with a fan's grille `#8e979f`;
   washing on a pole `#c4ccd4`: a pink shirt `#ff9cbb`, a mint towel `#64cb9f`, and a towel and a hand towel in one of `#ffffff`, white leading, `#ffc52d` `#bc9ef2` `#a6dcef` `#fbe3a2` `#ff9cbb`;
@@ -147,20 +147,20 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ## Frame time
 
-Medium-density details ([#156](https://github.com/artsaraiva/clearway/issues/156)), every Tile of the 26-Tile City medium-density at Stage 3, cost 1.02 ms (7.68 against `main`'s 6.66 over five rounds), for two more draw calls, the instanced washing and futons, and 0.58 M more triangles.
+Medium-density details ([#156](https://github.com/artsaraiva/dioramania/issues/156)), every Tile of the 26-Tile City medium-density at Stage 3, cost 1.02 ms (7.68 against `main`'s 6.66 over five rounds), for two more draw calls, the instanced washing and futons, and 0.58 M more triangles.
 The most are the bicycles, about 0.13 M with their shadows, and the outside stairs, 0.1 M.
 A first cut drew 1 M more triangles, until the wheels and AC grilles became flat discs and the vending machines plain boxes; and while its washing and futons swayed on a material of their own, merged into each Tile's scenery, they cost a draw call a Tile.
 
-Medium-density built to the Finish ([#178](https://github.com/artsaraiva/clearway/issues/178)), every Tile of the 26-Tile City medium-density at Stage 3 with 1,000 cars, against `origin/main` (`c3dcb44`, with [#177](https://github.com/artsaraiva/clearway/issues/177) in) over three interleaved rounds, after the review's fixes, the branch at `9aaf3b2`: at City zoom with the Block-zoom props hidden 9.36 ms against 8.46 at noon (+0.90) and 9.31 against 8.32 at night (+0.99), for three more draw calls, two of them the scooters' instanced mesh and its shadow, and 0.52 to 0.55 M more triangles (4.15 and 4.19 M against 3.63 and 3.64);
+Medium-density built to the Finish ([#178](https://github.com/artsaraiva/dioramania/issues/178)), every Tile of the 26-Tile City medium-density at Stage 3 with 1,000 cars, against `origin/main` (`c3dcb44`, with [#177](https://github.com/artsaraiva/dioramania/issues/177) in) over three interleaved rounds, after the review's fixes, the branch at `9aaf3b2`: at City zoom with the Block-zoom props hidden 9.36 ms against 8.46 at noon (+0.90) and 9.31 against 8.32 at night (+0.99), for three more draw calls, two of them the scooters' instanced mesh and its shadow, and 0.52 to 0.55 M more triangles (4.15 and 4.19 M against 3.63 and 3.64);
 at Tile zoom on one Tile 7.12 against 6.38 at noon (+0.74) and 7.23 against 6.38 at night (+0.85), for 7 or 8 more draw calls, among them the Block-zoom mesh of every build in view, and 0.63 to 0.65 M more triangles: within the 12 ms budget.
 That bench ran on a day `main` read about 13% slower than on the first, before the review (7.46 ms at City zoom at noon), which read +1.50 and +0.67 ms at City zoom and +0.48 and +1.12 at Tile zoom, for 0.74 to 0.76 M more triangles at City zoom.
 The review's fixes add car parks, pocket courts and trees on the bare paving round the apartment blocks, paved courts, the alleys' planters and the walkways' lamps, about 0.4 M triangles at City zoom, and find 0.62 M back: the trees medium-density lays itself drawn coarse, and the terraced roofs' aerials and laundry decks' steel, the downpipes and gutters and the apartment blocks' aerials Block-zoom, which leaves Tile zoom as it was (0.29 M fewer there).
 Against the branch before the review, on the same machine and day over a round each, City zoom reads 4.15 M triangles against 4.37 at noon (9.11 ms against 9.22) and Tile zoom 3.07 M against 3.11.
 The pattern costs no triangles; the rest are the scenes' and the courts' trees, the terraced roofs' decks, water heaters and skylights, the gardens and hedges, counted twice with the shadow pass; the walkways' lamps and the front doors add no draw call, lit on the kit's bulb, and the scooters are one instanced mesh for the City, 63 of them.
 
-## Amended by [#178](https://github.com/artsaraiva/clearway/issues/178) (2026-11-18)
+## Amended by [#178](https://github.com/artsaraiva/dioramania/issues/178) (2026-11-18)
 
-Medium-density residential is built to the ten rules of Finish of [#173](https://github.com/artsaraiva/clearway/issues/173), held to the shops reference of [#175](https://github.com/artsaraiva/clearway/issues/175), the whole of its menu built; the user approved its sheets on 2026-11-18.
+Medium-density residential is built to the ten rules of Finish of [#173](https://github.com/artsaraiva/dioramania/issues/173), held to the shops reference of [#175](https://github.com/artsaraiva/dioramania/issues/175), the whole of its menu built; the user approved its sheets on 2026-11-18.
 A terraced house wears plaster on every face, round the windows of its front and with a window in every bay of its back and its row ends and a back door, under kawara tile rows and a ridge that are surface pattern on the shared material;
 its roof is a gable along the row as before, or a hip or a gable to the front wherever a house beside it would otherwise be the same building in another colour, and carries a TV aerial from Stage 1 and from Stage 2 a steel laundry deck, a solar water heater and a skylight on some.
 Downpipes and a gutter run down its back, a meter, pot plants and AC units stand at its back and row ends, Block-zoom, and some row ends facing a Road keep a corner shop or a coin laundry in their ground floor, its signs lit from Stage 2 with their pools.
@@ -171,10 +171,10 @@ and the paving left bare round the blocks takes car parks, pocket courts and tre
 Each Block holds a scene from Stage 2 (a wayside shrine in stone and wood, a pocket park with one swing, or a bathhouse with a tall thin chimney that steams), and a second at Stage 3 on a Block of 2,500 m² or more; a bin store under a net stands at its kerb, Block-zoom, and a delivery scooter comes in over the kerb from Stage 2, waits at a door and goes.
 Other Zones' fills are unchanged (Rendering recipe, Palette, Block fill, Budget and Verification, below).
 
-## Amended by [#156](https://github.com/artsaraiva/clearway/issues/156) (2026-11-17)
+## Amended by [#156](https://github.com/artsaraiva/dioramania/issues/156) (2026-11-17)
 
 Medium-density Tiles carry details of their own, picked by the user from a sheet of Stages 1 to 3: open walkways along the apartment blocks with steel stairs at their ends, and steel stairs up the end of some terraced rows too;
 washing and futons hung out over poles and balcony rails, swaying, and taken in for the night;
 pale AC units on walls, walkways and balconies;
 and a covered bike rack with vending machines, lit at night, at a row's end or against each block.
-Washing and futons hang and sway as the high-density towers' do ([#155](https://github.com/artsaraiva/clearway/issues/155)), the washing a shorter, brighter line of its own (Block fill, below).
+Washing and futons hang and sway as the high-density towers' do ([#155](https://github.com/artsaraiva/dioramania/issues/155)), the washing a shorter, brighter line of its own (Block fill, below).

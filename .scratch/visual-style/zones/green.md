@@ -12,7 +12,7 @@ Part of the [visual-style spec](../spec.md), which keeps this Zone's one-line de
 
 ### Built to the Finish
 
-- **Green built to the Finish** ([#182](https://github.com/artsaraiva/clearway/issues/182), `src/render/zones/green.ts`, `src/render/pattern.ts`, `src/render/movers.ts`), the whole of its menu.
+- **Green built to the Finish** ([#182](https://github.com/artsaraiva/dioramania/issues/182), `src/render/zones/green.ts`, `src/render/pattern.ts`, `src/render/movers.ts`), the whole of its menu.
   The groves, the beds, Stage 3's beds and pavilion, and the plots are planned on the kit's stream as on `main`; what the Finish adds is drawn from a stream of the Block's own, seeded from where it lies.
   A tree or a bed in the way of a scene or the stream is not planted, and benches, blankets and wildflowers keep off the scenes, the stream and the paths, so some stand elsewhere than on `main`.
   - **Meadow**
@@ -49,7 +49,7 @@ For the user to accept or drop with the images:
 
 ### Details
 
-- **Green details** ([#152](https://github.com/artsaraiva/clearway/issues/152), `src/render/zones/green.ts`), each drawn from where it stands, so nothing else on its Block changes.
+- **Green details** ([#152](https://github.com/artsaraiva/dioramania/issues/152), `src/render/zones/green.ts`), each drawn from where it stands, so nothing else on its Block changes.
   Benches and blankets keep clear of the trees, the beds, the street trees and the pavilion of every Stage, so none stands where a later Stage builds, and wildflowers keep off the benches and blankets:
   - Wildflowers lie in drifts through a meadow's grass: about two drifts to every 1,000 m² at Stage 1, three more at Stage 2 and four more at Stage 3, of 12, 16 and 20 flowers, each drift mostly of one colour and about 5 m across.
     A flower is a flat five-petalled star 0.56 m across, 0.08 to 0.22 m above the grass, true to size as the petals are, on the meadow's lawn only and well in from its edge.
@@ -65,12 +65,12 @@ For the user to accept or drop with the images:
 
 ## Colours
 
-- **Green to the Finish ([#182](https://github.com/artsaraiva/clearway/issues/182))**: allotments' trodden earth `#d9c39c` in place of the gravel `#e6dccb`; the meadow's worn path `#cdb489`, the rise `#c6e9a2`, a bed's rows of leaves `#5aae58`, tall grass `#8fbf62` `#a3c96b` `#7fb35a` with seed heads `#d9c98a`, the stream's banks `#b7b29f` under the ponds' water, logs `#a1714c` `#8a6446` `#b58a62`, beehives `#f4e3a1` `#fbf8f2` `#cfe3c0` under lids `#8e979f`, the bridge's planks `#c49a6c` and `#d8b98b` on beams `#a1714c`;
+- **Green to the Finish ([#182](https://github.com/artsaraiva/dioramania/issues/182))**: allotments' trodden earth `#d9c39c` in place of the gravel `#e6dccb`; the meadow's worn path `#cdb489`, the rise `#c6e9a2`, a bed's rows of leaves `#5aae58`, tall grass `#8fbf62` `#a3c96b` `#7fb35a` with seed heads `#d9c98a`, the stream's banks `#b7b29f` under the ponds' water, logs `#a1714c` `#8a6446` `#b58a62`, beehives `#f4e3a1` `#fbf8f2` `#cfe3c0` under lids `#8e979f`, the bridge's planks `#c49a6c` and `#d8b98b` on beams `#a1714c`;
   tents `#f0d58a` `#b9d6b0` `#f2c9a0` `#e6dfc8`, lit from inside, with a door and groundsheet `#8a6446`; the fire's stones `#a29d92` and embers `#ffb24a`;
   people in shirts `#f6d36a` `#7fbf9d` `#ffadc8` `#c7b8f0` `#fbf8f2`, legs `#4a525c`, skin `#f1d1b5` and straw hats `#e8cf7f`; kites in `#f6d36a` `#ffadc8` `#c7b8f0` `#7fbf9d` `#fbf8f2` on spars `#4a525c` with bows `#fbf8f2`; dogs' coats `#fbf8f2` `#c49a6c` `#4a525c` `#e8cf7f`, ears and nose `#4a3a30`;
   the fence's rails `#c49a6c` on posts `#a1714c`, compost `#6b5137`, a wheelbarrow `#6f8f80`, a hose `#5aa69b`, a glasshouse's frame `#f4f1ea` and panes `#d6ece6`, and the gate's lantern `#fff4dc`
 - **Green**: the meadow `#b9e293`, flower beds `#ffd1df` `#f6d36a` `#ffadc8` `#fff7e8` `#c7b8f0`; allotments' gravel `#e6dccb`, soil `#a77f5a`, crops `#6fc35a` `#8fd46c` `#5aae58` `#b9dd6a`, flowers `#ffd1df` `#f6d36a` `#ffadc8` `#fff7e8`, sheds `#c49a6c` roofed `#5aa69b`
-- **Green details ([#152](https://github.com/artsaraiva/clearway/issues/152))**: wildflowers `#ffffff` `#f6d36a` `#a58ad8` `#ff9ab8` `#c7b8f0`, white and yellow leading;
+- **Green details ([#152](https://github.com/artsaraiva/dioramania/issues/152))**: wildflowers `#ffffff` `#f6d36a` `#a58ad8` `#ff9ab8` `#c7b8f0`, white and yellow leading;
   butterflies' wings `#ffffff` `#f6d36a` `#fbe3a2` `#ffadc8` `#c7b8f0` `#f0b43c` with tips and a body `#4a525c`;
   benches' slats `#c49a6c` on iron ends `#6f7986`;
   picnic blankets `#ffadc8` `#f6d36a` `#7fbf9d` `#c7b8f0` `#f0b43c` checked with `#fbf8f2`, baskets `#c49a6c` under lids `#a1714c`, and parasols in the blankets' colours on a pole `#6f7986`;
@@ -81,7 +81,7 @@ For the user to accept or drop with the images:
 
 ## Frame time
 
-Green built to the Finish ([#182](https://github.com/artsaraiva/clearway/issues/182)), every Tile of the 26-Tile City green at Stage 3 with 1,000 cars, medians of three rounds against `main` in the same run:
+Green built to the Finish ([#182](https://github.com/artsaraiva/dioramania/issues/182)), every Tile of the 26-Tile City green at Stage 3 with 1,000 cars, medians of three rounds against `main` in the same run:
 
 | View | Time | `main` | #182 | Draw calls | Triangles |
 | --- | --- | ---: | ---: | --- | --- |
@@ -92,10 +92,10 @@ Green built to the Finish ([#182](https://github.com/artsaraiva/clearway/issues/
 
 The coarse trees save more than the Finish costs. The static scenery is 1.90 M triangles in 118 meshes at Stage 3 (2.23 M in 104 on `main`): the lanterns' bulbs, the streams' water and the Block-zoom props are a mesh each on a Tile that has them.
 
-Green details ([#152](https://github.com/artsaraiva/clearway/issues/152)), every Tile of the 26-Tile City green at Stage 3, cost 0.32 ms (7.58 against `main`'s 7.26 over five rounds), for no more draw calls and 0.32 M more triangles, most of them wildflowers, with 281 butterflies.
+Green details ([#152](https://github.com/artsaraiva/dioramania/issues/152)), every Tile of the 26-Tile City green at Stage 3, cost 0.32 ms (7.58 against `main`'s 7.26 over five rounds), for no more draw calls and 0.32 M more triangles, most of them wildflowers, with 281 butterflies.
 A first cut cost 53 more draw calls: cold frames in the kit's glass and square contact shadows each brought a material no green build drew before, and so a mesh to every green Tile.
 
-## Amended by [#152](https://github.com/artsaraiva/clearway/issues/152) (2026-11-17)
+## Amended by [#152](https://github.com/artsaraiva/dioramania/issues/152) (2026-11-17)
 
 Green Tiles carry details of their own, picked by the user from a sheet of Stages 1 to 3: in a meadow, drifts of wildflowers through the grass, a bench by each grove, picnic blankets, one under a parasol, and butterflies that flit between the flower beds by day; in the allotments, scarecrows, water butts by the sheds and glass cold frames.
 Butterflies are the first moving details that fly: they rise off their path between stops and beat their wings, and every mover's bob now keeps a phase of its own (Block fill, below).

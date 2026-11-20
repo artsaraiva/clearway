@@ -1,12 +1,12 @@
 # Land game
 
-Status: superseded 2026-11-15 by the tile sandbox ([#82](https://github.com/artsaraiva/clearway/issues/82), rules grilled in [#83](https://github.com/artsaraiva/clearway/issues/83)); its build issues [#77](https://github.com/artsaraiva/clearway/issues/77)–[#80](https://github.com/artsaraiva/clearway/issues/80) are closed. Kept as a record. Was: open. Grilled in [#72](https://github.com/artsaraiva/clearway/issues/72), prototyped in [#74](https://github.com/artsaraiva/clearway/issues/74), verdict 2026-11-14: this is the game.
+Status: superseded 2026-11-15 by the tile sandbox ([#82](https://github.com/artsaraiva/dioramania/issues/82), rules grilled in [#83](https://github.com/artsaraiva/dioramania/issues/83)); its build issues [#77](https://github.com/artsaraiva/dioramania/issues/77)–[#80](https://github.com/artsaraiva/dioramania/issues/80) are closed. Kept as a record. Was: open. Grilled in [#72](https://github.com/artsaraiva/dioramania/issues/72), prototyped in [#74](https://github.com/artsaraiva/dioramania/issues/74), verdict 2026-11-14: this is the game.
 
 ## Goal
 
 Make the land game the game. The player owns one Tile of a District, earns yen from every trip that arrives, and buys neighbouring Tiles. Each purchase is a Reveal that adds Demand, so Jams emerge, and the player clears them with Changes. Owning every Tile is the Win.
 
-The first release is District 1's grid: 8 Tiles, played at `/`. A District of about 24 Junctions follows ([#46](https://github.com/artsaraiva/clearway/issues/46)).
+The first release is District 1's grid: 8 Tiles, played at `/`. A District of about 24 Junctions follows ([#46](https://github.com/artsaraiva/dioramania/issues/46)).
 
 Vocabulary in root `GLOSSARY.md`. Routing and Reveal follow ADR 0001 and ADR 0002; yielding follows ADR 0003.
 
@@ -23,7 +23,7 @@ Vocabulary in root `GLOSSARY.md`. Routing and Reveal follow ADR 0001 and ADR 000
 
 ## What the prototype showed
 
-The prototype is on the local branch `74-land-economy-prototype`; its report is a comment on [#74](https://github.com/artsaraiva/clearway/issues/74). Numbers below are from that report.
+The prototype is on the local branch `74-land-economy-prototype`; its report is a comment on [#74](https://github.com/artsaraiva/dioramania/issues/74). Numbers below are from that report.
 
 - **The loop works on the real sim and renderer.** A purchase as a Reveal needed no sim change.
 - **An uncontrolled crossroads gridlocks at about 30 trips a minute in total.** Every Junction starts with all Arms on yield, so this is the Jam that emerges.
@@ -84,7 +84,7 @@ The economy is game state beside the Sim, not inside it. It reads `completed` tr
 
 `/` opens the land game. The Level page and its `?level=` resume are removed.
 
-The minimum screen, until [#15](https://github.com/artsaraiva/clearway/issues/15) designs the real one:
+The minimum screen, until [#15](https://github.com/artsaraiva/dioramania/issues/15) designs the real one:
 
 - The yen counter, the Income gauge against potential, and Flow as a second reading.
 - Each Tile for sale outlined on the road plane, with the price and what its streams would pay per minute.
@@ -92,7 +92,7 @@ The minimum screen, until [#15](https://github.com/artsaraiva/clearway/issues/15
 - Both Tools on every owned Junction, and the route Inspector.
 - A banner when every Tile is owned. The sim keeps running.
 
-Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/clearway/issues/15)'s question.
+Nothing is saved yet. Save is [#15](https://github.com/artsaraiva/dioramania/issues/15)'s question.
 
 ## Sizing streams
 
@@ -103,7 +103,7 @@ Rules for whoever writes a District's streams, by hand or by generator:
 - No stream turns left off a one-lane Road that carries a heavy stream: the turning car blocks the lane.
 - With every Tile owned, the trips through each crossroads total more than 30 a minute, so it jams untouched.
 
-These limits make "make the busy road main" the fix nearly everywhere. More kinds of fix need more Tools, which is [#55](https://github.com/artsaraiva/clearway/issues/55).
+These limits make "make the busy road main" the fix nearly everywhere. More kinds of fix need more Tools, which is [#55](https://github.com/artsaraiva/dioramania/issues/55).
 
 ## Bars
 
@@ -129,15 +129,15 @@ Assert outcomes only: jammed, cleared, Income over or under a bar, Won.
 
 ## Issues
 
-- [#77](https://github.com/artsaraiva/clearway/issues/77) Tiles in the District file and the Sim
-- [#78](https://github.com/artsaraiva/clearway/issues/78) Demand from streams, blocked by #77
-- [#79](https://github.com/artsaraiva/clearway/issues/79) The game page, with yen and Tile buying, blocked by #77 and #78
-- [#80](https://github.com/artsaraiva/clearway/issues/80) District 1 tuned to the bars, blocked by #77 and #78
+- [#77](https://github.com/artsaraiva/dioramania/issues/77) Tiles in the District file and the Sim
+- [#78](https://github.com/artsaraiva/dioramania/issues/78) Demand from streams, blocked by #77
+- [#79](https://github.com/artsaraiva/dioramania/issues/79) The game page, with yen and Tile buying, blocked by #77 and #78
+- [#80](https://github.com/artsaraiva/dioramania/issues/80) District 1 tuned to the bars, blocked by #77 and #78
 
 ## Not in this spec
 
-- The real screens, the buying interaction and save: [#15](https://github.com/artsaraiva/clearway/issues/15).
-- More Tools: [#55](https://github.com/artsaraiva/clearway/issues/55).
-- A 24-Junction District and its generator: [#46](https://github.com/artsaraiva/clearway/issues/46).
-- The endless map and a coarser sim away from the camera: [#48](https://github.com/artsaraiva/clearway/issues/48).
-- Upkeep, per-Tile prices, pay by distance, Road-laying and zoning: ruled out in [#72](https://github.com/artsaraiva/clearway/issues/72).
+- The real screens, the buying interaction and save: [#15](https://github.com/artsaraiva/dioramania/issues/15).
+- More Tools: [#55](https://github.com/artsaraiva/dioramania/issues/55).
+- A 24-Junction District and its generator: [#46](https://github.com/artsaraiva/dioramania/issues/46).
+- The endless map and a coarser sim away from the camera: [#48](https://github.com/artsaraiva/dioramania/issues/48).
+- Upkeep, per-Tile prices, pay by distance, Road-laying and zoning: ruled out in [#72](https://github.com/artsaraiva/dioramania/issues/72).
