@@ -34,12 +34,12 @@ _Avoid_: Swap, repaint, Rebuild
 Taking back the last placement, Swap or Rezoning for a full refund, allowed only for a short stretch after it.
 _Avoid_: Remove, sell, Reset
 
-**Rebuild**:
-The simulation starting again from the City after a Tile is placed, a Swap, or the Undo of either. Changes carry over; no vehicle does. Rezoning does not cause one.
-_Avoid_: Reveal, reload, restart
+**Assembly**:
+The stretch from a Tile's drop, placed or swapped in, until it has landed and traffic can enter it. Until then the City's traffic runs as it did before the drop. Tiles land in the order they were dropped. A Tile in its Assembly takes a neighbour on its open end, and refuses a Swap and a Rezoning.
+_Avoid_: Build, Rebuild, construction, Reveal
 
 **Pre-warm**:
-Simulating the City hidden from the player for a fixed stretch after a Rebuild, so traffic has settled when it becomes visible. Nothing is earned during it.
+Simulating the City hidden from the player for a fixed stretch when a run opens or loads, so traffic has settled when it becomes visible. Nothing is earned during it.
 _Avoid_: Warm-up
 
 **Price**:
@@ -150,7 +150,7 @@ _Avoid_: Backup, gridlock
 ### Traffic
 
 **Demand**:
-How many vehicles want to travel between which Gateways, per minute. Each Gateway sends its own trips, split between the other Gateways a car can drive to. Demand changes only on a Rebuild.
+How many vehicles want to travel between which Gateways, per minute. Each Gateway sends its own trips, split between the other Gateways a car can drive to. Demand changes only when the City does: as an Assembly ends, or a Tile is taken off.
 _Avoid_: Traffic load, spawn rate, volume
 
 **Flow**:
@@ -206,5 +206,7 @@ _Avoid_: Pedestrian, person, peg
 ## Retired
 
 District, Level, Fog, Reveal and Win belonged to the authored game and the land game. They name nothing in the sandbox.
+
+Rebuild, the simulation starting again from the City with no vehicle kept, happened on every placement, Swap and Undo. Since ADR 0006 the traffic drives on through every change to the City.
 
 Holding, Flow staying above its bar for a sustained stretch, qualified the Record when the Record counted trips a minute. Growth needs no such test.
