@@ -7,7 +7,7 @@ import { AERIAL, CREAM, FLAG, FRONTAGE, type Gap, GARDEN, HOME, type Kit, LEAVES
 import { PATTERN } from '../pattern'
 import { bench, gardenShed, stoneLantern } from '../props'
 import type { Footprint } from '../kerbside'
-import { distance, fit, lotsOf, turned, type Look, type RowLot, type ZoneGround } from './ground'
+import { corners, distance, fit, lotsOf, turned, type Look, type RowLot, type ZoneGround } from './ground'
 import { beside, kerbAhead, placeScenes, sceneOrder, type Scene } from './scenes'
 import { gable } from '../shapes'
 
@@ -139,10 +139,11 @@ function houses(g: ZoneGround) {
     // A garden tree keeps off the house, its drive and the laundry pole on it; where the garden is finished, it stands
     // in the corner it always took if the ground there is clear of the house, the hedge and the rest by 1.3 m, or else
     // in the clear ground nearest it.
-    const plot = kit.finished ? plotOf(home, lawn) : null
+    const plot = kit.finished ? plotOf(kit, home, lawn) : null
     // Where the garden is finished, it is laid out before the trees and the hedge, which opens where what it holds
     // stands at its edge.
     const layout = plot && gardenOf(lawn, plot)
+    const held = layout ? layout.held : []
     const { pad, pole } = home
     const free = (px: number, py: number) => {
       if (home.car < 4 && px > pad.x0 - 1.2 && px < pad.x1 + 1.2 && py > pad.y0 - 1.2 && py < pad.y1 + 1.2) return false
@@ -159,7 +160,11 @@ function houses(g: ZoneGround) {
       if (!plot) return free(c.x, c.y) ? c : null
       const [cu, cv] = plot.local(c.x, c.y)
       const near = plot.clear(c.x, c.y, 0.6, 0.6, 0.45) ? c : ((s) => s && plot.at(s.u, s.v))(spotIn(plot, 0.6, 0.6, 0.45, cu, cv))
-      if (near) plot.place(plot.around(near.x, near.y, 0.7))
+      if (near) {
+        const p = plot.around(near.x, near.y, 0.7)
+        plot.stand(p, k + 2)
+        held.push(p)
+      }
       return near
     })
     kit.from(
@@ -182,7 +187,7 @@ function houses(g: ZoneGround) {
     // the front instead, and the hedge opens along the drive and wherever the garden's trees, shed, patch or pole stand
     // at its edge.
     const along = (px: number, py: number) => (home.front % 2 ? px - x : py - y)
-    const gaps = plot ? plot.gaps(home) : [{ side: home.front, at: along(home.x, home.y), wide: 2.4 }]
+    const gaps = plot ? plot.gaps(home, held) : [{ side: home.front, at: along(home.x, home.y), wide: 2.4 }]
     if (home.car < 4 && !plot) {
       const wide = home.front % 2 ? pad.x1 - pad.x0 : pad.y1 - pad.y0
       gaps.push({ side: home.front, at: along((pad.x0 + pad.x1) / 2, (pad.y0 + pad.y1) / 2), wide: wide + 0.3 })
@@ -375,10 +380,17 @@ interface Patch {
 }
 
 /**
- * A house's garden as the ground left on its lawn (#179), in the frame of the lawn's front: the lawn's half-width along
- * its front and half-depth, the house's box at its largest and its drive's in the same frame, and what stands on the
- * lawn so far, which `clear` keeps new things off and `take` adds to. What the garden itself places there (`place`)
- * opens the hedge where it stands at its edge (`gaps`). A point in the frame is `at`'s on the map.
+ * m: how far edges in a lawn's frame that meet flush, as the front wall's and the border's do, or two pieces' on
+ * `spotIn`'s grid, may cross once claimed on the map and read back (#217): float noise. They count as apart, as the
+ * frame's strict tests meant them; `clear` once settled the grid's by the frame's own noise, either way.
+ */
+const FLUSH = 1e-6
+
+/**
+ * A house's lawn in the frame of its front (#179): the lawn's half-width along its front and half-depth, and the house's
+ * box at its largest and its drive's in the same frame. What stands on the lawn claims its ground through the kit as it
+ * is laid (`stand`, #217), and the garden lays a piece only where `clear` finds the ground unclaimed. A point in the
+ * frame is `at`'s on the map.
  */
 interface Plot {
   ry: number
@@ -387,7 +399,6 @@ interface Plot {
   house: Patch
   /** The drive, if the house has a car. */
   drive: Patch | null
-  taken: Patch[]
   at: (u: number, v: number) => { x: number; y: number }
   /** The frame's `(u, v)` of the point `(px, py)` on the map. */
   local: (px: number, py: number) => [number, number]
@@ -395,25 +406,27 @@ interface Plot {
   around: (px: number, py: number, side: number) => Patch
   /**
    * Whether a box `w` across by `d` deep round the point `(px, py)` on the map stands on the lawn `edge` m in from its
-   * edge (0.3 unless told), clear of what is taken by `pad` m.
+   * edge (0.3 unless told), `pad` m clear of the ground claimed on the Block (`kit.unclaimed`).
    */
   clear: (px: number, py: number, w: number, d: number, pad: number, edge?: number) => boolean
-  take: (p: Patch) => void
-  /** Take `p` for something the garden holds, which the hedge opens for where it stands at its edge. */
-  place: (p: Patch) => void
+  /** Claim the ground `p` for a piece standing from Stage `from` (`kit.stand`). */
+  stand: (p: Patch, from?: number) => void
+  /** The ground standing pieces claimed on the Block so far (`kit.claimed`), each as the box it spans in the frame. */
+  claimed: () => Patch[]
   /**
    * The gaps in the hedge round the lawn (the kit's `hedge`), from Stage 3: the whole front, where the low wall runs;
-   * the ends of the sides that reach the front; the drive; and wherever what the garden holds stands within its depth
-   * of the lawn's edge.
+   * the ends of the sides that reach the front; the drive; and wherever one of `held`, what the garden holds, stands
+   * within its depth of the lawn's edge.
    */
-  gaps: (home: Home) => Gap[]
+  gaps: (home: Home, held: Patch[]) => Gap[]
 }
 
 /**
- * The ground a house leaves on its lawn (#179): the house at its largest, with the step before its door, its porch's
- * pots and bicycle and its back's AC unit; its drive and its laundry pole; and the low wall along the front.
+ * A house's lawn in the frame of its front (#179), claiming the ground the house leaves on it (#217): the house at its
+ * largest, with the step before its door, its porch's pots and bicycle and its back's AC unit; the low wall along the
+ * front; its drive; and its laundry pole.
  */
-function plotOf(home: Home, lawn: Lawn): Plot {
+function plotOf(kit: Kit, home: Home, lawn: Lawn): Plot {
   const ry = facing(home.front)
   const [cu, cv] = [Math.cos(ry), Math.sin(ry)]
   /** The frame's `(u, v)` of a point on the map. */
@@ -429,45 +442,47 @@ function plotOf(home: Home, lawn: Lawn): Plot {
     const [p, q] = [local(b.x0, b.y0), local(b.x1, b.y1)]
     return { u0: Math.min(p[0], q[0]), u1: Math.max(p[0], q[0]), v0: Math.min(p[1], q[1]), v1: Math.max(p[1], q[1]) }
   }
-  const taken: Patch[] = [
-    { u0: house.u0 - 0.2, u1: house.u1 + 0.2, v0: house.v0 - 0.75, v1: house.v1 + 0.2 }, // its walls and its back's AC unit
-    { u0: mu - 2.5, u1: mu + 2.5, v0: house.v1, v1: house.v1 + 1.1 }, // the step, the pots and the bicycle by its door
-    { u0: -hu, u1: hu, v0: hv - 0.3, v1: hv }, // the wall along the front
-  ]
+  const at = (u: number, v: number) => turned(lawn.x, lawn.y, ry, u, v)
+  const stand = (p: Patch, from = 1) => {
+    const c = at((p.u0 + p.u1) / 2, (p.v0 + p.v1) / 2)
+    kit.stand(c.x, c.y, p.u1 - p.u0, p.v1 - p.v0, ry, from)
+  }
+  stand({ u0: house.u0 - 0.2, u1: house.u1 + 0.2, v0: house.v0 - 0.75, v1: house.v1 + 0.2 }) // its walls and its back's AC unit
+  stand({ u0: mu - 2.5, u1: mu + 2.5, v0: house.v1, v1: house.v1 + 1.1 }) // the step, the pots and the bicycle by its door
+  stand({ u0: -hu, u1: hu, v0: hv - 0.3, v1: hv }) // the wall along the front
   const drive = home.car < 4 ? boxOf(home.pad) : null
-  if (drive) taken.push({ u0: drive.u0 - 0.3, u1: drive.u1 + 0.3, v0: drive.v0 - 0.3, v1: drive.v1 + 0.3 })
+  if (drive) stand({ u0: drive.u0 - 0.3, u1: drive.u1 + 0.3, v0: drive.v0 - 0.3, v1: drive.v1 + 0.3 }, home.car)
   if (home.laundry < 4) {
     if (home.pole) {
       const { x, y, ry: r, len } = home.pole
       const [a, b] = [turned(x, y, r, -len / 2 - 0.3, -0.45), turned(x, y, r, len / 2 + 0.3, 0.45)]
-      taken.push(boxOf({ x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) }))
+      stand(boxOf({ x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) }), home.laundry)
     } else {
       // Along the wall on side `line`, `out` m out from it, as long as the wall.
       const out = home.out + 0.5
       const [lu, lv] = [Math.cos(facing(home.line) - ry), Math.sin(facing(home.line) - ry)] // the line side's way out, in the frame
       if (Math.abs(lu) > 0.5)
-        taken.push(
+        stand(
           lu < 0
             ? { u0: house.u0 - out, u1: house.u0, v0: house.v0, v1: house.v1 }
             : { u0: house.u1, u1: house.u1 + out, v0: house.v0, v1: house.v1 },
+          home.laundry,
         )
       else if (Math.abs(lv) > 0.5)
-        taken.push(
+        stand(
           lv < 0
             ? { u0: house.u0, u1: house.u1, v0: house.v0 - out, v1: house.v0 }
             : { u0: house.u0, u1: house.u1, v0: house.v1, v1: house.v1 + out },
+          home.laundry,
         )
     }
   }
-  const held: Patch[] = [] // what the garden places, which the hedge opens for
-  const at = (u: number, v: number) => turned(lawn.x, lawn.y, ry, u, v)
   return {
     ry,
     hu,
     hv,
     house,
     drive,
-    taken,
     at,
     local,
     around(px, py, side) {
@@ -476,18 +491,18 @@ function plotOf(home: Home, lawn: Lawn): Plot {
     },
     clear(px, py, w, d, pad, edge = 0.3) {
       const [u, v] = local(px, py)
-      const box = { u0: u - w / 2 - pad, u1: u + w / 2 + pad, v0: v - d / 2 - pad, v1: v + d / 2 + pad }
       const inside = u - w / 2 >= -hu + edge && u + w / 2 <= hu - edge && v - d / 2 >= -hv + edge && v + d / 2 <= hv - edge
-      return inside && !taken.some((t) => meets(box, t))
+      // Grown `pad` m each side, and apart from each claim or meeting it flush.
+      return inside && kit.unclaimed(px, py, w + 2 * pad, d + 2 * pad, ry, -FLUSH)
     },
-    take(p) {
-      taken.push(p)
-    },
-    place(p) {
-      taken.push(p)
-      held.push(p)
-    },
-    gaps({ front, car, pad }) {
+    stand,
+    claimed: () =>
+      kit.claimed().map((c) => {
+        const uv = corners({ ...c, onRoad: false }, 0).map((q) => local(q.x, q.y))
+        const [us, vs] = [uv.map(([u]) => u), uv.map(([, v]) => v)]
+        return { u0: Math.min(...us), u1: Math.max(...us), v0: Math.min(...vs), v1: Math.max(...vs) }
+      }),
+    gaps({ front, car, pad }, held) {
       const { w, d } = lawn
       const gaps: Gap[] = [{ side: front, at: 0, wide: 2 * Math.max(w, d) }]
       // The hedges down the sides, which run the lawn's whole depth when it faces north or south, stop short of the wall.
@@ -516,9 +531,6 @@ function plotOf(home: Home, lawn: Lawn): Plot {
   }
 }
 
-/** Whether two boxes in a lawn's frame overlap. */
-const meets = (a: Patch, b: Patch) => a.u0 < b.u1 && b.u0 < a.u1 && a.v0 < b.v1 && b.v0 < a.v1
-
 /**
  * The first spot of `plot` for a box `w` across by `d` deep, clear by `pad` and `edge` m in from the lawn's edge (as
  * `clear` has it), on a grid of quarter-metre steps, nearest first to the point `(pu, pv)` in its frame; null if none.
@@ -543,12 +555,13 @@ interface Run {
 }
 
 /**
- * Where a house's garden lays what it holds (#179), round the house, its drive and its laundry as `plot` has them, each
- * drawn from where the lawn lies, and placed in `plot` as it is laid: the runs of the low wall along the front, open at
- * the gate before the door and across the drive; from Stage 2 a flower border inside the wall along the longest stretch
- * the step, the pots and the rest leave clear; a vegetable patch where a yard has room; a steel shed in a back corner
- * on some; a tall pole flying carp on some, as far downwind on the lawn as there is room, so that they fly out over its
- * edge; and a cat walking the top of the wall's longest run on some.
+ * Where a house's garden lays what it holds (#179), round the house, its drive and its laundry as `plot` claimed them,
+ * each drawn from where the lawn lies and claiming its ground as it is laid (#217): the runs of the low wall along the
+ * front, open at the gate before the door and across the drive; from Stage 2 a flower border inside the wall along the
+ * longest stretch the step, the pots and the rest leave clear; a vegetable patch where a yard has room; a steel shed in
+ * a back corner on some; a tall pole flying carp on some, as far downwind on the lawn as there is room, so that they fly
+ * out over its edge; and a cat walking the top of the wall's longest run on some. And the ground each piece but the
+ * wall and the cat stands on (`held`), which the hedge opens for.
  */
 function gardenOf(lawn: Lawn, plot: Plot) {
   const { ry, hu, hv, house } = plot
@@ -556,13 +569,19 @@ function gardenOf(lawn: Lawn, plot: Plot) {
   const [shedRoll, carpRoll, catRoll, side] = [draw(), draw(), draw(), draw()]
   const door = (house.u0 + house.u1) / 2
   const runs = wallRuns(hu, door, plot.drive)
+  const held: Patch[] = []
+  const hold = (p: Patch) => {
+    plot.stand(p, 2)
+    held.push(p)
+  }
   const [v0, v1] = [hv - 0.3 - LOW_FINISH.border.deep, hv - 0.3]
+  const claimed = plot.claimed()
   const stretches = runs.flatMap((r) => {
     let parts = [{ u0: r.u0 + 0.2, u1: r.u1 - 0.2 }]
-    for (const t of plot.taken)
-      if (t.v0 < v1 && v0 < t.v1)
+    for (const t of claimed)
+      if (t.v0 < v1 - FLUSH && v0 + FLUSH < t.v1)
         parts = parts.flatMap((p) =>
-          p.u1 <= t.u0 || t.u1 <= p.u0
+          p.u1 <= t.u0 + FLUSH || t.u1 <= p.u0 + FLUSH
             ? [p]
             : [
                 { u0: p.u0, u1: t.u0 },
@@ -573,7 +592,7 @@ function gardenOf(lawn: Lawn, plot: Plot) {
   })
   const stretch = stretches.sort((a, b) => b.u1 - b.u0 - (a.u1 - a.u0))[0]
   const border = stretch ? { ...stretch, v0, v1 } : null
-  if (border) plot.place(border)
+  if (border) hold(border)
   // A shed and a patch stand against the lawn's edge, where the hedge opens for them.
   // A shed faces the front, or in a side yard too narrow for that, faces the house across it.
   const corner = [(side < 0.5 ? -1 : 1) * hu, -hv] as const
@@ -583,16 +602,16 @@ function gardenOf(lawn: Lawn, plot: Plot) {
   const shed = found && { ...found, ry: square ? ry : ry + (found.u > 0 ? 1 : -1) * (Math.PI / 2) }
   if (shed) {
     const [hw, hd] = square ? [0.8, 0.7] : [0.7, 0.8]
-    plot.place({ u0: shed.u - hw, u1: shed.u + hw, v0: shed.v - hd, v1: shed.v + hd })
+    hold({ u0: shed.u - hw, u1: shed.u + hw, v0: shed.v - hd, v1: shed.v + hd })
   }
   const patch = spotIn(plot, 2, 1, 0.15, 0, -hv, 0.12)
-  if (patch) plot.place({ u0: patch.u - 1.15, u1: patch.u + 1.15, v0: patch.v - 0.65, v1: patch.v + 0.65 })
+  if (patch) hold({ u0: patch.u - 1.15, u1: patch.u + 1.15, v0: patch.v - 0.65, v1: patch.v + 0.65 })
   const [wu, wv] = [Math.cos(ry) * 0.84 + Math.sin(ry) * 0.54, -Math.sin(ry) * 0.84 + Math.cos(ry) * 0.54] // downwind, in the frame
   const pole = carpRoll < LOW_FINISH.carp ? spotIn(plot, 0.3, 0.3, 0.35, wu * hu, wv * hv) : null
-  if (pole) plot.place({ u0: pole.u - 0.4, u1: pole.u + 0.4, v0: pole.v - 0.4, v1: pole.v + 0.4 })
+  if (pole) hold({ u0: pole.u - 0.4, u1: pole.u + 0.4, v0: pole.v - 0.4, v1: pole.v + 0.4 })
   const run = [...runs].sort((a, b) => b.u1 - b.u0 - (a.u1 - a.u0))[0]
   const cat = catRoll < LOW_FINISH.cats && run && run.u1 - run.u0 >= 3 ? run : null
-  return { door, runs, border, patch, shed, pole, cat, catRoll, side }
+  return { door, runs, border, patch, shed, pole, cat, catRoll, side, held }
 }
 
 /**
