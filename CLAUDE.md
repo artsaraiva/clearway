@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Tickets are GitHub Issues at `artsaraiva/clearway`; specs and maps stay under `.scratch/<feature>/`. The repo is on the personal `artsaraiva` account: prefix `gh` with `GH_TOKEN=$(gh auth token -u artsaraiva)`, and read a ticket with `gh issue view <n> -R artsaraiva/clearway --json title,body,comments`. See `docs/agents/issue-tracker.md`.
+Tickets are GitHub Issues at `artsaraiva/dioramania`; specs and maps stay under `.scratch/<feature>/`. The repo is on the personal `artsaraiva` account: prefix `gh` with `GH_TOKEN=$(gh auth token -u artsaraiva)`, and read a ticket with `gh issue view <n> -R artsaraiva/dioramania --json title,body,comments`. See `docs/agents/issue-tracker.md`.
 
 Each ticket gets its own branch off `main`, named `<n>-<slug>` (e.g. `1-split-sim`). Finish with a PR whose body comes from `/pr` and says `Closes #<n>`.
 

@@ -1,0 +1,376 @@
+/*
+ * Everything drawn over the board (#243, "In play"), in the paper & stamp kit (./kit.css): the camera's stickers and the
+ * Stage Inspector's legend on the right edge, the Jam markers, the note over a hovered Tile, the Stage-up badge, the
+ * one-line notice and the Gateway labels. Stamp red marks what is on and what is wrong; every state also differs by
+ * shape or text. No text is smaller than 13 px.
+ */
+
+/* --- The stickers on the right edge at mid-height: north up, frame the whole City, tilt, the Stage Inspector. --- */
+.camera {
+  right: 20px;
+  top: 50%;
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.camera .sticker:hover {
+  background: #fff;
+}
+.camera svg {
+  display: block;
+}
+/* The Stage Inspector's sticker, with its legend beside it while it is on. */
+.inspector {
+  position: relative;
+}
+/* The legend: a paper slip to the left of the sticker, giving each Stage's tint as it lies on the ground, and the
+   stripes of a Tile a Jam holds back. */
+.stage-legend {
+  position: absolute;
+  right: calc(100% + 14px);
+  top: 50%;
+  translate: 0 -50%;
+  --tilt: -1deg;
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px 11px;
+  font-size: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.stage-legend[hidden] {
+  display: none;
+}
+.stage-legend .row {
+  display: flex;
+  gap: 14px;
+}
+.stage-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stage-legend .stars {
+  letter-spacing: 1px;
+}
+.stage-legend i {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(43, 38, 34, 0.18);
+}
+.stage-legend .handwritten {
+  font-size: 15px;
+  color: var(--quiet);
+}
+
+/* --- Jam markers: a red "!" stamped on a paper disc over each Junction with a Jam, its tail pointing down at it, or at
+       the edge of the screen pointing toward one off screen. They stamp down, fade out as the Jam clears, and fade
+       back while a Layout is in the hand, when every click is a drop. --- */
+.jams {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.jam {
+  position: absolute;
+  left: -24px;
+  top: -24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  pointer-events: auto;
+  will-change: transform;
+  transition: opacity 0.2s;
+}
+.jams.busy .jam,
+.jam.gone {
+  pointer-events: none;
+}
+.jams.busy .jam {
+  opacity: 0.45;
+}
+.jam .pop {
+  position: absolute;
+  inset: 0;
+  animation: jam-in 0.3s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+.jam.gone .pop {
+  animation: jam-out 0.25s ease-in both;
+}
+/* Only the disc takes the click: the tail's box reaches down to the Junction, which stays the board's to hover. */
+.jam .tail {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(60, 40, 20, 0.3));
+}
+/* The disc keeps the stamp's multiply to itself: the ink darkens the paper, not the board. */
+.jam .disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.04),
+    0 3px 8px rgba(60, 40, 20, 0.3);
+}
+.jam .stamp {
+  --tilt: -10deg;
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  font-size: 28px;
+  line-height: 1;
+}
+.jam:hover .disc {
+  box-shadow:
+    0 0 0 2px var(--stamp),
+    0 3px 8px rgba(60, 40, 20, 0.3);
+}
+@keyframes jam-in {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes jam-out {
+  to {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jam .pop,
+  .jam.gone .pop {
+    animation-duration: 1ms;
+  }
+}
+
+/* --- Stages over the board: a taped note on the placed Tile under the pointer, below where a Jam marker floats, and a
+       badge that rises over a Tile as its Stage-up ends. --- */
+.growth-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* As wide as its Zone's name, and no narrower than 176 px: the screen centres it under its Tile with `translate`, so
+   its tilt does not turn where it stands. */
+.tile-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  --tilt: -1.5deg;
+  width: max-content;
+  min-width: 176px;
+  padding: 12px 14px 10px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  will-change: translate;
+}
+.tile-note[hidden] {
+  display: none;
+}
+.tile-note .tape {
+  --tilt: -4deg;
+  left: calc(50% - 31px);
+  top: -10px;
+  width: 62px;
+}
+.tile-note .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 900;
+}
+.tile-note .stars {
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+/* A Stage not reached yet: an outlined star, in the colour of a rule. */
+.tile-note .stars s,
+.stage-badge .stars s {
+  text-decoration: none;
+  color: var(--rule);
+}
+/* Ten pips of progress toward the next Stage: filled in ink, the one being filled half inked, the rest dashed. */
+.tile-note .pips {
+  display: flex;
+  gap: 3px;
+  margin: 7px 0 6px;
+}
+.tile-note .pips i {
+  flex: 1;
+  height: 9px;
+  border-radius: 2px;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--rule);
+}
+.tile-note .pips i.on,
+.tile-note .pips i.part {
+  border: 0;
+  background: var(--ink);
+}
+.tile-note .pips i.part {
+  opacity: 0.4;
+}
+.tile-note .line {
+  font-size: 14px;
+  color: var(--quiet);
+  white-space: nowrap;
+}
+/* Held back by a Jam: the pips go grey and hatched, and the line is stamped red. */
+.tile-note.jammed .pips i.on,
+.tile-note.jammed .pips i.part {
+  background: repeating-linear-gradient(-45deg, var(--quieter) 0 2px, var(--rule) 2px 4px);
+}
+.tile-note.jammed .line {
+  color: var(--stamp);
+}
+.tile-note.unzoned .pips {
+  display: none;
+}
+
+.stage-badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.stage-badge .paper {
+  --tilt: -2deg;
+  position: absolute;
+  left: 0;
+  bottom: 18px;
+  translate: -50% 0;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 6px 12px 7px;
+  white-space: nowrap;
+  animation: badge-rise 1.8s ease-out both;
+}
+.stage-badge .stars {
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+.stage-badge b {
+  font-size: 15px;
+  font-weight: 900;
+}
+@keyframes badge-rise {
+  0% {
+    transform: translateY(10px) scale(0.4);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0) scale(1.12);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(-4px) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-56px) scale(1);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-badge .paper {
+    animation-name: badge-fade;
+  }
+  @keyframes badge-fade {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    15%,
+    75% {
+      opacity: 1;
+    }
+  }
+}
+
+/* --- A notice at the top, as when a saved City would not load: one taped line, gone after a while or a click. --- */
+.notice {
+  top: 22px;
+  left: 50%;
+  --tilt: -0.6deg;
+  translate: -50% 0;
+  max-width: calc(100% - 320px);
+  padding: 13px 20px 12px;
+  box-sizing: border-box;
+  font-size: 14px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    opacity 0.6s,
+    visibility 0s;
+}
+.notice .tape {
+  --tilt: 3deg;
+  left: calc(50% - 40px);
+  top: -10px;
+  width: 80px;
+}
+.notice.gone {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.6s,
+    visibility 0s 0.6s;
+}
+
+/* --- Labels over the board (../render/labels.ts): each Gateway's trips a minute on a paper tag, and the names of
+       streets and landmarks written on the world. --- */
+.labels {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.labels div {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--quiet);
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff,
+    0 0 6px #fff,
+    0 0 10px rgba(255, 255, 255, 0.8);
+}
+.labels .gateway {
+  padding: 1px 6px 2px;
+  border-radius: 3px;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(60, 40, 20, 0.3);
+  color: var(--ink);
+  text-shadow: none;
+}
+/* While the Tile in the hand is over a legal cell: a Gateway its drop would close is struck through in stamp red, and
+   one it would open shows its trips a minute on a tag pencilled in with a dashed edge. */
+.labels .gateway.closed {
+  color: var(--quieter);
+  text-decoration: line-through 2px var(--stamp);
+}
+.labels .gateway.opened {
+  padding: 0 4.5px 0.5px;
+  border: 1.5px dashed var(--ink);
+  font-weight: 900;
+}

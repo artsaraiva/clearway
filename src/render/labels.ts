@@ -3,6 +3,7 @@ import { pointAt, type Bounds } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
 import type { Sim } from '../sim/sim'
 import type { DemandSpec } from '../sim/spec'
+import '../ui/board.css'
 import type { Field } from './field'
 import { v3 } from './ribbons'
 import type { Scenery } from './scenery'
@@ -14,7 +15,7 @@ const LANDMARKS = {
   plaza: { color: '#8a6d3b', height: 10 },
 }
 const AHEAD = 20 // m along a Road to the second point its on-screen direction is read from
-const GATEWAY = { beyond: 9, height: 6, color: '#4a5568' } // m past the end of a Gateway's Road, and above it
+const GATEWAY = { beyond: 9, height: 6 } // m past the end of a Gateway's Road, and above it
 
 /** A Gateway's trips a minute as its label reads them, to a tenth. A Gateway that reaches no other sends nothing. */
 const perMinute = (rates: DemandSpec, id: string) => (rates[id]?.rate ?? 0).toFixed(1)
@@ -38,10 +39,10 @@ function gatewayAt(arm: Arm) {
 }
 
 /**
- * DOM labels over the canvas: each Gateway's trips a minute, and the names from the scenery, which are each street's
- * name lying along its longest Road and each named landmark's with a coloured dot. Scenery that names nothing gets no
- * names. While the Tile in the hand is over a legal cell, they preview what the drop does to Demand. Styled by
- * `.labels` in the page.
+ * DOM labels over the canvas: each Gateway's trips a minute on a paper tag, and the names from the scenery: each Road's
+ * name, lying along the longest of the Roads that share it, and each named landmark's with a coloured dot. Scenery that
+ * names nothing gets no names. While the Tile in the hand is over a legal cell, they preview what the drop does to Demand.
+ * Styled by `.labels` in `../ui/board.css`.
  * ponytail: labels never make room for each other, so two names can overlap at some camera angles. That is rare with
  * the handful a City has today; hide the lesser of an overlapping pair when Cities carry more names.
  */
@@ -79,7 +80,7 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
     for (const [id, arm] of Object.entries(after.net.gateways)) {
       if (gateways.has(id)) continue
       const gateway = label(`${perMinute(after.rates, id)}/min`, gatewayAt(arm).setY(GATEWAY.height + lift))
-      gateway.el.className = 'opened'
+      gateway.el.className = 'gateway opened'
       // In place at once: the frame may already be drawn, and the label would show in the corner until the next.
       move(gateway, ...size)
       opened.push(gateway)
@@ -94,7 +95,8 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
     layer.replaceChildren()
     ;[labels, gateways, opened] = [[], new Map(), []]
     for (const [id, arm] of Object.entries(net.gateways)) {
-      const gateway = label(`${perMinute(rates, id)}/min`, gatewayAt(arm), undefined, GATEWAY.color)
+      const gateway = label(`${perMinute(rates, id)}/min`, gatewayAt(arm))
+      gateway.el.className = 'gateway'
       gateways.set(id, gateway.el)
       labels.push(gateway)
     }
@@ -144,6 +146,11 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
   return {
     show,
     preview,
+
+    /** Take the labels off the page, for a view that is done with. */
+    remove() {
+      layer.remove()
+    },
 
     /**
      * Move each label to where its point is now, on a canvas `w` by `h` CSS pixels. Call it after the frame is drawn, so

@@ -1,16 +1,20 @@
+import './board.css'
+
 /** Seconds a notice stays before it fades. */
 const STAY = 12
 
 /**
- * One line under the readings at the top of the screen, as when a saved City would not load. It fades after a while,
- * and a click lets it go at once.
+ * One line on a taped paper note at the top of the screen, as when a saved City would not load. It fades after a while,
+ * and a click lets it go at once, unless it `stays` as long as `root` does.
  */
-export function showNotice(root: HTMLElement, text: string) {
+export function showNotice(root: HTMLElement, text: string, { stays = false } = {}) {
   const notice = document.createElement('div')
-  notice.className = 'glass notice'
+  notice.className = 'paper notice'
   notice.setAttribute('role', 'status')
-  notice.textContent = text
+  notice.innerHTML = '<span class="tape yellow"></span>'
+  notice.append(text)
   root.append(notice)
+  if (stays) return
   const fade = () => notice.classList.add('gone')
   notice.onclick = fade
   setTimeout(fade, STAY * 1000)

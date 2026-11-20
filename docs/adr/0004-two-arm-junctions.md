@@ -2,7 +2,7 @@
 
 In the tile sandbox every Tile is exactly one Junction, and a Priority junction may have two Arms. A Straight is a two-Arm Priority junction with its Arms opposite; a Curve is one with its Arms at a right angle. Roads stay straight and run from one Tile's centre to the next, or to the cell edge at an open end.
 
-The alternative was a Road that bends, with Straight and Curve Tiles holding only Road. That needs curved lane geometry in the sim, the renderer and the Block cutter, and it makes Tiles of two kinds: some with a Junction and Tools, some without. The prototype ([#82](https://github.com/artsaraiva/clearway/issues/82)) needed one condition changed in `buildPriority` to allow two Arms, and the user played the result and accepted it ([#83](https://github.com/artsaraiva/clearway/issues/83)).
+The alternative was a Road that bends, with Straight and Curve Tiles holding only Road. That needs curved lane geometry in the sim, the renderer and the Block cutter, and it makes Tiles of two kinds: some with a Junction and Tools, some without. The prototype ([#82](https://github.com/artsaraiva/dioramania/issues/82)) needed one condition changed in `buildPriority` to allow two Arms, and the user played the result and accepted it ([#83](https://github.com/artsaraiva/dioramania/issues/83)).
 
 ## Consequences
 

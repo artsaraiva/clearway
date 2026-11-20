@@ -4,62 +4,50 @@ import type { View } from '../render/view'
 import { middle, type Vec } from '../sim/geometry'
 import { cellAt, cellBounds } from '../sim/tiles'
 import { STAGES } from '../tuning'
+import { whenChanged } from './readings'
+import { nameOf } from './toolbar'
+import './board.css'
 
-/** px the bar sits below its Tile's middle, clear of a Jam marker, which floats above it. */
+/** px the note sits below its Tile's middle, clear of a Jam marker, which floats above it. */
 const BELOW = 26
+/** The pips of progress toward the next Stage. */
+const PIPS = 10
 
-/** A Stage as stars: ★★☆ for Stage 2. */
-const stars = (stage: number) => '★'.repeat(stage) + '☆'.repeat(LAST_STAGE - stage)
-
-/** Writes `value` with `write` only when it differs from the last one written. */
-function changes(write: (value: string) => void) {
-  let shown: string | undefined
-  return (value: string) => {
-    if (value !== shown) write((shown = value))
-  }
-}
+/** A Stage as stars, those not reached yet outlined: ★★☆ for Stage 2. */
+const stars = (stage: number) => '★'.repeat(stage) + (stage < LAST_STAGE ? `<s>${'☆'.repeat(LAST_STAGE - stage)}</s>` : '')
 
 /**
- * What the screen shows of Stages (.scratch/ui-ux/spec.md, "Readings"): the City's Growth under the yen, with how many
- * Tiles are at each Stage and the Record beneath; a bar over the placed Tile under the pointer with its Stage and its trips toward the next,
- * or why it is not growing; and a badge that rises over a Tile as its Stage-up ends. The bar hides while `busy`, as
- * when a Layout or a Zone is in the player's hand, and during a Rebuild.
+ * What the board shows of Stages (.scratch/ui-ux/spec.md, "Readings"; #243, "In play"; the City's Growth and the Record
+ * are in the status strip, `./strip`): a taped paper note on the placed Tile under the pointer with its Zone, its Stage
+ * as stars, ten pips of progress toward the next and a handwritten line of the trips still to go, or why it is not
+ * growing; and a paper badge that rises over a Tile as its Stage-up ends. The note hides while `busy`, as when a Layout
+ * or a Zone is in the player's hand, and during a Rebuild.
  */
 export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game: Game, view: View, busy: () => boolean) {
-  const pill = document.createElement('div')
-  pill.className = 'glass growth'
-  pill.innerHTML = `
-    <div class="row"><span class="label">Growth</span><b class="total"></b><span class="soft stages"></span></div>
-    <div class="soft record"></div>
-    <div class="soft pace" hidden></div>`
-  root.append(pill)
-  const [total, stages, record, pace] = ['.total', '.stages', '.record', '.pace'].map((s) => pill.querySelector<HTMLElement>(s)!)
-
   // Over the board and its labels, under the screen's pills, like the Jam markers.
   const layer = document.createElement('div')
   layer.className = 'growth-layer'
   root.before(layer)
-  const bar = layer.appendChild(document.createElement('div'))
-  bar.className = 'tile-bar'
-  bar.hidden = true
-  bar.innerHTML = `<div class="head"><b class="stage"></b><span class="stars"></span></div><div class="track"><i></i></div><div class="note"></div>`
-  const [barStage, barStars, barFill, barNote] = ['.stage', '.stars', '.track i', '.note'].map((s) => bar.querySelector<HTMLElement>(s)!)
+  const note = layer.appendChild(document.createElement('div'))
+  note.className = 'paper tile-note'
+  note.hidden = true
+  note.innerHTML = `<span class="tape pink"></span><div class="head"><span class="name"></span><span class="stars"></span></div>
+    <div class="pips">${'<i></i>'.repeat(PIPS)}</div><div class="line handwritten"></div>`
+  const [noteZone, noteStars, noteLine] = ['.name', '.stars', '.line'].map((s) => note.querySelector<HTMLElement>(s)!)
+  const pips = [...note.querySelectorAll('.pips i')]
 
   const show = {
-    total: changes((v) => (total.textContent = v)),
-    stages: changes((v) => (stages.innerHTML = v)),
-    record: changes((v) => (record.textContent = v)),
-    pace: changes((v) => {
-      pace.hidden = v === ''
-      pace.textContent = v
+    at: whenChanged((v) => (note.style.translate = v)),
+    hidden: whenChanged((v) => (note.hidden = v === 'hidden')),
+    look: whenChanged((v) => (note.className = v)),
+    zone: whenChanged((v) => (noteZone.textContent = v)),
+    stars: whenChanged((v) => (noteStars.innerHTML = v)),
+    /** Progress toward the next Stage, 0–1: its tenths fill pips, and what is left of one half inks the next. */
+    pips: whenChanged((v) => {
+      const tenths = Number(v) * PIPS
+      pips.forEach((pip, i) => (pip.className = i < Math.floor(tenths) ? 'on' : i < tenths ? 'part' : ''))
     }),
-    at: changes((v) => (bar.style.transform = v)),
-    hidden: changes((v) => (bar.hidden = v === 'hidden')),
-    look: changes((v) => (bar.className = v)),
-    stage: changes((v) => (barStage.textContent = v)),
-    stars: changes((v) => (barStars.textContent = v)),
-    fill: changes((v) => (barFill.style.width = v)),
-    note: changes((v) => (barNote.textContent = v)),
+    line: whenChanged((v) => (noteLine.textContent = v)),
   }
 
   /** Where the pointer is over the board, or null off it. */
@@ -79,7 +67,7 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   view.onStageUp = (piece, stage) => {
     const el = layer.appendChild(document.createElement('div'))
     el.className = 'stage-badge'
-    el.innerHTML = `<span>${stars(stage)}<b>Stage ${stage}</b></span>`
+    el.innerHTML = `<span class="paper"><span class="stars">${stars(stage)}</span><b>Stage ${stage}</b></span>`
     el.addEventListener('animationend', () => {
       el.remove()
       badges.delete(el)
@@ -88,39 +76,30 @@ export function createGrowth(root: HTMLElement, canvas: HTMLCanvasElement, game:
   }
 
   return {
-    /** Show Growth as it stands. Call it every frame, after the frame is drawn. */
+    /** Show the Stages over the board as they stand. Call it every frame, after the frame is drawn. */
     update() {
-      const counts = [0, 0, 0]
-      for (const t of game.city.tiles) {
-        const grown = game.stageOf(t.cell)
-        if (grown) counts[grown.stage - 1]++
-      }
-      show.total(String(game.growth))
-      show.stages(counts.map((n, i) => `<i>${'★'.repeat(i + 1)}</i> ${n}`).join(' · '))
-      show.record(`${game.free ? 'Free-run Record' : 'Record'} ${game.record}`)
-      show.pace(game.pace === 1 ? '' : `Pace ×${game.pace}`)
-
       const cell = hovered()
       show.hidden(cell ? '' : 'hidden')
       if (cell) {
         const [x, y] = view.camera.onScreen(middle(cellBounds(cell)))
-        show.at(`translate(${x.toFixed(1)}px, ${(y + BELOW).toFixed(1)}px) translateX(-50%)`)
+        show.at(`${x.toFixed(1)}px ${(y + BELOW).toFixed(1)}px`)
         const grown = game.stageOf(cell)
         const full = grown?.stage === LAST_STAGE
         const jammed = game.heldBack(cell)
-        show.look(['tile-bar', !grown && 'unzoned', jammed && 'jammed', full && 'full'].filter(Boolean).join(' '))
+        show.look(['paper tile-note', !grown && 'unzoned', jammed && 'jammed', full && 'full'].filter(Boolean).join(' '))
+        show.zone(nameOf(game.city.tileAt(cell)?.zone))
         if (!grown) {
-          show.stage('Roads only')
           show.stars('')
-          show.fill('0%')
-          show.note('does not grow')
+          show.pips('0')
+          show.line('does not grow')
         } else {
           const need = STAGES.trips[grown.stage - 1]
-          const trips = `${Math.floor(grown.progress)} / ${need}`
-          show.stage(`Stage ${grown.stage}`)
+          const left = Math.max(1, Math.ceil(need - grown.progress))
           show.stars(stars(grown.stage))
-          show.fill(`${full ? 100 : Math.min(100, (100 * grown.progress) / need).toFixed(1)}%`)
-          show.note(full ? 'fully grown' : jammed ? `held back by a Jam · ${trips}` : `${trips} trips`)
+          show.pips(full ? '1' : Math.min(1, grown.progress / need).toFixed(3))
+          show.line(
+            full ? 'fully grown' : jammed ? 'held back by a Jam' : `${left} ${left === 1 ? 'trip' : 'trips'} to Stage ${grown.stage + 1}`,
+          )
         }
       }
 

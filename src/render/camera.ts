@@ -21,11 +21,12 @@ const TURN = 2 * Math.PI // rad of heading, or of tilt, for a drag the canvas's 
 const WHEEL = 0.95 // the zoom is multiplied by this for each 100 px the wheel turns away from the player
 const FLIGHT = 0.7 // s for a move the player asks for, or that brings a new Tile into view
 const SLAB_DEPTH = 19 // m from the road plate down to the slab's underside, whose sides frame the City
-// The margins of the canvas the screen's pills cover (index.html), in CSS pixels, with a little room: the readings
-// along the top reach 123 px down, and the bar as far up.
-// ponytail: fixed numbers, so they go stale if the pills change size, and a Tile brought into view (or a Jam marker at
-// the edge) could then stop under one. Have the screen hand the camera its pills' rectangles if that starts to happen.
-export const PILLS = { top: 136, right: 24, bottom: 136, left: 24 }
+// The margins of the canvas the screen's furniture covers (src/ui), in CSS pixels, with a little room: the stickers
+// top-left reach 74 px down, the camera's stickers on the right edge 74 px in, and the toolbar 144 px up, 152 px with a
+// card lifted. A panel open in the left slot is not counted: a City framed may lie under it.
+// ponytail: fixed numbers, so they go stale if the furniture changes size, and a Tile brought into view (or a Jam marker
+// at the edge) could then stop under it. Have the screen hand the camera its furniture's rectangles if that happens.
+export const PILLS = { top: 88, right: 88, bottom: 160, left: 24 }
 const NO_MARGIN = { top: 0, right: 0, bottom: 0, left: 0 }
 
 /** Where the camera is. */
@@ -208,6 +209,21 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
       /** Where the point `at` of the road plane is on the canvas, in CSS pixels from its top-left corner. */
       onScreen(at: Vec): [number, number] {
         return onCanvas(camera, [at.x, 0, -at.y])
+      },
+
+      /**
+       * Put the point `at` of the road plane at once at the middle of the canvas at `zoom`, then `right` and `down` of it
+       * by those shares of the canvas's height, keeping the heading and tilt: the view of a scene only looked at, as the
+       * title screen's. Unlike the player's zoom, `zoom` has no limits.
+       */
+      look(at: Vec, zoom: number, right = 0, down = 0) {
+        flight = null
+        opened = true
+        pose = { ...pose, x: at.x, z: -at.y, zoom }
+        place(camera, pose)
+        const middle = roadUnder(camera, width / 2 - right * height, height / 2 - down * height)
+        if (middle) [pose.x, pose.z] = [middle.x, middle.z]
+        place(camera, pose)
       },
 
       /** Fly to put the point `at` of the road plane at the middle of the canvas, keeping the heading, tilt and zoom. */

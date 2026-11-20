@@ -1,0 +1,275 @@
+/*
+ * The paper & stamp kit (#243, "The theme"): the UI's colours, its two typefaces and its pieces, which every part of the
+ * screen is built from. The UI is the stationery lying beside a toy diorama: cream paper, kraft card, washi tape, round
+ * white stickers and red rubber stamps. The world's own colours are not here.
+ *
+ * Stamp red is the one accent: what is selected, what is wrong, the primary button. Every state also differs by shape
+ * or text. No text is smaller than 13 px.
+ */
+
+/* Both typefaces ship with the game (public/fonts, each with its licence): Zen Maru Gothic for the UI and Klee One for
+   handwritten asides. Only their Latin letters ship, about 11 KB a weight and 36 KB for Klee One; any other script falls
+   back to the system's fonts. */
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-weight: 500;
+  font-display: block;
+  src: url('/fonts/zen-maru-gothic-latin-500.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-weight: 700;
+  font-display: block;
+  src: url('/fonts/zen-maru-gothic-latin-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  font-weight: 900;
+  font-display: block;
+  src: url('/fonts/zen-maru-gothic-latin-900.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Klee One';
+  font-weight: 600;
+  font-display: block;
+  src: url('/fonts/klee-one-latin-600.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --ink: #2b2622;
+  --paper: #f8f1e2;
+  --kraft: #cfae80;
+  /* The hard lower edge of kraft card. */
+  --kraft-edge: #b08d5e;
+  --stamp: #cf3b2c;
+  /* Text on stamp red. */
+  --on-stamp: #fff6ea;
+  /* The dashed rule between groups. */
+  --rule: #b6a68e;
+  /* Quiet text, and the quieter text of a label. */
+  --quiet: #4f4337;
+  --quieter: #6b5b4b;
+  /* Money earned: Income. */
+  --money: #2f6b45;
+  /* A bar's empty track. */
+  --track: #e6dcc6;
+
+  --font: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif;
+  --handwriting: 'Klee One', 'Zen Maru Gothic', cursive;
+}
+
+body {
+  font: 700 14px var(--font);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* A piece sits a degree or so off level when it sets `--tilt` (style="--tilt: -1deg"). The tilt is fixed per piece and
+   never animates, and a piece inside a tilted one does not take its tilt. */
+@property --tilt {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.paper,
+.kraft,
+.tape,
+.sticker,
+.card,
+.stamp {
+  rotate: var(--tilt);
+}
+
+/* Paper: speckled cream with a soft shadow. Notes, the strip, the memo. */
+.paper {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(rgba(120, 90, 50, 0.07) 1px, transparent 1.2px), radial-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1.2px);
+  background-size:
+    5px 5px,
+    7px 7px;
+  background-position:
+    0 0,
+    2px 3px;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.04),
+    0 4px 10px rgba(60, 40, 20, 0.16);
+}
+
+/* Kraft: brown card with a hard lower edge. The toolbar, tags, the keys card. */
+.kraft {
+  background-color: var(--kraft);
+  background-image:
+    radial-gradient(rgba(90, 60, 20, 0.12) 1px, transparent 1.3px),
+    repeating-linear-gradient(12deg, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px 9px);
+  background-size:
+    4px 4px,
+    auto;
+  box-shadow:
+    0 2px 0 var(--kraft-edge),
+    0 12px 26px rgba(60, 40, 20, 0.3);
+}
+
+/* Washi tape, laid across a note's top edge: mint stripes, or `.pink` dots or `.yellow` bars. Place it with left, top
+   and width. */
+.tape {
+  position: absolute;
+  height: 20px;
+  background-color: rgba(160, 212, 200, 0.86);
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.35) 0 5px, transparent 5px 10px);
+  clip-path: polygon(0 0, 100% 0, 96% 25%, 100% 50%, 96% 75%, 100% 100%, 0 100%, 4% 75%, 0 50%, 4% 25%);
+  pointer-events: none;
+}
+.tape.pink {
+  background-color: rgba(244, 182, 196, 0.9);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.55) 1.5px, transparent 2px);
+  background-size: 8px 8px;
+}
+.tape.yellow {
+  background-color: rgba(245, 212, 110, 0.88);
+  background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0 3px, transparent 3px 8px);
+}
+
+/* A sticker: a round, white-rimmed icon button. Pressed, it takes a stamp-red ring. */
+.sticker {
+  width: 54px;
+  height: 54px;
+  box-sizing: border-box;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 3px rgba(60, 40, 20, 0.25);
+}
+.sticker[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 3px var(--stamp),
+    0 2px 3px rgba(60, 40, 20, 0.25);
+}
+
+/* A Layout's card: a picture in a white border. `.held`, the card of the Layout in the hand, lifts and takes a
+   stamp-red ring. */
+.card {
+  padding: 3px;
+  border-radius: 6px;
+  background: #fff;
+  line-height: 0;
+  box-shadow: 0 2px 4px rgba(60, 40, 20, 0.25);
+}
+.card.held {
+  translate: 0 -8px;
+  box-shadow:
+    0 0 0 3px var(--stamp),
+    0 8px 12px rgba(60, 40, 20, 0.35);
+}
+
+/* A stamp: a ring of stamp red inked onto whatever is under it. Size it, and put its mark inside. */
+.stamp {
+  color: var(--stamp);
+  border: 3px solid currentColor;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  mix-blend-mode: multiply;
+}
+
+/* A button drawn in ink: an outline, filled stamp red while it is the one in use (aria-pressed) or the `.primary` one. */
+.button {
+  min-width: 36px;
+  height: 32px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+.button:not([aria-pressed='true'], .primary):hover {
+  background: rgba(43, 38, 34, 0.07);
+}
+.button[aria-pressed='true'],
+.button.primary {
+  border-color: var(--stamp);
+  background: var(--stamp);
+  color: var(--on-stamp);
+  font-weight: 900;
+}
+
+/* A small uppercase label naming a reading or a group. */
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quieter);
+}
+
+/* A dashed rule between groups: upright in a row, or `.across` in a column. */
+.rule {
+  flex: none;
+  align-self: center;
+  width: 0;
+  height: 26px;
+  border-left: 1.5px dashed var(--rule);
+}
+.rule.across {
+  align-self: stretch;
+  width: auto;
+  height: 0;
+  border-left: 0;
+  border-top: 1.5px dashed var(--rule);
+}
+
+/* Handwriting, for asides: Income, the Record, hints. */
+.handwritten {
+  font-family: var(--handwriting);
+  font-weight: 600;
+}
+
+/* A reading that changes, written with `writeDigits` (./readings.ts): each digit in a cell as wide as the widest, so the
+   reading does not jitter as it counts. Zen Maru Gothic's widest digit is 0.51 em at every weight; Klee One's digits
+   are all 0.6 em. */
+.digits {
+  font-variant-numeric: tabular-nums;
+}
+.digits i {
+  display: inline-block;
+  width: 0.51em;
+  text-align: center;
+  font-style: normal;
+}
+.handwritten.digits i {
+  width: 0.6em;
+}
