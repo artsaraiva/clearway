@@ -41,7 +41,7 @@ export function createUI(
   canvas: HTMLCanvasElement,
   game: Game,
   view: View,
-  run: Pick<Run, 'newRun' | 'switchRun' | 'screen'>,
+  run: Pick<Run, 'newRun' | 'switchRun' | 'title' | 'screen'>,
 ) {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!
 

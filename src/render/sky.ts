@@ -14,6 +14,8 @@ const CLOUDS = [
 const DRIFT = 3 // m/s, eastward
 const WRAP = 1.8 // half-widths east of the centre where a cloud leaves, to come back as far to the west
 const CLEAR_ZOOM = 1.9 // camera zoom from which no cloud is visible; they are solid at 1 less
+// In a showcase, half-widths at each end of a cloud's drift over which it puffs in or out, rather than jumping back.
+const PUFF = 0.6
 // Their wings take two of the cars' colours.
 const PLANES = [
   { height: 60, color: '#db6982' },
@@ -54,11 +56,13 @@ function planeModel(color: string): THREE.BufferGeometry {
 
 /**
  * The sky over the slab: clouds that drift east and cast shadows, and propeller planes that cross on near-straight
- * lines. Decoration: nothing in the sim reads it.
+ * lines. Decoration: nothing in the sim reads it. In a `showcase`, as the title screen's, which is looked at close up
+ * and never played, the clouds stay solid however close the camera comes, and puff in and out at the ends of their
+ * drift, where they would otherwise jump back in sight.
  * ponytail: three clouds and two planes whatever the slab's size, so the sky thins out over a City much larger
  * than today's; scale the counts with the slab's area then.
  */
-export function createSky(slab: Bounds) {
+export function createSky(slab: Bounds, showcase = false) {
   let [cx, cz] = centre(slab)
   let [halfWidth, halfDepth] = [(slab.x1 - slab.x0) / 2, (slab.y1 - slab.y0) / 2]
   let half = Math.max(halfWidth, halfDepth)
@@ -102,15 +106,22 @@ export function createSky(slab: Bounds) {
       half = Math.max(halfWidth, halfDepth)
     },
 
-    /** `dt` is the real seconds since the last frame, 0 while paused; `zoom` is the camera's. */
-    update(dt: number, zoom: number) {
+    /**
+     * `dt` is the real seconds since the last frame, 0 while paused; `zoom` is the camera's. `still`, as reduced motion
+     * asks, holds the clouds where they are; the planes fly on.
+     */
+    update(dt: number, zoom: number, still = false) {
       t += dt
       // Clouds fade out as the camera zooms in, so they never sit between the player and a Jam. Their shadows stay.
-      vapour.opacity = THREE.MathUtils.clamp(CLEAR_ZOOM - zoom, 0, 1)
+      vapour.opacity = showcase ? 1 : THREE.MathUtils.clamp(CLEAR_ZOOM - zoom, 0, 1)
       vapour.colorWrite = vapour.depthWrite = vapour.opacity > 0
       for (const cloud of clouds) {
-        cloud.position.x += DRIFT * dt
+        if (!still) cloud.position.x += DRIFT * dt
         if (cloud.position.x > cx + WRAP * halfWidth) cloud.position.x = cx - WRAP * halfWidth
+        if (showcase) {
+          const left = WRAP * halfWidth - Math.abs(cloud.position.x - cx)
+          cloud.scale.setScalar(THREE.MathUtils.clamp(left / (PUFF * halfWidth), 0.001, 1))
+        }
       }
 
       const far = PLANE.far * half

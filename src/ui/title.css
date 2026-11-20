@@ -1,0 +1,245 @@
+/* The title screen (./title.ts): the one-Tile scene in an open blue sky, the title card top-left, the Play ticket
+   bottom-right and the two tags bottom-left. Drawn for 1280 × 800; in a narrow window the tags stack and the ticket
+   shrinks. */
+.title {
+  /* The sky at noon behind the Tile: fixed, whatever the time of day the game's own sky would show. */
+  --sky: linear-gradient(180deg, #6ecbf6 0%, #a9def5 55%, #e6f5f7 100%);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+}
+.title > :not(dialog) {
+  position: absolute;
+}
+.title > .scene {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Over the gradient the view sets for its time of day. */
+  background: var(--sky) !important;
+}
+/* The scene's Gateway labels are the game's, not the title's. */
+.title > .labels {
+  display: none;
+}
+
+/* The title card: the name in the heaviest weight and one handwritten line, taped at two corners. */
+.title .card {
+  left: 56px;
+  top: 50px;
+  padding: 22px 30px 18px;
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.05),
+    0 10px 22px rgba(60, 40, 20, 0.22);
+}
+.title .card .tape {
+  left: -20px;
+  top: -10px;
+  width: 100px;
+}
+.title .card .tape.pink {
+  left: auto;
+  right: -18px;
+  top: -8px;
+  width: 90px;
+}
+.title h1 {
+  margin: 0;
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.title .card p {
+  margin: 8px 0 0;
+  font-size: 19px;
+  color: var(--quiet);
+}
+
+/* Play: a ticket, a red part that says only "Play", a perforation and a paper stub that says "Continue" and sums up the
+   saved run. With no saved run it is the red part alone, notched at both ends. */
+.title .ticket {
+  right: 52px;
+  bottom: 54px;
+  width: 372px;
+  height: 150px;
+  display: flex;
+  rotate: 3deg;
+  transform-origin: 100% 100%;
+  filter: drop-shadow(0 12px 16px rgba(20, 40, 30, 0.4));
+  transition: translate 0.15s;
+}
+.title .ticket[data-alone] {
+  width: 248px;
+}
+.title .ticket:hover,
+.title .ticket:focus-visible {
+  translate: 0 -4px;
+}
+.title[data-leaving='play'] .ticket {
+  translate: 0 3px;
+}
+.title .play {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px 0 0 10px;
+  background: var(--stamp);
+  color: var(--on-stamp);
+  font-size: 60px;
+  font-weight: 900;
+  line-height: 1;
+  mask: radial-gradient(circle 14px at 0 50%, transparent 98%, #000);
+}
+.title .ticket[data-alone] .play {
+  border-radius: 10px;
+  mask: radial-gradient(circle 14px at 0 50%, transparent 98%, #000), radial-gradient(circle 14px at 100% 50%, transparent 98%, #000);
+  mask-composite: intersect;
+}
+.title .stub {
+  width: 124px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-left: 3px dashed var(--stamp);
+  border-radius: 0 10px 10px 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  background: var(--paper);
+  text-align: left;
+  mask: radial-gradient(circle 14px at 100% 50%, transparent 98%, #000);
+}
+.title .stub .handwritten {
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--quiet);
+}
+
+/* New run and Free run: kraft tags with a punched hole. */
+.title .tags {
+  left: 56px;
+  bottom: 60px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  filter: drop-shadow(0 8px 10px rgba(60, 40, 20, 0.3));
+}
+.title .tag {
+  position: relative;
+  height: 50px;
+  padding: 0 22px 0 36px;
+  display: flex;
+  align-items: center;
+  font-size: 17px;
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+  transition: translate 0.15s;
+}
+.title .tag:hover {
+  translate: 0 -3px;
+}
+.title .tag:focus-visible {
+  outline: none;
+  text-decoration: underline 2px;
+  text-underline-offset: 4px;
+}
+.title .hole {
+  position: absolute;
+  left: 16px;
+  top: 20px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* The game's one line on a save that would not load, above the ticket, for as long as the title shows. */
+.title > .notice {
+  top: auto;
+  left: auto;
+  right: 52px;
+  bottom: 232px;
+  translate: none;
+  max-width: min(540px, calc(100% - 104px));
+  cursor: default;
+}
+
+/* New run's question: a paper note over the title, dimmed behind it. */
+.title > .ask {
+  position: fixed;
+  inset: 0;
+  width: fit-content;
+  height: fit-content;
+  max-width: calc(100% - 32px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  overflow: visible;
+}
+.title > .ask::backdrop {
+  background: rgba(43, 38, 34, 0.35);
+}
+.title .note {
+  position: relative;
+  width: 390px;
+  max-width: 100%;
+  padding: 34px 26px 22px;
+  box-sizing: border-box;
+  box-shadow: 0 16px 34px rgba(20, 12, 4, 0.45);
+}
+.title .note > .tape {
+  left: calc(50% - 55px);
+  top: -10px;
+  width: 110px;
+  --tilt: 2deg;
+}
+.title .note h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+}
+.title .note p {
+  margin: 10px 0 22px;
+  font-size: 16px;
+  color: var(--quiet);
+}
+.title .answers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.title .answers .button {
+  height: 40px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+/* A narrow window: the tags stack and the ticket and the name shrink, so that none of them meet. */
+@media (max-width: 960px) {
+  .title h1 {
+    font-size: 56px;
+  }
+  .title .tags {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .title .ticket {
+    scale: 0.8;
+  }
+  .title > .notice {
+    bottom: 196px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title .ticket,
+  .title .tag {
+    transition: none;
+  }
+}

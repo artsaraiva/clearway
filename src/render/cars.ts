@@ -293,8 +293,9 @@ export function createCars(net: Network) {
     /**
      * Place the cars, every one scaled by `grow` (0–1) as a Rebuild shrinks the old ones out and grows the new ones in.
      * `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones, none until fully grown.
+     * Without `shake`, as reduced motion asks, an angry car stays still: it is angry all the same.
      */
-    update(vehicles: Vehicle[], dt: number, grow = 1): StuckCar[] {
+    update(vehicles: Vehicle[], dt: number, grow = 1, shake = true): StuckCar[] {
       t += dt
       const next = new Map<number, number>()
       const angry: StuckCar[] = []
@@ -310,8 +311,9 @@ export function createCars(net: Network) {
         const grown = entries.has(v.lane) ? v.s / GROW : v.lane.toGateway ? (v.lane.length - v.s) / GROW : 1
         const c = carCentre(v)
         // An angry car hops and rocks.
-        at.set(c.x, anger && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * anger, -c.y)
-        q.setFromEuler(e.set(anger && Math.sin(t * 34 + v.id) * 0.07 * anger, heading, 0))
+        const jolt = shake ? anger : 0
+        at.set(c.x, jolt && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * jolt, -c.y)
+        q.setFromEuler(e.set(jolt && Math.sin(t * 34 + v.id) * 0.07 * jolt, heading, 0))
         m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown) * grow)))
         const worn = skinOf(v.id)
         const { body, lights } = skins.get(worn.skin)!

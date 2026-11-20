@@ -210,6 +210,21 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
         return onCanvas(camera, [at.x, 0, -at.y])
       },
 
+      /**
+       * Put the point `at` of the road plane at once at the middle of the canvas at `zoom`, then `right` and `down` of it
+       * by those shares of the canvas's height, keeping the heading and tilt: the view of a scene only looked at, as the
+       * title screen's. Unlike the player's zoom, `zoom` has no limits.
+       */
+      look(at: Vec, zoom: number, right = 0, down = 0) {
+        flight = null
+        opened = true
+        pose = { ...pose, x: at.x, z: -at.y, zoom }
+        place(camera, pose)
+        const middle = roadUnder(camera, width / 2 - right * height, height / 2 - down * height)
+        if (middle) [pose.x, pose.z] = [middle.x, middle.z]
+        place(camera, pose)
+      },
+
       /** Fly to put the point `at` of the road plane at the middle of the canvas, keeping the heading, tilt and zoom. */
       centreOn(at: Vec) {
         fly({ ...destination(), x: at.x, z: -at.y })

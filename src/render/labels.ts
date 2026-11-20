@@ -147,6 +147,11 @@ export function createLabels(canvas: HTMLCanvasElement, camera: THREE.Camera, sc
     show,
     preview,
 
+    /** Take the labels off the page, for a view that is done with. */
+    remove() {
+      layer.remove()
+    },
+
     /**
      * Move each label to where its point is now, on a canvas `w` by `h` CSS pixels. Call it after the frame is drawn, so
      * it reads this frame's camera.
