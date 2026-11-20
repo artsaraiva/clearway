@@ -31,6 +31,8 @@ export type MoverKind =
   | 'dog'
   | 'trolley'
   | 'lift'
+  | 'egret'
+  | 'chicken'
 
 /** A mover as a Block's fill lays it out, riding the brick of its build at `brick`. */
 export interface Mover {
@@ -200,6 +202,18 @@ const KINDS: Record<MoverKind, Kind> = {
   dog: { speed: 3.4, bob: 0.07, rate: 13, model: dog, wide: 0.5 }, // #182: it runs a meadow's grass between the picnic blankets
   trolley: { speed: 0.7, bob: 0, rate: 0, model: trolley, wide: 0 }, // #181: a gantry crane's, along its girders, on no ground
   lift: { speed: 1.4, bob: 0, rate: 0, model: lift, wide: 0 }, // #183: a glass lift up a tower's face, on no ground
+  // #184: a farm's. An egret stands in a paddy, steps and flies off, on no ground; a chicken pecks about its run.
+  egret: {
+    speed: 1.7,
+    bob: 0.03,
+    rate: 6,
+    model: egret,
+    wide: 0,
+    fly: { up: 2.4, ease: 2.6 },
+    beat: 3,
+    wings: { rest: -1.35, fan: 0, night: -1.35, open: 0.1, sweep: 0.7 },
+  },
+  chicken: { speed: 0.4, bob: 0.03, rate: 11, model: chicken, wide: 0 },
 }
 
 /** How wide a strip of ground a mover of `kind` takes along its loop (m, #176): 0 for one that works a wall or flies. */
@@ -732,6 +746,54 @@ function pigeon(): THREE.BufferGeometry {
     wing(false),
     wing(true),
   ]).scale(1.6, 1.6, 1.6)
+}
+
+/**
+ * An egret (#184), facing +x and centred on its body as a pigeon is, its long dark legs reaching 0.85 m below it,
+ * oversized as the moving details are: a slim white body, a long neck held up, a yellow bill, and white wings that
+ * beat in flight and fold down along its sides at rest (`createMovers`). Its body is no wider than the wings' root, so
+ * that only its wings beat.
+ */
+function egret(): THREE.BufferGeometry {
+  const [WHITE, LEG, BILL] = ['#fbfaf5', '#3f4650', '#e3bd4a']
+  const wing = (mirror: boolean) => {
+    const pts: [number, number][] = [
+      [0.12, 0.022],
+      [-0.2, 0.022],
+      [-0.24, 0.36],
+      [0.02, 0.3],
+    ]
+    const v: number[] = []
+    for (let i = 1; i < pts.length - 1; i++) for (const [x, z] of [pts[0], pts[i], pts[i + 1]]) v.push(x, 0.03, mirror ? -z : z)
+    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(v, 3))
+    g.computeVertexNormals()
+    return tint(g, WHITE)
+  }
+  return merged([
+    part(0.025, 0.44, 0.012, -0.02, -0.5, 0.012, LEG).deleteAttribute('uv'),
+    part(0.025, 0.44, 0.012, 0.03, -0.5, -0.012, LEG).deleteAttribute('uv'),
+    part(0.36, 0.14, 0.04, -0.04, -0.08, 0, WHITE).deleteAttribute('uv'), // the body
+    part(0.05, 0.3, 0.035, 0.15, 0, 0, WHITE).deleteAttribute('uv'), // the neck
+    part(0.1, 0.06, 0.035, 0.19, 0.28, 0, WHITE).deleteAttribute('uv'), // the head
+    part(0.12, 0.022, 0.02, 0.3, 0.295, 0, BILL).deleteAttribute('uv'),
+    wing(false),
+    wing(true),
+  ]).scale(1.7, 1.7, 1.7)
+}
+
+/** A chicken (#184), facing +x and standing on y = 0, oversized as the moving details are: white, with a comb, a wattle and a tail held up. */
+function chicken(): THREE.BufferGeometry {
+  const [WHITE, COMB, BEAK, LEG] = ['#fbf8f2', '#d98672', '#e3bd4a', '#d9a441']
+  return merged([
+    part(0.03, 0.1, 0.03, 0, 0, 0.04, LEG),
+    part(0.03, 0.1, 0.03, 0, 0, -0.04, LEG),
+    part(0.26, 0.17, 0.17, -0.01, 0.1, 0, WHITE), // the body
+    part(0.07, 0.14, 0.12, -0.16, 0.2, 0, WHITE), // the tail
+    part(0.1, 0.13, 0.1, 0.12, 0.24, 0, WHITE), // the head
+    part(0.07, 0.04, 0.03, 0.12, 0.37, 0, COMB),
+    part(0.03, 0.05, 0.03, 0.17, 0.2, 0, COMB),
+    part(0.06, 0.03, 0.04, 0.2, 0.28, 0, BEAK),
+  ]).scale(1.7, 1.7, 1.7)
 }
 
 /** A firefly (#180): a speck of light, a little large, that `createMovers` lights by night and hides by day. */

@@ -30,15 +30,19 @@ export function cafeTable(kit: Kit, x: number, y: number, colour?: string) {
   kit.brick('building', x, y, KERB)
 }
 
-/** A menu board standing on the pavement at `(x, y)`, facing `ry`, as one Block-zoom brick (#175): chalk on a dark board. */
-export function menuBoard(kit: Kit, x: number, y: number, ry: number) {
+/**
+ * A menu board standing on the pavement at `(x, y)`, facing `ry`, as one Block-zoom brick (#175): chalk on a dark board.
+ * `up` m above the pavement where it stands on other ground, as a farm's earth (#184).
+ */
+export function menuBoard(kit: Kit, x: number, y: number, ry: number, up = 0) {
+  const h = KERB + up
   kit.blockZoomProps(() => {
-    kit.put(kit.cuboid(0.62, 0.86, 0.1), BOARD.frame, x, y, ry, 0, 0, KERB + 0.12)
-    kit.put(kit.cuboid(0.5, 0.7, 0.04), BOARD.face, x, y, ry, 0, 0.05, KERB + 0.2)
-    for (const k of [0, 1, 2]) kit.put(kit.cuboid(0.36, 0.05, 0.02), BOARD.chalk, x, y, ry, 0, 0.08, KERB + 0.72 - k * 0.16)
-    for (const lx of [-0.26, 0.26]) kit.put(kit.cuboid(0.05, 0.14, 0.4), BOARD.frame, x, y, ry, lx, 0, KERB)
+    kit.put(kit.cuboid(0.62, 0.86, 0.1), BOARD.frame, x, y, ry, 0, 0, h + 0.12)
+    kit.put(kit.cuboid(0.5, 0.7, 0.04), BOARD.face, x, y, ry, 0, 0.05, h + 0.2)
+    for (const k of [0, 1, 2]) kit.put(kit.cuboid(0.36, 0.05, 0.02), BOARD.chalk, x, y, ry, 0, 0.08, h + 0.72 - k * 0.16)
+    for (const lx of [-0.26, 0.26]) kit.put(kit.cuboid(0.05, 0.14, 0.4), BOARD.frame, x, y, ry, lx, 0, h)
   })
-  kit.brick('building', x, y, KERB)
+  kit.brick('building', x, y, h)
 }
 
 // Colours: stone for a court's rim, its steps, its floor and a sculpture's plinth.

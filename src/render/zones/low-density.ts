@@ -1210,7 +1210,7 @@ type HouseRoof = 'gable' | 'front' | 'hip' | 'L'
  * south), its roof, and for an L the side of its back its second wing stands on (1 its right, -1 its left, as `local`'s
  * x runs).
  */
-export interface HousePlan {
+interface HousePlan {
   front: number
   roof: HouseRoof
   wing: 1 | -1
@@ -1431,7 +1431,7 @@ function home(
  * its size within its Stage, from where it stands (`home`): its walls in siding with shuttered windows on every face,
  * under a roof of its plan's form.
  */
-export function house(
+function house(
   kit: Kit,
   x: number,
   y: number,
