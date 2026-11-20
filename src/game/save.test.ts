@@ -112,6 +112,22 @@ it('loads a run saved during an Assembly with the Tile landed and open to traffi
   expect(changes.filter((c) => c.at !== 'c7_0')).toEqual(game.sim.configuration())
 })
 
+it('loads a run saved during a Swap’s Assembly with the new Layout landed and its Changes at their defaults', () => {
+  const game = played(false)
+  game.yen = 10_000
+  // The Crossroads has Changes, which name its south Arm: the T-junction has none.
+  expect(game.place(layout('tee'), 0, { x: 0, y: 0 })).toMatchObject({ legal: true, swap: true, affordable: true })
+  expect(game.city.assembling).toHaveLength(1)
+  const { game: back, notice } = load(saveOf(game), false)
+  expect(notice).toBeNull()
+  expect(back.city.tiles).toEqual(game.city.tiles)
+  expect(back.city.assembling).toEqual([])
+  const others = (g: Game) => g.sim.configuration().filter((c) => c.at !== 'c0_0')
+  const swapped = (g: Game) => g.sim.configuration().find((c) => c.at === 'c0_0')
+  expect(others(back)).toEqual(others(game))
+  expect(swapped(back)).toEqual(swapped(new Game(7, { city: new City(game.city.tiles) })))
+})
+
 it('starts a new run when a save will not load, which keeps the Record of a save of this version', () => {
   const text = saveOf(played(false))
   const save = JSON.parse(text)

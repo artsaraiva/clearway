@@ -35,7 +35,7 @@ const END = mark('<circle cx="64" cy="64" r="49" fill="currentColor"/><circle cx
  * on an Arm's give-way paint, or on the round marker at its line, flips its Priority rule. A drag from an incoming lane
  * end to a legal outgoing one turns that Connection on, or off if it was on; so does a click on each in turn. A click on
  * a car shows its route. `Esc`, a click on empty board, Done or selecting something else lets go. While `busy` (a Layout
- * in the hand, or a Rebuild playing) nothing is selectable.
+ * in the hand) nothing is selectable.
  *
  * The page routes presses on the board here (`watchPresses`): `press` takes the ones that draw a Connection, and `click`
  * gets every other click. The Tools follow the pointer themselves for the hover.
@@ -82,13 +82,10 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     from = aim = snap = null
   }
 
-  /**
-   * The "In a Jam" stamp follows the selected Junction's Jam, as its marker does: none while the cars are out of sight
-   * after a Swap or an Undo (`view.rebuilding`).
-   */
+  /** The "In a Jam" stamp follows the selected Junction's Jam, as its marker does. */
   const stamp = () => {
     const id = selected?.id
-    const jammed = id !== undefined && !view.rebuilding && game.sim.jams.some((j) => j.id === id)
+    const jammed = id !== undefined && game.sim.jams.some((j) => j.id === id)
     if (inJam.hidden === jammed) inJam.hidden = !jammed
   }
 
@@ -192,7 +189,7 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     hover(e)
   }
 
-  /** Let go of everything the Tools show, as when a Rebuild replaces the network. */
+  /** Let go of everything the Tools show. */
   const clear = () => {
     hovered = null
     select(null)

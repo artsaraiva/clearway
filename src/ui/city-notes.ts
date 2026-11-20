@@ -1,6 +1,5 @@
 import { LAST_STAGE, type Game } from '../game/game'
 import type { Screen } from '../game/save'
-import type { View } from '../render/view'
 import { runWords, whenChanged, writeDigits, yen } from './readings'
 import './city-notes.css'
 
@@ -16,10 +15,9 @@ const STAGES = Array.from({ length: LAST_STAGE }, (_, i) => i + 1)
  * sticker in the top-left group opens and closes it, ringed in stamp red while it is open, and `screen` keeps the choice
  * in the save. It holds four groups: the traffic (Flow, trips a minute, Junctions in a Jam, Income a minute); Growth
  * with the Record and a bar per Stage counting its Tiles; the count of Tiles with the next Price; and one handwritten
- * line while a Jam holds Tiles at their Stage. The traffic and the Jam line wait while the cars are out of sight after a
- * Swap or an Undo (`view.rebuilding`), as the strip's readings do.
+ * line while a Jam holds Tiles at their Stage.
  */
-export function createCityNotes(corner: HTMLElement, slot: HTMLElement, game: Game, view: View, screen: Screen) {
+export function createCityNotes(corner: HTMLElement, slot: HTMLElement, game: Game, screen: Screen) {
   const button = corner.appendChild(document.createElement('button'))
   button.className = 'sticker'
   button.setAttribute('aria-label', 'City notes')
@@ -79,9 +77,6 @@ export function createCityNotes(corner: HTMLElement, slot: HTMLElement, game: Ga
       writeDigits(jamLine, v)
     }),
   }
-  /** Whether the traffic has been shown yet: until it has, it does not wait for the cars to come back in sight. */
-  let shown = false
-
   /** Show the notes open or closed, as `screen` keeps them. */
   const showOpenOrClosed = () => {
     button.setAttribute('aria-pressed', String(screen.cityNotes))
@@ -100,21 +95,18 @@ export function createCityNotes(corner: HTMLElement, slot: HTMLElement, game: Ga
     update() {
       if (!screen.cityNotes) return
       const placed = game.city.tiles
-      if (!view.rebuilding || !shown) {
-        shown = true
-        show.flow(`${Math.round(game.sim.flow * 100)}%`)
-        show.trips(String(Math.round(game.tripsPerMinute)))
-        show.jams(String(game.sim.jams.length))
-        // Each Junction is one Tile's, so a Jam holds back at most one Tile.
-        const held = placed.filter((t) => game.heldBack(t.cell))
-        show.jamLine(
-          held.length === 1
-            ? `A Jam at the ${held[0].layout.name} holds its Tile at Stage ${game.stageOf(held[0].cell)!.stage}.`
-            : held.length
-              ? `Jams hold ${held.length} Tiles at their Stage.`
-              : '',
-        )
-      }
+      show.flow(`${Math.round(game.sim.flow * 100)}%`)
+      show.trips(String(Math.round(game.tripsPerMinute)))
+      show.jams(String(game.sim.jams.length))
+      // Each Junction is one Tile's, so a Jam holds back at most one Tile.
+      const held = placed.filter((t) => game.heldBack(t.cell))
+      show.jamLine(
+        held.length === 1
+          ? `A Jam at the ${held[0].layout.name} holds its Tile at Stage ${game.stageOf(held[0].cell)!.stage}.`
+          : held.length
+            ? `Jams hold ${held.length} Tiles at their Stage.`
+            : '',
+      )
       show.income(yen(game.income))
       show.growth(`Growth ${game.growth} · ${runWords(game.free).record} ${game.record}`)
       const at = STAGES.map(() => 0)

@@ -130,7 +130,7 @@ it('earns nothing during the Pre-warm', () => {
 
 it('pays the Income floor when no trip arrives', () => {
   const game = gameOf(350, ['crossroads', 0, 0, 0])
-  // Every Connection of the Crossroads closed: after the Rebuild no Gateway reaches another, so nothing is sent.
+  // Every Connection of the Crossroads closed: once the Tile lands no Gateway reaches another, so nothing is sent.
   game.apply({ at: 'c0_0', disable: open(game, 'c0_0') })
   expect(place(game, ['straight', 0, 1, 0])).toMatchObject({ legal: true, affordable: true })
   earn(land(game), 60)
@@ -158,16 +158,29 @@ it('undoes a placement for a full refund, with the City and every Change as they
   expect(game.sim.configuration()).toEqual(changes)
 })
 
-it('undoes a Swap, with the swapped Tile and its Changes back', () => {
+it('undoes a Swap that has landed, with the swapped Tile and its Changes back', () => {
   const game = gameOf(1000, ['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
   game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
   const changes = game.sim.configuration()
   place(game, ['roundabout', 0, 0, 0])
+  land(game)
   expect(game.yen).toBe(550)
   expect(game.undo()).toBe(true)
   expect(game.yen).toBe(1000)
   expect(game.city.tiles[0].layout).toBe(layout('crossroads'))
   expect(game.sim.configuration()).toEqual(changes)
+})
+
+it('undoes a Swap dropped during another Swap’s Assembly for a full refund, once both have landed', () => {
+  const game = gameOf(5000, ['crossroads', 0, 0, 0], ['straight', 0, 1, 0], ['crossroads', 0, 2, 0])
+  place(game, ['roundabout', 0, 0, 0])
+  const yen = game.yen
+  place(game, ['roundabout', 0, 2, 0])
+  land(game)
+  expect(game.undo()).toBe(true)
+  expect(game.yen).toBe(yen)
+  expect(game.city.tileAt({ x: 0, y: 0 })?.layout).toBe(layout('roundabout'))
+  expect(game.city.tileAt({ x: 2, y: 0 })?.layout).toBe(layout('crossroads'))
 })
 
 it('undoes a Tile still in its Assembly for a full refund, keeping the Changes made meanwhile', () => {
@@ -218,9 +231,19 @@ it('undoes only the last placement', () => {
   expect(game.city.tiles).toHaveLength(2)
 })
 
+// Placement rules
+
+it('allows a Swap while another Tile is in its Assembly', () => {
+  const game = gameOf(2000, ['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
+  place(game, ['straight', 0, 2, 0])
+  expect(game.city.assembling).toHaveLength(1)
+  expect(place(game, ['roundabout', 0, 0, 0])).toMatchObject({ legal: true, swap: true, affordable: true })
+  expect(game.city.assembling).toHaveLength(2)
+})
+
 // Simulation outcomes
 
-it('resets the swapped Tile’s Changes and keeps its neighbours’ in force', () => {
+it('runs the traffic on the old Layout until a Swap lands, then resets the swapped Tile’s Changes and keeps its neighbours’', () => {
   const [NORTH, EAST] = ['v0_0', 'h1_0'] // the Crossroads' north Gateway and the Straight's east one
   const game = gameOf(1000, ['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
   expect(sendsTo(game, NORTH)).toBe(true)
@@ -229,8 +252,12 @@ it('resets the swapped Tile’s Changes and keeps its neighbours’ in force', (
   const north = open(game, 'c0_0').filter((ref) => ref.includes(`>${NORTH}.`))
   game.apply({ at: 'c0_0', disable: north })
   game.apply({ at: 'c1_0', disable: open(game, 'c1_0') })
+  const crossroads = game.sim.configuration()
 
   expect(place(game, ['roundabout', 0, 0, 0])).toMatchObject({ legal: true, swap: true })
+  // Until the Roundabout lands, the traffic drives the Crossroads with its Changes.
+  expect(game.sim.configuration()).toEqual(crossroads)
+  land(game)
   expect(sendsTo(game, NORTH)).toBe(true)
   expect(game.sim.rates[EAST]).toBeUndefined()
 })
@@ -286,6 +313,8 @@ it('keeps a Tile’s Stage and progress through a Swap, and starts it again at S
   expect(grown.progress).toBeGreaterThan(0)
 
   expect(place(game, ['roundabout', 0, 0, 0])).toMatchObject({ legal: true, swap: true })
+  expect(game.stageOf(CROSSROADS)).toEqual(grown)
+  land(game)
   expect(game.stageOf(CROSSROADS)).toEqual(grown)
 
   expect(

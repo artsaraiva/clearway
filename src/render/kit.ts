@@ -271,7 +271,7 @@ export type Kit = ReturnType<typeof createKit>
 export type Materials = ReturnType<typeof createMaterials>
 
 /**
- * What a brick is, which decides when and how it comes in during a Rebuild. A mover's brick has no shapes: the mover
+ * What a brick is, which decides when and how it comes in during an Assembly. A mover's brick has no shapes: the mover
  * (`./movers`) is drawn apart, and takes the brick's place as it pops in.
  */
 export type BrickKind = 'soil' | 'sand' | 'grass' | 'plate' | 'block' | 'ground' | 'lamp' | 'building' | 'tree' | 'pole' | 'wire' | 'mover'
@@ -305,7 +305,7 @@ export type Walks = number[]
  */
 export type Fate = 'stays' | 'goes' | 'comes'
 
-/** One brick of the slab or of what stands on it: the unit that drops or pops in during a Rebuild. */
+/** One brick of the slab or of what stands on it: the unit that drops or pops in during an Assembly. */
 export interface Brick {
   kind: BrickKind
   /** The point it lands on, or grows out of, in Three coordinates. */

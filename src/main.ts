@@ -12,13 +12,6 @@ import { showNotice } from './ui/notice'
 import { createTitle } from './ui/title'
 import { createUI } from './ui/ui'
 
-// ms of each frame spent on the Pre-warm of a Swap or an Undo while its piece of slab assembles: small enough to leave
-// a 120 Hz frame room to draw. A placement has none: its traffic drives on (ADR 0006).
-// ponytail: that covers a Pre-warm of about 1.5 s on the main thread within the 7 s build at 60 frames a second; a
-// longer one keeps the cars off a finished slab until it is done. Move the Pre-warm to a worker with the sim (the
-// road-network spec's gate) if a City's Pre-warm gets that slow.
-const PREWARM_BUDGET = 4
-
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
 const params = new URLSearchParams(location.search)
 
@@ -28,11 +21,11 @@ const params = new URLSearchParams(location.search)
  */
 function play(run: Run) {
   const game = run.game
-  // The first Pre-warm runs before anything is drawn, so the run opens on settled traffic. For a saved run, it is the
-  // Pre-warm of the Rebuild that loading is.
+  // The Pre-warm runs before anything is drawn, so the run opens on settled traffic, a saved one too. It is the only
+  // one: every change to the City after carries the traffic over (ADR 0006).
   // ponytail: the page stays still while it runs, which grows with the saved City: with loading, about 60 ms for 10
-  // Tiles and 480 ms for 40 on an M4 Pro. Draw the slab first and spread the Pre-warm over frames, as a Rebuild does, if
-  // large Cities keep the page still too long.
+  // Tiles and 480 ms for 40 on an M4 Pro. Draw the slab first and spread the Pre-warm over frames if large Cities keep
+  // the page still too long.
   while (!game.sim.prewarmed) game.step()
   // Dev only: `?finish=none` builds the Zones built to the Finish without their surface pattern and light
   // pools, and `?finish=pattern` or `?finish=pools` with only the one named (#174), for a sheet or a bench of each.
@@ -66,18 +59,13 @@ function play(run: Run) {
   let acc = 0
   /** One frame: `dt` real seconds of the game, drawn. */
   const frame = (dt: number) => {
-    if (!game.sim.prewarmed) {
-      const end = performance.now() + PREWARM_BUDGET
-      while (!game.sim.prewarmed && performance.now() < end) game.step()
-    } else if (!view.rebuilding) {
-      acc += dt * ui.scale // fixed 30 Hz steps; scale = sim seconds per real second
-      while (acc >= DT) {
-        game.step()
-        acc -= DT
-      }
+    acc += dt * ui.scale // fixed 30 Hz steps; scale = sim seconds per real second
+    while (acc >= DT) {
+      game.step()
+      acc -= DT
     }
-    // A Rebuild plays on even while the world is paused, and so do a Tile assembling and the camera.
-    view.render(view.rebuilding || view.assembling || ui.scale ? dt : 0, dt)
+    // A Tile assembling plays on even while the world is paused, and so does the camera.
+    view.render(view.assembling || ui.scale ? dt : 0, dt)
     ui.update()
   }
 

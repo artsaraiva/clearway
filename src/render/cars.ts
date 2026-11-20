@@ -291,11 +291,10 @@ export function createCars(net: Network) {
     reset,
 
     /**
-     * Place the cars, every one scaled by `grow` (0–1) as a Rebuild shrinks the old ones out and grows the new ones in.
-     * `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones, none until fully grown.
-     * When `calm`, as reduced motion asks, an angry car stays still: it is angry all the same.
+     * Place the cars. `dt` is the real seconds since the last frame, 0 while paused. Returns the angry ones. When `calm`,
+     * as reduced motion asks, an angry car stays still: it is angry all the same.
      */
-    update(vehicles: Vehicle[], dt: number, grow = 1, calm = false): StuckCar[] {
+    update(vehicles: Vehicle[], dt: number, calm = false): StuckCar[] {
       t += dt
       const next = new Map<number, number>()
       const angry: StuckCar[] = []
@@ -314,14 +313,14 @@ export function createCars(net: Network) {
         const jolt = calm ? 0 : anger
         at.set(c.x, jolt && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * jolt, -c.y)
         q.setFromEuler(e.set(jolt && Math.sin(t * 34 + v.id) * 0.07 * jolt, heading, 0))
-        m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown) * grow)))
+        m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown))))
         const worn = skinOf(v.id)
         const { body, lights } = skins.get(worn.skin)!
         const k = body.count++
         body.setMatrixAt(k, m)
         lights.setMatrixAt(k, m)
         body.setColorAt(k, worn.paint)
-        if (anger && grow >= 1) angry.push({ at: at.clone(), anger, stuck: wait })
+        if (anger) angry.push({ at: at.clone(), anger, stuck: wait })
       }
       stuck = next
       for (const { body, lights } of skins.values()) {

@@ -91,7 +91,7 @@ export function blockSeed(scenery: Scenery, { x0, y0, x1, y1 }: Bounds): number 
  * What stands on one Block, added to `kit` brick by brick: a roundabout's island, a landmark or special Block from
  * the scenery, a bike lane on a narrow Block, and otherwise what its Tile's Zone builds (`./zones`), or grass on an
  * unzoned Tile, with lamps at its corners, trees along the avenues and its kerbside dressed (`./kerbside`). It reads
- * only the Block, its surroundings and the scenery, so a Block that a Rebuild leaves alone comes out the same. Where
+ * only the Block, its surroundings and the scenery, so a Block that a change to the City leaves alone comes out the same. Where
  * the Block lies seeds its random choices and nothing more: a Zone builds alike anywhere in the City.
  */
 export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, zone, poles }: Surroundings) {
@@ -127,7 +127,7 @@ export function fillBlock(kit: Kit, block: Block, { net, spec, scenery, field, z
     return dress()
   }
 
-  // Every landmark's ground, on the slab yet or not, so that no Rebuild changes which lots are left.
+  // Every landmark's ground, on the slab yet or not, so that no Tile laid later changes which lots are left.
   const reserved = scenery.landmarks.map((l) => towerGround(...l.at))
   const look = zone && LOOKS[zone.id]
   // The seed stands a coral tower here and there, on a Tile whose Zone takes one. A seeded landmark stands wholly on

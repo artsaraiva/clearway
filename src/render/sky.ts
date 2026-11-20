@@ -98,7 +98,7 @@ export function createSky(slab: Bounds, showcase = false) {
   return {
     group,
 
-    /** Fly over a new slab, as after a Rebuild. Clouds and planes carry on from where they are. */
+    /** Fly over a new slab, as after a Tile lands or is taken off. Clouds and planes carry on from where they are. */
     fit(next: Bounds) {
       const [x, z] = centre(next)
       for (const p of planes) [p.east, p.south] = [p.east + cx - x, p.south + cz - z]

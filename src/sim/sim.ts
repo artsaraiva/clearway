@@ -28,6 +28,12 @@ export interface Vehicle {
 
 export const DT = 1 / 30
 
+/** How far along the straight `lane` the point `p` lies, from the lane's start: negative before it. */
+function along(lane: Lane, p: { x: number; y: number }) {
+  const [from, to] = lane.line.pts
+  return ((p.x - from.x) * (to.x - from.x) + (p.y - from.y) * (to.y - from.y)) / Math.hypot(to.x - from.x, to.y - from.y)
+}
+
 export class Sim {
   /** The Junctions and Roads the network was built from. */
   readonly spec: NetworkSpec
@@ -97,21 +103,27 @@ export class Sim {
   }
 
   /**
-   * Take over from the Sim `before`, whose City this one's grew from (ADR 0006). The clock and Flow run on. A vehicle
-   * whose Lane still exists drives on from the same spot of the map, found again by its Lane's id, and one whose Lane
-   * is gone is removed. A vehicle bound for a Gateway that closed draws a new destination, evenly among the Gateways
-   * it can reach from where it is, and is removed if it can reach none. A Junction of both keeps its Jam reading.
-   * `completed` and `served` start again from nothing.
+   * Take over from the Sim `before`, whose City this one's grew or changed from (ADR 0006): a Tile landed, a Swap
+   * landed or a Tile was taken off. The clock and Flow run on. A vehicle whose Lane still exists drives on from the same
+   * spot of the map, found again by its Lane's id. One whose Lane is gone is removed, and so is one whose spot is off
+   * its Lane now: a Road whose end is a Roundabout now, or a cell edge, ends sooner, and its vehicles past the end stood
+   * on the Junction or the Tile that changed. A Junction whose type or Roads changed, as a Swap's do, is a new one: its
+   * vehicles are removed even where a Lane id repeats. A vehicle bound for a Gateway that closed draws a new
+   * destination, evenly among the Gateways it can reach from where it is, and is removed if it can reach none. A
+   * Junction that is the same in both keeps its Jam reading. `completed` and `served` start again from nothing.
    */
   private carry(before: Sim) {
     this.time = before.time
     this.flow = before.flow
+    const shape = (j: Junction) => `${j.type}:${j.arms.map((a) => a.road).sort()}`
+    const was = new Map(before.net.junctions.map((j) => [j.id, shape(j)]))
+    const same = new Set(this.net.junctions.filter((j) => was.get(j.id) === shape(j)).map((j) => j.id))
     const readings = new Map(before.approaches.map((a) => [a.junction.id, a]))
     for (const a of this.approaches) {
-      const read = readings.get(a.junction.id)
+      const read = same.has(a.junction.id) && readings.get(a.junction.id)
       if (read) [a.flow, a.jammed, a.hold] = [read.flow, read.jammed, read.hold]
     }
-    const lanes = new Map(this.net.lanes.map((l) => [l.id, l]))
+    const lanes = new Map(this.net.lanes.filter((l) => !('junction' in l.owner) || same.has(l.owner.junction)).map((l) => [l.id, l]))
     const gateways = Object.keys(this.net.gateways)
     const toward = new Map<string, Set<Lane>>()
     const reaches = (lane: Lane, gateway: string) => {
@@ -122,18 +134,22 @@ export class Sim {
     for (const old of before.net.lanes) {
       const lane = lanes.get(old.id)
       for (const v of old.vehicles) {
-        if (lane && !this.net.gateways[v.dest]) {
-          const reached = gateways.filter((g) => reaches(lane, g))
-          if (reached.length) v.dest = this.demand.draw(reached)
-        }
-        if (!lane || !this.net.gateways[v.dest]) {
+        // The Lane may start further back than it did, as a Road to a cell edge does once a Tile lands on that edge, or
+        // further forward, as one to a Roundabout does.
+        const s = lane ? v.s + along(lane, old.line.pts[0]) : NaN
+        if (!lane || !(s >= 0 && s <= lane.length)) {
           gone.add(v)
           continue
         }
-        // A Road to a cell edge is shorter than one to the next Junction: the lane may start further back than it did.
-        const [from, to] = lane.line.pts
-        const [was] = old.line.pts
-        v.s += ((was.x - from.x) * (to.x - from.x) + (was.y - from.y) * (to.y - from.y)) / Math.hypot(to.x - from.x, to.y - from.y)
+        if (!this.net.gateways[v.dest]) {
+          const reached = gateways.filter((g) => reaches(lane, g))
+          if (!reached.length) {
+            gone.add(v)
+            continue
+          }
+          v.dest = this.demand.draw(reached)
+        }
+        v.s = s
         v.lane = lane
         lane.vehicles.push(v)
       }
@@ -173,8 +189,8 @@ export class Sim {
   }
 
   /**
-   * The configuration of every Junction as it stands, as Changes: what the next Rebuild carries over. Connection refs
-   * and Road ids are stable across Rebuilds.
+   * The configuration of every Junction as it stands, as Changes: what the next Sim of the City carries over.
+   * Connection refs and Road ids are stable from one Sim to the next.
    */
   configuration(): Change[] {
     return this.net.junctions.map((j) => {

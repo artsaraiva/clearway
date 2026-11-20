@@ -88,14 +88,14 @@ export class City {
   /** The Tiles placed, in order, those in their Assembly too. A Swap keeps the Tile's position in the order. */
   readonly tiles: Tile[]
   private readonly at = new Map<string, Tile>()
-  /** The Tiles of `tiles` in their Assembly. */
-  private readonly landing: Set<Tile>
+  /** The Tiles of `tiles` in their Assembly, in the order dropped, each with the landed Tile it swaps out, if any. */
+  private readonly landing = new Map<Tile, Tile | undefined>()
 
-  /** A City of `tiles`, of which those in `assembling` are in their Assembly. */
-  constructor(tiles: Tile[], assembling: Tile[] = []) {
+  /** A City of `tiles`. Those of them still in their Assembly in `from` are in it in this City too. */
+  constructor(tiles: Tile[], from?: City) {
     this.tiles = [...tiles]
     for (const tile of this.tiles) this.at.set(key(tile.cell), tile)
-    this.landing = new Set(assembling.filter((t) => this.tiles.includes(t)))
+    for (const [tile, old] of from?.landing ?? []) if (this.tiles.includes(tile)) this.landing.set(tile, old)
   }
 
   /** A new City: one Tile, its Layout and rotation drawn from `seed`, built as the first Zone. */
@@ -131,8 +131,8 @@ export class City {
 
   /**
    * Drop a Tile built as `zone` (none: unzoned) on an empty cell, or swap the Layout of the Tile on a taken one, which
-   * keeps its own Zone. A Tile dropped on an empty cell starts its Assembly if `assembling` says so, and otherwise has
-   * landed at once. A refused placement changes nothing.
+   * keeps its own Zone. The Tile starts its Assembly if `assembling` says so, and otherwise has landed at once. A refused
+   * placement changes nothing.
    */
   place(layout: Layout, rotation: number, cell: Cell, zone?: Zone, { assembling = false } = {}): Verdict {
     const old = this.at.get(key(cell))
@@ -140,7 +140,7 @@ export class City {
     const verdict = old ? this.swap(layout, rotation, cell) : this.fits(tile)
     if (!verdict.legal) return verdict
     this.put(tile, old)
-    if (assembling && !old) this.landing.add(tile)
+    if (assembling) this.landing.set(tile, old)
     return verdict
   }
 
@@ -149,7 +149,7 @@ export class City {
    * traffic.
    */
   get assembling(): Tile[] {
-    return this.tiles.filter((t) => this.landing.has(t))
+    return [...this.landing.keys()]
   }
 
   /** Land the first Tile in its Assembly, which opens it to traffic. None if no Tile is in its Assembly. */
@@ -160,11 +160,11 @@ export class City {
   }
 
   /**
-   * The Tiles that have landed, as a City of their own: the roads the traffic drives, without the Tiles in their
-   * Assembly.
+   * The Tiles that have landed, as a City of their own: the roads the traffic drives. A Tile placed in its Assembly is
+   * not there yet, and a Tile swapped in its Assembly is still the Tile it swaps out.
    */
   landed(): City {
-    return new City(this.tiles.filter((t) => !this.landing.has(t)))
+    return new City(this.tiles.flatMap((t) => (!this.landing.has(t) ? [t] : (this.landing.get(t) ?? []))))
   }
 
   /**
