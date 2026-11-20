@@ -381,8 +381,9 @@ interface Patch {
 
 /**
  * m: how far edges in a lawn's frame that meet flush, as the front wall's and the border's do, or two pieces' on
- * `spotIn`'s grid, may cross once claimed on the map and read back (#217): float noise. They count as apart, as the
- * frame's strict tests meant them; `clear` once settled the grid's by the frame's own noise, either way.
+ * `spotIn`'s grid, may cross once claimed on the map and read back (#217); and how far apart two lengths may be and be
+ * as long. Float noise: flush edges count as apart, as the frame's strict tests meant them, and two lengths as long tie,
+ * where the frame once settled both by its own noise.
  */
 const FLUSH = 1e-6
 
@@ -566,7 +567,7 @@ interface Run {
 function gardenOf(lawn: Lawn, plot: Plot) {
   const { ry, hu, hv, house } = plot
   const draw = mulberry32(spot(lawn.x, lawn.y) ^ 0x6a8d)
-  const [shedRoll, carpRoll, catRoll, side] = [draw(), draw(), draw(), draw()]
+  const [shedRoll, carpRoll, catRoll, side, tie] = [draw(), draw(), draw(), draw(), draw()]
   const door = (house.u0 + house.u1) / 2
   const runs = wallRuns(hu, door, plot.drive)
   const held: Patch[] = []
@@ -590,7 +591,10 @@ function gardenOf(lawn: Lawn, plot: Plot) {
         )
     return parts.filter((p) => p.u1 - p.u0 >= 1.6)
   })
-  const stretch = stretches.sort((a, b) => b.u1 - b.u0 - (a.u1 - a.u0))[0]
+  // The longest stretch; of two as long, as either side of the gate before a house in the middle of its lawn, one drawn.
+  const longest = Math.max(...stretches.map((p) => p.u1 - p.u0))
+  const ties = stretches.filter((p) => p.u1 - p.u0 >= longest - FLUSH)
+  const stretch = ties[Math.floor(tie * ties.length)]
   const border = stretch ? { ...stretch, v0, v1 } : null
   if (border) hold(border)
   // A shed and a patch stand against the lawn's edge, where the hedge opens for them.
