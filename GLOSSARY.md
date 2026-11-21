@@ -67,7 +67,7 @@ A run in which the Price is ¥0, so every Tile and Swap costs nothing, for relax
 _Avoid_: Creative mode, cheat mode, free-money mode
 
 **Tool**:
-Something the player can change about a Junction: a lane Connection or a Priority rule. Every Tool works on every Junction, free and without limit.
+Something the player can change about a Junction: a lane Connection, a Priority rule or its Signal. Every Tool works on every Junction it fits, free and without limit.
 _Avoid_: Action, power-up, upgrade
 
 **Inspector**:
@@ -144,15 +144,15 @@ _Avoid_: Outbound, egress
 One directed strip of road that vehicles follow in single file.
 
 **Connection**:
-A permitted path inside a Junction from one incoming Lane to one outgoing Lane. The player turns Connections on and off.
+A permitted path inside a Junction from one incoming Lane to one outgoing Lane. The player turns Connections on and off. A selected Junction draws only the Connections of the Lanes the player has changed, each incoming Lane in a colour of its own.
 _Avoid_: Link, turn, lane arrow
 
 **Priority rule**:
-Whether an Arm is a main road or must yield to the other Arms of its Junction. A vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming, so a yielding Arm carries less traffic than a main one. Equal Arms give way to the right. On a roundabout the ring is always main.
-_Avoid_: Right of way setting, control, stop sign
+What sign an Arm has: none, which makes it a main road, a yield sign or a stop sign. A yielding Arm gives way to the main Arms of its Junction, and one with a stop sign to main and yielding Arms alike. A vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming, and so does every vehicle at a stop sign, so such an Arm carries less traffic than a main one. Equal Arms give way to the right. Every Arm starts with no sign. On a roundabout the ring is always main.
+_Avoid_: Right of way setting, control
 
 **Signal**:
-Traffic lights that run a Priority junction in phases: the vehicles of an Arm go on green and stop on red.
+Traffic lights that run a Priority junction of three Arms or more in phases: the vehicles of an Arm go on green and stop on red. The player gives a Junction its Signal and takes it away. While a Junction has one, the Priority rules of its Arms are not read.
 _Avoid_: Traffic light, street light, stoplight, lights
 
 **Walk phase**:

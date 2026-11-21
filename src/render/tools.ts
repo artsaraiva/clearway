@@ -6,9 +6,13 @@ import { glow } from './glow'
 import { dashes, ribbons, v3 } from './ribbons'
 import { canvasTexture } from './shapes'
 
-// The Tools' blue, reserved for Tools and Inspectors. Every lane end is blue on a white rim, which lifts it off the
+// The Tools' blue, reserved for Tools and Inspectors. Every lane end sits on a white rim, which lifts it off the
 // moonlit road plate at night: a circle where Connections start, a ring where they end.
 const [BLUE, PALE, WHITE] = ['#1f7aff', '#a8c8fb', '#ffffff']
+// Each incoming lane of a Junction has a colour of its own, which its lane end and its Connections wear, so that the
+// lanes of a Junction the player has changed tell apart. They keep off the Tools' blue, which the outgoing lane ends
+// wear, and off the Jam's red-orange.
+const LANE_COLOURS = ['#f5b700', '#19b36b', '#b455e0', '#00b8c4', '#ff7ab0', '#8bc34a', '#a0673a', '#5b6cff']
 // m: a lane end's marker, its white rim, a ring's hole as a share of the marker, and how far past its line into the
 // Junction it sits, clear of the give-way paint behind the line.
 const END = { r: 1.6, rim: 0.45, hole: 0.55, inset: 3 }
@@ -19,8 +23,8 @@ const PAINT = { r: 2.5, behind: 1.7 }
 // The halo around a Junction, the spec's soft ring: m past its outermost lane end, its soft width in m, the pale line
 // along its edge, m it lifts, and s to lift.
 const HALO = { margin: 4, width: 3, core: '#d6e8ff', lift: 1.5, rise: 0.16 }
-// m: the Connection being drawn, its white rim, and the line of a Connection already on.
-const TUBE = { core: 1, rim: 1.7, line: 0.55 }
+// m: the Connection being drawn, its white rim, and the line of a changed lane's Connection, with its rim.
+const TUBE = { core: 1, rim: 1.7, line: 0.7, lineRim: 1.2 }
 const GROW = 1.25 // the lane end under the pointer, picked, or snapped to
 // m above the road plate: under the cars, over the paint.
 const Y = { line: 0.2, tube: 0.24, rim: 0.3, end: 0.33, hole: 0.36 }
@@ -76,10 +80,20 @@ export function reach(junction: Junction): number {
   return r
 }
 
+/** The colour of each incoming lane of a Junction: Approach and Ring lanes, in the order of its Arms. */
+function laneColours(junction: Junction): Map<Lane, string> {
+  const lanes = junction.arms.flatMap((arm) => [...arm.approach, ...arm.ringIn])
+  return new Map(lanes.map((lane, i) => [lane, LANE_COLOURS[i % LANE_COLOURS.length]]))
+}
+
+/** Whether the player has changed where `lane` goes: its Connections are not the ones its Junction starts with. */
+const changed = (lane: Lane) => lane.next.some((c) => c.enabled !== c.standard)
+
 /**
  * Every target on a Junction: each Approach's lane ends, past the line where the lane ends, and on a Priority junction
- * each Arm's round marker and, while it yields, its give-way paint. On a roundabout the Ring's lane ends sit on the Ring
- * at each Arm, and there is no Priority rule: the Ring is always main.
+ * each Arm's round marker and, where it has a sign, the paint at its line. A Junction run by a Signal has no markers:
+ * its Signal says who goes. On a roundabout the Ring's lane ends sit on the Ring at each Arm, and there is no Priority
+ * rule: the Ring is always main.
  */
 export function targets(junction: Junction): Target[] {
   const out: Target[] = []
@@ -94,9 +108,9 @@ export function targets(junction: Junction): Target[] {
       const { at, heading } = startOf(lane)
       out.push({ kind: 'out', lane, at: along(at, heading, -inset), r: END.r + END.rim })
     }
-    if (junction.type !== 'priority') continue
+    if (junction.type !== 'priority' || junction.signal) continue
     out.push({ kind: 'rule', arm, at: along(arm.center, arm.angle, RULE.behind), r: RULE.r + END.rim, paint: false })
-    if (arm.priority !== 'yield') continue
+    if (arm.priority === 'main') continue
     for (const lane of arm.approach) {
       const { at, heading } = endOf(lane)
       out.push({ kind: 'rule', arm, at: along(at, heading, -PAINT.behind), r: PAINT.r, paint: true })
@@ -119,7 +133,10 @@ export function nearest(list: Target[], p: Vec, slack: number): Target | null {
 /** The Connection from `from` to the lane end `to`, if the Junction offers one. */
 export const connection = (from: Lane, to: Lane) => from.next.find((c) => c.to === to) ?? null
 
-/** The round marker's face: give-way triangle for a yielding Arm, a diamond for a main one. Drawn pointing out along the Arm. */
+/**
+ * The round marker's face: a give-way triangle for a yielding Arm, an octagon for one with a stop sign, and for one
+ * with no sign a dashed ring with a plus, where a sign can go. Drawn pointing out along the Arm.
+ */
 const faces = new Map<Priority, THREE.Texture>()
 function face(priority: Priority) {
   let texture = faces.get(priority)
@@ -131,12 +148,18 @@ function face(priority: Priority) {
     g.fill()
     g.strokeStyle = g.fillStyle = BLUE
     g.lineWidth = 9
+    if (priority === 'main') g.setLineDash([16, 13.5])
     g.beginPath()
     g.arc(64, 64, 47, 0, 2 * Math.PI)
     g.stroke()
+    g.setLineDash([])
     g.lineJoin = 'round'
     g.beginPath()
-    if (priority === 'yield') {
+    if (priority === 'stop') {
+      for (let k = 0; k < 8; k++) g.lineTo(64 + 30 * Math.cos(((k + 0.5) * Math.PI) / 4), 64 + 30 * Math.sin(((k + 0.5) * Math.PI) / 4))
+      g.closePath()
+      g.fill()
+    } else if (priority === 'yield') {
       // Its point toward the driver who gives way, like the paint.
       g.moveTo(38, 50)
       g.lineTo(90, 50)
@@ -145,12 +168,12 @@ function face(priority: Priority) {
       g.lineWidth = 8
       g.stroke()
     } else {
-      g.moveTo(64, 38)
-      g.lineTo(90, 64)
-      g.lineTo(64, 90)
-      g.lineTo(38, 64)
-      g.closePath()
-      g.fill()
+      g.lineCap = 'round'
+      g.moveTo(64, 46)
+      g.lineTo(64, 82)
+      g.moveTo(46, 64)
+      g.lineTo(82, 64)
+      g.stroke()
     }
   })
   faces.set(priority, texture)
@@ -244,10 +267,12 @@ function halo(strength: number) {
 
 /**
  * The Tools in the world (.scratch/ui-ux/spec.md, "Tools"), in the same language as the route Inspector: a soft halo
- * that lifts around the Junction under the pointer and stays around the selected one. The selected Junction shows its
- * Connections as blue lines, every lane end at once, and on a Priority junction a round marker at each Arm's line. A
- * Connection being drawn is a blue tube from its lane end to the pointer, along the Connection once it snaps to a legal
- * lane end, and dashed when letting go there would turn that Connection off.
+ * that lifts around the Junction under the pointer and stays around the selected one. The selected Junction shows
+ * every lane end at once, each incoming one in a colour of its own, and on a Priority junction with no Signal a round
+ * marker at each Arm's line. It starts with no lines on it: a lane draws its Connections, in its colour, only once the
+ * player has changed them, or while the pointer is on its lane end. A Connection being drawn is a tube in its lane's
+ * colour from its lane end to the pointer, along the Connection once it snaps to a legal lane end, and dashed when
+ * letting go there would turn that Connection off.
  */
 export function createTools() {
   const hover = halo(0.7)
@@ -280,14 +305,20 @@ export function createTools() {
   /** Lay out the selected Junction as it stands. */
   const drawAids = (junction: Junction) => {
     const { from, snap, under } = state
-    const on = junction.arms.flatMap((a) => a.connections).filter((c) => c.enabled)
-    // The Connections of the lane end being drawn from, or pointed at, stand out as tubes; the rest are thin lines.
-    // The one the tube snaps to is drawn by the tube.
+    const colours = laneColours(junction)
+    // The Connections of the lane end being drawn from, or pointed at, stand out as tubes. Of the rest only the lanes
+    // the player has changed draw theirs, as lines. The one the tube snaps to is drawn by the tube.
     const lead = from ?? (under?.kind === 'in' ? under.lane : null)
-    const led = on.filter((c) => c.from === lead && c !== snap).map((c) => c.lane.line.pts)
-    const rest = on.filter((c) => c.from !== lead).map((c) => c.lane.line.pts)
-    if (rest.length) aids.add(strip(rest, TUBE.line, Y.line, BLUE, lead ? 0.4 : 0.85))
-    if (led.length) aids.add(strip(led, TUBE.rim, Y.tube - 0.02, WHITE), strip(led, TUBE.core, Y.tube, BLUE))
+    for (const [lane, colour] of colours) {
+      const lines = lane.next.filter((c) => c.enabled && c !== snap).map((c) => c.lane.line.pts)
+      if (!lines.length) continue
+      if (lane === lead) aids.add(strip(lines, TUBE.rim, Y.tube - 0.02, WHITE), strip(lines, TUBE.core, Y.tube, colour))
+      else if (changed(lane))
+        aids.add(
+          strip(lines, TUBE.lineRim, Y.line - 0.02, WHITE, lead ? 0.35 : 0.9),
+          strip(lines, TUBE.line, Y.line, colour, lead ? 0.4 : 1),
+        )
+    }
     for (const t of targets(junction)) {
       if (t.kind === 'rule') {
         if (t.paint) continue
@@ -301,7 +332,8 @@ export function createTools() {
       const reachable = !from || t.kind === 'in' || connection(from, t.lane)
       const big = t.lane === from || t.lane === snap?.to || (under?.kind === t.kind && under.lane === t.lane)
       const r = END.r * (big ? GROW : 1)
-      aids.add(disc(t.at, r + END.rim, Y.rim, glow(WHITE)), disc(t.at, r, Y.end, glow(reachable ? BLUE : PALE)))
+      const colour = t.kind === 'in' ? colours.get(t.lane)! : reachable ? BLUE : PALE
+      aids.add(disc(t.at, r + END.rim, Y.rim, glow(WHITE)), disc(t.at, r, Y.end, glow(colour)))
       if (t.kind === 'out') aids.add(disc(t.at, r * END.hole, Y.hole, glow(WHITE)))
     }
   }
@@ -309,8 +341,9 @@ export function createTools() {
   /** The Connection being drawn: along the Connection it snaps to, or curving from its lane end toward the pointer. */
   const drawTube = () => {
     clear(tube)
-    const { from, aim, snap } = state
+    const { from, aim, snap, selected } = state
     if (!from) return
+    const colour = (selected && laneColours(selected).get(from)) ?? BLUE
     let line: Vec[]
     if (snap) line = snap.lane.line.pts
     else if (aim) {
@@ -323,10 +356,10 @@ export function createTools() {
     } else return
     // Letting go on a Connection already on turns it off: the tube is dashed there.
     const lines = snap?.enabled ? dashes(line, 1.6, 1.1) : [line]
-    tube.add(strip(lines, TUBE.rim, Y.tube, WHITE), strip(lines, TUBE.core, Y.tube + 0.02, BLUE))
+    tube.add(strip(lines, TUBE.rim, Y.tube, WHITE), strip(lines, TUBE.core, Y.tube + 0.02, colour))
     // Short of a lane end, the tube ends in a round tip under the pointer.
     const tip = line[line.length - 1]
-    if (!snap) tube.add(disc(tip, TUBE.rim * 0.75, Y.tube + 0.04, glow(WHITE)), disc(tip, TUBE.core * 0.8, Y.tube + 0.06, glow(BLUE)))
+    if (!snap) tube.add(disc(tip, TUBE.rim * 0.75, Y.tube + 0.04, glow(WHITE)), disc(tip, TUBE.core * 0.8, Y.tube + 0.06, glow(colour)))
   }
 
   return {
@@ -358,6 +391,7 @@ export function createTools() {
       const key = junction
         ? [
             junction.id,
+            !!junction.signal,
             junction.arms.map((a) => a.priority[0] + a.connections.map((c) => +c.enabled).join('')).join(),
             from?.id,
             snap?.id,

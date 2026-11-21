@@ -1,4 +1,4 @@
-import type { Connection } from './network'
+import type { Arm, Connection } from './network'
 import type { Vehicle } from './sim'
 
 const GAP_AFTER = 1.5 // s: a priority vehicle must reach the conflict point this long after me...
@@ -13,6 +13,9 @@ const HELD = 0.5 // m/s: slower than this, a vehicle is standing in a queue or a
 const YIELD_CRAWL = 0.5
 const YIELD_SLOWING = 0.35
 const ONCOMING = Math.PI / 4 // an Arm within this of straight ahead is the oncoming one
+// m back from a red Arm's line that one green empties: about six cars. A vehicle held within it waits its turn, and one
+// held further back is in a queue the Signal cannot carry.
+const ONE_GREEN = 45
 
 /** IDM against the nearest leader along the path, a merging committed vehicle, or the stop line. */
 export function accel(v: Vehicle): number {
@@ -57,6 +60,7 @@ export function accel(v: Vehicle): number {
   }
   v0 = Math.min(v0, yieldSpeed(v))
   v.vFree = Math.min(v0, Math.sqrt(v.vFreeIn ** 2 + 2 * t.accel * Math.max(0, v.s)))
+  v.atRed = !v.lane.conn && stopped(v.path[0]?.conn?.arm) && v.lane.length - v.s <= ONE_GREEN
   v.waiting = mustStop(v)
   if (v.waiting) {
     const g = v.lane.length - v.s + t.minGap - 0.5
@@ -82,7 +86,10 @@ export function accel(v: Vehicle): number {
  */
 export function yieldSpeed(v: Vehicle): number {
   const next = v.lane.conn ? undefined : v.path[0]?.conn // on a Connection it is already past its line
-  const yields = next?.arm.priority === 'yield' && next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main')
+  if (!next || next.arm.light) return Infinity // the Signal says who goes, not the give-way line
+  const yields =
+    next.arm.priority === 'stop' ||
+    (next.arm.priority === 'yield' && next.conflicts.some(({ other }) => other.enabled && other.arm.priority === 'main'))
   return yields ? Math.sqrt(YIELD_CRAWL ** 2 + 2 * YIELD_SLOWING * Math.max(0, v.lane.length - v.s)) : Infinity
 }
 
@@ -95,6 +102,7 @@ function mustStop(v: Vehicle): boolean {
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
+  if (stopped(c.arm)) return true
   return conflicting(v, c, dist) || !hasRoom(c, v)
 }
 
@@ -112,6 +120,8 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   const held = v.v < HELD
   if (held && !goesFirst(v, c)) return true
   for (const { other: o, s, otherS } of c.conflicts) {
+    // What waits at a red light on another Arm is not coming; what is already in the Junction still is.
+    const red = o.arm !== c.arm && stopped(o.arm)
     const tMe = eta(dist + s, v.v, v.type.accel, c.lane.speedLimit)
     if (o.arm === c.arm) {
       if (rank(o) >= rank(c)) continue
@@ -125,7 +135,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
       if (!held) {
         if (!givesWay(c, o)) continue
         const first = o.from.vehicles[0]
-        if (first && standing(first, o) && goesFirst(first, o)) return true
+        if (!red && first && standing(first, o) && goesFirst(first, o)) return true
       }
     }
     const near = (u: Vehicle, d: number) => {
@@ -134,6 +144,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
       return tO > tMe - GAP_BEFORE && tO < tMe + GAP_AFTER
     }
     for (const u of o.lane.vehicles) if (u.s < otherS && near(u, otherS - u.s)) return true
+    if (red) continue
     for (const u of o.from.vehicles) if (u.path[0] === o.lane && near(u, o.from.length - u.s + otherS)) return true
     for (const f of o.from.feeders) {
       for (const u of f.vehicles) {
@@ -147,15 +158,21 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
 /** Standing at its line, ready to enter `c` once it has right of way. */
 const standing = (u: Vehicle, c: Connection) => u.v < HELD && u.path[0] === c.lane && hasRoom(c, u)
 
-/** A `main` Arm over a `yield` Arm. */
-const outranks = (c: Connection, o: Connection) => c.arm.priority === 'main' && o.arm.priority === 'yield'
+/** Held by its Signal: its light is amber or red. */
+const stopped = (arm: Arm | undefined) => !!arm?.light && arm.light !== 'green'
+
+/** How an Arm ranks by its Priority rule. Under a Signal every Arm ranks the same: the Signal says who goes. */
+const level = (arm: Arm) => (arm.light ? 2 : arm.priority === 'main' ? 2 : arm.priority === 'yield' ? 1 : 0)
+
+/** A `main` Arm over a `yield` Arm, and either over a `stop` Arm. */
+const outranks = (c: Connection, o: Connection) => level(c.arm) > level(o.arm)
 
 /**
  * The Priority rule between two Connections from different Arms of a Priority junction: a `yield` Arm gives way to a
  * `main` Arm. Equal Arms give way to the right, and a left turn to oncoming traffic going straight on.
  */
 function givesWay(c: Connection, o: Connection): boolean {
-  if (c.arm.priority !== o.arm.priority) return outranks(o, c)
+  if (level(c.arm) !== level(o.arm)) return outranks(o, c)
   const bearing = (o.arm.angle - c.arm.angle + 2 * Math.PI) % (2 * Math.PI) // of `o`'s Arm, counterclockwise from `c`'s
   if (bearing < Math.PI - 1e-6) return true // from the right
   return c.turn === 'left' && o.turn === 'straight' && bearing - Math.PI < ONCOMING
@@ -174,7 +191,7 @@ function goesFirst(u: Vehicle, c: Connection): boolean {
   return !c.conflicts.some(({ other: o }) => {
     const w = o.from.vehicles[0]
     const ahead = outranks(o, c) || (!outranks(c, o) && w?.id < u.id)
-    return o.arm !== c.arm && w && ahead && standing(w, o) && goesFirst(w, o)
+    return o.arm !== c.arm && !stopped(o.arm) && w && ahead && standing(w, o) && goesFirst(w, o)
   })
 }
 

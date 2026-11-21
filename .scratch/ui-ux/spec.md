@@ -68,9 +68,10 @@ Money sits apart from traffic, and nothing covers the middle of the board.
 There is no toolbar and no mode.
 
 - **Hover** lifts a soft ring around a Junction and changes the cursor.
-- **A click selects the whole Junction.** Every Approach's lane ends show at once.
-- **Priority rule:** clicking an Arm's give-way paint, or the round marker at its line, flips it between main and yield.
-- **Connection:** drag from an incoming lane end to an outgoing one. A blue tube follows the pointer and snaps to a legal lane. Dragging onto an existing Connection removes it. Click, then click, still works.
+- **A click selects the whole Junction.** Every Approach's lane ends show at once, each incoming one in a colour of its own, with no Connection drawn ([#295](https://github.com/artsaraiva/dioramania/issues/295)): a lane draws its Connections, in its colour, once the player has changed them, and while the pointer is on its lane end.
+- **Priority rule:** clicking the round marker at an Arm's line, or the paint of its sign, takes it round: no sign, a yield sign, a stop sign. The sign stands at the kerb, and its paint lies at the line.
+- **Signal:** on a Priority junction of three Arms or more the Junction's note says what runs it, signs or a Signal, and the player picks. A Signal hides the round markers: its Signal says who goes ([ADR 0011](../../docs/adr/0011-the-player-chooses-what-runs-a-junction.md)).
+- **Connection:** drag from an incoming lane end to an outgoing one. A tube in the lane's colour follows the pointer and snaps to a legal lane. Dragging onto an existing Connection removes it. Click, then click, still works.
 - **Reset** acts on the selected Junction. The city-wide button goes. Undo of a single Change is [#116](https://github.com/artsaraiva/dioramania/issues/116).
 - **Deselecting:** `Esc`, a click on empty board, or selecting something else. `Esc` drops a Tile in the hand first.
 

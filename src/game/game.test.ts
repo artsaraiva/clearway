@@ -147,7 +147,7 @@ it('undoes a placement for a full refund, with the City and every Change as they
   const [tiles, changes] = [[...game.city.tiles], game.sim.configuration()]
   place(game, ['crossroads', 0, 0, 1])
   land(game)
-  game.apply({ at: 'c0_0', priority: { h0_0: 'main' } })
+  game.apply({ at: 'c0_0', priority: { h0_0: 'yield' } })
   earn(game, 9)
   const earned = game.yen - (1000 - 450)
   expect(game.undoable).toBe(true)
@@ -160,7 +160,7 @@ it('undoes a placement for a full refund, with the City and every Change as they
 
 it('undoes a Swap that has landed, with the swapped Tile and its Changes back', () => {
   const game = gameOf(1000, ['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
-  game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
+  game.apply({ at: 'c0_0', priority: { h0_0: 'yield', 'h-1_0': 'stop' }, signal: true })
   const changes = game.sim.configuration()
   place(game, ['roundabout', 0, 0, 0])
   land(game)
@@ -188,7 +188,7 @@ it('undoes a Tile still in its Assembly for a full refund, keeping the Changes m
   const yen = game.yen
   place(game, ['crossroads', 0, 0, 1])
   // A Change made while the Tile assembles is kept: it is on the traffic, which the Tile never reached.
-  game.apply({ at: 'c0_0', priority: { h0_0: 'main' } })
+  game.apply({ at: 'c0_0', priority: { h0_0: 'yield' } })
   const changes = game.sim.configuration()
   expect(game.undo()).toBe(true)
   expect(game.yen).toBe(yen)

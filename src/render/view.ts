@@ -16,6 +16,7 @@ import { createLabels } from './labels'
 import { createMovers } from './movers'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
+import { createSignals } from './signals'
 import { createScenery, finish, type Build, type Building, type Scenery } from './scenery'
 import { createSky } from './sky'
 import { createUnderShadow, slabBounds } from './slab'
@@ -111,6 +112,7 @@ export function createView(
   const under = createUnderShadow()
   under.fit(slab)
   let roads = createRoads(sim.net, sim.spec)
+  const signals = createSignals()
   const cars = createCars(sim.net)
   const walkers = createWalkers()
   walkers.add(sim.net, field, pieces)
@@ -203,6 +205,7 @@ export function createView(
     movers.group,
     under.mesh,
     roads.group,
+    signals.group,
     ...cars.meshes,
     walkers.group,
     sky.group,
@@ -609,6 +612,7 @@ export function createView(
       // The give-way paint shows the traffic's Priorities, whatever network the paint stands on: an Assembly's once its
       // plate has landed.
       roads.update(shown.net)
+      signals.update(shown.net, shown.spec)
       rig.update(real)
       under.update(dt)
       sky.update(dt, rig.camera.zoom, calm)
