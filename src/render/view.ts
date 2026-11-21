@@ -354,7 +354,7 @@ export function createView(
     },
 
     /**
-     * The camera, for the screen to move: `pan` and `rotate` follow drags and `zoomAt` the wheel; `northUp`,
+     * The camera, for the screen to move: `pan` and `rotate` follow drags, `zoomAt` the wheel and `drive` the keys; `northUp`,
      * `frameCity`, `toggleTilt` and `centreOn` fly it, and `look` puts it on a view at once. `heading` is how far the world is turned on screen, in radians
      * clockwise (0 with north up), so a top-down picture turned by it faces the way the board does. `steep` is whether
      * the camera looks down from its steepest tilt, and `onScreen` where a point of the road plane is on the canvas.
