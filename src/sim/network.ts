@@ -1,5 +1,6 @@
 import type { Change, JunctionSpec, NetworkSpec, Priority } from './spec'
 import { arc, bezier, intersect, minRadius, polyline, type Polyline, type Vec } from './geometry'
+import { newSignal, takesSignal, type Light, type Signal } from './signals'
 import type { Vehicle } from './sim'
 
 type LaneKind = 'road' | 'ring' | 'connection'
@@ -44,6 +45,8 @@ export interface Connection {
   to: Lane
   lane: Lane
   enabled: boolean
+  /** On in its Junction's default configuration. */
+  standard: boolean
   conflicts: Conflict[]
   /** Connections ending on the same lane. */
   merges: Connection[]
@@ -58,6 +61,8 @@ export interface Arm {
   /** Direction from the Junction's centre toward the Road's other end, radians counterclockwise from +x (east). */
   angle: number
   priority: Priority
+  /** What its Junction's Signal shows its vehicles, set as the Sim steps: nothing where the Junction has no Signal. */
+  light?: Light
   /** Where the Arm meets the Ring, or the mouth of a Priority junction. */
   center: Vec
   approach: Lane[]
@@ -75,6 +80,8 @@ export interface Junction {
   at: Vec
   /** Counterclockwise: the direction of circulation on a roundabout, and each Arm's neighbour to its right. */
   arms: Arm[]
+  /** Its Signal, while it is run by one. */
+  signal?: Signal
 }
 
 export interface Network {
@@ -219,7 +226,8 @@ export function buildNetwork(network: NetworkSpec, { conflicts = true } = {}): N
         road: id,
         junction: junction.id,
         angle: (angle + 2 * Math.PI) % (2 * Math.PI),
-        priority: 'yield',
+        // A Priority junction's Arms start with no sign. A roundabout's always yield to its Ring.
+        priority: junction.type === 'roundabout' ? 'yield' : 'main',
         center: junction.at,
         approach,
         exit,
@@ -252,7 +260,7 @@ function connect(junction: Junction, arm: Arm, ref: string, from: Lane, to: Lane
   const pts = bezier(from.line.pts[from.line.pts.length - 1], endHeading(from), to.line.pts[0], startHeading(to))
   const lane = makeLane(`${junction.id}:${ref}`, 'connection', { junction: junction.id }, 0, pts, 0)
   lane.speedLimit = Math.min(maxSpeed, Math.sqrt(MAX_LATERAL_ACCEL * minRadius(lane.line)))
-  const c: Connection = { id: lane.id, ref, arm, from, to, lane, enabled, conflicts: [], merges: [] }
+  const c: Connection = { id: lane.id, ref, arm, from, to, lane, enabled, standard: enabled, conflicts: [], merges: [] }
   lane.conn = c
   from.next.push(c)
   to.feeders.push(lane)
@@ -366,7 +374,7 @@ function buildRoundabout(junction: Junction, R: number, ringLanes: number, w: nu
 }
 
 /** Apply a Change to the network. Throws on a Junction, Road or Connection ref the network doesn't have. */
-export function applyChange(net: Network, { at, enable = [], disable = [], priority = {} }: Change) {
+export function applyChange(net: Network, { at, enable = [], disable = [], priority = {}, signal }: Change) {
   const junction = net.junctions.find((j) => j.id === at)
   if (!junction) throw new Error(`"${at}" is not a Junction of the network`)
   const all = junction.arms.flatMap((a) => a.connections)
@@ -388,4 +396,7 @@ export function applyChange(net: Network, { at, enable = [], disable = [], prior
     if (!arm) throw new Error(`Junction ${at} has no Arm on Road "${road}"`)
     arm.priority = rule
   }
+  if (signal && !takesSignal(junction))
+    throw new Error(`Junction ${at} takes no Signal: only a Priority junction of three Arms or more does`)
+  if (signal !== undefined && signal !== !!junction.signal) junction.signal = signal ? newSignal(junction) : undefined
 }

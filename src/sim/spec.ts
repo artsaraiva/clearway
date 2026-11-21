@@ -1,4 +1,4 @@
-export type Priority = 'main' | 'yield'
+export type Priority = 'main' | 'yield' | 'stop'
 /** Metres, x east and y north. */
 export type Point = [number, number]
 
@@ -39,14 +39,19 @@ interface RoadSpec extends Partial<RoadAttributes> {
  * of a Connection sit at the same Arm, and `*` as the Road id on both sides names that Connection at every Arm. On a
  * Priority junction a Connection runs from one Arm to another: `R1.in0>R2.out0`.
  *
- * `priority` sets the Priority rule per Arm of a Priority junction, keyed by Road id. Every Arm starts as `yield`, and
- * Arms that are all `main` or all `yield` make the same uncontrolled Junction.
+ * `priority` sets the Priority rule per Arm of a Priority junction, keyed by Road id. Every Arm starts as `main`, with
+ * no sign, and Arms that are all `main` or all `yield` make the same uncontrolled Junction. A `stop` Arm gives way to
+ * `main` and `yield` Arms, and its vehicles stop at its line whoever is coming.
+ *
+ * `signal` gives a Priority junction of three Arms or more a Signal, or takes it away. While it has one its Signal
+ * says who goes, and the Priority rules of its Arms wait, unread, for the Signal to go.
  */
 export interface Change {
   at: string
   enable?: string[]
   disable?: string[]
   priority?: Record<string, Priority>
+  signal?: boolean
 }
 
 /** The Junctions and Roads a network is built from. A Road with a point for an end is a Gateway. */

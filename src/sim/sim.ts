@@ -2,8 +2,9 @@ import { City } from '../city/city'
 import { Demand, type VehicleType } from './demand'
 import { accel } from './driving'
 import { measure, measureJams, PREWARM, type Approaches } from './metric'
-import { applyChange, buildNetwork, type Arm, type Connection, type Junction, type Lane, type Network } from './network'
+import { applyChange, buildNetwork, type Arm, type Junction, type Lane, type Network } from './network'
 import { lanesTo, replan, route } from './routing'
+import { runSignals } from './signals'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
 
@@ -24,6 +25,11 @@ export interface Vehicle {
   dest: string
   /** Held at the end of its lane this step. */
   waiting: boolean
+  /**
+   * Waiting its turn at a Signal: on an Arm whose light is not green, near enough to the line to go on the next green.
+   * It counts as moving freely, so a Signal's own queue is no Jam; one too long for a green to empty still is.
+   */
+  atRed?: boolean
 }
 
 export const DT = 1 / 30
@@ -50,8 +56,8 @@ export class Sim {
    */
   readonly served: Uint32Array
   private demand: Demand
-  /** Every Junction's default configuration, which Reset returns to. */
-  private defaults: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
+  /** Every Arm's default Priority rule, which Reset returns to. */
+  private defaults: Map<Arm, Priority>
   /** How the traffic into each Junction moves, which says where the Jams are. */
   private approaches: Approaches[]
   /** Each Junction's index in `net.junctions`, by its id. */
@@ -77,10 +83,7 @@ export class Sim {
     this.spec = source instanceof City ? networkSpec(source) : source.network
     this.net = buildNetwork(this.spec, { conflicts })
     const arms = this.arms()
-    this.defaults = {
-      enabled: new Set(arms.flatMap((a) => a.connections).filter((c) => c.enabled)),
-      priority: new Map(arms.map((a) => [a, a.priority])),
-    }
+    this.defaults = new Map(arms.map((a) => [a, a.priority]))
     for (const change of carried) applyChange(this.net, change)
     // After the Changes: a Gateway only sends trips to the Gateways it can reach as the Connections stand.
     this.rates = source instanceof City ? gatewayDemand(source, this.net) : source.demand
@@ -99,7 +102,8 @@ export class Sim {
     this.served = new Uint32Array(this.net.junctions.length)
     this.junctionIndex = new Map(this.net.junctions.map((j, i) => [j.id, i]))
     if (traffic) this.carry(traffic)
-    else if (prewarm) while (!this.prewarmed) this.step()
+    runSignals(this.net, this.time)
+    if (!traffic && prewarm) while (!this.prewarmed) this.step()
   }
 
   /**
@@ -182,9 +186,11 @@ export class Sim {
     const junction = this.net.junctions.find((j) => j.id === at)
     if (!junction) throw new Error(`"${at}" is not a Junction of the network`)
     for (const arm of junction.arms) {
-      arm.priority = this.defaults.priority.get(arm)!
-      for (const c of arm.connections) c.enabled = this.defaults.enabled.has(c)
+      arm.priority = this.defaults.get(arm)!
+      for (const c of arm.connections) c.enabled = c.standard
     }
+    junction.signal = undefined
+    runSignals(this.net, this.time)
     replan(this.net, this.vehicles)
   }
 
@@ -196,13 +202,15 @@ export class Sim {
     return this.net.junctions.map((j) => {
       const refs = (on: boolean) => j.arms.flatMap((a) => a.connections.filter((c) => c.enabled === on).map((c) => c.ref))
       const priority = Object.fromEntries(j.arms.map((a) => [a.road, a.priority]))
-      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority }) }
+      return { at: j.id, enable: refs(true), disable: refs(false), ...(j.type === 'priority' && { priority, signal: !!j.signal }) }
     })
   }
 
   /** Make a Change; every vehicle re-plans. */
   apply(change: Change) {
     applyChange(this.net, change)
+    // A Signal put up or taken down shows at once, paused or not.
+    runSignals(this.net, this.time)
     replan(this.net, this.vehicles)
   }
 
@@ -211,6 +219,7 @@ export class Sim {
   }
 
   step() {
+    runSignals(this.net, this.time)
     this.vehicles.push(...this.demand.spawn(this.net, this.time))
     for (const v of this.vehicles) v.acc = accel(v)
     for (const v of this.vehicles) {

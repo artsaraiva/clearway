@@ -69,7 +69,7 @@ function played(free: boolean) {
   expect(game.place(layout(last), turns, { x: lx, y: ly }, zone(lz))).toMatchObject({ legal: true, affordable: true })
   expect(game.land()).toBe(true)
   expect(game.rezone({ x: 1, y: 0 }, zone('farms'))).toBe(true)
-  game.apply({ at: 'c0_0', priority: { h0_0: 'main', 'h-1_0': 'main' } })
+  game.apply({ at: 'c0_0', priority: { h0_0: 'yield', 'h-1_0': 'stop' }, signal: true })
   for (const at of ['c3_0', 'c5_0']) game.apply({ at, disable: open(game, at).slice(0, 2) })
   game.yen = 1234.56
   game.record = 41

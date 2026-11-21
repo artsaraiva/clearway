@@ -64,7 +64,7 @@ const level1 = (): Fixture => ({
     R12: { rate: 2, to: { W1: 1 } },
   },
   seed: 5,
-  initial: [{ at: 'J1', priority: { W1: 'main', R12: 'main' } }],
+  initial: [{ at: 'J1', priority: { R18: 'yield' } }],
   // the main road follows the stream round the corner
   solution: [{ at: 'J1', priority: { R18: 'main', R12: 'main', W1: 'yield' } }],
 })
@@ -176,7 +176,7 @@ const tJunction = (): Fixture => ({
     S: { rate: 1, to: { W: 0.5, E: 0.5 } },
   },
   seed: 4,
-  initial: [{ at: 'T', priority: { S: 'main' } }],
+  initial: [{ at: 'T', priority: { W: 'yield', E: 'yield' } }],
   solution: [{ at: 'T', priority: { W: 'main', E: 'main', S: 'yield' } }],
 })
 
@@ -450,4 +450,164 @@ it.each([
     expect(v.s).toBeGreaterThanOrEqual(0)
     expect(v.s).toBeLessThanOrEqual(v.lane.length)
   }
+})
+
+// Signals
+
+/** The crossroads run by a Signal, with enough traffic for every Arm to queue at red. */
+const signalled = () => start({ ...crossroads([{ at: 'X', signal: true }]), demand: crossroads().demand }, [], { prewarm: false })
+/**
+ * Run `sim` for `seconds` and count the vehicles that enter the Junction `at` from its Roads, by what the light of
+ * their Arm showed as they crossed its line, with the ones that crossed in the Walk phase and the most vehicles seen
+ * standing at a red line at once.
+ */
+function entries(sim: Sim, at: string, seconds: number) {
+  const junction = sim.net.junctions.find((j) => j.id === at)!
+  const seen = { green: 0, amber: 0, red: 0, walk: 0, walked: 0, stood: 0 }
+  let on = new Map<Vehicle, Vehicle['lane']>()
+  for (let i = 0; i < seconds * 30; i++) {
+    sim.step()
+    const lights = new Map(junction.arms.flatMap((a) => a.approach.map((l) => [l, a.light!])))
+    if (junction.signal!.walk) seen.walked += DT
+    const next = new Map(sim.vehicles.map((v) => [v, v.lane]))
+    for (const [v, lane] of next) {
+      const from = on.get(v)
+      const light = from && from !== lane && lights.get(from)
+      if (!light) continue
+      seen[light]++
+      if (junction.signal!.walk) seen.walk++
+    }
+    on = next
+    const standing = [...lights].filter(([l, light]) => light === 'red' && l.vehicles[0]?.v === 0 && l.length - l.vehicles[0].s < 5)
+    seen.stood = Math.max(seen.stood, standing.length)
+  }
+  return seen
+}
+
+it('stops a car at the line of a red Arm of a Signal and lets one on a green Arm through', () => {
+  const seen = entries(signalled(), 'X', 240)
+  expect(seen.green).toBeGreaterThan(20)
+  expect(seen.red).toBe(0)
+  expect(seen.stood).toBeGreaterThan(0)
+})
+
+it('lets no car into the Junction in the Walk phase of its Signal', () => {
+  const seen = entries(signalled(), 'X', 240)
+  expect(seen.walked).toBeGreaterThan(60)
+  expect(seen.walk).toBe(0)
+})
+
+it('gives a City with a Signal the same result every run of a seed', () => {
+  const [a, b] = [0, 1].map(() => run(signalled(), 120))
+  expect(b.flow).toBe(a.flow)
+  expect(state(b)).toEqual(state(a))
+})
+
+it('reads no Jam at a Signal whose queues each green empties, and returns the Junction to its Priority rules on a Reset', () => {
+  const sim = run(signalled(), 240)
+  expect(sim.jams).toEqual([])
+  expect(sim.configuration()[0].signal).toBe(true)
+  sim.reset('X')
+  expect(sim.configuration()[0].signal).toBe(false)
+  expect(sim.net.junctions[0].signal).toBeUndefined()
+})
+
+it('refuses a Signal on a roundabout and on a Junction of two Arms', () => {
+  expect(
+    () => new Sim(new City([{ cell: { x: 0, y: 0 }, layout: layout('roundabout'), rotation: 0 }]), [{ at: 'c0_0', signal: true }]),
+  ).toThrow()
+  expect(
+    () => new Sim(new City([{ cell: { x: 0, y: 0 }, layout: layout('straight'), rotation: 0 }]), [{ at: 'c0_0', signal: true }]),
+  ).toThrow()
+})
+
+// Stop signs
+
+it('brings every car to a crawl at the line of a stop Arm, though nobody is coming', () => {
+  const lone: Fixture = {
+    ...tJunction(),
+    demand: { S: { rate: 4, to: { W: 0.5, E: 0.5 } } },
+    initial: [{ at: 'T', priority: { S: 'stop' } }],
+  }
+  const sim = start(lone, [], { prewarm: false })
+  const slowest = new Map<number, number>()
+  const crossed = new Set<number>()
+  for (let i = 0; i < 120 * 30; i++) {
+    sim.step()
+    for (const v of sim.vehicles) {
+      if (v.lane.id.startsWith('S/') && v.lane.length - v.s < 3) slowest.set(v.id, Math.min(slowest.get(v.id) ?? Infinity, v.v))
+      if (v.lane.conn) crossed.add(v.id)
+    }
+  }
+  expect(crossed.size).toBeGreaterThan(3)
+  for (const id of crossed) expect(slowest.get(id)).toBeLessThan(1)
+})
+
+it('makes a stop Arm give way to a yield Arm', () => {
+  // The heavy road W–E yields to nobody but stops for S: it jams as it did when it yielded to S.
+  const stopping: Fixture = { ...tJunction(), initial: [{ at: 'T', priority: { W: 'stop', E: 'stop', S: 'yield' } }] }
+  expect(jams(start(stopping))).toBe(true)
+})
+
+/**
+ * A Signal at X, whose traffic from W all heads east to Y and out by S2. At Y it has a stop sign and a heavy stream
+ * from N2 to give way to, so its queue fills the Road back to X and blocks X's way out, green or red.
+ */
+const blockedSignal = (): Fixture => ({
+  network: {
+    roadDefaults: NARROW,
+    junctions: { X: { type: 'priority', at: [0, 0] }, Y: { type: 'priority', at: [120, 0] } },
+    roads: {
+      W: { from: [-150, 0], to: 'X', lanes: [1, 1] },
+      N: { from: [0, 150], to: 'X', lanes: [1, 1] },
+      S: { from: [0, -150], to: 'X', lanes: [1, 1] },
+      XY: { from: 'X', to: 'Y', lanes: [1, 1] },
+      N2: { from: [120, 150], to: 'Y', lanes: [1, 1] },
+      S2: { from: 'Y', to: [120, -150], lanes: [1, 1] },
+    },
+  },
+  demand: { W: { rate: 14, to: { S2: 1 } }, N2: { rate: 26, to: { S2: 1 } } },
+  seed: 2,
+  initial: [
+    { at: 'X', signal: true },
+    { at: 'Y', priority: { XY: 'stop' } },
+  ],
+  solution: [],
+})
+
+it('reads a Jam at a Signal whose cars stand through its greens, their way out blocked', () => {
+  const sim = run(start(blockedSignal()), 300)
+  expect(sim.jams.map((j) => j.id)).toContain('X')
+})
+
+it('keeps a Signal over a placement, with its place in the cycle', () => {
+  const city = cityOf(['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
+  const before = new Sim(city, [{ at: 'c0_0', signal: true }], 1)
+  run(before, 20)
+  expect(city.place(layout('straight'), 1, { x: 0, y: -1 }).legal).toBe(true)
+  const after = new Sim(city, before.configuration(), 1, { traffic: before })
+  const lights = (sim: Sim) => sim.net.junctions.find((j) => j.id === 'c0_0')!.arms.map((a) => [a.road, a.light])
+  expect(lights(after)).toEqual(lights(before))
+  expect(lights(after).every(([, light]) => light)).toBe(true)
+})
+
+it('lets a car that waited at its line through a green for a gap turn left as the Signal goes amber', () => {
+  // A steady stream from W goes straight on, and the cars from E turn left across it, to S.
+  const turning: Fixture = {
+    ...crossroads([{ at: 'X', signal: true }]),
+    demand: { W: { rate: 5, to: { E: 1 } }, E: { rate: 4, to: { S: 1 } } },
+  }
+  const sim = start(turning, [], { prewarm: false })
+  let turned = 0
+  const south = sim.net.gateways.S.exit
+  let before = new Set<Vehicle>()
+  for (let i = 0; i < 600 * 30; i++) {
+    sim.step()
+    const now = new Set(south.flatMap((l) => l.vehicles))
+    for (const v of now) if (!before.has(v)) turned++
+    before = now
+  }
+  // The stream fills each green, so a left turn has only the end of it: ten cycles let about two through each, where
+  // holding them on amber let one.
+  expect(turned).toBeGreaterThanOrEqual(18)
 })

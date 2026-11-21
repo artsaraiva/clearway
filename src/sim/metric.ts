@@ -12,10 +12,13 @@ export interface Metric {
   flow: number
 }
 
+/** How freely a vehicle moves, 0–1: its speed against its free speed. One waiting its turn at a Signal moves freely. */
+const ease = (v: Vehicle) => (v.atRed ? 1 : Math.min(1, v.v / v.vFree))
+
 /** Advance Flow by one step of `dt`. Queued spawns count as vehicles at speed 0. */
 export function measure(m: Metric, vehicles: Vehicle[], queued: number, dt: number) {
   let sum = 0
-  for (const v of vehicles) sum += Math.min(1, v.v / v.vFree)
+  for (const v of vehicles) sum += ease(v)
   const n = vehicles.length + queued
   m.flow += (((n ? sum / n : 1) - m.flow) * dt) / FLOW_WINDOW
 }
@@ -39,7 +42,7 @@ export function measureJams(junctions: Approaches[], dt: number) {
   for (const j of junctions) {
     let [sum, n] = [0, 0]
     for (const lane of j.lanes) {
-      for (const v of lane.vehicles) sum += Math.min(1, v.v / v.vFree)
+      for (const v of lane.vehicles) sum += ease(v)
       n += lane.vehicles.length
     }
     j.flow += (((n ? sum / n : 1) - j.flow) * dt) / FLOW_WINDOW

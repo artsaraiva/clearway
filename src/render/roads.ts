@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { pointAt, type Vec } from '../sim/geometry'
 import type { Arm, Lane, Network } from '../sim/network'
-import type { NetworkSpec, Priority } from '../sim/spec'
+import type { NetworkSpec } from '../sim/spec'
 import { dashes, mid, ribbons } from './ribbons'
 
 const PAINT_Y = 0.04
@@ -13,14 +13,36 @@ export const ZEBRA = { stripe: 1.1, pitch: 2.2, length: 4, setback: 1 }
 // Give-way triangles: `pitch` is the target spacing across a lane, `base` a triangle's share of its slot, and `setback`
 // the gap from the stop line to the row.
 const GIVE_WAY = { pitch: 1.75, base: 0.72, length: 2.4, setback: 0.5 }
+/** A stop line across an Approach, m: how thick, and how far behind where the lanes end. */
+const STOP_LINE = { thick: 0.6, setback: 0.5 }
+/** What is painted at an Arm's line: give-way triangles, a stop line for a stop sign or a Signal, or nothing. */
+type Rule = 'yield' | 'stop' | ''
 const paint = (color: number) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide })
 
-/** A row of give-way triangles across each Approach lane of every yielding Arm, pointing at the driver who must give way. */
-function giveWayTriangles(arms: Arm[], rules: Priority[], laneWidth: (road: string) => number): THREE.BufferGeometry {
+/**
+ * A row of give-way triangles across each Approach lane of every yielding Arm, pointing at the driver who must give way,
+ * and a stop line across each Approach lane of an Arm with a stop sign or a Signal.
+ */
+function giveWayTriangles(arms: Arm[], rules: Rule[], laneWidth: (road: string) => number): THREE.BufferGeometry {
   const pos: number[] = []
   for (const [i, arm] of arms.entries()) {
-    if (rules[i] !== 'yield') continue
+    if (!rules[i]) continue
     const w = laneWidth(arm.road)
+    if (rules[i] === 'stop') {
+      for (const lane of arm.approach) {
+        const end = pointAt(lane.line, lane.length)
+        const [fx, fy, lx, ly] = [Math.cos(end.heading), Math.sin(end.heading), -Math.sin(end.heading), Math.cos(end.heading)]
+        const corner = (across: number, back: number) => [
+          end.x + lx * across - fx * back,
+          PAINT_Y + 0.01,
+          -(end.y + ly * across - fy * back),
+        ]
+        const [near, far] = [STOP_LINE.setback, STOP_LINE.setback + STOP_LINE.thick]
+        const [a, b, c, d] = [corner(w / 2, near), corner(-w / 2, near), corner(-w / 2, far), corner(w / 2, far)]
+        pos.push(...a, ...b, ...c, ...a, ...c, ...d)
+      }
+      continue
+    }
     const n = Math.max(1, Math.round(w / GIVE_WAY.pitch))
     const half = ((w / n) * GIVE_WAY.base) / 2
     for (const lane of arm.approach) {
@@ -121,15 +143,14 @@ export function createRoads(net: Network, spec: NetworkSpec) {
         const there = new Map(live.junctions.flatMap((j) => j.arms.map((arm) => [key(arm), arm])))
         ruling = arms.map((arm) => there.get(key(arm)) ?? arm)
       }
-      const now = ruling.map((arm) => arm.priority[0]).join('')
+      const signalled = new Set(live.junctions.filter((j) => j.signal).map((j) => j.id))
+      // No give-way triangles on an Arm whose Junction has a Signal: its Signal says who goes.
+      const rules = ruling.map((arm): Rule => (signalled.has(arm.junction) ? 'stop' : arm.priority === 'main' ? '' : arm.priority))
+      const now = rules.map((r) => r[0] ?? '-').join('')
       if (now === painted) return
       painted = now
       giveWay.geometry.dispose()
-      giveWay.geometry = giveWayTriangles(
-        arms,
-        ruling.map((arm) => arm.priority),
-        laneWidth,
-      )
+      giveWay.geometry = giveWayTriangles(arms, rules, laneWidth)
     },
   }
 }

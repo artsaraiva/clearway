@@ -252,7 +252,7 @@ A good test here asserts an outcome the player could see: a car stopped or went,
 - Demand by category and trips that start and end at Tiles: [#95](https://github.com/artsaraiva/clearway/issues/95). This spec depends on it for cars with real destinations and stops at "the same trip, paused" until it lands.
 - Interiors, furnishing a home, and Walkers' relationships beyond the one who walks beside them.
 - Crime, jobs with consequences, or any Storylet that changes the City. A Storylet is something to read.
-- Whether the player switches a Junction between Signals and the Priority rule with a Tool: an ADR, then its own tickets.
+- Whether the player switches a Junction between Signals and the Priority rule with a Tool: an ADR, then its own tickets. Decided on #295: the player chooses ([ADR 0011](../../docs/adr/0011-the-player-chooses-what-runs-a-junction.md)).
 - Sound.
 - Touch.
 

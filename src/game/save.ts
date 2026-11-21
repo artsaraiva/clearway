@@ -175,8 +175,15 @@ function check(save: Save) {
   const city = new City(tiles)
   // In a City the rules built, every Tile could be swapped for itself: it matches its neighbours' edges and joins one.
   if (tiles.length > 1 && !tiles.every((t) => city.swap(t.layout, t.rotation, t.cell).legal)) throw new Error('a Tile the rules refuse')
-  if (save.changes.some(({ priority = {} }) => Object.values(priority).some((rule) => rule !== 'main' && rule !== 'yield')))
-    throw new Error('a Priority rule that is neither main nor yield')
+  if (save.changes.some(({ priority = {} }) => Object.values(priority).some((rule) => !['main', 'yield', 'stop'].includes(rule))))
+    throw new Error('a Priority rule that is not main, yield or stop')
+  if (save.changes.some(({ signal }) => signal !== undefined && typeof signal !== 'boolean'))
+    throw new Error('a Signal that is neither on nor off')
+  // Before Signals (#295) every Arm started as `yield`, and a save kept that. Arms that all yield give way as Arms
+  // with no sign do, so they load as those, and the Junction shows no sign the player never put there.
+  // A save written since says of each such Junction whether it has a Signal, and keeps the yield signs the player set.
+  for (const change of save.changes)
+    if (change.signal === undefined && Object.values(change.priority ?? {}).every((rule) => rule === 'yield')) delete change.priority
   const stages = save.tiles.flatMap(({ cell, stage, progress }) =>
     stage === null ? [] : [{ cell: { x: cell.x, y: cell.y }, stage, progress }],
   )

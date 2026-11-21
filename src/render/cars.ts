@@ -26,6 +26,8 @@ const [WHITE, , TURQUOISE, YELLOW, MINT, , PALE] = COLORS
 const GROW = 8 // m of lane over which a car grows in, or shrinks out, at a Gateway
 const STUCK_BELOW = 0.4 // m/s
 const COOL = 1.5 // seconds of being stuck forgotten per second of moving
+// At a Signal: seconds of being stuck forgotten per second waiting at red, and how fast a car there grows angry otherwise.
+const [AT_RED, AT_SIGNAL] = [0.5, 0.3]
 const [ANGRY_AFTER, ANGRY_RAMP] = [5, 3] // real seconds stuck before anger starts, and for it to reach full
 
 // The skins' parts that keep their own colour (#176): tyres, the cars' dark glass, a chassis, trim, the lamps by day
@@ -305,7 +307,14 @@ export function createCars(net: Network) {
         const v = vehicles[i]
         const { heading } = pointAt(v.lane.line, v.s)
         const before = stuck.get(v.id) ?? 0
-        const wait = v.v < STUCK_BELOW ? before + dt : Math.max(0, before - COOL * dt)
+        // Waiting its turn at a Signal is not being stuck, and the queue a green has just let go is slow to anger: anger
+        // is for a Jam.
+        const light = (v.lane.conn ?? v.path[0]?.conn)?.arm.light
+        const wait = v.atRed
+          ? Math.max(0, before - AT_RED * dt)
+          : v.v < STUCK_BELOW
+            ? before + dt * (light ? AT_SIGNAL : 1)
+            : Math.max(0, before - COOL * dt)
         next.set(v.id, wait)
         const anger = Math.min(1, Math.max(0, (wait - ANGRY_AFTER) / ANGRY_RAMP))
         const grown = entries.has(v.lane) ? v.s / GROW : v.lane.toGateway ? (v.lane.length - v.s) / GROW : 1

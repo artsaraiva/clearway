@@ -4,25 +4,34 @@ import { connection, type Target } from '../render/tools'
 import type { View } from '../render/view'
 import type { Vec } from '../sim/geometry'
 import type { Arm, Connection, Junction, Lane, Network } from '../sim/network'
+import { takesSignal } from '../sim/signals'
+import type { Priority } from '../sim/spec'
 import { junctionId } from '../sim/tiles'
 import './junction-note.css'
 import type { Gesture } from './press'
 
 const SNAP = 16 // px from a legal lane end at which a Connection being drawn snaps to it
 const KINDS: Record<Junction['type'], string> = { priority: 'priority junction', roundabout: 'roundabout' }
-const HINTS: Record<Junction['type'], string> = {
-  priority: 'Click the paint to give a road priority. Drag between lane ends to connect them.',
-  roundabout: 'Drag between lane ends to connect them. The ring always has priority.',
+const LANES = 'Drag between lane ends to change where a lane goes.'
+const HINTS = {
+  priority: `Click a road’s marker to give it a yield or a stop sign. ${LANES}`,
+  signal: `The Signal says who goes. ${LANES}`,
+  roundabout: `${LANES} The ring always has priority.`,
 }
+/** What a click on an Arm's marker makes of its Priority rule: no sign, a yield sign, a stop sign, and round again. */
+const NEXT: Record<Priority, Priority> = { main: 'yield', yield: 'stop', stop: 'main' }
 /**
  * The marks the Tools draw on the selected Junction (src/render/tools.ts), as the note's legend draws them: an Arm's
- * round marker, main or yield, and a lane end, a circle where Connections start and a ring where they end. Each sits
- * on a white disc, as in the world, and takes the Tools' blue from the note.
+ * round marker, with no sign, a yield sign or a stop sign, and a lane end, a circle where Connections start and a ring
+ * where they end. Each sits on a white disc, as in the world, and takes the Tools' blue from the note.
  */
 const mark = (inner: string) =>
   `<svg width="20" height="20" viewBox="0 0 128 128" aria-hidden="true"><circle cx="64" cy="64" r="63" fill="#fff"/>${inner}</svg>`
 const RING = '<circle cx="64" cy="64" r="47" fill="none" stroke="currentColor" stroke-width="9"/>'
-const MAIN = mark(`${RING}<path d="M64 38L90 64L64 90L38 64z" fill="currentColor"/>`)
+const NONE = mark(
+  '<circle cx="64" cy="64" r="47" fill="none" stroke="currentColor" stroke-width="9" stroke-dasharray="16 13.5"/><path d="M64 46V82M46 64H82" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>',
+)
+const STOP = mark(`${RING}<path d="M52 35H76L93 52V76L76 93H52L35 76V52z" fill="currentColor"/>`)
 const YIELD = mark(`${RING}<path d="M38 50H90L64 90z" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>`)
 const START = mark('<circle cx="64" cy="64" r="49" fill="currentColor"/>')
 const END = mark('<circle cx="64" cy="64" r="49" fill="currentColor"/><circle cx="64" cy="64" r="27" fill="#fff"/>')
@@ -31,9 +40,11 @@ const END = mark('<circle cx="64" cy="64" r="49" fill="currentColor"/><circle cx
  * The Tools, used in the world with no toolbar and no mode (.scratch/ui-ux/spec.md, "Tools"), and the route Inspector.
  * A soft ring lifts around the Junction under the pointer, and a click selects it: its lane ends show, and `note`, a
  * paper note in the left slot (#243, "Junction selected"), gives its Layout and its kind, an "In a Jam" stamp while it
- * is in one, the hint for the two Tools, a legend for their marks, Reset and Done, which lets go as `Esc` does. A click
- * on an Arm's give-way paint, or on the round marker at its line, flips its Priority rule. A drag from an incoming lane
- * end to a legal outgoing one turns that Connection on, or off if it was on; so does a click on each in turn. A click on
+ * is in one, the hint for the Tools, a legend for their marks, Reset and Done, which lets go as `Esc` does. On a
+ * Priority junction of three Arms or more the note also says what runs it, signs or a Signal, and the player picks.
+ * A click on the round marker at an Arm's line, or on the paint of its sign, takes its Priority rule round: no sign, a
+ * yield sign, a stop sign. A drag from an incoming lane end to a legal outgoing one turns that Connection on, or off
+ * if it was on; so does a click on each in turn. A click on
  * a car shows its route. `Esc`, a click on empty board, Done or selecting something else lets go. While `busy` (a Layout
  * in the hand) nothing is selectable.
  *
@@ -50,17 +61,22 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     <header><span class="label">Junction</span><span class="stamp in-jam" hidden>In a Jam</span></header>
     <div class="heading"><h2 class="name"></h2><span class="handwritten kind"></span></div>
     <span class="rule across"></span>
+    <div class="runs" role="group" aria-label="Run by">
+      <span class="label">Run by</span>
+      <button class="button signs">Signs</button><button class="button signal">Signal</button>
+    </div>
     <p class="handwritten hint"></p>
     <ul class="legend">
-      <li class="priority"><span class="marks">${MAIN}</span>Main road</li>
-      <li class="priority"><span class="marks">${YIELD}</span>Yield</li>
-      <li><span class="marks">${START}${END}</span>Lane end</li>
+      <li class="priority"><span class="marks">${NONE}</span>No sign: click to add one</li>
+      <li class="priority"><span class="marks">${YIELD}</span>Yield sign</li>
+      <li class="priority"><span class="marks">${STOP}</span>Stop sign</li>
+      <li><span class="marks">${START}${END}</span>Lane end: lines show the lanes you changed</li>
     </ul>
     <span class="rule across"></span>
     <div class="actions"><button class="button reset">Reset</button><button class="button primary done">Done · Esc</button></div>`
   const el = (s: string) => note.querySelector<HTMLElement>(s)!
-  const [name, kind, hint, inJam] = ['.name', '.kind', '.hint', '.in-jam'].map(el)
-  // A roundabout has no Priority rule, so no round markers to read.
+  const [name, kind, hint, inJam, runs, signs, signal] = ['.name', '.kind', '.hint', '.in-jam', '.runs', '.signs', '.signal'].map(el)
+  // A roundabout has no Priority rule, and neither has a Junction run by a Signal, so no round markers to read.
   const rules = [...note.querySelectorAll<HTMLElement>('.legend .priority')]
 
   let hovered: Junction | null = null
@@ -89,19 +105,28 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     if (inJam.hidden === jammed) inJam.hidden = !jammed
   }
 
+  /** Write the note for the selected Junction as it stands: what runs it, and the hint and legend for that. */
+  const describe = () => {
+    const junction = selected
+    note.hidden = !junction
+    if (!junction) return
+    const signalled = !!junction.signal
+    name.textContent = game.city.tiles.find((t) => junctionId(t.cell) === junction.id)?.layout.name ?? 'Junction'
+    kind.textContent = KINDS[junction.type]
+    hint.textContent = HINTS[signalled ? 'signal' : junction.type]
+    runs.hidden = !takesSignal(junction)
+    signs.setAttribute('aria-pressed', String(!signalled))
+    signal.setAttribute('aria-pressed', String(signalled))
+    for (const li of rules) li.hidden = junction.type !== 'priority' || signalled
+    stamp()
+  }
+
   const select = (junction: Junction | null) => {
     selected = junction
     under = null
     letGo()
-    note.hidden = !junction
-    if (junction) {
-      view.inspectCar(null)
-      name.textContent = game.city.tiles.find((t) => junctionId(t.cell) === junction.id)?.layout.name ?? 'Junction'
-      kind.textContent = KINDS[junction.type]
-      hint.textContent = HINTS[junction.type]
-      for (const li of rules) li.hidden = junction.type !== 'priority'
-      stamp()
-    }
+    if (junction) view.inspectCar(null)
+    describe()
     show()
   }
 
@@ -115,7 +140,16 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
   }
 
   const toggle = (c: Connection) => game.apply({ at: c.arm.junction, [c.enabled ? 'disable' : 'enable']: [c.ref] })
-  const flip = (arm: Arm) => game.apply({ at: arm.junction, priority: { [arm.road]: arm.priority === 'main' ? 'yield' : 'main' } })
+  const flip = (arm: Arm) => game.apply({ at: arm.junction, priority: { [arm.road]: NEXT[arm.priority] } })
+  /** Run the selected Junction by a Signal, or by its signs again. */
+  const run = (bySignal: boolean) => {
+    if (!selected || !!selected.signal === bySignal) return
+    letGo()
+    under = null
+    game.apply({ at: selected.id, signal: bySignal })
+    describe()
+    show()
+  }
 
   /** The halo, the target under the pointer and the cursor follow the pointer, and so does a Connection being drawn. */
   const hover = (e: PointerEvent) => {
@@ -200,8 +234,12 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
     if (!selected) return
     letGo()
     game.reset(selected.id)
+    under = null
+    describe()
     show()
   }
+  signs.onclick = () => run(false)
+  signal.onclick = () => run(true)
   el('.done').onclick = () => select(null)
   window.addEventListener('pointermove', hover)
   canvas.addEventListener('pointerleave', () => {
@@ -234,7 +272,7 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
       from = (selected && from && net.lanes.find((l) => l.id === from!.id)) ?? null
       under = snap = null
       if (!from) aim = null
-      note.hidden = !selected
+      describe()
       show()
     },
 

@@ -47,6 +47,22 @@
   font-size: 15px;
   color: var(--quiet);
 }
+/* What runs the Junction: two buttons side by side, the one in use filled. */
+.junction-note .runs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.junction-note .runs .label {
+  flex: 1;
+}
+.junction-note .runs .button {
+  height: 34px;
+  padding: 0 14px;
+  border-width: 2px;
+  border-radius: 8px;
+  font-size: 14px;
+}
 .junction-note .hint {
   margin: 0;
   font-size: 15px;
@@ -67,6 +83,7 @@
   gap: 8px;
 }
 .junction-note .legend .marks {
+  flex: none;
   width: 44px;
   display: flex;
   gap: 4px;
