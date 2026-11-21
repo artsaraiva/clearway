@@ -185,3 +185,24 @@ Everything else is verified by playing: the mouths, the vehicles standing in vie
 - **Small Blocks.** A plain Drive hides the Zone's mouth. How often that happens on each Layout is not measured.
 - **Frontage.** Every Zone gives up a strip of each Block's Road frontage from Stage 1. Each Zone's plan has to find it, and that is the main cost per Zone.
 - **Rarer taxis and vans.** With Skins by owner, both appear less than today.
+
+## Issues
+
+The Grill is [#274](https://github.com/artsaraiva/dioramania/issues/274). Its tickets, with what blocks each:
+
+- [#327](https://github.com/artsaraiva/dioramania/issues/327) a Drive on every Block
+- [#328](https://github.com/artsaraiva/dioramania/issues/328) vehicles leave and join the Road at a Drive (after #327, #311, #312)
+- [#329](https://github.com/artsaraiva/dioramania/issues/329) industrial, the yard gate and the plant's truck (after #328)
+- [#330](https://github.com/artsaraiva/dioramania/issues/330) farms, the farm track and the kei truck (after #329)
+- [#331](https://github.com/artsaraiva/dioramania/issues/331) a Skin says whose vehicle it is (after #311)
+- [#332](https://github.com/artsaraiva/dioramania/issues/332) low-density, the shared lane and a car at each house (after #329, #331)
+- [#333](https://github.com/artsaraiva/dioramania/issues/333) medium- and high-density, the passage and the ramp (after #328)
+- [#334](https://github.com/artsaraiva/dioramania/issues/334) shops, the service lane and the customer bays (after #328, #297)
+- [#335](https://github.com/artsaraiva/dioramania/issues/335) parks and green, visitors' cars in view (after #328, #297)
+- [#336](https://github.com/artsaraiva/dioramania/issues/336) offices, the ramp and the taxi rank (after #328, #331, #297)
+- [#337](https://github.com/artsaraiva/dioramania/issues/337) Walkers wait for a vehicle crossing a Block (after #329, #288)
+- [#338](https://github.com/artsaraiva/dioramania/issues/338) Places at work, industrial and farms (after #288, #291, #309)
+- [#339](https://github.com/artsaraiva/dioramania/issues/339) Places at home, the three densities (after #338, #293)
+- [#340](https://github.com/artsaraiva/dioramania/issues/340) Places out, offices, parks and green (after #338)
+
+Two tickets of the Living City gained a blocker: Stands ([#297](https://github.com/artsaraiva/dioramania/issues/297)) wait for #328, and the delivery at the shop's bay ([#299](https://github.com/artsaraiva/dioramania/issues/299)) for #334.
