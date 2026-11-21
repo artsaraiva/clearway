@@ -216,6 +216,7 @@ Every open ticket is a GitHub issue: https://github.com/artsaraiva/dioramania/is
 
 ## Resolved tickets
 
+- [#95](https://github.com/artsaraiva/dioramania/issues/95) Blocks that drive Demand (answer in the issue; ADR 0008; prototype [#303](https://github.com/artsaraiva/dioramania/issues/303), the economy Grill [#304](https://github.com/artsaraiva/dioramania/issues/304))
 - [#15](https://github.com/artsaraiva/dioramania/issues/15) UI/UX (answer in the issue; spec in `../ui-ux/spec.md`)
 - [#83](https://github.com/artsaraiva/dioramania/issues/83) The tile sandbox's rules (answer in the issue; spec in `../tile-sandbox/spec.md`; ADR 0004)
 - [#82](https://github.com/artsaraiva/dioramania/issues/82) Tile placing prototype (report and verdict in the issue; rules grilled in [#83](https://github.com/artsaraiva/dioramania/issues/83))
