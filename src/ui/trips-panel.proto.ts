@@ -40,6 +40,7 @@ export function createTripsPanel(game: Game, view: View, canvas: HTMLCanvasEleme
     for (const k in from) to[k] = from[k]!.map((n) => Math.max(1, Math.round(n * by)))
   }
   const knobs: [string, number, number, (v: number) => void][] = [
+    ['where a demand rests in balance (0 to 1)', TRIPS.rest, 0.05, (v) => (TRIPS.rest = v)],
     ['least a demand falls to (0 to 1)', TRIPS.floor, 0.05, (v) => (TRIPS.floor = v)],
     ['jobs a household wants', TRIPS.wants.jobs, 0.1, (v) => (TRIPS.wants.jobs = v)],
     ['shop places a household wants', TRIPS.wants.shopping, 0.1, (v) => (TRIPS.wants.shopping = v)],
@@ -78,8 +79,9 @@ export function createTripsPanel(game: Game, view: View, canvas: HTMLCanvasEleme
     last = 0
   })
 
-  const bar = (share: number, colour: string) =>
-    `<span style="display:inline-block;width:110px;height:10px;background:#ddd;border-radius:3px;overflow:hidden;vertical-align:middle"><span style="display:block;height:100%;width:${Math.round(share * 100)}%;background:${colour}"></span></span>`
+  /** A bar filled to `share`, with a tick at `mark` if given: where a demand rests in balance. */
+  const bar = (share: number, colour: string, mark?: number) =>
+    `<span style="position:relative;display:inline-block;width:110px;height:10px;background:#ddd;border-radius:3px;vertical-align:middle"><span style="display:block;height:100%;border-radius:3px;width:${Math.round(share * 100)}%;background:${colour}"></span>${mark === undefined ? '' : `<span style="position:absolute;top:-3px;left:${Math.round(mark * 100)}%;width:2px;height:16px;background:#222"></span>`}</span>`
   const list = (counts: Record<string, number>) =>
     Object.entries(counts)
       .map(([k, n]) => `<div>&nbsp;&nbsp;${n} ${k}</div>`)
@@ -99,14 +101,14 @@ export function createTripsPanel(game: Game, view: View, canvas: HTMLCanvasEleme
       }
       const most = DEMANDS.reduce((a, b) => (trips.demand[b.id] > trips.demand[a.id] ? b : a))
       demand.innerHTML =
-        `<div style="margin:4px 0"><b>Demand</b> <span style="color:#777">· what the City wants more of. A Tile grows faster the higher its bar.</span></div>` +
+        `<div style="margin:4px 0"><b>Demand</b> <span style="color:#777">· what the City wants more of. A bar past its tick means build more of it, and its Tiles grow faster. Under the tick there is too much of it.</span></div>` +
         DEMANDS.map(
           (d) =>
-            `<div title="${why[d.id]}"><span style="display:inline-block;width:52px"><b>${d.name}</b></span>${bar(trips.demand[d.id], d.colour)} ${Math.round(trips.demand[d.id] * 100)}%<div style="color:#777;margin:0 0 4px 52px">${why[d.id]}</div></div>`,
+            `<div title="${why[d.id]}"><span style="display:inline-block;width:52px"><b>${d.name}</b></span>${bar(trips.demand[d.id], d.colour, TRIPS.rest)} ${Math.round(trips.demand[d.id] * 100)}%<div style="color:#777;margin:0 0 4px 52px">${why[d.id]}</div></div>`,
         ).join('') +
-        (trips.demand[most.id] > TRIPS.floor + 0.05
+        (trips.demand[most.id] > TRIPS.rest + 0.08
           ? `<div>The City most wants <b style="color:${most.colour}">${most.name.toLowerCase()}</b>: place or grow ${most.grows}.</div>`
-          : `<div>The City is in balance: everything grows at its slowest.</div>`)
+          : `<div>The City is in balance: everything grows at a normal pace.</div>`)
       state.innerHTML = `It is ${TIMES[Math.floor(trips.clock * 4)]}, day ${Math.floor(game.sim.time / TRIPS.day) + 1}. ${game.sim.vehicles.length} vehicles on the road, ${game.sim.jams.length} Jams, ${trips.starts.length} trips set out in the last minute.`
 
       const t = selected && trips.tiles.get(selected)

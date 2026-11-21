@@ -50,7 +50,9 @@ export const TRIPS = {
   shopping: [4, 8, 12],
   /** What each car of a home Tile, a household, wants of the City: this share of a job and of a place at the shops. */
   wants: { jobs: 0.5, shopping: 0.4 },
-  /** The least a demand falls to: the world beyond the Gateways always wants a little of everything. */
+  /** Where a demand rests when the City has just what it wants. */
+  rest: 0.55,
+  /** The least a demand falls to, with a glut: the world beyond the Gateways always wants a little of everything. */
   floor: 0.25,
   /** The pace of parks and green, which no demand drives yet. */
   leisure: 0.6,
@@ -59,13 +61,13 @@ export const TRIPS = {
    * when the Tile's own vehicle arrives where it was going, and it counts for as much as the Tile's demand stands at.
    */
   grow: {
-    'low-density': [3, 13],
-    'medium-density': [4, 20],
-    'high-density': [5, 26],
-    shops: [10, 31],
-    offices: [8, 26],
-    industrial: [6, 20],
-    farms: [2, 7],
+    'low-density': [6, 25],
+    'medium-density': [8, 38],
+    'high-density': [10, 50],
+    shops: [19, 60],
+    offices: [15, 50],
+    industrial: [11, 38],
+    farms: [4, 13],
     parks: [10, 29],
     green: [5, 14],
   } as Record<ZoneId, number[]>,
@@ -210,8 +212,11 @@ export class Trips {
       jobs += TRIPS.jobs[t.zone]?.[t.stage - 1] ?? 0
       if (t.zone === 'shops') shopping += TRIPS.shopping[t.stage - 1]
     }
-    const short = (want: number, have: number) =>
-      TRIPS.floor + (1 - TRIPS.floor) * (want > 0 ? Math.max(0, Math.min(1, (want - have) / want)) : 0)
+    // In balance a demand rests at `rest`. Short of what is wanted it rises toward 1, and with a glut it falls toward `floor`.
+    const short = (want: number, have: number) => {
+      const lean = want || have ? (want - have) / Math.max(want, have) : 0
+      return TRIPS.rest + lean * (lean > 0 ? 1 - TRIPS.rest : TRIPS.rest - TRIPS.floor)
+    }
     this.demand = {
       homes: short(jobs / TRIPS.wants.jobs, households),
       shops: short(households * TRIPS.wants.shopping, shopping),
