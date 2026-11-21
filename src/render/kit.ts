@@ -6,9 +6,10 @@ import type { Bounds, Polyline } from '../sim/geometry'
 import { KERB } from './blocks'
 import { lampBoxes, PART as CAR, type ParkedModel } from './cars'
 import type { Glow } from './day'
+import { LOW_POLY } from './look'
 import type { Beacon, BeaconColour, Flag, FlagKind, Mover, MoverKind, Plume, PlumeKind, Pool, Sway, SwayKind } from './movers'
 import { clad, createPatterns, pave, PATTERN, tile, wrap, type Cladding, type Pattern } from './pattern'
-import { canvasTexture, gable, hip, roundedBox, tint } from './shapes'
+import { canvasTexture, gable, hip, nudge, roughBall, roundedBox, tint } from './shapes'
 
 const TAU = Math.PI * 2
 // The palette is the oversaturated one picked in #104 at its gentlest strength. Within 30° of hue of the Tool blue or
@@ -172,12 +173,16 @@ const LEAVES_FALLEN = { count: 12, reach: 4, most: 40, colours: ['#9cc95a', '#c3
 const CROWN = { from: 4.2, out: 2.9 }
 const PETAL = new THREE.CircleGeometry(0.42, 5).rotateX(-Math.PI / 2)
 
-const SPHERE = new THREE.SphereGeometry(1, 16, 12)
-const COARSE_SPHERE = new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
-const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 16).translate(0, 0.5, 0)
+// Low poly (`./look`), the round shapes are few-sided: a roughened ball of eighty faces, a cylinder of seven sides and
+// a cone of six. The coarse sphere is then as fine as the other, a rougher ball that turns its corners another way.
+const SPHERE = LOW_POLY ? roughBall(1, 0.14) : new THREE.SphereGeometry(1, 16, 12)
+const COARSE_SPHERE = LOW_POLY ? roughBall(2, 0.18) : new THREE.SphereGeometry(1, 12, 8) // a coarse tree's (#178)
+const CYLINDER = new THREE.CylinderGeometry(1, 1, 1, LOW_POLY ? 7 : 16).translate(0, 0.5, 0)
 const THIN = new THREE.CylinderGeometry(1, 1, 1, 6).translate(0, 0.5, 0) // for poles and vents, laid by the hundred
 const BEAD = new THREE.IcosahedronGeometry(1, 1) // a flagpole's finial, and a carp pole's
-const CONE = new THREE.ConeGeometry(1, 1, 12).translate(0, 0.5, 0)
+const CONE = new THREE.ConeGeometry(1, 1, LOW_POLY ? 6 : 12).translate(0, 0.5, 0)
+// A ball that is not leaves, a lamp's globe or a scarecrow's head: low poly, the bead's eighty even faces, not the rough ball.
+const BALL = LOW_POLY ? BEAD : SPHERE
 const CONE8 = new THREE.ConeGeometry(1, 1, 8).translate(0, 0.5, 0) // a parasol (#175), laid by the hundred
 const PYRAMID = new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0) // turned an eighth, its base is a square 1.41 across
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
@@ -426,6 +431,8 @@ export interface Finish {
 // Block-zoom props (#173, #175): the zoom (as the camera's) from which they start to fade in, and the zoom at which
 // they stand whole. Tile zoom, one Tile filling the screen, is about 4; City zoom, the whole City in frame, is under 1.
 const BLOCK_ZOOM = { from: 2.2, to: 3.2 }
+/** Low poly (`./look`): how much lighter or darker than its colour a part may be toned, as a share of full lightness. */
+const TONE = 0.02
 
 /**
  * The materials of the static scenery, shared by every Block so that all of them merge into one mesh per material.
@@ -435,7 +442,9 @@ const BLOCK_ZOOM = { from: 2.2, to: 3.2 }
  */
 export function createMaterials(finish: Finish = { pattern: true, pools: true }) {
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
-  const patterns = finish.pattern ? createPatterns() : null
+  // Low poly (`./look`), flat colour stands where the surface pattern was. Only the material drops it: the kit builds
+  // as it does patterned, so what is built and where is the same in both looks.
+  const patterns = finish.pattern && !LOW_POLY ? createPatterns() : null
   if (patterns) solid.onBeforeCompile = patterns.patch
   // `solid`'s patches, read as it compiles so that it takes the Stage Inspector's too, then a dither that drops a share
   // of its pixels as it fades: no blending, so nothing has to be sorted, and only this program carries the discard.
@@ -505,6 +514,7 @@ if (blockZoomFade < 1.0 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= vColor.rgb * vGlow;')
   }
   const water = new THREE.MeshStandardMaterial({ color: '#63d1f4', roughness: 0.12, metalness: 0.05 })
+  for (const material of [solid, blockZoom, glass, bulb, water]) material.flatShading = LOW_POLY
   // Contact shadows: a blurred dark decal under every building and tree, violet like the shadows the light casts (#148).
   const SHADE = '52,44,150'
   const decal = (map: THREE.Texture, opacity: number) =>
@@ -654,9 +664,20 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
   /** Give every vertex of a geometry of the glass or the bulb the glow `glow`. */
   const glowing = (geo: THREE.BufferGeometry, glow: number) =>
     geo.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(glow), 1))
+  /**
+   * `colour` up to `TONE` lighter or darker, by where `geo` stands: low poly (`./look`), parts painted one colour on the
+   * soft-lit scenery are not quite one tone, so that a large flat area is not dead, and a part tones the same way on
+   * every load. Glass, bulbs and what is drawn instanced keep their colour.
+   */
+  const toned = (geo: THREE.BufferGeometry, colour: string) => {
+    const p = geo.attributes.position
+    const at = (v: number) => Math.round(v * 10) // to 10 cm, past the float's last digits
+    return new THREE.Color(colour).offsetHSL(0, 0, nudge(at(p.getX(0)), at(p.getY(0)), at(p.getZ(0))) * TONE)
+  }
   /** Add a geometry that is already in place (Three coordinates). The kit takes it over. */
   const push = (geo: THREE.BufferGeometry, look: Look) => {
-    if (typeof look === 'string') parts.push({ geometry: tint(geo, look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
+    if (typeof look === 'string')
+      parts.push({ geometry: tint(geo, LOW_POLY ? toned(geo, look) : look), material: inBlockZoomProps ? blockZoom : solid, brick: -1 })
     else if ('tint' in look) {
       const tinted = tint(geo, look.tint)
       const lit = look.material === glass || look.material === bulb
@@ -1386,7 +1407,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
       add(cuboid(2.3, 0.14, 0.14), SCARECROW.post, x, y, h + 1.86, ry)
       add(cuboid(1.8, 0.32, 0.34), shirt, x, y, h + 1.74, ry)
       add(cuboid(0.86, 0.96, 0.46), shirt, x, y, h + 1.04, ry)
-      add(SPHERE, SCARECROW.head, x, y, h + 2.42, 0, 0.32, 0.36, 0.32)
+      add(BALL, SCARECROW.head, x, y, h + 2.42, 0, 0.32, 0.36, 0.32)
       add(CYLINDER, STRAW, x, y, h + 2.62, 0, 0.72, 0.06, 0.72)
       add(CONE, STRAW, x, y, h + 2.66, 0, 0.36, 0.4, 0.36)
       shadow(x, y, h, 2, 2, true)
@@ -1465,7 +1486,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     /** A street lamp, as one brick, with a pool of light round its post as far as the pavement goes, where the kit builds with pools. */
     lamp(x: number, y: number, h: number) {
       add(CYLINDER, '#7d8794', x, y, h, 0, 0.14, 5, 0.14)
-      add(SPHERE, bulb, x, y, h + 5.2, 0, 0.44, 0.44, 0.44)
+      add(BALL, bulb, x, y, h + 5.2, 0, 0.44, 0.44, 0.44)
       // As wide as the pavement round its post lets it, its faint rim and no more past the kerb (#175), where a decal
       // at the pavement's height would float over the road plate.
       let r = POOL.lamp
@@ -1480,7 +1501,7 @@ export function createKit(rand: () => number, materials: Materials, label?: () =
     },
 
     ball(look: Look, x: number, y: number, h: number, r: number) {
-      add(SPHERE, look, x, y, h, 0, r, r, r)
+      add(BALL, look, x, y, h, 0, r, r, r)
     },
 
     /**

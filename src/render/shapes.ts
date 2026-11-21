@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Vec } from '../sim/geometry'
+import { LOW_POLY } from './look'
 
 /**
  * Box `w` × `h` × `d` with rounded corners (radius `r`) and a bevelled top and bottom (`b`), standing on y = 0.
- * The radius and bevel shrink to fit a box too small for them.
+ * The radius and bevel shrink to fit a box too small for them. Low poly (`./look`), each corner and bevel is one cut.
  */
 export function roundedBox(w: number, h: number, d: number, r: number, b: number): THREE.BufferGeometry {
   b = Math.min(b, h / 2 - 0.004, w / 2 - 0.04, d / 2 - 0.04)
@@ -23,10 +24,39 @@ export function roundedBox(w: number, h: number, d: number, r: number, b: number
     bevelEnabled: b > 0,
     bevelThickness: b,
     bevelSize: b,
-    bevelSegments: 2,
-    curveSegments: 4,
+    bevelSegments: LOW_POLY ? 1 : 2,
+    curveSegments: LOW_POLY ? 1 : 4,
   })
   return g.rotateX(-Math.PI / 2).translate(0, b, 0)
+}
+
+/**
+ * A number from -1 to 1 that the same whole numbers always give: a part's own small difference, drawn from where it
+ * stands and not from a random stream, so that nothing built after it changes.
+ */
+export function nudge(a: number, b: number, c: number, d = 0): number {
+  const k = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719 + d * 11.131) * 43758.5453
+  return (k - Math.floor(k)) * 2 - 1
+}
+
+/**
+ * A ball of eighty flat faces and radius about 1, every corner pushed in or out by up to `rough` of it: the low-poly
+ * look's sphere (`./look`). `seed` picks which way each corner goes, the same on every load.
+ */
+export function roughBall(seed: number, rough: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, 1)
+  const p = g.attributes.position
+  const v = new THREE.Vector3()
+  const at = (c: number) => Math.round(c * 50) // the same push for every face's copy of a corner
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i)
+    v.multiplyScalar(1 + nudge(seed, at(v.x), at(v.y), at(v.z)) * rough)
+    p.setXYZ(i, v.x, v.y, v.z)
+  }
+  g.computeVertexNormals()
+  // Indexed, as the sphere it stands in for is: a builder's `toNonIndexed()` then takes a copy, not the shared ball.
+  g.setIndex(Array.from({ length: p.count }, (_, i) => i))
+  return g
 }
 
 /** Gable roof standing on y = 0: a triangle `wid` across and `h` high, `len` long, its ridge along z. */

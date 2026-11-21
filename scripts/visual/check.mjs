@@ -16,6 +16,9 @@
 // and movers by kind, and its pools. --where <kind> prints where the first few scenes, movers and things of that kind
 // stand at each Stage, one a Block, with their Tile: the middle of each as a sim point (m), to pass on as it is to
 // `npm run shots -- <zone> --stages <stage> --block=x,y`, adding `,m` for more metres of road across the shot.
+//
+// LOOK=lowpoly in the environment builds the low-poly look (src/render/look.ts, #276), as `?look=lowpoly` does on the
+// page: `LOOK=lowpoly npm run check:scene -- shops`.
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'

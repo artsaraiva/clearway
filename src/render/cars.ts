@@ -3,6 +3,7 @@ import { pointAt, type Vec } from '../sim/geometry'
 import type { Lane, Network } from '../sim/network'
 import type { Vehicle } from '../sim/sim'
 import type { Glow } from './day'
+import { LOW_POLY } from './look'
 import { merged, painted, part, roundedBox, takesPaint, tint } from './shapes'
 
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
@@ -252,7 +253,7 @@ export function carCentre(v: Vehicle): Vec {
  * have been stuck for a few real seconds.
  */
 export function createCars(net: Network) {
-  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  const paint = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: LOW_POLY })
   paint.onBeforeCompile = takesPaint
   // Unlit: the lights glow by their own colour, scaled by the time of day.
   const lit = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })

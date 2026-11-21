@@ -3,6 +3,7 @@ import { DIRECTIONS, hasRoad, type Cell, type Layout } from '../city/city'
 import { middle } from '../sim/geometry'
 import type { Sim } from '../sim/sim'
 import { CELL, cellBounds } from '../sim/tiles'
+import { LOW_POLY } from './look'
 import { canvasTexture } from './shapes'
 
 const ROAD_WIDTH = 28 // m: two lanes each way
@@ -164,7 +165,7 @@ function mark(cell: Cell, color: string, opacity: number) {
 function tileModel(layout: Layout, rotation: number, tint: string | null) {
   const group = new THREE.Group()
   const look = (color: string) => {
-    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
+    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: LOW_POLY })
     if (tint) {
       material.color.lerp(new THREE.Color(tint), TINT.mix)
       material.emissive.set(tint)
