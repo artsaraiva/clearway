@@ -12,11 +12,14 @@ const MAST = { reach: 3.6, high: 5.4, head: 4.9 }
 // m: a lamp's radius, wider than its head is deep, so that it shows from behind and from above as well as to the cars:
 // the lights read from wherever the camera stands.
 const BULB = 0.27
-// Each lamp lit and dark. Lit is a little brighter than white, so that it reads at Tile zoom without flaring at night.
+// How much larger a lit lamp is than a dark one, so that the one that shows is found at a glance, by day and by night.
+const LIT = 1.5
+// Each lamp lit and dark, in linear colour: lit, one channel is full and the others stay low, so that red stays red
+// and does not wash out to pink; dark, a deep tint of the same colour.
 const LAMPS: Record<Light, [THREE.Color, THREE.Color]> = {
-  red: [new THREE.Color(2.4, 0.3, 0.22), new THREE.Color(0.2, 0.05, 0.05)],
-  amber: [new THREE.Color(2.4, 1.5, 0.25), new THREE.Color(0.22, 0.14, 0.04)],
-  green: [new THREE.Color(0.3, 2.2, 1.1), new THREE.Color(0.04, 0.18, 0.11)],
+  red: [new THREE.Color(1, 0.04, 0.03), new THREE.Color(0.07, 0.01, 0.01)],
+  amber: [new THREE.Color(1, 0.42, 0.02), new THREE.Color(0.07, 0.04, 0.008)],
+  green: [new THREE.Color(0.02, 0.9, 0.32), new THREE.Color(0.008, 0.06, 0.03)],
 }
 /** Where each of a post's five lamps sits, in the post's frame: the cars' green, amber and red, then the Walkers' wait and walk. */
 const BULBS: [number, number, number][] = [
@@ -96,7 +99,8 @@ export function createSignals() {
   let laid = ''
   let followed: Network | null = null
   /** Each post's Junction and the group of its Arm, in the order of the posts. */
-  let lamps: { junction: Junction; group: number }[] = []
+  let lamps: { junction: Junction; group: number; at: THREE.Matrix4[] }[] = []
+  const [grown, swell] = [new THREE.Matrix4(), new THREE.Matrix4().makeScale(LIT, LIT, LIT)]
   const [m, at, q, one, up] = [
     new THREE.Matrix4(),
     new THREE.Vector3(),
@@ -123,10 +127,9 @@ export function createSignals() {
       const mesh = what === 'signal' ? posts : what === 'stop' ? stops : yields
       mesh.setMatrixAt(mesh.count++, m)
       if (what !== 'signal') continue
-      lamps.push({ junction, group: junction.signal!.groups[i] })
-      for (const [bx, by, bz] of BULBS) {
-        bulbs.setMatrixAt(bulbs.count++, new THREE.Matrix4().makeTranslation(bx, by, bz).premultiply(m))
-      }
+      const spots = BULBS.map(([bx, by, bz]) => new THREE.Matrix4().makeTranslation(bx, by, bz).premultiply(m))
+      lamps.push({ junction, group: junction.signal!.groups[i], at: spots })
+      bulbs.count += spots.length
     }
     for (const mesh of [posts, stops, yields, bulbs]) mesh.instanceMatrix.needsUpdate = true
   }
@@ -146,20 +149,25 @@ export function createSignals() {
         followed = net
         lay(net, spec)
       }
-      lamps.forEach(({ junction, group }, k) => {
+      lamps.forEach(({ junction, group, at }, k) => {
         const s = junction.signal
         const shows = s?.shows[group] ?? 'red'
         const walking = !!s?.walk && (s.walkLeft > 4 || Math.floor(s.walkLeft * 3) % 2 === 0)
-        const colours = [
-          LAMPS.green[shows === 'green' ? 0 : 1],
-          LAMPS.amber[shows === 'amber' ? 0 : 1],
-          LAMPS.red[shows === 'red' ? 0 : 1],
-          LAMPS.red[s?.walk ? 1 : 0],
-          LAMPS.green[walking ? 0 : 1],
+        // Each lamp's colour, and whether it is the one lit.
+        const shown: [keyof typeof LAMPS, boolean][] = [
+          ['green', shows === 'green'],
+          ['amber', shows === 'amber'],
+          ['red', shows === 'red'],
+          ['red', !s?.walk],
+          ['green', walking],
         ]
-        colours.forEach((colour, i) => bulbs.setColorAt(k * BULBS.length + i, colour))
+        shown.forEach(([colour, on], i) => {
+          bulbs.setColorAt(k * BULBS.length + i, LAMPS[colour][on ? 0 : 1])
+          bulbs.setMatrixAt(k * BULBS.length + i, on ? grown.multiplyMatrices(at[i], swell) : at[i])
+        })
       })
       if (bulbs.instanceColor) bulbs.instanceColor.needsUpdate = true
+      if (lamps.length) bulbs.instanceMatrix.needsUpdate = true
     },
   }
 }

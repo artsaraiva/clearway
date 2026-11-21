@@ -102,7 +102,8 @@ export class Sim {
     this.served = new Uint32Array(this.net.junctions.length)
     this.junctionIndex = new Map(this.net.junctions.map((j, i) => [j.id, i]))
     if (traffic) this.carry(traffic)
-    else if (prewarm) while (!this.prewarmed) this.step()
+    runSignals(this.net, this.time)
+    if (!traffic && prewarm) while (!this.prewarmed) this.step()
   }
 
   /**
@@ -189,6 +190,7 @@ export class Sim {
       for (const c of arm.connections) c.enabled = c.standard
     }
     junction.signal = undefined
+    runSignals(this.net, this.time)
     replan(this.net, this.vehicles)
   }
 
@@ -207,6 +209,8 @@ export class Sim {
   /** Make a Change; every vehicle re-plans. */
   apply(change: Change) {
     applyChange(this.net, change)
+    // A Signal put up or taken down shows at once, paused or not.
+    runSignals(this.net, this.time)
     replan(this.net, this.vehicles)
   }
 

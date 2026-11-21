@@ -548,3 +548,45 @@ it('makes a stop Arm give way to a yield Arm', () => {
   const stopping: Fixture = { ...tJunction(), initial: [{ at: 'T', priority: { W: 'stop', E: 'stop', S: 'yield' } }] }
   expect(jams(start(stopping))).toBe(true)
 })
+
+/**
+ * A Signal at X, whose traffic from W all heads east to Y and out by S2. At Y it has a stop sign and a heavy stream
+ * from N2 to give way to, so its queue fills the Road back to X and blocks X's way out, green or red.
+ */
+const blockedSignal = (): Fixture => ({
+  network: {
+    roadDefaults: NARROW,
+    junctions: { X: { type: 'priority', at: [0, 0] }, Y: { type: 'priority', at: [120, 0] } },
+    roads: {
+      W: { from: [-150, 0], to: 'X', lanes: [1, 1] },
+      N: { from: [0, 150], to: 'X', lanes: [1, 1] },
+      S: { from: [0, -150], to: 'X', lanes: [1, 1] },
+      XY: { from: 'X', to: 'Y', lanes: [1, 1] },
+      N2: { from: [120, 150], to: 'Y', lanes: [1, 1] },
+      S2: { from: 'Y', to: [120, -150], lanes: [1, 1] },
+    },
+  },
+  demand: { W: { rate: 14, to: { S2: 1 } }, N2: { rate: 26, to: { S2: 1 } } },
+  seed: 2,
+  initial: [
+    { at: 'X', signal: true },
+    { at: 'Y', priority: { XY: 'stop' } },
+  ],
+  solution: [],
+})
+
+it('reads a Jam at a Signal whose cars stand through its greens, their way out blocked', () => {
+  const sim = run(start(blockedSignal()), 300)
+  expect(sim.jams.map((j) => j.id)).toContain('X')
+})
+
+it('keeps a Signal over a placement, with its place in the cycle', () => {
+  const city = cityOf(['crossroads', 0, 0, 0], ['straight', 0, 1, 0])
+  const before = new Sim(city, [{ at: 'c0_0', signal: true }], 1)
+  run(before, 20)
+  expect(city.place(layout('straight'), 1, { x: 0, y: -1 }).legal).toBe(true)
+  const after = new Sim(city, before.configuration(), 1, { traffic: before })
+  const lights = (sim: Sim) => sim.net.junctions.find((j) => j.id === 'c0_0')!.arms.map((a) => [a.road, a.light])
+  expect(lights(after)).toEqual(lights(before))
+  expect(lights(after).every(([, light]) => light)).toBe(true)
+})
