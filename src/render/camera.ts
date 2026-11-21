@@ -11,7 +11,8 @@ export interface ScreenPoint {
 
 // Zoom 1 is the start's scale: a City of one Tile and the cells around it, three cells across, fill the frustum's height.
 const SPAN = 1.5 * CELL // m: the frustum's half-height at zoom 1
-const ZOOM_IN = 8 // the closest zoom
+// The closest zoom: nearly three times closer than 8, where a Block fills the screen, to watch one Walker (#285).
+const ZOOM_IN = 22
 const ZOOM_OUT = 0.6 // the farthest zoom, as a share of the zoom that frames the whole City
 // The angle above the horizon the camera looks down from, clamped to about 24°–72°. The start view looks from the
 // south-east at about 41°.
@@ -19,6 +20,9 @@ const TILT = { low: Math.PI / 2 - 1.15, steep: Math.PI / 2 - 0.32, start: 0.72 }
 const START_HEADING = 0.62 // rad
 const TURN = 2 * Math.PI // rad of heading, or of tilt, for a drag the canvas's height
 const WHEEL = 0.95 // the zoom is multiplied by this for each 100 px the wheel turns away from the player
+// What a key held does in a second: slide the view this share of the canvas's height, turn it this far, and zoom as
+// this many pixels of wheel do, about 2.5 times.
+const HELD = { slide: 0.8, turn: 1.6, wheel: 1800 }
 const FLIGHT = 0.7 // s for a move the player asks for, or that brings a new Tile into view
 const SLAB_DEPTH = 19 // m from the road plate down to the slab's underside, whose sides frame the City
 // The margins of the canvas the screen's furniture covers (src/ui), in CSS pixels, with a little room: the stickers
@@ -28,6 +32,17 @@ const SLAB_DEPTH = 19 // m from the road plate down to the slab's underside, who
 // at the edge) could then stop under it. Have the screen hand the camera its furniture's rectangles if that happens.
 export const PILLS = { top: 88, right: 88, bottom: 160, left: 24 }
 const NO_MARGIN = { top: 0, right: 0, bottom: 0, left: 0 }
+
+/**
+ * What the keys held ask of the camera, each from -1 to 1: slide the view `right` and `up` across the screen, `turn`
+ * the world clockwise, and `zoom` in.
+ */
+export interface Drive {
+  right: number
+  up: number
+  turn: number
+  zoom: number
+}
 
 /** Where the camera is. */
 interface Pose {
@@ -50,7 +65,7 @@ const corners = (b: Bounds, heights: number[]): [number, number, number][] =>
 
 /**
  * The orthographic camera, for a City with no bounds. The screen moves it through `controls`: `pan` and `rotate`
- * follow drags and `zoomAt` the wheel, and `northUp`, `frameCity`, `toggleTilt` and `centreOn` fly it to a new view.
+ * follow drags, `zoomAt` the wheel and `drive` the keys, and `northUp`, `frameCity`, `toggleTilt` and `centreOn` fly it to a new view.
  * It opens at City zoom, from the south-east, and as the City changes it stays where it is unless `bringIn`
  * is asked to show a Tile off screen.
  */
@@ -63,9 +78,11 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   let opened = false // whether the start view has framed the City, which waits for the canvas to have a size
   let flight: { from: Pose; to: Pose; t: number } | null = null
 
+  /** The frustum's half-height at zoom 1, in m: more on a tall canvas, so that the start's three cells fit across. */
+  const halfHeight = () => Math.max(SPAN, (1.5 * SPAN * height) / width)
   /** Set `cam` to look as `p` says. */
   const place = (cam: THREE.OrthographicCamera, p: Pose) => {
-    const span = Math.max(SPAN, (1.5 * SPAN * height) / width)
+    const span = halfHeight()
     // How far the road plane seen across the canvas, and what stands on it or hangs under it, lies before and behind
     // the middle of the canvas. The camera stands back past it, so that every pixel looks down onto the road plane.
     const reach = span / p.zoom / Math.tan(p.tilt) + 150
@@ -130,6 +147,23 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
   const destination = () => (flight ? flight.to : pose)
   const fly = (to: Pose) => {
     flight = { from: { ...pose }, to, t: 0 }
+  }
+  /**
+   * Zoom for `deltaY` pixels of wheel (positive zooms out), keeping the ground under canvas pixel (`px`, `py`) where it
+   * is. The closest zoom is fixed; the farthest leaves the whole City well inside the canvas.
+   */
+  const zoomAbout = (px: number, py: number, deltaY: number) => {
+    const before = roadUnder(camera, px, py)
+    const next = pose.zoom * Math.pow(WHEEL, deltaY / 100)
+    // A limit stops the zoom but never moves the camera back inside it, as when an Undo shrinks the City.
+    pose.zoom =
+      deltaY > 0 ? Math.max(next, Math.min(pose.zoom, ZOOM_OUT * framing(pose).zoom)) : Math.min(next, Math.max(pose.zoom, ZOOM_IN))
+    place(camera, pose)
+    const after = roadUnder(camera, px, py)
+    if (!before || !after) return
+    pose.x += before.x - after.x
+    pose.z += before.z - after.z
+    place(camera, pose)
   }
 
   return {
@@ -255,18 +289,26 @@ export function createCamera(canvas: HTMLCanvasElement, slab: Bounds) {
        */
       zoomAt(at: ScreenPoint, deltaY: number) {
         flight = null
-        const [px, py] = local(at)
-        const before = roadUnder(camera, px, py)
-        const next = pose.zoom * Math.pow(WHEEL, deltaY / 100)
-        // A limit stops the wheel but never moves the camera back inside it, as when an Undo shrinks the City.
-        pose.zoom =
-          deltaY > 0 ? Math.max(next, Math.min(pose.zoom, ZOOM_OUT * framing(pose).zoom)) : Math.min(next, Math.max(pose.zoom, ZOOM_IN))
+        zoomAbout(...local(at), deltaY)
+      },
+
+      /**
+       * Move as the keys held ask, for `dt` real seconds: `right` and `up` slide the view that way across the screen,
+       * `turn` turns the world clockwise about the middle of the canvas, and `zoom` comes closer to it, each from -1 to
+       * 1 and `rate` times as fast. The slide is a share of the screen, so it covers less ground the closer the camera.
+       */
+      drive(held: Drive, dt: number, rate = 1) {
+        if (!held.right && !held.up && !held.turn && !held.zoom) return
+        flight = null
+        const step = rate * dt
+        pose.heading = wrap(pose.heading + held.turn * HELD.turn * step)
+        // Across the screen a metre of ground is a metre; up it, the tilt foreshortens the ground.
+        const slide = ((2 * halfHeight()) / pose.zoom) * HELD.slide * step
+        const [across, away] = [held.right * slide, (held.up * slide) / Math.sin(pose.tilt)]
+        pose.x += Math.cos(pose.heading) * across - Math.sin(pose.heading) * away
+        pose.z += -Math.sin(pose.heading) * across - Math.cos(pose.heading) * away
         place(camera, pose)
-        const after = roadUnder(camera, px, py)
-        if (!before || !after) return
-        pose.x += before.x - after.x
-        pose.z += before.z - after.z
-        place(camera, pose)
+        if (held.zoom) zoomAbout(width / 2, height / 2, -held.zoom * HELD.wheel * step)
       },
 
       /** Turn north up. */

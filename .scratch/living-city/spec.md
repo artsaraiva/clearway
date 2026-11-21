@@ -58,7 +58,7 @@ The blend
 The camera
 
 21. As a player, I want to move the camera with W A S D and the arrow keys, so that I can get around without dragging.
-22. As a player, I want Q and E to turn the camera and R and F to zoom, so that one hand can do everything.
+22. As a player, I want Q and E to turn the camera and Z and X to zoom, so that one hand can do everything. (`R` turns the Layout in the hand and `F` frames the City, so neither zooms: #285.)
 23. As a player, I want a plain drag to move the view, so that the most common move is the easiest.
 24. As a player, I want to zoom in closer than Block zoom, so that I can watch one Walker.
 25. As a player, I want the camera to stay on a Walker I follow, so that I do not lose them.
