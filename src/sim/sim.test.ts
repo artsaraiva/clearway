@@ -590,3 +590,24 @@ it('keeps a Signal over a placement, with its place in the cycle', () => {
   expect(lights(after)).toEqual(lights(before))
   expect(lights(after).every(([, light]) => light)).toBe(true)
 })
+
+it('lets a car that waited at its line through a green for a gap turn left as the Signal goes amber', () => {
+  // A steady stream from W goes straight on, and the cars from E turn left across it, to S.
+  const turning: Fixture = {
+    ...crossroads([{ at: 'X', signal: true }]),
+    demand: { W: { rate: 5, to: { E: 1 } }, E: { rate: 4, to: { S: 1 } } },
+  }
+  const sim = start(turning, [], { prewarm: false })
+  let turned = 0
+  const south = sim.net.gateways.S.exit
+  let before = new Set<Vehicle>()
+  for (let i = 0; i < 600 * 30; i++) {
+    sim.step()
+    const now = new Set(south.flatMap((l) => l.vehicles))
+    for (const v of now) if (!before.has(v)) turned++
+    before = now
+  }
+  // The stream fills each green, so a left turn has only the end of it: ten cycles let about two through each, where
+  // holding them on amber let one.
+  expect(turned).toBeGreaterThanOrEqual(18)
+})

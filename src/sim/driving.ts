@@ -16,6 +16,7 @@ const ONCOMING = Math.PI / 4 // an Arm within this of straight ahead is the onco
 // m back from a red Arm's line that one green empties: about six cars. A vehicle held within it waits its turn, and one
 // held further back is in a queue the Signal cannot carry.
 const ONE_GREEN = 45
+const AT_LINE = 4 // m: this near its line, a vehicle standing there is the one waiting to go
 
 /** IDM against the nearest leader along the path, a merging committed vehicle, or the stop line. */
 export function accel(v: Vehicle): number {
@@ -102,7 +103,9 @@ function mustStop(v: Vehicle): boolean {
   const c = next.conn!
   const dist = lane.length - v.s
   if (dist > DECISION_DIST || dist < (v.v * v.v) / (2 * HARD_BRAKE)) return false
-  if (stopped(c.arm)) return true
+  // A red light holds it. So does amber, but for a vehicle that stood at its line through the green waiting for a gap,
+  // as one turning left across oncoming traffic does: it goes as the oncoming traffic stops, or it would never go.
+  if (stopped(c.arm) && !(c.arm.light === 'amber' && v.v < HELD && dist < AT_LINE)) return true
   return conflicting(v, c, dist) || !hasRoom(c, v)
 }
 
@@ -121,7 +124,7 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
   if (held && !goesFirst(v, c)) return true
   for (const { other: o, s, otherS } of c.conflicts) {
     // What waits at a red light on another Arm is not coming; what is already in the Junction still is.
-    const red = o.arm !== c.arm && stopped(o.arm)
+    const red = o.arm !== c.arm && (o.arm.light === 'red' || (o.arm.light === 'amber' && stopsForAmber(o.from.vehicles[0])))
     const tMe = eta(dist + s, v.v, v.type.accel, c.lane.speedLimit)
     if (o.arm === c.arm) {
       if (rank(o) >= rank(c)) continue
@@ -157,6 +160,9 @@ function conflicting(v: Vehicle, c: Connection, dist: number): boolean {
 
 /** Standing at its line, ready to enter `c` once it has right of way. */
 const standing = (u: Vehicle, c: Connection) => u.v < HELD && u.path[0] === c.lane && hasRoom(c, u)
+
+/** Whether the Approach led by `first` stops for its amber light: nobody is on it, or its first vehicle is held at the line and the rest behind it. */
+const stopsForAmber = (first: Vehicle | undefined) => !first || first.waiting
 
 /** Held by its Signal: its light is amber or red. */
 const stopped = (arm: Arm | undefined) => !!arm?.light && arm.light !== 'green'

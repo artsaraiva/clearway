@@ -10,8 +10,9 @@ This settles what [ADR 0010](0010-traffic-stops-for-walkers-at-a-signal.md) left
 
 ## Consequences
 
-- A Signal costs traffic: its Walk phase is 24 of every 57 seconds. Measured on #295 over ten minutes, one Crossroads between four Roads carried its Demand either way (21.9 trips a minute arrived of 23.3 with a Signal, 23.5 without). Three Crossroads in a row, all with Signals, jammed at 36 trips a minute and carried 31.6, where with no signs they carried all of it. Since the player puts a Signal there, the player can take it away, so a Signal causes no Jam the Tools cannot clear.
+- A Signal costs traffic: its Walk phase is 24 of every 57 seconds. Measured on #295 over ten minutes, one Crossroads between four Roads carried its Demand either way (22.0 trips a minute arrived of 23.3 with a Signal, 23.5 without). Three Crossroads in a row, all with Signals, jammed at 36 trips a minute and carried 33.4, where with no signs they carried all of it. Since the player puts a Signal there, the player can take it away, so a Signal causes no Jam the Tools cannot clear.
 - A vehicle waiting its turn at a red light counts as moving freely, for Flow and for a Junction's Jam, when it stands within 45 m of the line: about what one green empties. One held further back does not, so a queue a Signal cannot carry still reads as a Jam, and its cars still grow angry.
+- A vehicle that stood at its line through a green waiting for a gap, as one turning left across oncoming traffic does, goes on amber once the oncoming Approach is stopping. The cycle has no phase for left turns, so across a stream that fills the green about two turn each cycle.
 - A stop sign slows every vehicle to the same crawl at its line that yielding to a main Arm does ([ADR 0003](0003-yielding-costs-time.md)), whoever is coming, and ranks under a yield sign.
 - A save written before kept `yield` for every Arm of an untouched Junction. Such a Junction loads with no signs, which drives the same.
 - Until Walkers cross on the Walk phase ([#296](https://github.com/artsaraiva/dioramania/issues/296)), the Walk phase stops traffic for nobody.
