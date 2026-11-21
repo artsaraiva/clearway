@@ -13,6 +13,7 @@ import { createHand, createRezoning, SWAP_LIFT, type Held, type Rezoning } from 
 import { createRouteInspector, createStageInspector, type InspectedTile } from './inspector'
 import { createMaterials, type Finish, type Stages } from './kit'
 import { createLabels } from './labels'
+import { LOW_POLY } from './look'
 import { createMovers } from './movers'
 import { createReveal } from './reveal'
 import { createRoads } from './roads'
@@ -89,6 +90,8 @@ export function createView(
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio))
   renderer.shadowMap.enabled = true
+  // Low poly (`./look`), shadows are hard-edged: the shadow map is read without blur.
+  if (LOW_POLY) renderer.shadowMap.type = THREE.BasicShadowMap
   renderer.toneMapping = THREE.NeutralToneMapping
   renderer.setClearColor(0x000000, 0)
 

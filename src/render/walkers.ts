@@ -3,6 +3,7 @@ import { pointAt, polyline, sameBounds, type Bounds, type Polyline } from '../si
 import type { Network } from '../sim/network'
 import { KERB } from './blocks'
 import { inside, type Field } from './field'
+import { LOW_POLY } from './look'
 import { shopper } from './movers'
 import { merged, part, takesPaint, tint } from './shapes'
 
@@ -82,7 +83,7 @@ interface Walker {
 export function createWalkers() {
   const group = new THREE.Group()
   const models = new Map(ORDER.map((k) => [k, KINDS[k].model()]))
-  const clothes = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
+  const clothes = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: LOW_POLY })
   clothes.onBeforeCompile = takesPaint
   let walkers: Walker[] = []
   let meshes = new Map<WalkerKind, THREE.InstancedMesh>()

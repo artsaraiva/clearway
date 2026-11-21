@@ -3,6 +3,7 @@ import { mulberry32 } from '../sim/demand'
 import type { Polyline } from '../sim/geometry'
 import { DAY, WIND, WORK, type Glow } from './day'
 import { spot, type Fate } from './kit'
+import { LOW_POLY } from './look'
 import type { Build } from './scenery'
 import { canvasTexture, merged, painted, part, takesPaint, tint } from './shapes'
 
@@ -964,10 +965,10 @@ interface Entry {
  */
 export function createMovers() {
   const group = new THREE.Group()
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: LOW_POLY })
   // Wings (#152): each vertex off the body turns up about it by its instance's `wing`, the left wing and the right
   // mirrored, and its normal with it.
-  const winged = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide })
+  const winged = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: LOW_POLY })
   winged.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float wing;')
@@ -1014,7 +1015,7 @@ export function createMovers() {
   }
   const flyers = new Map(
     (Object.keys(FLAGS) as FlagKind[]).map((kind) => {
-      const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })
+      const cloth = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide, flatShading: LOW_POLY })
       cloth.customProgramCacheKey = () => `flag ${kind}`
       cloth.onBeforeCompile = (shader) => {
         flutters(kind)(shader)
@@ -1098,7 +1099,7 @@ export function createMovers() {
       return [k, model.getAttribute('painted') ? model : painted(model, 1)]
     }),
   )
-  const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
+  const hanging = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, flatShading: LOW_POLY })
   hanging.onBeforeCompile = takesPaint
   const swaying = new Map<SwayKind, THREE.InstancedMesh>()
   // Pools of light (#174): one instanced mesh of warm decals for the whole City, added to what lies under them, unlit
