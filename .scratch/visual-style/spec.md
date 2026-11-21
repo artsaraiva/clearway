@@ -222,7 +222,7 @@ That rule is why the park's deck is wood rather than shrine vermilion, why the c
 
 Each Zone's own colours are in its file (Block fill, below).
 
-Walkers' shirts, the planes' wings and the confetti take the cars' colours.
+Walkers' shirts and the confetti take the cars' colours.
 The Tile in the hand takes the slab's.
 Greys, creams and stone (lamp posts, masts, rooftop boxes, the plaza, the tower landmark's cream) keep their earlier values, as does the tower landmark's coral `#f08a6e`, already under the cap at 59% of the red-orange's chroma.
 Head and tail lights, lit windows and lamps are lights that come on toward dusk, not paint, and stay as they were.
@@ -449,7 +449,6 @@ Nothing already on the slab disappears or is rebuilt.
 All of this is decoration outside the sim.
 
 - Clouds drift across and cast shadows. They fade out as the camera zooms in, so they never sit between the player and a jam.
-- One or two propeller planes cross the sky on near-straight lines with a slight curve, vanish at the edge, and start a new line.
 - Walkers follow the pavement centre lines and never cross a road.
   Since [#176](https://github.com/artsaraiva/dioramania/issues/176) they are of three kinds, one instanced mesh each, seen at Block zoom and facing the way they walk: a shopper with a bag (the shops' shopper, [#175](https://github.com/artsaraiva/dioramania/issues/175)), a schoolchild in a yellow hat with a satchel, a little smaller and slower, and an office worker in a dark suit with a briefcase.
   Boats run the river.
