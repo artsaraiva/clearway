@@ -43,21 +43,32 @@ export const TRIPS = {
   >,
   /** Mean sim-seconds a vehicle is off the map on a trip through a Gateway, on top of the stay. */
   beyond: 50,
+  // Demand, as in Cities: Skylines: three bars for the whole City, worked out from what its Tiles hold.
+  /** Jobs a Tile offers at each Stage. */
+  jobs: { offices: [3, 6, 9], industrial: [3, 6, 9], shops: [1, 2, 3], farms: [1, 2, 2] } as Partial<Record<ZoneId, number[]>>,
+  /** Shoppers a shops Tile has room for at each Stage. */
+  shopping: [4, 8, 12],
+  /** What each car of a home Tile, a household, wants of the City: this share of a job and of a place at the shops. */
+  wants: { jobs: 0.5, shopping: 0.4 },
+  /** The least a demand falls to: the world beyond the Gateways always wants a little of everything. */
+  floor: 0.25,
+  /** The pace of parks and green, which no demand drives yet. */
+  leisure: 0.6,
   /**
-   * Arrivals that fill a Need's count, to Stage 2 and to Stage 3, for each vehicle the Tile owns (a Need its own
-   * vehicles go out for) or each place it has (a Need that waits for arrivals). So a denser home Tile has more cars,
-   * makes more trips and needs as many more arrivals: it grows at the pace of a low-density one and is busier.
+   * Trips that take a Tile to Stage 2 and to Stage 3 with its demand full. A trip counts when it arrives at the Tile, or
+   * when the Tile's own vehicle arrives where it was going, and it counts for as much as the Tile's demand stands at.
    */
-  counts: {
-    work: [1.5, 4],
-    shopping: [1.5, 4],
-    leisure: [1.5, 4],
-    workers: [12, 18],
-    customers: [15, 22],
-    visitors: [16, 24],
-    deliveries: [3, 9],
-    outlet: [5, 7.5],
-  } as Record<NeedId, number[]>,
+  grow: {
+    'low-density': [3, 13],
+    'medium-density': [4, 20],
+    'high-density': [5, 26],
+    shops: [10, 31],
+    offices: [8, 26],
+    industrial: [6, 20],
+    farms: [2, 7],
+    parks: [10, 29],
+    green: [5, 14],
+  } as Record<ZoneId, number[]>,
   /** Sim-seconds of drive that make a partner e times less likely to be picked. */
   spread: 15,
 }
@@ -95,6 +106,18 @@ const LEAN: Record<string, number>[] = [
   { work: 1, shopping: 1, leisure: 1 },
 ]
 
+/** The three demands, and the Zones each one grows. Parks and green have none yet. */
+export type DemandId = 'homes' | 'shops' | 'work'
+const DRIVEN: Partial<Record<ZoneId, DemandId>> = {
+  'low-density': 'homes',
+  'medium-density': 'homes',
+  'high-density': 'homes',
+  shops: 'shops',
+  offices: 'work',
+  industrial: 'work',
+  farms: 'work',
+}
+
 const TRUCK: VehicleType = { id: 'truck', length: 7.5, accel: 1.3, decel: 2.2, headway: 1.2, minGap: 2.5, maxSpeed: 12, share: 0 }
 const GROW = 5 // m over which a car pulling out or turning off is drawn growing or shrinking
 
@@ -102,7 +125,8 @@ interface TileTrips {
   id: string
   zone: ZoneId
   stage: number
-  counts: Partial<Record<NeedId, number>>
+  /** Trips counted toward the next Stage, each for as much as the Tile's demand stood at. */
+  progress: number
 }
 
 type State = 'home' | 'leaving' | 'out' | 'staying' | 'returning' | 'back' | 'beyond' | 'entering'
@@ -127,6 +151,9 @@ interface Car {
 
 export class Trips {
   tiles = new Map<string, TileTrips>()
+  /** Each demand, from `TRIPS.floor` to 1, and what it was worked out from. */
+  demand: Record<DemandId, number> = { homes: 1, shops: 1, work: 1 }
+  city = { households: 0, jobs: 0, shopping: 0 }
   cars: Car[] = []
   /** Road trips started and Gateway entries, as sim times over the last minute, and all of them counted. */
   starts: number[] = []
@@ -173,9 +200,24 @@ export class Trips {
     const next = new Map<string, TileTrips>()
     for (const t of tiles) {
       const was = this.tiles.get(t.id)
-      next.set(t.id, was && was.zone === t.zone && was.stage === t.stage ? was : { ...t, counts: {} })
+      next.set(t.id, was && was.zone === t.zone && was.stage === t.stage ? was : { ...t, progress: 0 })
     }
     this.tiles = next
+    // Demand: how short the City is of homes for its jobs, and of shops and of jobs for its households.
+    let [households, jobs, shopping] = [0, 0, 0]
+    for (const t of next.values()) {
+      if (DRIVEN[t.zone] === 'homes') households += TRIPS.fleet[t.zone]![t.stage - 1]
+      jobs += TRIPS.jobs[t.zone]?.[t.stage - 1] ?? 0
+      if (t.zone === 'shops') shopping += TRIPS.shopping[t.stage - 1]
+    }
+    const short = (want: number, have: number) =>
+      TRIPS.floor + (1 - TRIPS.floor) * (want > 0 ? Math.max(0, Math.min(1, (want - have) / want)) : 0)
+    this.demand = {
+      homes: short(jobs / TRIPS.wants.jobs, households),
+      shops: short(households * TRIPS.wants.shopping, shopping),
+      work: short(households * TRIPS.wants.jobs, jobs),
+    }
+    this.city = { households, jobs, shopping }
     // What each Tile should own: its fleet, and an outsider for each place of each Need that waits for arrivals.
     const wanted = new Map<string, number>()
     for (const t of next.values()) {
@@ -200,20 +242,39 @@ export class Trips {
     }
   }
 
-  /** The Tiles whose every Need is full, short of the last Stage. */
+  /** The Tiles with trips enough for their next Stage. */
   ripe(): string[] {
-    return [...this.tiles.values()].filter((t) => t.stage < 3 && this.needs(t.id).every((n) => n.count >= n.full)).map((t) => t.id)
+    return [...this.tiles.values()].filter((t) => t.stage < 3 && t.progress >= TRIPS.grow[t.zone][t.stage - 1]).map((t) => t.id)
   }
 
-  /** Each Need of the Tile `id`, how many arrivals it has and how many fill it. */
-  needs(id: string) {
+  /** How the Tile `id` grows: its trips counted, how many take it to its next Stage, and the demand that drives it and its level. */
+  growth(id: string) {
     const t = this.tiles.get(id)
-    if (!t) return []
-    const s = Math.min(t.stage, 2) - 1
-    return NEEDS[t.zone].map(({ need, to }) => {
-      const units = (to ? TRIPS.fleet[t.zone]?.[s] : TRIPS.places[need]?.[s]) ?? 1
-      return { need, count: t.counts[need] ?? 0, full: Math.ceil(TRIPS.counts[need][s] * units) }
-    })
+    if (!t) return undefined
+    const by = DRIVEN[t.zone]
+    return { progress: t.progress, full: TRIPS.grow[t.zone][Math.min(t.stage, 2) - 1], by, pace: by ? this.demand[by] : TRIPS.leisure }
+  }
+
+  /** Where the vehicles of the Tile `id` are, and who is visiting it, each as a count by a plain name. */
+  people(id: string) {
+    const [own, here]: Record<string, number>[] = [{}, {}]
+    const add = (to: Record<string, number>, k: string) => (to[k] = (to[k] ?? 0) + 1)
+    const AT: Record<string, string> = { work: 'at work', shopping: 'at the shops', leisure: 'at a park', outlet: 'delivering' }
+    const AS: Record<string, string> = { workers: 'workers', customers: 'shoppers', visitors: 'visitors', deliveries: 'trucks unloading' }
+    for (const c of this.cars) {
+      const visiting = c.state === 'staying' || c.state === 'returning'
+      if (c.outside) {
+        if (c.tile === id && visiting) add(here, AS[c.outside])
+        continue
+      }
+      if (c.at === id && visiting && c.meets) add(here, AS[c.meets])
+      if (c.tile !== id) continue
+      if (c.state === 'home' || c.state === 'leaving') add(own, 'at home')
+      else if (c.state === 'beyond' || c.state === 'entering' || (visiting && !this.tiles.has(c.at!))) add(own, 'outside the City')
+      else if (visiting) add(own, AT[c.need!])
+      else add(own, 'driving')
+    }
+    return { own, here }
   }
 
   /** A through vehicle or one of ours came in by a Gateway. */
@@ -309,13 +370,12 @@ export class Trips {
     }
   }
 
-  /** The Need a Tile's vehicle goes out for now: a home's by the clock, and a Need already full half as readily. */
+  /** The Need a Tile's vehicle goes out for now: a home's by the clock. */
   private pickNeed(tile: TileTrips): NeedSpec {
     const lean = LEAN[Math.floor(this.clock * 4)]
     const sends = NEEDS[tile.zone].filter((n) => n.to)
-    const full = new Map(this.needs(tile.id).map((n) => [n.need, n.count >= n.full]))
-    let r = this.rng() * sends.reduce((s, n) => s + (lean[n.need] ?? 1) * (full.get(n.need) ? 0.5 : 1), 0)
-    for (const n of sends) if ((r -= (lean[n.need] ?? 1) * (full.get(n.need) ? 0.5 : 1)) < 0) return n
+    let r = this.rng() * sends.reduce((s, n) => s + (lean[n.need] ?? 1), 0)
+    for (const n of sends) if ((r -= lean[n.need] ?? 1) < 0) return n
     return sends[sends.length - 1]
   }
 
@@ -434,10 +494,11 @@ export class Trips {
     }
   }
 
-  private count(tile: string, need: NeedId, beyond = false) {
+  /** A trip counts for the Tile `tile`, for as much as its demand stands at. */
+  private count(tile: string, _need: NeedId, beyond = false) {
     const t = this.tiles.get(tile)
-    if (!t || !this.counting || !NEEDS[t.zone].some((n) => n.need === need)) return
-    t.counts[need] = (t.counts[need] ?? 0) + 1
+    if (!t || !this.counting) return
+    t.progress += this.growth(tile)!.pace
     this.total.met++
     if (beyond) this.total.metBeyond++
   }

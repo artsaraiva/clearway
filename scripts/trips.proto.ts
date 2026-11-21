@@ -19,8 +19,8 @@ for (const [k, v] of Object.entries(process.env)) {
   const scale = (o: Record<string, number[] | undefined>) =>
     Object.keys(o).forEach((z) => (o[z] = o[z]!.map((n) => Math.max(1, Math.round(n * Number(v))))))
   if (name === 'fleet') (scale(TRIPS.fleet), scale(TRIPS.places))
-  else if (name === 'counts')
-    Object.keys(TRIPS.counts).forEach((n) => (TRIPS.counts[n as 'work'] = TRIPS.counts[n as 'work'].map((c) => c * Number(v))))
+  else if (name === 'grow')
+    Object.keys(TRIPS.grow).forEach((z) => (TRIPS.grow[z as 'shops'] = TRIPS.grow[z as 'shops'].map((c) => c * Number(v))))
   else (TRIPS as unknown as Record<string, number>)[name] = Number(v)
 }
 
@@ -60,18 +60,7 @@ function run(name: string, seed: number, trips: boolean) {
     met: tt && [tt.total.met, tt.total.metBeyond],
     reached,
     tiles: game.city.tiles.filter((t) => t.zone).length,
-    left:
-      tt &&
-      [...tt.tiles.values()]
-        .filter((t) => t.stage < 3)
-        .map(
-          (t) =>
-            `${t.zone}★${t.stage} ` +
-            tt
-              .needs(t.id)
-              .map((n) => `${n.need} ${n.count}/${n.full}`)
-              .join(' '),
-        ),
+    left: tt && [`demand homes ${f(tt.demand.homes, 2)} shops ${f(tt.demand.shops, 2)} work ${f(tt.demand.work, 2)} at the end`],
   }
 }
 
@@ -114,6 +103,6 @@ for (const name of NAMES) {
             .join(' · '),
       )
     }
-    if (r.left?.length) console.log('  seed 1 not grown: ' + r.left.join(' | '))
+    if (r.left?.length) console.log('  seed 1: ' + r.left.join(' | '))
   }
 }

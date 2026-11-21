@@ -173,9 +173,9 @@ export class Game {
     if (!this._city.tileAt(cell)?.zone) return undefined
     const grown = this.stages.get(junctionId(cell)) ?? { stage: 1 as Stage, progress: 0 }
     if (!this.tileTrips || grown.stage === LAST_STAGE) return grown
-    // PROTOTYPE (#303): progress is the share of the Tile's Needs that is full, on the scale the screen reads.
-    const needs = this.tileTrips.needs(junctionId(cell))
-    const share = needs.reduce((s, n) => s + Math.min(1, n.count / n.full), 0) / (needs.length || 1)
+    // PROTOTYPE (#303): progress is the Tile's counted trips, on the scale the screen reads.
+    const growth = this.tileTrips.growth(junctionId(cell))
+    const share = growth ? Math.min(1, growth.progress / growth.full) : 0
     return { stage: grown.stage, progress: share * STAGES.trips[grown.stage - 1] }
   }
 
@@ -362,7 +362,7 @@ export class Game {
    */
   private grow(earning: boolean) {
     if (this.tileTrips) {
-      // PROTOTYPE (#303): a Tile whose every Need is full reaches its next Stage, Jam or no Jam.
+      // PROTOTYPE (#303): a Tile with trips enough reaches its next Stage, Jam or no Jam.
       for (const id of this.tileTrips.ripe()) {
         const cell = this._city.tiles.find((t) => junctionId(t.cell) === id)!.cell
         const stage = this.stageOf(cell)!.stage

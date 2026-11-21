@@ -58,7 +58,7 @@ function play(run: Run) {
   if (run.notice) showNotice(document.querySelector<HTMLElement>('#ui')!, run.notice)
 
   // PROTOTYPE (#303): `?trips` shows the trips' state, and the picture's day follows the simulation's clock.
-  const tripsPanel = game.tileTrips && createTripsPanel(game, view)
+  const tripsPanel = game.tileTrips && createTripsPanel(game, view, canvas)
 
   let acc = 0
   /** One frame: `dt` real seconds of the game, drawn. */
