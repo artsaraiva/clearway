@@ -56,6 +56,9 @@ export function accel(v: Vehicle): number {
     base += lane.length
   }
   v0 = Math.min(v0, yieldSpeed(v))
+  // PROTOTYPE (#303): a car about to turn off its Road slows to a walk for the spot.
+  if (v.parkAt !== undefined && !v.path.length && !v.lane.toGateway)
+    v0 = Math.min(v0, Math.sqrt(3 ** 2 + 2 * 1.5 * Math.max(0, v.parkAt * v.lane.length - v.s)))
   v.vFree = Math.min(v0, Math.sqrt(v.vFreeIn ** 2 + 2 * t.accel * Math.max(0, v.s)))
   v.waiting = mustStop(v)
   if (v.waiting) {

@@ -313,7 +313,9 @@ export function createCars(net: Network) {
         const jolt = calm ? 0 : anger
         at.set(c.x, jolt && Math.abs(Math.sin(t * 11 + v.id)) * 0.3 * jolt, -c.y)
         q.setFromEuler(e.set(jolt && Math.sin(t * 34 + v.id) * 0.07 * jolt, heading, 0))
-        m.compose(at, q, scale.setScalar(Math.max(0.001, Math.min(1, grown))))
+        // PROTOTYPE (#303): a car pulling out or turning off its Road grows or shrinks, and a truck is a long car.
+        const size = Math.max(0.001, Math.min(1, grown) * (v.scale ?? 1))
+        m.compose(at, q, v.type.id === 'truck' ? scale.set(size * 1.65, size * 1.35, size * 1.2) : scale.setScalar(size))
         const worn = skinOf(v.id)
         const { body, lights } = skins.get(worn.skin)!
         const k = body.count++

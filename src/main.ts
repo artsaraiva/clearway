@@ -10,6 +10,7 @@ import './ui/kit.css'
 import { everyFrame } from './ui/frames'
 import { showNotice } from './ui/notice'
 import { createTitle } from './ui/title'
+import { createTripsPanel } from './ui/trips-panel.proto'
 import { createUI } from './ui/ui'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!
@@ -56,6 +57,9 @@ function play(run: Run) {
   const ui = createUI(document.querySelector<HTMLElement>('#ui')!, canvas, game, view, run)
   if (run.notice) showNotice(document.querySelector<HTMLElement>('#ui')!, run.notice)
 
+  // PROTOTYPE (#303): `?trips` shows the trips' state, and the picture's day follows the simulation's clock.
+  const tripsPanel = game.tileTrips && createTripsPanel(game)
+
   let acc = 0
   /** One frame: `dt` real seconds of the game, drawn. */
   const frame = (dt: number) => {
@@ -64,6 +68,8 @@ function play(run: Run) {
       game.step()
       acc -= DT
     }
+    if (game.tileTrips) view.holdDay(game.tileTrips.clock)
+    tripsPanel?.update()
     // A Tile assembling plays on even while the world is paused, and so does the camera.
     view.render(view.assembling || ui.scale ? dt : 0, dt)
     ui.update()

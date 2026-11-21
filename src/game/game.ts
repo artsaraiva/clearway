@@ -2,6 +2,7 @@ import { City, type Cell, type Layout, type Refusal, type Tile, type Zone } from
 import { DT, Sim } from '../sim/sim'
 import type { Change } from '../sim/spec'
 import { cellAt, junctionId } from '../sim/tiles'
+import { Trips } from '../sim/trips.proto'
 import { ECONOMY, STAGES } from '../tuning'
 
 // A run of the game: the state beside the Sim. It holds the yen, the City, each zoned Tile's Stage, the Record and the
@@ -75,6 +76,8 @@ export class Game {
   onStage?: (cell: Cell, from: Stage, to: Stage) => void
   /** Dev only: a multiplier on the pace of growth. Each trip a Junction serves counts as this many. */
   pace = 1
+  /** PROTOTYPE (#303): the trips between Tiles, in a run opened with `?trips`. Tiles then grow by their Needs. */
+  readonly tileTrips?: Trips
   private _city: City
   private _sim: Sim
   /** The Sim's completed trips already paid for. */
@@ -109,10 +112,12 @@ export class Game {
       record?: number
       free?: boolean
       stages?: ({ cell: Cell } & TileStage)[]
+      trips?: boolean
     } = {},
   ) {
     this.seed = seed
     this.free = start.free ?? false
+    if (start.trips) this.tileTrips = new Trips(seed)
     this._city = start.city ?? City.start(seed)
     this.yen = start.yen ?? this.price
     this.record = start.record ?? 0
@@ -166,13 +171,18 @@ export class Game {
   /** The Stage of the Tile on `cell`, and its progress toward the next. None for an unzoned Tile, which never grows, or an empty cell. */
   stageOf(cell: Cell): TileStage | undefined {
     if (!this._city.tileAt(cell)?.zone) return undefined
-    return this.stages.get(junctionId(cell)) ?? { stage: 1, progress: 0 }
+    const grown = this.stages.get(junctionId(cell)) ?? { stage: 1 as Stage, progress: 0 }
+    if (!this.tileTrips || grown.stage === LAST_STAGE) return grown
+    // PROTOTYPE (#303): progress is the share of the Tile's Needs that is full, on the scale the screen reads.
+    const needs = this.tileTrips.needs(junctionId(cell))
+    const share = needs.reduce((s, n) => s + Math.min(1, n.count / n.full), 0) / (needs.length || 1)
+    return { stage: grown.stage, progress: share * STAGES.trips[grown.stage - 1] }
   }
 
   /** Whether a Jam holds the Tile on `cell` back from its next Stage: a zoned Tile short of the last whose Junction is in a Jam. */
   heldBack(cell: Cell): boolean {
     const grown = this.stageOf(cell)
-    return !!grown && grown.stage < LAST_STAGE && this._sim.jams.some((j) => j.id === junctionId(cell))
+    return !this.tileTrips && !!grown && grown.stage < LAST_STAGE && this._sim.jams.some((j) => j.id === junctionId(cell))
   }
 
   /** The City's Growth: the sum of the Stages of its zoned Tiles. */
@@ -188,6 +198,7 @@ export class Game {
     const now = this.stageOf(cell)
     if (!now) return false
     this.stages.set(junctionId(cell), { stage, progress: 0 })
+    this.syncTrips()
     this.reach()
     if (stage !== now.stage) this.onStage?.(cell, now.stage, stage)
     return true
@@ -255,6 +266,7 @@ export class Game {
     this.remember(0, null, { id, stage: this.stageOf(cell) })
     this._city.rezone(cell, zone)
     this.stages.delete(id)
+    this.syncTrips()
     this.reach()
     this.onUnsaved?.()
     return true
@@ -309,6 +321,7 @@ export class Game {
     this.reach()
     if (changes && landed) this.simulate(changes, this._sim)
     else this.onUnsaved?.()
+    this.syncTrips()
     return true
   }
 
@@ -348,6 +361,18 @@ export class Game {
    * and then, and one at the last Stage gathers none.
    */
   private grow(earning: boolean) {
+    if (this.tileTrips) {
+      // PROTOTYPE (#303): a Tile whose every Need is full reaches its next Stage, Jam or no Jam.
+      for (const id of this.tileTrips.ripe()) {
+        const cell = this._city.tiles.find((t) => junctionId(t.cell) === id)!.cell
+        const stage = this.stageOf(cell)!.stage
+        this.stages.set(id, { stage: (stage + 1) as Stage, progress: 0 })
+        this.syncTrips()
+        this.reach()
+        this.onStage?.(cell, stage, (stage + 1) as Stage)
+      }
+      return
+    }
     const { served, net } = this._sim
     for (let k = 0; k < served.length; k++) {
       const trips = served[k] - this.credited[k]
@@ -367,6 +392,16 @@ export class Game {
     }
   }
 
+  /** PROTOTYPE (#303): tell the trips which Tiles are zoned as what, at which Stage. */
+  syncTrips() {
+    this.tileTrips?.sync(
+      this._city
+        .landed()
+        .tiles.filter((t) => t.zone)
+        .map((t) => ({ id: junctionId(t.cell), zone: t.zone!.id, stage: this.stageOf(t.cell)?.stage ?? 1 })),
+    )
+  }
+
   /** Raise the Record to Growth, if Growth has passed it. */
   private reach() {
     this.record = Math.max(this.record, this.growth)
@@ -384,7 +419,8 @@ export class Game {
    */
   private simulate(carried: Change[], traffic?: Sim) {
     this.paid = 0
-    this._sim = new Sim(this._city.landed(), carried, this.seed, { prewarm: false, traffic })
+    this._sim = new Sim(this._city.landed(), carried, this.seed, { prewarm: false, traffic, trips: this.tileTrips })
+    this.syncTrips()
     this.credited = new Uint32Array(this._sim.served.length)
     this.onUnsaved?.()
     return this._sim

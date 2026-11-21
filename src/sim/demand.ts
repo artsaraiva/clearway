@@ -16,7 +16,9 @@ export interface VehicleType {
 }
 
 /** One row per vehicle type: adding types is data, not code. */
-const VEHICLE_TYPES: VehicleType[] = [{ id: 'car', length: 4.5, accel: 2, decel: 2.5, headway: 1.0, minGap: 2, maxSpeed: 15, share: 1 }]
+export const VEHICLE_TYPES: VehicleType[] = [
+  { id: 'car', length: 4.5, accel: 2, decel: 2.5, headway: 1.0, minGap: 2, maxSpeed: 15, share: 1 },
+]
 
 /** A vehicle waiting off-screen to enter the map. */
 export interface Arrival {

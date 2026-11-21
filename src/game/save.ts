@@ -1,3 +1,4 @@
+import { tripsCity } from './trips-cities.proto'
 import { City, LAYOUTS, ZONES, type Cell, type Layout, type Zone } from '../city/city'
 import type { Change } from '../sim/spec'
 import { Game, LAST_STAGE, newSeed, type Stage } from './game'
@@ -226,6 +227,7 @@ export interface Title {
  * `storage` event and quiet the older tab if players ever keep two open.
  */
 export function openRun(params: URLSearchParams): Run | Title {
+  if (import.meta.env.DEV && params.has('trips')) return tripsRun(params)
   if (import.meta.env.DEV && params.has('seed')) return seeded(Number(params.get('seed')), params)
   carryOver()
   const free = params.has('free') || read(KEY.playing) === 'free'
@@ -334,6 +336,23 @@ function seeded(seed: number, params: URLSearchParams): Run {
     newRun: () => go(params, (p) => p.set('seed', String(newSeed()))),
     switchRun: () => go(params, (p) => (free ? p.delete('free') : p.set('free', ''))),
     title: () => go(params, (p) => p.delete('seed')),
+  }
+}
+
+/**
+ * PROTOTYPE (#303), dev only: a Free run that plays trips between Tiles, never saved. `?trips` opens the mixed City of
+ * 12 Tiles, `?trips=homes` the same City all homes, and `?trips=start` a new City of one Tile.
+ */
+function tripsRun(params: URLSearchParams): Run {
+  const seed = Number(params.get('seed') ?? 7)
+  const city = tripsCity(params.get('trips') || 'mixed')
+  return {
+    game: new Game(seed, { free: true, trips: true, city }),
+    notice: null,
+    screen: { ...FIRST_SCREEN },
+    newRun: () => go(params, (p) => p.set('seed', String(newSeed()))),
+    switchRun: () => go(params, () => {}),
+    title: () => go(params, (p) => p.delete('trips')),
   }
 }
 

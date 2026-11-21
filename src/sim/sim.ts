@@ -6,6 +6,7 @@ import { applyChange, buildNetwork, type Arm, type Connection, type Junction, ty
 import { lanesTo, replan, route } from './routing'
 import type { Change, DemandSpec, NetworkSpec, Priority, Scenario } from './spec'
 import { gatewayDemand, networkSpec } from './tiles'
+import { TRIPS, type Trips } from './trips.proto'
 
 export interface Vehicle {
   id: number
@@ -24,6 +25,10 @@ export interface Vehicle {
   dest: string
   /** Held at the end of its lane this step. */
   waiting: boolean
+  /** PROTOTYPE (#303): the share of its last lane's length at which the car turns off the Road and is gone. */
+  parkAt?: number
+  /** PROTOTYPE (#303): how large the car is drawn, 0-1, as it pulls out or turns off. */
+  scale?: number
 }
 
 export const DT = 1 / 30
@@ -50,6 +55,8 @@ export class Sim {
    */
   readonly served: Uint32Array
   private demand: Demand
+  /** PROTOTYPE (#303): the trips between Tiles, when the run plays them. It outlives the Sim. */
+  readonly trips?: Trips
   /** Every Junction's default configuration, which Reset returns to. */
   private defaults: { enabled: Set<Connection>; priority: Map<Arm, Priority> }
   /** How the traffic into each Junction moves, which says where the Jams are. */
@@ -72,7 +79,7 @@ export class Sim {
     source: City | Scenario,
     carried: Change[] = [],
     seed = 1,
-    { prewarm = true, conflicts = true, traffic }: { prewarm?: boolean; conflicts?: boolean; traffic?: Sim } = {},
+    { prewarm = true, conflicts = true, traffic, trips }: { prewarm?: boolean; conflicts?: boolean; traffic?: Sim; trips?: Trips } = {},
   ) {
     this.spec = source instanceof City ? networkSpec(source) : source.network
     this.net = buildNetwork(this.spec, { conflicts })
@@ -83,7 +90,10 @@ export class Sim {
     }
     for (const change of carried) applyChange(this.net, change)
     // After the Changes: a Gateway only sends trips to the Gateways it can reach as the Connections stand.
-    this.rates = source instanceof City ? gatewayDemand(source, this.net) : source.demand
+    this.trips = trips
+    // PROTOTYPE (#303): with trips between Tiles, a Gateway keeps a fixed base of through traffic.
+    const through = trips && { base: TRIPS.through, weights: [1], growth: 0 }
+    this.rates = source instanceof City ? gatewayDemand(source, this.net, through) : source.demand
     for (const id of [...Object.keys(this.rates), ...Object.values(this.rates).flatMap((d) => Object.keys(d.to))]) {
       if (!this.net.gateways[id])
         throw new Error(`Demand names "${id}", which is not a Gateway (Gateways: ${Object.keys(this.net.gateways).join(', ')})`)
@@ -99,7 +109,8 @@ export class Sim {
     this.served = new Uint32Array(this.net.junctions.length)
     this.junctionIndex = new Map(this.net.junctions.map((j, i) => [j.id, i]))
     if (traffic) this.carry(traffic)
-    else if (prewarm) while (!this.prewarmed) this.step()
+    trips?.bind(this)
+    if (!traffic && prewarm) while (!this.prewarmed) this.step()
   }
 
   /**
@@ -141,13 +152,14 @@ export class Sim {
           gone.add(v)
           continue
         }
-        if (!this.net.gateways[v.dest]) {
+        if (!this.net.gateways[v.dest] && !this.junctionIndex.has(v.dest)) {
           const reached = gateways.filter((g) => reaches(lane, g))
           if (!reached.length) {
             gone.add(v)
             continue
           }
           v.dest = this.demand.draw(reached)
+          v.parkAt = undefined
         }
         v.s = s
         v.lane = lane
@@ -211,7 +223,12 @@ export class Sim {
   }
 
   step() {
-    this.vehicles.push(...this.demand.spawn(this.net, this.time))
+    const entered = this.demand.spawn(this.net, this.time)
+    this.vehicles.push(...entered)
+    if (this.trips) {
+      for (const v of entered) this.trips.entered(v.lane, this.time)
+      this.trips.step(this)
+    }
     for (const v of this.vehicles) v.acc = accel(v)
     for (const v of this.vehicles) {
       const nv = Math.max(0, v.v + v.acc * DT)
@@ -232,6 +249,7 @@ export class Sim {
         if (!next) {
           gone.add(v)
           this.completed++
+          this.trips?.left(v, lane, this.time)
           continue
         }
         v.s -= lane.length
@@ -251,6 +269,7 @@ export class Sim {
         next.vehicles.splice(i, 0, v)
       }
     }
+    this.trips?.park(this, gone)
     if (gone.size) this.vehicles = this.vehicles.filter((v) => !gone.has(v))
 
     measure(
