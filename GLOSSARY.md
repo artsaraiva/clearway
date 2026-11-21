@@ -113,12 +113,16 @@ An open road end of the City: where a Road reaches an edge of its Tile with no T
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Zone and the Stage of its Tile.
+An area beside Roads filled with buildings, grass or a plaza. Traffic enters a Block only to park on a Stand. Its buildings show the Zone and the Stage of its Tile.
 _Avoid_: Plot, parcel
 
 **Lot**:
 The ground of one building inside a Block.
 _Avoid_: Plot, parcel, site
+
+**Stand**:
+A place off the Road, at a house, a shop or an industrial plant, where one car can park.
+_Avoid_: Parking space, parking spot, car park, slot
 
 **Arm**:
 One Road's end at a Junction, carrying an Approach and an Exit. A Road between two Junctions is an Arm of both.
@@ -143,6 +147,14 @@ _Avoid_: Link, turn, lane arrow
 Whether an Arm is a main road or must yield to the other Arms of its Junction. A vehicle that must yield to a main Arm slows to a crawl at its line even when nobody is coming, so a yielding Arm carries less traffic than a main one. Equal Arms give way to the right. On a roundabout the ring is always main.
 _Avoid_: Right of way setting, control, stop sign
 
+**Signal**:
+Traffic lights that run a Priority junction in phases: the vehicles of an Arm go on green and stop on red.
+_Avoid_: Traffic light, street light, stoplight, lights
+
+**Walk phase**:
+The phase of a Signal in which every Arm is red and Walkers cross.
+_Avoid_: Pedestrian phase, all-red, scramble, green man
+
 **Spillback**:
 A queue at one Junction growing back along a road until it blocks the Junction upstream.
 _Avoid_: Backup, gridlock
@@ -161,6 +173,28 @@ _Avoid_: Score, efficiency, speed ratio, throughput
 Sustained low Flow caused by queues at a Junction. It lowers Income and keeps the Tile of that Junction from its next Stage. The player clears it with Changes or by building around it.
 _Avoid_: Congestion, traffic, gridlock
 
+### People
+
+**Walker**:
+A person of the City, on foot, with a name, a home, something they do and a log of their Storylets: always the same person in the same City, and a driver out of their car is one. Walkers stay on the pavements and at the Places off them, and traffic stops for them at a Signal.
+_Avoid_: Pedestrian, person, peg, citizen, character, NPC
+
+**Place**:
+Somewhere a Walker can go off the pavement: a door, a bench, a terrace.
+_Avoid_: Destination, spot, point of interest, location
+
+**Storylet**:
+A short story in beats that happens to a Walker the player Follows or Keeps, each beat written into that Walker's log once it is done. A Storylet is something to read and changes nothing in the City.
+_Avoid_: Story, quest, event, mission
+
+**Follow**:
+Holding the camera on one Walker the player picked, until the player lets go.
+_Avoid_: Track, select, lock on, spectate
+
+**Keep**:
+Marking a Walker so that their Storylets go on while the player looks elsewhere. The Walkers the player Keeps, and their logs, are saved with the run.
+_Avoid_: Favourite, pin, bookmark, adopt
+
 ### Look
 
 **Finish**:
@@ -178,6 +212,10 @@ _Avoid_: Street, street level
 **Block zoom**:
 The camera with one Block filling the screen.
 _Avoid_: Close, close-up, zoomed in
+
+**Lot zoom**:
+The camera with one Lot filling the screen, as close as it goes, where one Walker can be watched.
+_Avoid_: Walker zoom, closest zoom, macro
 
 **Form**:
 The shape a building takes within its Zone: a gable or a hip roof, a round or a stepped tower. Buildings on Lots side by side never share one.
@@ -198,10 +236,6 @@ _Avoid_: Street, sidewalk, pavement edge
 **Skin**:
 One of the looks a vehicle is drawn in: a kei car, a taxi, a van. Every Skin is the same vehicle to the simulation.
 _Avoid_: Vehicle type, model, variant
-
-**Walker**:
-A person drawn walking the pavements. Decoration only: traffic never meets one.
-_Avoid_: Pedestrian, person, peg
 
 ## Retired
 

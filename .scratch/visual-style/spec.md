@@ -2,6 +2,28 @@
 
 Status: open (grilled 2026-11-13 in [#16](https://github.com/artsaraiva/dioramania/issues/16))
 
+## Superseded in part by [#270](https://github.com/artsaraiva/dioramania/issues/270) (2026-11-21)
+
+The low-poly look replaces the look of this spec ([ADR 0009](../../docs/adr/0009-the-low-poly-look.md)), and Walkers cross Roads ([ADR 0010](../../docs/adr/0010-traffic-stops-for-walkers-at-a-signal.md)).
+Where #270 and this spec disagree, #270 wins. It supersedes these parts, which stay below as the record of what is built until its tickets land:
+
+- **Rendering recipe:** the standard soft-lit materials, the shadow's blurred edge and "no post-processing".
+  Shading is flat, shadows are hard, and the scene is drawn through a chain of passes.
+  Whether the contact-shadow decals stay beside the passes' soft shade is not decided.
+- **Light pools**, under Rendering recipe: a pool comes on with its lamp and does not fade as a whole.
+- **Palette:** "there is no filter and no post-processing". The lens pass adds a little saturation; the colours themselves hold.
+- **Surface pattern**, under Rendering recipe and wherever an amendment gives a wall, a roof or the ground one: flat colour and windows built as objects replace it.
+  It may survive farther out than Tile zoom if the frame budget needs it, which a measurement decides.
+- **Shape**, under "The style comes from": rounded and bevelled boxes become boxes with cut corners, and spheres, cylinders and cones become few-sided.
+- **Roads and Blocks:** the zebra stripes at Junction mouths, "decoration until pedestrians become a mechanic", are where Walkers cross.
+- **Vehicles and jam feedback:** a car held at a red light or parked on a Stand shows no anger, and one on green at a Signal grows angry more slowly.
+- **Day cycle:** windows and lamps come on one at a time as dusk falls, not in one even fade.
+- **Camera:** it goes closer than Block zoom, to Lot zoom, and keys move, turn and zoom it.
+- **Sky and ambient life:** "decoration outside the sim" no longer covers Walkers, who leave the pavement for Places and cross a Road at a Signal; the planes are removed.
+
+Everything else holds: the rule, the palette's colours, proportion, the slab, the rest of Roads and Blocks, Block fill and each Zone's file, the Finish, the budget and verification.
+A look change keeps each Zone's building designs and its palette.
+
 ## Amended by [#195](https://github.com/artsaraiva/dioramania/issues/195) (2026-11-20)
 
 The Kerbside, on every Tile: after its walk, a run of pavement still bare as the scene check reads it takes a pair of bollards at its free point nearest its middle, at the walk's depth or else by the kerb. Bare means: where the kerb faces a Road, with nothing standing on the ground within 3.6 m and no bay at the kerb, for more than 11 of the check's points, about 11 m.
