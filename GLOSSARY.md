@@ -113,12 +113,16 @@ An open road end of the City: where a Road reaches an edge of its Tile with no T
 _Avoid_: Spawn point, entrance, map edge, open end
 
 **Block**:
-An area beside Roads filled with buildings, grass or a plaza. Traffic never enters a Block. Its buildings show the Zone and the Stage of its Tile.
+An area beside Roads filled with buildings, grass or a plaza. Traffic leaves the Road only at a Drive. Its buildings show the Zone and the Stage of its Tile.
 _Avoid_: Plot, parcel
 
 **Lot**:
 The ground of one building inside a Block.
 _Avoid_: Plot, parcel, site
+
+**Drive**:
+The one place on a Block's kerb where a vehicle turns off the Road. Past it the vehicle goes out of sight or stands in view on the Block. Every Block of a zoned Tile has one, from Stage 1, and it never moves with the Stage.
+_Avoid_: Driveway, entrance, access, garage
 
 **Arm**:
 One Road's end at a Junction, carrying an Approach and an Exit. A Road between two Junctions is an Arm of both.
