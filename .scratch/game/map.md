@@ -69,7 +69,7 @@ Look (since [#16](https://github.com/artsaraiva/dioramania/issues/16)): an anime
   - Fog has no visual: the District is a slab that grows. A Reveal drops the next piece in brick by brick; each Level authors its piece as a rectangle.
   - Proportion is the look: lanes about 7 m wide, Blocks 40–60 m. Landmarks are authored, the rest is seeded lot fill. Districts are themed.
   - Jam emotion (anger marks, shaking, steam, speech bubbles) is the main in-world jam signal. Priority shows as road paint that follows Changes. Clicking a car shows its route.
-  - Full cosmetic day cycle; night stays bright. Clouds fade on zoom; planes, boats and pavement walkers are decoration.
+  - Full cosmetic day cycle; night stays bright. Clouds fade on zoom; boats and pavement walkers are decoration.
   - First playable District becomes a small street grid, with the roundabout later. This contradicts the junction chain (06) and needs its own grilling before [#8](https://github.com/artsaraiva/dioramania/issues/8)–[#14](https://github.com/artsaraiva/dioramania/issues/14) are built.
   - Measured: 9.9 ms per frame with 1,000 cars at 2× pixel density on an M4 Pro.
 - Junction chain (06, 2026-11-12). Details in `issues/06-junction-chain.md` under Answer; spec in `.scratch/district-01/spec.md` with one issue per Level.

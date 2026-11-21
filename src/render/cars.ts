@@ -8,7 +8,7 @@ import { merged, painted, part, roundedBox, takesPaint, tint } from './shapes'
 // ponytail: cars past the cap are not drawn (the sim still moves them); the budget is 1,000, so raise it when a City holds more.
 const CAP = 1500
 const LENGTH = 4.3 // m: every skin is drawn this long, the sim's one car type
-// Walkers' shirts, the planes' wings, the confetti and the food trucks (#177) share these. Blue is the Tools' colour and
+// Walkers' shirts, the confetti and the food trucks (#177) share these. Blue is the Tools' colour and
 // red-orange the Jams', so there is a turquoise car where a blue one would be and a raspberry one where a coral one would be.
 export const PAINTS = {
   white: '#ffffff',
