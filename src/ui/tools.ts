@@ -48,7 +48,7 @@ export function createTools(note: HTMLElement, canvas: HTMLCanvasElement, game: 
   note.innerHTML = `
     <span class="tape yellow" style="--tilt: -3deg"></span>
     <header><span class="label">Junction</span><span class="stamp in-jam" hidden>In a Jam</span></header>
-    <div class="title"><h2 class="name"></h2><span class="handwritten kind"></span></div>
+    <div class="heading"><h2 class="name"></h2><span class="handwritten kind"></span></div>
     <span class="rule across"></span>
     <p class="handwritten hint"></p>
     <ul class="legend">

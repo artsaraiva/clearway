@@ -22,7 +22,7 @@ export function createTitle(title: Title, play: (run: Run) => void) {
   root.className = 'title'
   root.innerHTML = `
     <canvas class="scene" role="img" aria-label="One low-density residential tile with cars driving through its crossroads"></canvas>
-    <div class="paper card" style="--tilt: -2deg">
+    <div class="paper title-card" style="--tilt: -2deg">
       <span class="tape" style="--tilt: -26deg"></span>
       <span class="tape pink" style="--tilt: 22deg"></span>
       <h1>Dioramania</h1>
